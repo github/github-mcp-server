@@ -10,6 +10,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Toolsets | `X-MCP-Toolsets` header or `/x/{toolset}` URL | `--toolsets` flag or `GITHUB_TOOLSETS` env var |
 | Individual Tools | `X-MCP-Tools` header | `--tools` flag or `GITHUB_TOOLS` env var |
 | Exclude Tools | `X-MCP-Exclude-Tools` header | `--exclude-tools` flag or `GITHUB_EXCLUDE_TOOLS` env var |
+| Per-toolset read-only | Not available on the hosted server | `--read-only-toolsets` or `GITHUB_READ_ONLY_TOOLSETS` (stdio and self-hosted HTTP) |
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
@@ -232,6 +233,8 @@ Listed tools are removed regardless of any other configuration — even if their
 **Best for:** Security conscious users who want to ensure the server won't allow operations that modify issues, pull requests, repositories etc.
 
 When active, this mode will disable all tools that are not read-only even if they were requested.
+
+For a mixed policy on a local or self-hosted server, use `--read-only-toolsets=issues,pull_requests` or `GITHUB_READ_ONLY_TOOLSETS=issues,pull_requests`. Reads in those toolsets remain available, while their write tools are removed. Other enabled toolsets remain writable. Global read-only takes precedence, and explicit tools or HTTP request headers cannot restore blocked tools. This setting does not enable toolsets. Names are trimmed and deduplicated; `all` and `default` are supported, and unknown names fail startup. See [per-toolset read-only mode](../README.md#per-toolset-read-only-mode).
 
 **Example:** 
 <table>

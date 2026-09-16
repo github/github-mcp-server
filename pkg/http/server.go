@@ -95,6 +95,9 @@ type ServerConfig struct {
 	// cannot re-enable write tools.
 	ReadOnly bool
 
+	// ReadOnlyToolsets restricts write tools in the listed toolsets.
+	ReadOnlyToolsets []string
+
 	// EnabledToolsets is a list of toolsets to enable.
 	// When set via CLI flag, per-request headers can only narrow within these toolsets.
 	EnabledToolsets []string

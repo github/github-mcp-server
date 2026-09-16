@@ -108,6 +108,11 @@ var (
 				}
 			}
 
+			var readOnlyToolsets []string
+			if err := viper.UnmarshalKey("read-only-toolsets", &readOnlyToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal read-only-toolsets: %w", err)
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
@@ -117,6 +122,7 @@ var (
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
 				ReadOnly:             viper.GetBool("read-only"),
+				ReadOnlyToolsets:     readOnlyToolsets,
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
@@ -195,6 +201,11 @@ var (
 				}
 			}
 
+			var readOnlyToolsets []string
+			if err := viper.UnmarshalKey("read-only-toolsets", &readOnlyToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal read-only-toolsets: %w", err)
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -212,6 +223,7 @@ var (
 				RepoAccessCacheTTL:   &ttl,
 				ScopeChallenge:       viper.GetBool("scope-challenge"),
 				ReadOnly:             viper.GetBool("read-only"),
+				ReadOnlyToolsets:     readOnlyToolsets,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				ExcludeTools:         excludeTools,
@@ -237,6 +249,7 @@ func init() {
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
 	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
+	rootCmd.PersistentFlags().StringSlice("read-only-toolsets", nil, "Comma-separated list of toolsets to restrict to read-only operations (supports all and default)")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
@@ -274,6 +287,7 @@ func init() {
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
+	_ = viper.BindPFlag("read-only-toolsets", rootCmd.PersistentFlags().Lookup("read-only-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))

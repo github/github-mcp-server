@@ -1657,6 +1657,27 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+### Per-toolset read-only mode
+
+Use `--read-only-toolsets` or `GITHUB_READ_ONLY_TOOLSETS` to keep selected toolsets read-only while allowing writes in other enabled toolsets. This works with both `stdio` and self-hosted `http` servers:
+
+```bash
+./github-mcp-server stdio --toolsets=repos,issues,pull_requests --read-only-toolsets=issues,pull_requests
+```
+
+Environment equivalent: `GITHUB_READ_ONLY_TOOLSETS=issues,pull_requests`.
+
+Read tools in `issues` and `pull_requests` remain available; their write tools are omitted. Repository write tools remain available. The policy follows each tool's declared toolset and read-only annotation.
+
+- Global `--read-only` still blocks all write tools.
+- Explicit `--tools` selections and HTTP request configuration cannot bypass the restriction.
+- Listing a toolset here does not enable it. Normal toolset selection still applies.
+- In HTTP mode, this policy alone preserves default tool selection and allows request headers to select other toolsets. Use `--toolsets` to limit which toolsets requests may select.
+- Names are trimmed and deduplicated. `all` restricts every toolset; `default` restricts the default toolsets. Unknown names cause startup to fail.
+- `list-scopes` honors this setting when reporting available tools and required scopes.
+
+This is a static policy; it does not prompt for approval or grant temporary write access.
+
 ## Lockdown Mode
 
 Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.

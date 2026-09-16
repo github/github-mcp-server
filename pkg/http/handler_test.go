@@ -488,6 +488,12 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
 		},
 		{
+			name:          "per-toolset policy filters only its writes",
+			config:        &ServerConfig{Version: "test", ReadOnlyToolsets: []string{"issues"}},
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
 			name:   "static read-only cannot be overridden by header",
 			config: &ServerConfig{Version: "test", ReadOnly: true},
 			path:   "/",
@@ -619,7 +625,7 @@ func TestStaticConfigEnforcement(t *testing.T) {
 					builder = builder.WithReadOnly(true)
 				}
 
-				if hasStatic {
+				if hasStatic || len(tt.config.ReadOnlyToolsets) > 0 {
 					r = filterRequestTools(r, validToolNames)
 				}
 
@@ -897,14 +903,18 @@ func TestContentTypeHandling(t *testing.T) {
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
 func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt, error) {
-	if !hasStaticConfig(cfg) {
+	if !hasStaticConfig(cfg) && len(cfg.ReadOnlyToolsets) == 0 {
 		return tools, nil, nil, nil
 	}
 
 	b := inventory.NewBuilder().
 		SetTools(tools).
 		WithReadOnly(cfg.ReadOnly).
+		WithReadOnlyToolsets(cfg.ReadOnlyToolsets).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
+	if !hasStaticConfig(cfg) {
+		b = b.WithToolsets([]string{"all"})
+	}
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
@@ -1524,4 +1534,95 @@ func TestMaxRequestBodySizeEnforcement(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
 		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
 	})
+}
+
+func TestDefaultInventoryFactoryReadOnlyToolsets(t *testing.T) {
+	cfg := &ServerConfig{
+		Version: "test", EnabledToolsets: []string{"issues", "repos", "pull_requests"},
+		ReadOnlyToolsets: []string{"issues", "pull_requests"},
+		EnabledTools:     []string{"add_issue_comment"},
+	}
+	factory, err := NewDefaultInventoryFactory(cfg, translations.NullTranslationHelper, nil, allScopesFetcher{})
+	require.NoError(t, err)
+	for _, explicit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("explicit_request_%v", explicit), func(t *testing.T) {
+			ctx := ghcontext.WithToolsets(context.Background(), []string{"all"})
+			if explicit {
+				ctx = ghcontext.WithTools(ctx, []string{"add_issue_comment", "merge_pull_request", "push_files", "get_file_contents"})
+			}
+			req := httptest.NewRequest(http.MethodPost, "/", nil).WithContext(ctx)
+			req.Header.Set(headers.MCPReadOnlyHeader, "false")
+			inv, err := factory(req)
+			require.NoError(t, err)
+			names := extractToolNames(ctx, inv)
+			require.Contains(t, names, "push_files")
+			require.Contains(t, names, "get_file_contents")
+			require.NotContains(t, names, "add_issue_comment")
+			require.NotContains(t, names, "merge_pull_request")
+			require.Empty(t, inv.ForMCPRequest(inventory.MCPMethodToolsCall, "add_issue_comment").AvailableTools(ctx))
+		})
+	}
+	// A policy alone must trigger static filtering, even without tool selection.
+	factory, err = NewDefaultInventoryFactory(&ServerConfig{
+		ReadOnlyToolsets: []string{"issues"},
+	}, translations.NullTranslationHelper, nil, allScopesFetcher{})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	inv, err := factory(req)
+	require.NoError(t, err)
+	names := extractToolNames(req.Context(), inv)
+	require.NotContains(t, names, "add_issue_comment")
+	require.Contains(t, names, "issue_read")
+	require.Contains(t, names, "push_files")
+
+	cfg.ReadOnlyToolsets = []string{"pull-request"}
+	factory, err = NewDefaultInventoryFactory(cfg, translations.NullTranslationHelper, nil, allScopesFetcher{})
+	require.ErrorIs(t, err, inventory.ErrUnknownReadOnlyToolsets)
+	require.Nil(t, factory)
+}
+
+func TestReadOnlyToolsetsRequestSelection(t *testing.T) {
+	tests := []struct {
+		name     string
+		policy   []string
+		toolsets string
+		tools    string
+		readonly string
+		want     []string
+		absent   []string
+	}{
+		{name: "defaults remain defaults", policy: []string{"issues"}, want: []string{"issue_read", "push_files"}, absent: []string{"add_issue_comment", "actions_list"}},
+		{name: "non-default toolset", policy: []string{"issues"}, toolsets: "actions", want: []string{"actions_list", "actions_run_trigger"}, absent: []string{"issue_read"}},
+		{name: "restricted non-default toolset", policy: []string{"actions"}, toolsets: "actions", want: []string{"actions_list"}, absent: []string{"actions_run_trigger"}},
+		{name: "explicit tools respect policy", policy: []string{"issues"}, tools: "add_issue_comment,actions_run_trigger", readonly: "false", want: []string{"actions_run_trigger"}, absent: []string{"add_issue_comment", "issue_read"}},
+		{name: "request can restrict further", policy: []string{"issues"}, toolsets: "actions", readonly: "true", want: []string{"actions_list"}, absent: []string{"actions_run_trigger"}},
+		{name: "empty policy", policy: []string{}, toolsets: "actions,issues", want: []string{"actions_run_trigger", "add_issue_comment"}},
+		{name: "blank policy", policy: []string{" ", ""}, toolsets: "actions,issues", want: []string{"actions_run_trigger", "add_issue_comment"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory, err := NewDefaultInventoryFactory(&ServerConfig{ReadOnlyToolsets: tt.policy}, translations.NullTranslationHelper, createHTTPFeatureChecker(nil, false), allScopesFetcher{})
+			require.NoError(t, err)
+			called := false
+			handler := middleware.WithRequestConfig(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				called = true
+				inv, err := factory(r)
+				require.NoError(t, err)
+				names := extractToolNames(r.Context(), inv)
+				for _, name := range tt.want {
+					assert.Contains(t, names, name)
+				}
+				for _, name := range tt.absent {
+					assert.NotContains(t, names, name)
+					assert.Empty(t, inv.ForMCPRequest(inventory.MCPMethodToolsCall, name).AvailableTools(r.Context()))
+				}
+			}))
+			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			req.Header.Set(headers.MCPToolsetsHeader, tt.toolsets)
+			req.Header.Set(headers.MCPToolsHeader, tt.tools)
+			req.Header.Set(headers.MCPReadOnlyHeader, tt.readonly)
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+			require.True(t, called)
+		})
+	}
 }
