@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Check out the actual PR branch so we can push changes back if needed
       - name: Check out PR branch
@@ -36,7 +36,7 @@ jobs:
         uses: ./.github/actions/build-ui
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
 
@@ -70,7 +70,7 @@ jobs:
       - name: Check if already commented
         if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure'
         id: check_comment
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const { data: comments } = await github.rest.issues.listComments({
@@ -88,7 +88,7 @@ jobs:
 
       - name: Comment with instructions if cannot push
         if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure' && steps.check_comment.outputs.already_commented == 'false'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             await github.rest.issues.createComment({
