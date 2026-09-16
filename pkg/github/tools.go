@@ -253,6 +253,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Issue tools
 		IssueRead(t),
+		IssueReadWithEvents(t),
 		SearchIssues(t, opts...),
 		ListIssues(t),
 		ListIssueTypes(t),

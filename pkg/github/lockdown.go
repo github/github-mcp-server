@@ -14,6 +14,7 @@ import (
 const (
 	lockdownPullRequestRestrictedMessage = "access to pull request is restricted by lockdown mode"
 	lockdownIssueRestrictedMessage       = "access to issue details is restricted by lockdown mode"
+	lockdownIssueEventRestrictedMessage  = "access to issue event is restricted by lockdown mode"
 )
 
 // authorLockdownResult returns a restricted tool result when content authored by

@@ -1,0 +1,60 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get issue details"
+  },
+  "description": "Get information about a specific issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "event_id": {
+        "description": "The ID of the issue event. Required for, and only used by, the get_event method.",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "The number of the issue. Required for every method except get_event.",
+        "type": "number"
+      },
+      "method": {
+        "description": "The read operation to perform on a single issue.\nOptions are:\n1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n2. get_comments - Get issue comments.\n3. get_sub_issues - Get sub-issues (children) of the issue.\n4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n5. get_labels - Get labels assigned to the issue.\n6. get_events - Get the issue's event history: labeled, assigned, closed, renamed, referenced and so on.\n7. get_timeline - Get the issue's timeline. A superset of get_events that also includes comments, commits and reviews, so prefer it when you need the full narrative and get_events when you only need state changes.\n8. get_event - Get a single issue event by its `event_id`. Takes `event_id` instead of `issue_number`.\n",
+        "enum": [
+          "get",
+          "get_comments",
+          "get_sub_issues",
+          "get_parent",
+          "get_labels",
+          "get_events",
+          "get_timeline",
+          "get_event"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "The name of the repository",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "issue_read"
+}

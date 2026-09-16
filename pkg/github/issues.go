@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -790,19 +791,53 @@ func isUnsupportedListIssuesIssueFieldsError(err error) bool {
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := issueRead(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagIssueEvents}
+	return st
+}
+
+// IssueReadWithEvents creates the feature-gated issue_read variant that also exposes the
+// issue's event history: get_events, get_timeline and get_event.
+func IssueReadWithEvents(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := issueRead(t, true)
+	st.FeatureFlagEnable = FeatureFlagIssueEvents
+	return st
+}
+
+// issueRead builds the issue_read tool. When withEvents is false the schema and behavior are
+// exactly the ungated tool.
+func issueRead(t translations.TranslationHelperFunc, withEvents bool) inventory.ServerTool {
+	methodDescription := "The read operation to perform on a single issue.\n" +
+		"Options are:\n" +
+		"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n" +
+		"2. get_comments - Get issue comments.\n" +
+		"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
+		"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
+		"5. get_labels - Get labels assigned to the issue.\n"
+	methods := []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"}
+
+	issueNumberDescription := "The number of the issue"
+	required := []string{"method", "owner", "repo", "issue_number"}
+
+	if withEvents {
+		methodDescription += "6. get_events - Get the issue's event history: labeled, assigned, closed, renamed, referenced and so on.\n" +
+			"7. get_timeline - Get the issue's timeline. A superset of get_events that also includes comments, commits and reviews, so prefer it when you need the full narrative and get_events when you only need state changes.\n" +
+			"8. get_event - Get a single issue event by its `event_id`. Takes `event_id` instead of `issue_number`.\n"
+		methods = append(methods, "get_events", "get_timeline", "get_event")
+
+		issueNumberDescription = "The number of the issue. Required for every method except get_event."
+		// get_event is addressed by event_id and has no issue number to supply, so
+		// issue_number drops out of the required list and is enforced per method below.
+		required = []string{"method", "owner", "repo"}
+	}
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
 			"method": {
-				Type: "string",
-				Description: "The read operation to perform on a single issue.\n" +
-					"Options are:\n" +
-					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n" +
-					"2. get_comments - Get issue comments.\n" +
-					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
-					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
-					"5. get_labels - Get labels assigned to the issue.\n",
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
+				Type:        "string",
+				Description: methodDescription,
+				Enum:        methods,
 			},
 			"owner": {
 				Type:        "string",
@@ -814,10 +849,16 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			"issue_number": {
 				Type:        "number",
-				Description: "The number of the issue",
+				Description: issueNumberDescription,
 			},
 		},
-		Required: []string{"method", "owner", "repo", "issue_number"},
+		Required: required,
+	}
+	if withEvents {
+		schema.Properties["event_id"] = &jsonschema.Schema{
+			Type:        "number",
+			Description: "The ID of the issue event. Required for, and only used by, the get_event method.",
+		}
 	}
 	WithPagination(schema)
 
@@ -847,9 +888,19 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			// The event history methods exist only on the feature-gated variant, so reject
+			// them here in case a client calls one without honoring the schema.
+			if !withEvents && slices.Contains([]string{"get_events", "get_timeline", "get_event"}, method) {
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+
+			// get_event is addressed by event_id, so it is the one method with no issue number.
+			var issueNumber int
+			if method != "get_event" {
+				issueNumber, err = RequiredInt(args, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			pagination, err := OptionalPaginationParams(args)
@@ -887,6 +938,19 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return attachIFC(result), nil, err
+			case "get_events":
+				result, err := GetIssueEvents(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), nil, err
+			case "get_timeline":
+				result, err := GetIssueTimeline(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), nil, err
+			case "get_event":
+				eventID, err := RequiredBigInt(args, "event_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetIssueEvent(ctx, client, deps, owner, repo, eventID)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -1060,6 +1124,179 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 	}
 
 	return MarshalledTextResult(minimalComments), nil
+}
+
+// eventActorLogin reports the login to attribute an event or timeline entry to. `commented`
+// and `reviewed` entries name their author in User and leave Actor empty, so both fields are
+// consulted before an entry is treated as unattributable.
+func eventActorLogin(actor, user *github.User) string {
+	if login := actor.GetLogin(); login != "" {
+		return login
+	}
+	return user.GetLogin()
+}
+
+// GetIssueEvents returns the event history of an issue: the state changes (labeled, assigned,
+// closed, renamed, ...) without the comment bodies that get_timeline adds.
+func GetIssueEvents(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
+	opts := &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
+	}
+
+	events, resp, err := client.Issues.ListIssueEvents(ctx, owner, repo, issueNumber, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue events: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue events", resp, body), nil
+	}
+
+	// Events carry user-authored content (renamed titles), so under lockdown they are
+	// filtered by actor exactly as issue comments are.
+	if flags.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filtered := make([]*github.IssueEvent, 0, len(events))
+		for _, event := range events {
+			if event == nil {
+				continue
+			}
+			login := eventActorLogin(event.GetActor(), nil)
+			if login == "" {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isSafeContent {
+				filtered = append(filtered, event)
+			}
+		}
+		events = filtered
+	}
+
+	minimalEvents := make([]MinimalIssueEvent, 0, len(events))
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		minimalEvents = append(minimalEvents, convertToMinimalIssueEvent(event))
+	}
+
+	return MarshalledTextResult(minimalEvents), nil
+}
+
+// GetIssueTimeline returns the timeline of an issue: a superset of GetIssueEvents that also
+// includes comments, commits and reviews.
+func GetIssueTimeline(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
+	opts := &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
+	}
+
+	items, resp, err := client.Issues.ListIssueTimeline(ctx, owner, repo, issueNumber, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue timeline: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue timeline", resp, body), nil
+	}
+
+	// The timeline embeds comment and review bodies, so an entry whose author lacks push
+	// access is dropped entirely under lockdown.
+	if flags.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filtered := make([]*github.Timeline, 0, len(items))
+		for _, item := range items {
+			if item == nil {
+				continue
+			}
+			login := eventActorLogin(item.GetActor(), item.GetUser())
+			if login == "" {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isSafeContent {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
+	}
+
+	minimalItems := make([]MinimalTimelineItem, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		minimalItems = append(minimalItems, convertToMinimalTimelineItem(item))
+	}
+
+	return MarshalledTextResult(minimalItems), nil
+}
+
+// GetIssueEvent returns a single issue event addressed by its own id. With only one event to
+// return, lockdown mode rejects the read outright instead of filtering, as `get` does.
+func GetIssueEvent(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, eventID int64) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
+	event, resp, err := client.Issues.GetEvent(ctx, owner, repo, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue event: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue event", resp, body), nil
+	}
+
+	if flags.LockdownMode {
+		login := eventActorLogin(event.GetActor(), nil)
+		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, login, lockdownIssueEventRestrictedMessage); restricted != nil || err != nil {
+			return restricted, err
+		}
+	}
+
+	return MarshalledTextResult(convertToMinimalIssueEvent(event)), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
