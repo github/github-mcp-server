@@ -1,6 +1,7 @@
 {
   "annotations": {
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Write operations (create, submit, delete) on pull request reviews"
   },

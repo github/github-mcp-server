@@ -10,6 +10,7 @@
   },
   "annotations": {
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Create or update issue/pull request"
   },

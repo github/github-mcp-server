@@ -290,8 +290,9 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -398,8 +399,9 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
@@ -598,6 +600,7 @@ Supports adding top-level comments, replying to existing comments, updating comm
 				Title:           t("TOOL_DISCUSSION_COMMENT_WRITE_USER_TITLE", "Manage discussion comments"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
