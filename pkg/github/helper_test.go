@@ -64,6 +64,7 @@ const (
 	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
 	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
 	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PatchReposIssuesCommentByOwnerByRepoByCommentID             = "PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}"
 	PostReposIssuesReactionsByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/reactions"
 	DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber        = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
 	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
