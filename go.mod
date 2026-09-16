@@ -1,6 +1,6 @@
 module github.com/github/github-mcp-server
 
-go 1.25.12
+go 1.26.0
 
 require (
 	github.com/go-chi/chi/v5 v5.3.2
@@ -20,7 +20,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/yosida95/uritemplate/v3 v3.0.2
 	golang.org/x/net v0.55.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 )
 
 require (
