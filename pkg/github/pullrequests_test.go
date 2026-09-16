@@ -1371,6 +1371,113 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	}
 }
 
+func Test_GetPullRequestFiles_Fields(t *testing.T) {
+	files := []*github.CommitFile{
+		{
+			Filename:         github.Ptr("new.go"),
+			Status:           github.Ptr("renamed"),
+			Additions:        github.Ptr(2),
+			Deletions:        github.Ptr(1),
+			Changes:          github.Ptr(3),
+			Patch:            github.Ptr("@@ -1 +1,2 @@\n-old\n+new\n+line"),
+			PreviousFilename: github.Ptr("old.go"),
+		},
+		{
+			Filename: github.Ptr("image.png"),
+			Status:   github.Ptr("added"),
+		},
+	}
+	full := `[{"filename":"new.go","status":"renamed","additions":2,"deletions":1,"changes":3,"patch":"@@ -1 +1,2 @@\n-old\n+new\n+line","previous_filename":"old.go"},{"filename":"image.png","status":"added"}]`
+
+	for _, tc := range []struct {
+		name    string
+		fields  any
+		omit    bool
+		empty   bool
+		want    string
+		wantErr string
+	}{
+		{
+			name: "omitted fields preserves patches",
+			omit: true,
+			want: full,
+		},
+		{
+			name:   "empty fields preserves patches",
+			fields: []any{},
+			want:   full,
+		},
+		{
+			name:   "filenames only",
+			fields: []any{"filename"},
+			want:   `[{"filename":"new.go"},{"filename":"image.png"}]`,
+		},
+		{
+			name:   "metadata without patches",
+			fields: []any{"filename", "status", "changes", "previous_filename"},
+			want:   `[{"filename":"new.go","status":"renamed","changes":3,"previous_filename":"old.go"},{"filename":"image.png","status":"added"}]`,
+		},
+		{
+			name:   "explicit patch with absent patch omitted",
+			fields: []any{"filename", "patch"},
+			want:   `[{"filename":"new.go","patch":"@@ -1 +1,2 @@\n-old\n+new\n+line"},{"filename":"image.png"}]`,
+		},
+		{
+			name:   "empty results",
+			fields: []any{"filename"},
+			empty:  true,
+			want:   `[]`,
+		},
+		{
+			name:    "invalid fields type",
+			fields:  "filename",
+			wantErr: "fields",
+		},
+		{
+			name:    "invalid field element",
+			fields:  []any{42},
+			wantErr: "fields",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := files
+			if tc.empty {
+				response = []*github.CommitFile{}
+			}
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: func(w http.ResponseWriter, r *http.Request) {
+					require.Empty(t, tc.wantErr, "invalid fields must be rejected before fetching files")
+					expectQueryParams(t, map[string]string{"page": "2", "per_page": "10"}).andThen(mockResponse(t, http.StatusOK, response))(w, r)
+				},
+			}))
+			deps := BaseDeps{Client: client}
+			args := map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
+			}
+			if !tc.omit {
+				args["fields"] = tc.fields
+			}
+			request := createMCPRequest(args)
+			tool := PullRequestRead(translations.NullTranslationHelper)
+			handler := tool.Handler(deps)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.wantErr != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.wantErr)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.JSONEq(t, tc.want, getTextResult(t, result).Text)
+		})
+	}
+}
+
 func Test_GetPullRequestCommits(t *testing.T) {
 	// Verify tool definition once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
