@@ -437,10 +437,10 @@ Use this tool to list projects for a user or organization, or list project field
 					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
 					return result, payload, err
 				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+					return unknownMethodError(method, projectsMethodListProjects, projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates, projectsMethodListProjectViews), nil, nil
 				}
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, projectsMethodListProjects, projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates, projectsMethodListProjectViews), nil, nil
 			}
 		},
 	)
@@ -642,7 +642,7 @@ Use this tool to get details about individual projects, project fields, project 
 				}
 				return result, payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, projectsMethodGetProject, projectsMethodGetProjectField, projectsMethodGetProjectItem, projectsMethodGetProjectStatusUpdate, projectsMethodGetProjectView), nil, nil
 			}
 		},
 	)
@@ -1037,7 +1037,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case projectsMethodDeleteProjectView:
 				return deleteProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, projectsMethodAddProjectItem, projectsMethodUpdateProjectItem, projectsMethodUpdateProjectItems, projectsMethodDeleteProjectItem, projectsMethodCreateProjectStatusUpdate, projectsMethodCreateProjectView, projectsMethodUpdateProjectView, projectsMethodDeleteProjectView, projectsMethodCreateProject, projectsMethodCreateIterationField), nil, nil
 			}
 		},
 	)
