@@ -104,9 +104,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			Token:         cfg.Token,
-			TokenProvider: cfg.TokenProvider,
-			AllowedHosts:  allowedHosts,
+			Token:                cfg.Token,
+			TokenProvider:        cfg.TokenProvider,
+			RequestTokenProvider: cfg.RequestTokenProvider,
+			AllowedHosts:         allowedHosts,
 		},
 	}
 
@@ -157,10 +158,11 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 func newRESTClient(cfg github.MCPServerConfig, uaTransport *transport.UserAgentTransport, restURL, uploadURL string, allowedHosts []string) (*gogithub.Client, error) {
 	return gogithub.NewClient(
 		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-			Transport:     uaTransport,
-			Token:         cfg.Token,
-			TokenProvider: cfg.TokenProvider,
-			AllowedHosts:  allowedHosts,
+			Transport:            uaTransport,
+			Token:                cfg.Token,
+			TokenProvider:        cfg.TokenProvider,
+			RequestTokenProvider: cfg.RequestTokenProvider,
+			AllowedHosts:         allowedHosts,
 		}}),
 		gogithub.WithEnterpriseURLs(restURL, uploadURL),
 	)
@@ -303,18 +305,24 @@ type StdioServerConfig struct {
 
 	// TokenProvider supplies a token for each GitHub API request.
 	TokenProvider func() string
+
+	// RequestTokenProvider supplies a token for each GitHub API request based on
+	// the request itself. GitHub App authentication that spans several
+	// installations uses it to pick the installation that owns the resource
+	// being addressed.
+	RequestTokenProvider func(*http.Request) string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
 	authModes := 0
-	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil, cfg.RequestTokenProvider != nil} {
 		if on {
 			authModes++
 		}
 	}
 	if authModes > 1 {
-		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, TokenProvider, or RequestTokenProvider")
 	}
 
 	// Create app context
@@ -384,6 +392,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		RepoAccessTTL:         cfg.RepoAccessCacheTTL,
 		TokenScopes:           tokenScopes,
 		TokenProvider:         tokenProvider,
+		RequestTokenProvider:  cfg.RequestTokenProvider,
 		ToolHandlerMiddleware: toolHandlerMiddleware,
 	})
 	if err != nil {
