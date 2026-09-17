@@ -22,6 +22,7 @@ func TestPublicRepoContributionToolScopeAccess(t *testing.T) {
 		{name: "create_pull_request", tool: CreatePullRequest(translations.NullTranslationHelper)},
 		{name: "issue_write", tool: IssueWrite(translations.NullTranslationHelper)},
 		{name: "add_issue_comment", tool: AddIssueComment(translations.NullTranslationHelper)},
+		{name: "update_issue_comment", tool: UpdateIssueComment(translations.NullTranslationHelper)},
 	}
 
 	for _, tt := range tools {
@@ -50,6 +51,7 @@ func TestPublicRepoContributionToolsVisibleToPATs(t *testing.T) {
 		CreatePullRequest(translations.NullTranslationHelper),
 		IssueWrite(translations.NullTranslationHelper),
 		AddIssueComment(translations.NullTranslationHelper),
+		UpdateIssueComment(translations.NullTranslationHelper),
 	}
 
 	tests := []struct {
