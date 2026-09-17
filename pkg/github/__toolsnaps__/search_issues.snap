@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "Search issues"
   },
-  "description": "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue.",
+  "description": "Search issues on GitHub. Uses lexical GitHub issues search for keyword or search-syntax queries, and when owner/repo scope is set. Uses natural-language semantic matching for open-ended conceptual queries. Already scoped to is:issue. Pass search_type to force lexical or semantic.",
   "inputSchema": {
     "properties": {
       "fields": {
@@ -64,11 +64,19 @@
         "type": "number"
       },
       "query": {
-        "description": "The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR.",
+        "description": "Search query. Prefer GitHub issues search syntax for keywords and filters. For open-ended conceptual questions, plain natural language is fine. Pass search_type=lexical to force keyword search.",
         "type": "string"
       },
       "repo": {
         "description": "Optional repository name. If provided with owner, only issues for this repository are listed.",
+        "type": "string"
+      },
+      "search_type": {
+        "description": "Search engine. lexical matches GitHub issues search keywords and filters. semantic uses natural-language matching. When omitted, scoped or search-syntax queries use lexical; open-ended conceptual queries use semantic on github.com.",
+        "enum": [
+          "lexical",
+          "semantic"
+        ],
         "type": "string"
       },
       "sort": {
