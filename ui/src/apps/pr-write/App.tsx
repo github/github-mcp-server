@@ -52,6 +52,22 @@ interface BranchItem {
   protected: boolean;
 }
 
+const branchMenuButtonSx = {
+  width: "100%",
+  minWidth: 0,
+  "& [data-component='buttonContent']": {
+    minWidth: 0,
+    overflow: "hidden",
+    flex: "1 1 auto",
+  },
+  "& [data-component='text']": {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+} as const;
+
 type ReviewerItem = { kind: "user" | "team"; id: string; text: string; avatar?: string; org?: string };
 
 function reviewerFromValue(value: string): ReviewerItem {
@@ -570,7 +586,11 @@ function CreatePRApp() {
           <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
             <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>base</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                sx={branchMenuButtonSx}
+              >
                 {baseBranch || "Select base"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
@@ -611,7 +631,11 @@ function CreatePRApp() {
           <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
             <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>compare</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                sx={branchMenuButtonSx}
+              >
                 {headBranch || "Select head"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
