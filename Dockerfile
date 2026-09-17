@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:e88a35be04478413b7c71c455cd9865de9b9360e1f43456be5951032d7ac1a66 AS ui-build
+FROM node:26-alpine@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868 AS ui-build
 WORKDIR /app
 COPY ui/package*.json ./ui/
 RUN cd ui && npm ci
