@@ -89,7 +89,9 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// into the cache. The hosted, horizontally-scaled server builds a fresh REST
 	// client per request (see pkg/github RequestDeps) and does not use this path.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
+		Transport: &transport.RateLimitTransport{
+			Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
+		},
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
 	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts)

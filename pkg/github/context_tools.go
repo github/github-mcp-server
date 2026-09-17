@@ -41,6 +41,42 @@ type UserDetails struct {
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
 }
 
+// Diagnostic creates a tool to check server health and authentication.
+func Diagnostic(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "diagnostic",
+			Description: t("TOOL_DIAGNOSTIC_DESCRIPTION", "Check the server's health, authentication status, and API rate limits."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_DIAGNOSTIC_TITLE", "Run diagnostic"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		},
+		scopes.NoScopes(),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get client", err), nil, nil
+			}
+
+			rate, resp, err := client.RateLimits(ctx)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get rate limits", resp, err), nil, nil
+			}
+
+			result := map[string]any{
+				"status": "ok",
+				"rate":   rate,
+				"scopes": resp.Header.Get("X-OAuth-Scopes"),
+			}
+
+			return MarshalledTextResult(result), nil, nil
+		},
+	)
+}
+
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(

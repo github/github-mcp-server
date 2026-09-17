@@ -219,6 +219,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
+		Diagnostic(t),
 		GetTeams(t),
 		GetTeamMembers(t),
 
