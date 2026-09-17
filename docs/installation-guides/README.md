@@ -78,7 +78,18 @@ The GitHub MCP Server can be installed using several methods. **Docker is the mo
 ## General Prerequisites
 
 All installations with Personal Access Tokens (PAT) require:
-- **GitHub Personal Access Token (PAT)**: [Create one here](https://github.com/settings/personal-access-tokens/new)
+- **GitHub Personal Access Token (PAT)**: [Create a fine-grained token](https://github.com/settings/personal-access-tokens/new) (recommended) or a [classic token](https://github.com/settings/tokens/new)
+
+### Minimum token permissions
+
+Use the smallest permission set that matches the toolsets you enable. The server starts with the **default** toolsets (`context`, `repos`, `issues`, `pull_requests`, `users`, `copilot`) unless you pass `--toolsets` or `GITHUB_TOOLSETS`.
+
+| Token type | Minimum for default toolsets | Notes |
+|------------|------------------------------|-------|
+| **Fine-grained PAT** (recommended) | Repository access limited to the repos you need, with **Contents**, **Issues**, and **Pull requests** set to *Read and write* (Metadata: *Read* is added automatically) | Scopes are enforced by the GitHub API; the server cannot auto-hide tools for fine-grained tokens. See [PAT scope filtering](../scope-filtering.md#classic-vs-fine-grained-personal-access-tokens). |
+| **Classic PAT** | `repo` (add `read:org` for org team/issue-type tools such as `get_teams`, `list_issue_types`) | Covers the default read/write repository, issue, and pull request tools. Add scopes only when enabling extra toolsets—for example `notifications` for the notifications toolset or `project` for projects. See the [scope filtering guide](../scope-filtering.md) and per-tool scope tables in the [README](../../README.md#tools). |
+
+**Read-only deployments:** pass `--read-only` (or set `GITHUB_READ_ONLY=1`). For classic PATs, `public_repo` is enough for public repositories; private repository reads still need `repo`.
 
 Optional (depending on installation method):
 - **Docker** (for Docker-based installations): [Download Docker](https://www.docker.com/)
