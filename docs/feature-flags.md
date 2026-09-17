@@ -184,6 +184,20 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `title`: Issue title (string, required)
 
+- **remove_issue_comment_reaction** - Remove Reaction from Issue or Pull Request Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The issue or pull request comment ID (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `reaction_id`: The reaction ID to remove (number, required)
+  - `repo`: Repository name (string, required)
+
+- **remove_issue_reaction** - Remove Reaction from Issue or Pull Request
+  - **OAuth Challenge Scopes**: `repo`
+  - `issue_number`: The issue number (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `reaction_id`: The reaction ID to remove (number, required)
+  - `repo`: Repository name (string, required)
+
 - **remove_sub_issue** - Remove Sub-Issue
   - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The parent issue number (number, required)
@@ -299,6 +313,13 @@ as output formatting) won't appear here.
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **remove_pull_request_review_comment_reaction** - Remove Pull Request Review Comment Reaction
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `reaction_id`: The reaction ID to remove (number, required)
   - `repo`: Repository name (string, required)
 
 - **request_pull_request_reviewers** - Request Pull Request Reviewers
