@@ -93,6 +93,31 @@ var searchPullRequestsItemFieldEnum = []any{
 	"closed_by", "pull_request", "repository_url",
 }
 
+// pullRequestReviewItemFieldEnum lists the selectable fields for
+// pull_request_read get_reviews result items. Review bodies can be large, so
+// omitting them is the main lever for shrinking review listings.
+var pullRequestReviewItemFieldEnum = []any{
+	"id", "state", "body", "html_url", "user", "commit_id", "submitted_at",
+	"author_association",
+}
+
+// pullRequestCheckRunItemFieldEnum lists the selectable fields for
+// pull_request_read get_check_runs result items.
+var pullRequestCheckRunItemFieldEnum = []any{
+	"id", "name", "status", "conclusion", "html_url", "details_url",
+	"started_at", "completed_at",
+}
+
+// pullRequestReadItemFieldEnum is the union of the per-method enums, exposed on
+// the consolidated pull_request_read schema. The union admits every field any
+// supported method can return; validatePullRequestReadFields narrows the
+// selection to the fields valid for the selected method at runtime.
+var pullRequestReadItemFieldEnum = []any{
+	"id", "state", "body", "html_url", "user", "commit_id", "submitted_at",
+	"author_association", "name", "status", "conclusion", "details_url",
+	"started_at", "completed_at",
+}
+
 // filterFields marshals v to a JSON object and returns a map containing only the
 // requested fields. Fields that are unknown or absent from the JSON (for example
 // empty values dropped via omitempty) are skipped.

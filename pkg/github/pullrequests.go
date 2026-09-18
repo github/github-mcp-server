@@ -22,6 +22,70 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+// pullRequestReadFieldsByMethod maps each fields-enabled pull_request_read
+// method to the field names it may return. The consolidated schema exposes the
+// union of these; this table is what makes the selection method-aware.
+var pullRequestReadFieldsByMethod = map[string][]string{
+	"get_reviews": {
+		"id",
+		"state",
+		"body",
+		"html_url",
+		"user",
+		"commit_id",
+		"submitted_at",
+		"author_association",
+	},
+	"get_check_runs": {
+		"id",
+		"name",
+		"status",
+		"conclusion",
+		"html_url",
+		"details_url",
+		"started_at",
+		"completed_at",
+	},
+}
+
+// validatePullRequestReadFields rejects a non-empty fields selection that is not
+// supported by the selected method. An empty selection is always allowed (it is
+// equivalent to omitting the parameter) and every method keeps returning its
+// full response.
+func validatePullRequestReadFields(method string, fields []string) error {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	allowed, ok := pullRequestReadFieldsByMethod[method]
+	if !ok {
+		return fmt.Errorf(
+			"fields is not supported for pull_request_read method %q",
+			method,
+		)
+	}
+
+	for _, field := range fields {
+		valid := false
+		for _, candidate := range allowed {
+			if field == candidate {
+				valid = true
+				break
+			}
+		}
+
+		if !valid {
+			return fmt.Errorf(
+				"field %q is not supported for pull_request_read method %q",
+				field,
+				method,
+			)
+		}
+	}
+
+	return nil
+}
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -66,6 +130,13 @@ Possible options:
 		Type:        "string",
 		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
 	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for pull_request_read results. "+
+			"Supported for get_reviews and get_check_runs. "+
+			"Valid fields depend on the selected method. "+
+			"If omitted or empty, all fields are returned.",
+		pullRequestReadItemFieldEnum,
+	)
 
 	return NewTool(
 		ToolsetMetadataPullRequests,
@@ -95,6 +166,15 @@ Possible options:
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// Validate before any GitHub API call so an invalid method/field
+			// combination fails fast without a network round-trip.
+			if err := validatePullRequestReadFields(method, fields); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)

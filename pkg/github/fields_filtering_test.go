@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -512,4 +513,82 @@ func assertFieldsTelemetry(t *testing.T, serverTool inventory.ServerTool, client
 		_, ok = rec.counter(metricFieldsBytesFull)
 		assert.False(t, ok, "no byte counters when not filtered")
 	})
+}
+
+// --- pull_request_read ----------------------------------------------------
+
+func Test_PullRequestRead_FieldsSchema(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+
+	fields, ok := schema.Properties["fields"]
+	require.True(t, ok)
+	require.Equal(t, "array", fields.Type)
+	require.NotNil(t, fields.Items)
+
+	assert.Contains(t, fields.Items.Enum, "state")
+	assert.Contains(t, fields.Items.Enum, "user")
+	assert.Contains(t, fields.Items.Enum, "body")
+
+	assert.Contains(t, fields.Items.Enum, "name")
+	assert.Contains(t, fields.Items.Enum, "conclusion")
+	assert.Contains(t, fields.Items.Enum, "details_url")
+}
+
+func Test_PullRequestRead_FieldsRejectUnsupportedMethod(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+	}
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"state"},
+	})
+
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(
+		t,
+		getErrorResult(t, result).Text,
+		`fields is not supported for pull_request_read method "get"`,
+	)
+}
+
+func Test_PullRequestRead_FieldsRejectFieldForWrongMethod(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+	}
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"name"},
+	})
+
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(
+		t,
+		getErrorResult(t, result).Text,
+		`field "name" is not supported for pull_request_read method "get_reviews"`,
+	)
 }
