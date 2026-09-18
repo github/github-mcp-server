@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v89/github"
@@ -25,27 +26,9 @@ import (
 // pullRequestReadFieldsByMethod maps each fields-enabled pull_request_read
 // method to the field names it may return. The consolidated schema exposes the
 // union of these; this table is what makes the selection method-aware.
-var pullRequestReadFieldsByMethod = map[string][]string{
-	"get_reviews": {
-		"id",
-		"state",
-		"body",
-		"html_url",
-		"user",
-		"commit_id",
-		"submitted_at",
-		"author_association",
-	},
-	"get_check_runs": {
-		"id",
-		"name",
-		"status",
-		"conclusion",
-		"html_url",
-		"details_url",
-		"started_at",
-		"completed_at",
-	},
+var pullRequestReadFieldsByMethod = map[string][]any{
+	"get_reviews":    pullRequestReviewItemFieldEnum,
+	"get_check_runs": pullRequestCheckRunItemFieldEnum,
 }
 
 // validatePullRequestReadFields rejects a non-empty fields selection that is not
@@ -66,15 +49,7 @@ func validatePullRequestReadFields(method string, fields []string) error {
 	}
 
 	for _, field := range fields {
-		valid := false
-		for _, candidate := range allowed {
-			if field == candidate {
-				valid = true
-				break
-			}
-		}
-
-		if !valid {
+		if !slices.Contains(allowed, any(field)) {
 			return fmt.Errorf(
 				"field %q is not supported for pull_request_read method %q",
 				field,

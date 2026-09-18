@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"testing"
 	"time"
@@ -640,9 +641,7 @@ func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
 
 	t.Run("selected fields filter each review", func(t *testing.T) {
 		args := map[string]any{}
-		for k, v := range baseArgs {
-			args[k] = v
-		}
+		maps.Copy(args, baseArgs)
 		args["fields"] = []any{"state", "user"}
 
 		text := call(t, args)
@@ -675,9 +674,7 @@ func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
 
 	t.Run("empty fields keeps the full response", func(t *testing.T) {
 		args := map[string]any{}
-		for k, v := range baseArgs {
-			args[k] = v
-		}
+		maps.Copy(args, baseArgs)
 		args["fields"] = []any{}
 
 		text := call(t, args)
@@ -758,9 +755,7 @@ func Test_PullRequestRead_GetCheckRuns_Fields(t *testing.T) {
 
 	t.Run("selected fields filter each check run and preserve the wrapper", func(t *testing.T) {
 		args := map[string]any{}
-		for k, v := range baseArgs {
-			args[k] = v
-		}
+		maps.Copy(args, baseArgs)
 		args["fields"] = []any{"name", "conclusion"}
 
 		text := call(t, args)
@@ -793,9 +788,7 @@ func Test_PullRequestRead_GetCheckRuns_Fields(t *testing.T) {
 
 	t.Run("empty fields keeps the full response", func(t *testing.T) {
 		args := map[string]any{}
-		for k, v := range baseArgs {
-			args[k] = v
-		}
+		maps.Copy(args, baseArgs)
 		args["fields"] = []any{}
 
 		text := call(t, args)
@@ -825,9 +818,7 @@ func Test_PullRequestRead_FieldsTelemetry(t *testing.T) {
 		}
 
 		filtered := map[string]any{}
-		for k, v := range base {
-			filtered[k] = v
-		}
+		maps.Copy(filtered, base)
 		filtered["fields"] = []any{"state"}
 
 		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
@@ -847,9 +838,7 @@ func Test_PullRequestRead_FieldsTelemetry(t *testing.T) {
 		}
 
 		filtered := map[string]any{}
-		for k, v := range base {
-			filtered[k] = v
-		}
+		maps.Copy(filtered, base)
 		filtered["fields"] = []any{"name"}
 
 		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)

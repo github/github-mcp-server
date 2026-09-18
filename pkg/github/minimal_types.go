@@ -111,11 +111,29 @@ var pullRequestCheckRunItemFieldEnum = []any{
 // pullRequestReadItemFieldEnum is the union of the per-method enums, exposed on
 // the consolidated pull_request_read schema. The union admits every field any
 // supported method can return; validatePullRequestReadFields narrows the
-// selection to the fields valid for the selected method at runtime.
-var pullRequestReadItemFieldEnum = []any{
-	"id", "state", "body", "html_url", "user", "commit_id", "submitted_at",
-	"author_association", "name", "status", "conclusion", "details_url",
-	"started_at", "completed_at",
+// selection to the fields valid for the selected method at runtime. Deriving it
+// from the per-method enums keeps the schema from drifting out of sync with the
+// runtime validator, which would otherwise silently make a valid field
+// unreachable.
+var pullRequestReadItemFieldEnum = unionFieldEnums(
+	pullRequestReviewItemFieldEnum,
+	pullRequestCheckRunItemFieldEnum,
+)
+
+// unionFieldEnums returns the ordered, de-duplicated union of the given enums.
+func unionFieldEnums(enums ...[]any) []any {
+	seen := make(map[any]struct{})
+	union := make([]any, 0)
+	for _, enum := range enums {
+		for _, field := range enum {
+			if _, ok := seen[field]; ok {
+				continue
+			}
+			seen[field] = struct{}{}
+			union = append(union, field)
+		}
+	}
+	return union
 }
 
 // filterFields marshals v to a JSON object and returns a map containing only the
