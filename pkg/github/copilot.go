@@ -322,11 +322,9 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
-			// Prepare agent assignment input
-			emptyString := githubv4.String("")
+			// Only populate optional fields that are set. Non-nil pointers to empty
+			// strings are still serialized and differ from the UI request shape.
 			agentAssignment := &AgentAssignmentInput{
-				CustomAgent:        &emptyString,
-				CustomInstructions: &emptyString,
 				TargetRepositoryID: getIssueQuery.Repository.ID,
 			}
 
@@ -391,6 +389,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			var linkedPR *linkedPullRequest
+			pollFailed := false
 			for attempt := range pollConfig.MaxAttempts {
 				if attempt > 0 {
 					time.Sleep(pollConfig.Delay)
@@ -408,7 +407,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
 				if err != nil {
-					// Polling errors are non-fatal, continue to next attempt
+					pollFailed = true
 					continue
 				}
 				if pr != nil {
@@ -434,10 +433,16 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					"title":  linkedPR.Title,
 					"state":  linkedPR.State,
 				}
+				result["agent_session_detected"] = true
 				result["message"] = "successfully assigned copilot to issue - pull request created"
 			} else {
-				result["message"] = "successfully assigned copilot to issue - pull request pending"
-				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
+				result["message"] = "copilot assigned to issue, but no agent pull request was detected"
+				result["agent_session_detected"] = false
+				if pollFailed {
+					result["note"] = "The assignment was recorded, but the issue timeline could not be checked reliably. Check the issue timeline for agent activity."
+				} else {
+					result["note"] = "The assignment was recorded, but no pull request was created before polling ended. The session may still start later; check the issue timeline for agent activity."
+				}
 			}
 
 			r, err := json.Marshal(result)
@@ -706,10 +711,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				Assignees: assignees,
 			}
 			if !params.IsSuggestion {
-				emptyString := githubv4.String("")
 				agentAssignment := &AgentAssignmentInput{
-					CustomAgent:        &emptyString,
-					CustomInstructions: &emptyString,
 					TargetRepositoryID: getIssueQuery.Repository.ID,
 				}
 				if params.BaseRef != "" {
@@ -771,6 +773,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 
 			var linkedPR *linkedPullRequest
+			pollFailed := false
 			for attempt := range pollConfig.MaxAttempts {
 				if attempt > 0 {
 					time.Sleep(pollConfig.Delay)
@@ -785,6 +788,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				}
 				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
 				if err != nil {
+					pollFailed = true
 					continue
 				}
 				if pr != nil {
@@ -800,10 +804,16 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 					"title":  linkedPR.Title,
 					"state":  linkedPR.State,
 				}
+				result["agent_session_detected"] = true
 				result["message"] = "successfully assigned copilot to issue - pull request created"
 			} else {
-				result["message"] = "successfully assigned copilot to issue - pull request pending"
-				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
+				result["message"] = "copilot assigned to issue, but no agent pull request was detected"
+				result["agent_session_detected"] = false
+				if pollFailed {
+					result["note"] = "The assignment was recorded, but the issue timeline could not be checked reliably. Check the issue timeline for agent activity."
+				} else {
+					result["note"] = "The assignment was recorded, but no pull request was created before polling ended. The session may still start later; check the issue timeline for agent activity."
+				}
 			}
 
 			r, err := json.Marshal(result)
