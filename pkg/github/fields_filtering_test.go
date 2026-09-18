@@ -808,3 +808,50 @@ func Test_PullRequestRead_GetCheckRuns_Fields(t *testing.T) {
 		assert.Contains(t, returned.CheckRuns[0], "details_url")
 	})
 }
+
+func Test_PullRequestRead_FieldsTelemetry(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	t.Run("get_reviews", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+		}))
+
+		base := map[string]any{
+			"method":     "get_reviews",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+		}
+
+		filtered := map[string]any{}
+		for k, v := range base {
+			filtered[k] = v
+		}
+		filtered["fields"] = []any{"state"}
+
+		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
+	})
+
+	t.Run("get_check_runs", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+			GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+		}))
+
+		base := map[string]any{
+			"method":     "get_check_runs",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+		}
+
+		filtered := map[string]any{}
+		for k, v := range base {
+			filtered[k] = v
+		}
+		filtered["fields"] = []any{"name"}
+
+		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
+	})
+}
