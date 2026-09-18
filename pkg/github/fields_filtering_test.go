@@ -913,3 +913,63 @@ func Test_PullRequestRead_FieldsPreserveIFCLabel(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
+
+// Test_PullRequestRead_FieldsAfterLockdown proves that lockdown/security
+// filtering and response field filtering compose in the required order on a
+// single call: disallowed reviews are dropped first, then the surviving review
+// is trimmed to the requested fields.
+func Test_PullRequestRead_FieldsAfterLockdown(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	reviews := []*github.PullRequestReview{
+		{
+			ID:    github.Ptr(int64(2030)),
+			State: github.Ptr("APPROVED"),
+			Body:  github.Ptr("Maintainer review"),
+			User:  &github.User{Login: github.Ptr("maintainer")},
+		},
+		{
+			ID:    github.Ptr(int64(2031)),
+			State: github.Ptr("COMMENTED"),
+			Body:  github.Ptr("External reviewer"),
+			User:  &github.User{Login: github.Ptr("testuser")},
+		},
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, reviews),
+	}))
+	restClient := mockRESTPermissionServer(t, "read", map[string]string{
+		"maintainer": "write",
+		"testuser":   "read",
+	})
+
+	deps := BaseDeps{
+		Client:          client,
+		RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": true}),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"state"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var returned []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+
+	// Lockdown dropped the external reviewer (read-only permission).
+	require.Len(t, returned, 1)
+	// Field filtering then kept only `state` on the survivor.
+	require.Len(t, returned[0], 1)
+	assert.Equal(t, "APPROVED", returned[0]["state"])
+	assert.NotContains(t, returned[0], "body")
+	assert.NotContains(t, returned[0], "id")
+}
