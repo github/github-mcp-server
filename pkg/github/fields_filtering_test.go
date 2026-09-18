@@ -691,3 +691,120 @@ func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
 		assert.Contains(t, returned[0], "body")
 	})
 }
+
+func mockPullRequestForCheckRuns() *github.PullRequest {
+	return &github.PullRequest{
+		Number: github.Ptr(42),
+		Head: &github.PullRequestBranch{
+			SHA: github.Ptr("abcd1234"),
+			Ref: github.Ptr("feature-branch"),
+		},
+	}
+}
+
+func mockCheckRuns() *github.ListCheckRunsResults {
+	return &github.ListCheckRunsResults{
+		Total: github.Ptr(2),
+		CheckRuns: []*github.CheckRun{
+			{
+				ID:         github.Ptr(int64(1)),
+				Name:       github.Ptr("test"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+				DetailsURL: github.Ptr("https://example.test/test"),
+			},
+			{
+				ID:         github.Ptr(int64(2)),
+				Name:       github.Ptr("lint"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("failure"),
+				DetailsURL: github.Ptr("https://example.test/lint"),
+			},
+		},
+	}
+}
+
+func Test_PullRequestRead_GetCheckRuns_Fields(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+		GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	call := func(t *testing.T, args map[string]any) string {
+		t.Helper()
+		request := createMCPRequest(args)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		if result.IsError {
+			t.Fatalf("unexpected tool error: %s", getErrorResult(t, result).Text)
+		}
+		return getTextResult(t, result).Text
+	}
+
+	baseArgs := map[string]any{
+		"method":     "get_check_runs",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	}
+
+	type checkRunsResult struct {
+		TotalCount int              `json:"total_count"`
+		CheckRuns  []map[string]any `json:"check_runs"`
+	}
+
+	t.Run("selected fields filter each check run and preserve the wrapper", func(t *testing.T) {
+		args := map[string]any{}
+		for k, v := range baseArgs {
+			args[k] = v
+		}
+		args["fields"] = []any{"name", "conclusion"}
+
+		text := call(t, args)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+
+		require.Len(t, returned.CheckRuns[0], 2)
+		assert.Equal(t, "test", returned.CheckRuns[0]["name"])
+		assert.Equal(t, "success", returned.CheckRuns[0]["conclusion"])
+		assert.NotContains(t, returned.CheckRuns[0], "id")
+		assert.NotContains(t, returned.CheckRuns[0], "details_url")
+
+		assert.Equal(t, "lint", returned.CheckRuns[1]["name"])
+		assert.Equal(t, "failure", returned.CheckRuns[1]["conclusion"])
+	})
+
+	t.Run("omitted fields keeps the full response", func(t *testing.T) {
+		text := call(t, baseArgs)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+		assert.Contains(t, returned.CheckRuns[0], "id")
+		assert.Contains(t, returned.CheckRuns[0], "details_url")
+	})
+
+	t.Run("empty fields keeps the full response", func(t *testing.T) {
+		args := map[string]any{}
+		for k, v := range baseArgs {
+			args[k] = v
+		}
+		args["fields"] = []any{}
+
+		text := call(t, args)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+		assert.Contains(t, returned.CheckRuns[0], "id")
+		assert.Contains(t, returned.CheckRuns[0], "details_url")
+	})
+}

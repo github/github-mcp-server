@@ -231,7 +231,7 @@ Possible options:
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_check_runs":
-				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestCheckRuns(ctx, client, deps, owner, repo, pullNumber, pagination, fields)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -384,7 +384,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, fields []string) (*mcp.CallToolResult, error) {
 	// First get the PR to get the head SHA
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
@@ -441,10 +441,48 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 		CheckRuns:  minimalCheckRuns,
 	}
 
-	r, err := json.Marshal(minimalResult)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Filter only the check_run items: total_count is response metadata, not an
+	// item field, and must survive filtering so callers can still reason about
+	// the unpaginated total. An empty selection keeps the full response.
+	filtered := false
+	var payload any = minimalResult
+
+	if len(fields) > 0 {
+		filteredCheckRuns, err := filterEachField(minimalCheckRuns, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(
+				"failed to filter pull request check runs",
+				err,
+			), nil
+		}
+
+		payload = struct {
+			TotalCount int              `json:"total_count"`
+			CheckRuns  []map[string]any `json:"check_runs"`
+		}{
+			TotalCount: minimalResult.TotalCount,
+			CheckRuns:  filteredCheckRuns,
+		}
+
+		filtered = true
 	}
+
+	r, err := json.Marshal(payload)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(
+			"failed to marshal pull request check runs",
+			err,
+		), nil
+	}
+
+	recordFieldsUsageFor(
+		ctx,
+		deps,
+		"pull_request_read",
+		minimalResult,
+		filtered,
+		len(r),
+	)
 
 	return utils.NewToolResultText(string(r)), nil
 }
