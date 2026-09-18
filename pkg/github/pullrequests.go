@@ -225,7 +225,7 @@ Possible options:
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return attachIFC(result), nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination, fields)
 				return attachIFC(result), nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -633,7 +633,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, fields []string) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -687,7 +687,43 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return MarshalledTextResult(minimalReviews), nil
+	// Field filtering is applied after lockdown/security filtering and after the
+	// API payload has been reduced to MinimalPullRequestReview values. An empty
+	// selection keeps the full response.
+	filtered := false
+	var payload any = minimalReviews
+
+	if len(fields) > 0 {
+		filteredReviews, err := filterEachField(minimalReviews, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(
+				"failed to filter pull request reviews",
+				err,
+			), nil
+		}
+
+		payload = filteredReviews
+		filtered = true
+	}
+
+	r, err := json.Marshal(payload)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(
+			"failed to marshal pull request reviews",
+			err,
+		), nil
+	}
+
+	recordFieldsUsageFor(
+		ctx,
+		deps,
+		"pull_request_read",
+		minimalReviews,
+		filtered,
+		len(r),
+	)
+
+	return utils.NewToolResultText(string(r)), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -591,4 +592,102 @@ func Test_PullRequestRead_FieldsRejectFieldForWrongMethod(t *testing.T) {
 		getErrorResult(t, result).Text,
 		`field "name" is not supported for pull_request_read method "get_reviews"`,
 	)
+}
+
+func mockPullRequestReviews() []*github.PullRequestReview {
+	return []*github.PullRequestReview{
+		{
+			ID:    github.Ptr(int64(101)),
+			State: github.Ptr("APPROVED"),
+			Body: github.Ptr(
+				"large review body that should disappear when fields are selected",
+			),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#pullrequestreview-101"),
+			User: &github.User{
+				Login: github.Ptr("reviewer"),
+			},
+			CommitID:    github.Ptr("abcdef123456"),
+			SubmittedAt: &github.Timestamp{Time: time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)},
+		},
+	}
+}
+
+func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	call := func(t *testing.T, args map[string]any) string {
+		t.Helper()
+		request := createMCPRequest(args)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		if result.IsError {
+			t.Fatalf("unexpected tool error: %s", getErrorResult(t, result).Text)
+		}
+		return getTextResult(t, result).Text
+	}
+
+	baseArgs := map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	}
+
+	t.Run("selected fields filter each review", func(t *testing.T) {
+		args := map[string]any{}
+		for k, v := range baseArgs {
+			args[k] = v
+		}
+		args["fields"] = []any{"state", "user"}
+
+		text := call(t, args)
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		require.Len(t, returned[0], 2)
+
+		assert.Equal(t, "APPROVED", returned[0]["state"])
+		assert.Contains(t, returned[0], "user")
+		assert.NotContains(t, returned[0], "body")
+		assert.NotContains(t, returned[0], "id")
+	})
+
+	t.Run("omitted fields keeps the full response", func(t *testing.T) {
+		text := call(t, baseArgs)
+
+		assert.Contains(t, text, `"body"`)
+		assert.Contains(t, text, "large review body that should disappear when fields are selected")
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		assert.Contains(t, returned[0], "id")
+		assert.Contains(t, returned[0], "state")
+		assert.Contains(t, returned[0], "body")
+		assert.Contains(t, returned[0], "user")
+	})
+
+	t.Run("empty fields keeps the full response", func(t *testing.T) {
+		args := map[string]any{}
+		for k, v := range baseArgs {
+			args[k] = v
+		}
+		args["fields"] = []any{}
+
+		text := call(t, args)
+
+		assert.Contains(t, text, `"body"`)
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		assert.Contains(t, returned[0], "id")
+		assert.Contains(t, returned[0], "body")
+	})
 }
