@@ -855,3 +855,72 @@ func Test_PullRequestRead_FieldsTelemetry(t *testing.T) {
 		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
 	})
 }
+
+// Test_PullRequestRead_FieldsPreserveIFCLabel guards the constraint that
+// response field filtering must not change IFC label behavior: the label is
+// attached by the consolidated handler after the getter returns, so filtering
+// the payload must leave it intact.
+func Test_PullRequestRead_FieldsPreserveIFCLabel(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	t.Run("get_reviews", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+					"name":    "repo",
+					"private": false,
+				}),
+			})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":     "get_reviews",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"fields":     []any{"state"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("get_check_runs", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+					"name":    "repo",
+					"private": false,
+				}),
+			})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":     "get_check_runs",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"fields":     []any{"name"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+}
