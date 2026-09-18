@@ -1274,6 +1274,7 @@ The following sets of tools are available:
 - **pull_request_read** - Get details for a single pull request
   - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page. (string, optional)
+  - `fields`: Subset of fields to return for pull_request_read results. Supported for get_reviews and get_check_runs. Valid fields depend on the selected method. If omitted or empty, all fields are returned. (string[], optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
      1. get - Get details of a specific pull request.
