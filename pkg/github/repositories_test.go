@@ -2049,6 +2049,10 @@ func Test_ListCommits(t *testing.T) {
 	}
 }
 
+// binaryPNGBase64 is a standard base64 encoding of a 10x10 transparent PNG,
+// used to exercise binary file content paths.
+const binaryPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAFElEQVR4nGP8n2XJgBsw4ZEbwdIABR4Btgm0KTcAAAAASUVORK5CYII="
+
 func Test_CreateOrUpdateFile(t *testing.T) {
 	// Verify tool definition once
 	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
@@ -2071,6 +2075,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "branch")
 	assert.Contains(t, schema.Properties, "sha")
 	assert.Contains(t, schema.Properties, "allow_symlink_write")
+	assert.Contains(t, schema.Properties, "encoding")
+	require.NotNil(t, schema.Properties["encoding"])
+	assert.Equal(t, []any{"utf-8", "base64"}, schema.Properties["encoding"].Enum)
 	assert.Contains(t, schema.Properties["sha"].Description, "with ref set to this tool's branch value")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "content", "message", "branch"})
 
@@ -2645,6 +2652,75 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectError:          false,
 			expectedContent:      mockFileResponse,
 			expectedRequestCount: 2,
+		},
+		{
+			name: "successful binary file creation with base64 encoding",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/contents/assets/logo.png": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
+					"message": "Add logo",
+					// The decoded raw bytes are re-encoded by json.Marshal, which
+					// yields the same standard base64 string the caller supplied.
+					"content": binaryPNGBase64,
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
+					"message": "Add logo",
+					"content": binaryPNGBase64,
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"path":     "assets/logo.png",
+				"content":  binaryPNGBase64,
+				"encoding": "base64",
+				"message":  "Add logo",
+				"branch":   "main",
+			},
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 2,
+		},
+		{
+			name:         "base64 encoding with invalid base64 content",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"path":     "assets/logo.png",
+				"content":  "not valid base64!!!",
+				"encoding": "base64",
+				"message":  "Add logo",
+				"branch":   "main",
+			},
+			expectError:    true,
+			expectedErrMsg: "content parameter is not valid base64",
+		},
+		{
+			name:         "unsupported encoding value",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"path":     "assets/logo.png",
+				"content":  "binary data",
+				"encoding": "hex",
+				"message":  "Add logo",
+				"branch":   "main",
+			},
+			expectError:    true,
+			expectedErrMsg: `invalid encoding "hex"`,
 		},
 	}
 
@@ -3613,6 +3689,134 @@ func Test_PushFiles(t *testing.T) {
 			},
 			expectError:    false,
 			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "successful push of text and base64 binary files",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				// Get commit
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				// Create blob for the binary file
+				WithRequestMatchHandler(
+					PostReposGitBlobsByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"content":  binaryPNGBase64,
+						"encoding": "base64",
+					}).andThen(
+						mockResponse(t, http.StatusCreated, &github.Blob{
+							SHA: github.Ptr("blobSHA123"),
+						}),
+					),
+				),
+				// Create tree; the binary file is referenced by blob SHA instead of content
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"base_tree": "def456",
+						"tree": []any{
+							map[string]any{
+								"path":    "README.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "# Updated README",
+							},
+							map[string]any{
+								"path": "assets/logo.png",
+								"mode": "100644",
+								"type": "blob",
+								"sha":  "blobSHA123",
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				// Create commit
+				WithRequestMatchHandler(
+					PostReposGitCommitsByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"message": "Update multiple files",
+						"tree":    "ghi789",
+						"parents": []any{"abc123"},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockNewCommit),
+					),
+				),
+				// Update reference
+				WithRequestMatchHandler(
+					PatchReposGitRefsByOwnerByRepoByRef,
+					expectRequestBody(t, map[string]any{
+						"sha":   "jkl012",
+						"force": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedRef),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":    "README.md",
+						"content": "# Updated README",
+					},
+					map[string]any{
+						"path":     "assets/logo.png",
+						"content":  binaryPNGBase64,
+						"encoding": "base64",
+					},
+				},
+				"message": "Update multiple files",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name:         "base64 file with invalid base64 content",
+			mockedClient: NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":     "assets/logo.png",
+						"content":  "not valid base64!!!",
+						"encoding": "base64",
+					},
+				},
+				"message": "Update file",
+			},
+			expectError:    false, // This returns a tool error, not a Go error
+			expectedErrMsg: "file assets/logo.png content is not valid base64",
+		},
+		{
+			name:         "file with unsupported encoding value",
+			mockedClient: NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":     "assets/logo.png",
+						"content":  "binary data",
+						"encoding": "hex",
+					},
+				},
+				"message": "Update file",
+			},
+			expectError:    false, // This returns a tool error, not a Go error
+			expectedErrMsg: `file assets/logo.png has invalid encoding "hex"`,
 		},
 	}
 

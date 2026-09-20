@@ -437,7 +437,13 @@ SHA MUST be provided for existing file updates.
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API.",
+						Description: "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. If the content is binary (for example an image), pass it base64-encoded together with encoding \"base64\".",
+					},
+					"encoding": {
+						Type:        "string",
+						Description: "Encoding of the content parameter. \"utf-8\" (default) writes the content as-is. \"base64\" decodes the content once and writes the resulting raw bytes; use it for binary files such as images, whose bytes cannot be represented in a JSON string.",
+						Enum:        []any{"utf-8", "base64"},
+						Default:     json.RawMessage(`"utf-8"`),
 					},
 					"message": {
 						Type:        "string",
@@ -492,7 +498,22 @@ SHA MUST be provided for existing file updates.
 			}
 
 			// json.Marshal encodes byte arrays with base64, which is required for the API.
-			contentBytes := []byte(content)
+			encoding, err := OptionalParam[string](args, "encoding")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var contentBytes []byte
+			switch encoding {
+			case "", "utf-8":
+				contentBytes = []byte(content)
+			case "base64":
+				contentBytes, err = base64.StdEncoding.DecodeString(content)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("content parameter is not valid base64: %v", err)), nil, nil
+				}
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("invalid encoding %q: must be \"utf-8\" or \"base64\"", encoding)), nil, nil
+			}
 
 			// Create the file options
 			opts := &github.RepositoryContentFileOptions{
@@ -1636,7 +1657,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"files": {
 						Type:        "array",
-						Description: "Array of file objects to push, each object with path (string) and content (string)",
+						Description: "Array of file objects to push, each with path (string), content (string), and optional encoding (\"utf-8\" or \"base64\"; defaults to \"utf-8\")",
 						Items: &jsonschema.Schema{
 							Type:                 "object",
 							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -1647,7 +1668,13 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 								},
 								"content": {
 									Type:        "string",
-									Description: "file content",
+									Description: "file content; when encoding is \"base64\", this is the base64-encoded content of the file",
+								},
+								"encoding": {
+									Type:        "string",
+									Description: "Encoding of the file content. \"utf-8\" (default) writes the content as-is. \"base64\" decodes the content once and writes the resulting raw bytes; use it for binary files such as images, whose bytes cannot be represented in a JSON string.",
+									Enum:        []any{"utf-8", "base64"},
+									Default:     json.RawMessage(`"utf-8"`),
 								},
 							},
 							Required: []string{"path", "content"},
@@ -1680,6 +1707,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
 			// Parse files parameter - this should be an array of objects with path and content
 			filesObj, ok := args["files"].([]any)
 			if !ok {
@@ -1707,17 +1739,45 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
 
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(filePath),
-					Mode:    github.Ptr("100644"),
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
-				})
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				encoding, _ := fileMap["encoding"].(string)
+				switch encoding {
+				case "", "utf-8":
+					entries = append(entries, &github.TreeEntry{
+						Path:    github.Ptr(filePath),
+						Mode:    github.Ptr("100644"),
+						Type:    github.Ptr("blob"),
+						Content: github.Ptr(content),
+					})
+				case "base64":
+					// The Trees API rejects TreeEntry content that is not valid UTF-8,
+					// so binary files are uploaded as blobs and referenced by SHA.
+					decoded, err := base64.StdEncoding.DecodeString(content)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("file %s content is not valid base64: %v", filePath, err)), nil, nil
+					}
+					blob, resp, err := client.Git.CreateBlob(ctx, owner, repo, github.Blob{
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(decoded)),
+						Encoding: github.Ptr("base64"),
+					})
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							fmt.Sprintf("failed to create blob for file %s", filePath),
+							resp,
+							err,
+						), nil, nil
+					}
+					if resp != nil && resp.Body != nil {
+						_ = resp.Body.Close()
+					}
+					entries = append(entries, &github.TreeEntry{
+						Path: github.Ptr(filePath),
+						Mode: github.Ptr("100644"),
+						Type: github.Ptr("blob"),
+						SHA:  blob.SHA,
+					})
+				default:
+					return utils.NewToolResultError(fmt.Sprintf("file %s has invalid encoding %q: must be \"utf-8\" or \"base64\"", filePath, encoding)), nil, nil
+				}
 			}
 
 			// Get the reference for the branch
