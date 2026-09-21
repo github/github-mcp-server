@@ -4877,3 +4877,57 @@ func TestResolveReviewThread(t *testing.T) {
 		})
 	}
 }
+
+func Test_rejectUnsupportedPagination(t *testing.T) {
+	tests := []struct {
+		name    string
+		method  string
+		args    map[string]any
+		wantErr string
+	}{
+		{
+			name:   "get_files with page is fine",
+			method: "get_files",
+			args:   map[string]any{"page": float64(2), "perPage": float64(10)},
+		},
+		{
+			name:    "get_files with after is rejected",
+			method:  "get_files",
+			args:    map[string]any{"after": "Y3Vyc29y"},
+			wantErr: `method "get_files" paginates by page/perPage; "after" is not supported`,
+		},
+		{
+			name:   "get_review_comments with after is fine",
+			method: "get_review_comments",
+			args:   map[string]any{"after": "Y3Vyc29y", "perPage": float64(10)},
+		},
+		{
+			name:    "get_review_comments with page is rejected",
+			method:  "get_review_comments",
+			args:    map[string]any{"page": float64(2)},
+			wantErr: `method "get_review_comments" paginates by cursor (perPage, after); "page" is not supported`,
+		},
+		{
+			name:    "get with any pagination is rejected",
+			method:  "get",
+			args:    map[string]any{"perPage": float64(10)},
+			wantErr: `method "get" returns a single result and does not accept pagination parameters`,
+		},
+		{
+			name:   "get without pagination is fine",
+			method: "get",
+			args:   map[string]any{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := rejectUnsupportedPagination(tc.method, tc.args)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
