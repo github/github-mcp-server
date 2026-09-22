@@ -403,7 +403,13 @@ For a complete overview of all installation options, see our **[Installation Gui
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`.
+
+STDIO API requests identify the server as `github-mcp-server/<version>` and retain the upstream MCP client's name/version in parentheses when available. Release builds keep their release version. Source and default Docker builds use `vcs-<full-commit-sha>` (with `-dirty` when embedded VCS metadata records modified source), rather than the placeholder `version` or `dev`. This is a VCS build identifier, not a release number.
+
+Build the complete package with `go build -o github-mcp-server ./cmd/github-mcp-server` from a Git checkout to embed its VCS revision. For builds without VCS metadata, supply the actual release with `-ldflags '-X main.version=<release>'` or the full source revision with `-ldflags '-X main.commit=<sha>'`. STDIO startup reports an error if neither a real release nor a valid revision is available.
+
+For example:
 
 ```JSON
 {

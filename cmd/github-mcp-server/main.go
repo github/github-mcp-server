@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -39,6 +40,12 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			info, _ := debug.ReadBuildInfo()
+			serverVersion, err := resolveServerVersion(version, commit, info)
+			if err != nil {
+				return err
+			}
+
 			token := viper.GetString("personal_access_token")
 			appID := viper.GetString("app-id")
 			appInstallationID := viper.GetString("app-installation-id")
@@ -110,7 +117,7 @@ var (
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
-				Version:              version,
+				Version:              serverVersion,
 				Host:                 viper.GetString("host"),
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,
