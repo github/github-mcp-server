@@ -675,6 +675,7 @@ type MinimalIssueComment struct {
 	User              *MinimalUser      `json:"user,omitempty"`
 	AuthorAssociation string            `json:"author_association,omitempty"`
 	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	MinimizedReason   string            `json:"minimized_reason,omitempty"`
 	CreatedAt         string            `json:"created_at,omitempty"`
 	UpdatedAt         string            `json:"updated_at,omitempty"`
 }
@@ -1013,12 +1014,19 @@ func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmen
 }
 
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
+	return convertToMinimalIssueCommentWithMinimized(comment, nil)
+}
+
+func convertToMinimalIssueCommentWithMinimized(comment *github.IssueComment, minimized *issueCommentMinimized) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
 		Body:              sanitize.Content(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
+	}
+	if minimized != nil {
+		m.MinimizedReason = minimized.Reason
 	}
 
 	if comment.CreatedAt != nil {

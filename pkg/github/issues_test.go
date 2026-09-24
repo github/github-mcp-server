@@ -5483,6 +5483,43 @@ func Test_GetIssueComments(t *testing.T) {
 	}
 }
 
+func TestGetIssueCommentsIncludesMinimizedReason(t *testing.T) {
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":   123,
+				"body": "This comment is marked as spam",
+				"user": map[string]any{"login": "user1"},
+				"minimized": map[string]any{
+					"reason": "spam",
+				},
+			},
+		}),
+	}))
+	deps := BaseDeps{
+		Client:          client,
+		RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+		Flags:           stubFeatureFlags(nil),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":       "get_comments",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(42),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var comments []MinimalIssueComment
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &comments))
+	require.Len(t, comments, 1)
+	assert.Equal(t, "spam", comments[0].MinimizedReason)
+}
+
 func Test_GetIssueLabels(t *testing.T) {
 	t.Parallel()
 
