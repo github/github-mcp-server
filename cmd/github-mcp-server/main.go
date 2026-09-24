@@ -262,7 +262,7 @@ func init() {
 
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
-	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
+	httpCmd.Flags().String("listen-host", "127.0.0.1", "Host the HTTP server binds to (use 0.0.0.0 to bind all interfaces).")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().String("authorization-server", "", "Override the authorization server URL in OAuth resource metadata. Useful when deploying behind an OAuth proxy (e.g. for GHES). Env: GITHUB_AUTHORIZATION_SERVER")
