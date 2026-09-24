@@ -4877,3 +4877,113 @@ func TestResolveReviewThread(t *testing.T) {
 		})
 	}
 }
+
+// failingRoundTripper fails the test if the handler reaches the GitHub API.
+type failingRoundTripper struct{ t *testing.T }
+
+func (f *failingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	f.t.Fatalf("unexpected request to the GitHub API: %s %s", req.Method, req.URL.Path)
+	return nil, nil
+}
+
+func Test_PullRequestRead_RejectsPaginationTheMethodCannotHonour(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		paginationArgs map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name:           "after on get_files",
+			method:         "get_files",
+			paginationArgs: map[string]any{"perPage": float64(10), "after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get_files" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name:           "after on get_commits",
+			method:         "get_commits",
+			paginationArgs: map[string]any{"after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get_commits" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name:           "after on get_reviews",
+			method:         "get_reviews",
+			paginationArgs: map[string]any{"after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get_reviews" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name:           "after on get_comments",
+			method:         "get_comments",
+			paginationArgs: map[string]any{"after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get_comments" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name:           "after on get_check_runs",
+			method:         "get_check_runs",
+			paginationArgs: map[string]any{"after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get_check_runs" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name:           "after on a method that does not paginate",
+			method:         "get",
+			paginationArgs: map[string]any{"after": "Y3Vyc29yOnYyOpHOAA"},
+			expectedErrMsg: `method "get" does not support pagination; "after" is not supported`,
+		},
+		{
+			name:           "page on get_review_comments",
+			method:         "get_review_comments",
+			paginationArgs: map[string]any{"page": float64(2), "perPage": float64(10)},
+			expectedErrMsg: `method "get_review_comments" uses cursor pagination; "page" is not supported, pass "after" instead`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			args := map[string]any{
+				"method":     tc.method,
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			}
+			for k, v := range tc.paginationArgs {
+				args[k] = v
+			}
+
+			// The guard must reject before any API call is made.
+			client := mustNewGHClient(t, &http.Client{Transport: &failingRoundTripper{t: t}})
+			deps := BaseDeps{Client: client}
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Equal(t, tc.expectedErrMsg, getErrorResult(t, result).Text)
+		})
+	}
+}
+
+func Test_validatePullRequestReadPagination_Accepts(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		args   map[string]any
+	}{
+		{"no pagination parameters", "get_files", map[string]any{}},
+		{"page and perPage on an offset method", "get_files", map[string]any{"page": float64(2), "perPage": float64(10)}},
+		{"after and perPage on the cursor method", "get_review_comments", map[string]any{"after": "Y3Vyc29yOnYyOpHOAA", "perPage": float64(10)}},
+		{"perPage alone on a method that does not paginate", "get", map[string]any{"perPage": float64(10)}},
+		{"page alone on a method that does not paginate", "get_diff", map[string]any{"page": float64(2)}},
+		// An unrecognised method is left to the dispatch switch, which reports it
+		// as an unknown method rather than as a pagination problem.
+		{"unknown method", "get_nothing", map[string]any{"after": "Y3Vyc29yOnYyOpHOAA", "page": float64(2)}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NoError(t, validatePullRequestReadPagination(tc.method, tc.args))
+		})
+	}
+}

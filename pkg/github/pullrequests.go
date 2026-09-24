@@ -22,6 +22,66 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+// pullRequestReadPaginationKind describes which pagination mechanism a
+// pull_request_read method honours.
+type pullRequestReadPaginationKind int
+
+const (
+	// paginationNone: the method returns a single object and paginates not at all.
+	paginationNone pullRequestReadPaginationKind = iota
+	// paginationOffset: the method uses REST offset pagination (page/perPage).
+	paginationOffset
+	// paginationCursor: the method uses GraphQL cursor pagination (perPage/after).
+	paginationCursor
+)
+
+// pullRequestReadPaginationByMethod records the pagination mechanism of every
+// pull_request_read method. Methods absent from this map are unknown and are
+// left to the dispatch switch, which reports them as such.
+var pullRequestReadPaginationByMethod = map[string]pullRequestReadPaginationKind{
+	"get":                 paginationNone,
+	"get_diff":            paginationNone,
+	"get_status":          paginationNone,
+	"get_files":           paginationOffset,
+	"get_commits":         paginationOffset,
+	"get_reviews":         paginationOffset,
+	"get_comments":        paginationOffset,
+	"get_check_runs":      paginationOffset,
+	"get_review_comments": paginationCursor,
+}
+
+// validatePullRequestReadPagination rejects a pagination parameter that the
+// selected method cannot honour.
+//
+// pull_request_read exposes both pagination mechanisms in a single schema, so
+// without this guard the mechanism the method does not use is dropped silently
+// and the caller receives the first page again. A tool caller has no reason to
+// retry a call that reported success with a plausible payload, so the drop has
+// to surface as an error rather than as guidance in the schema description.
+//
+// perPage is deliberately not guarded: both mechanisms honour it, and methods
+// that paginate not at all are commonly called with a client's default page
+// size, where rejecting the call would be surprising without being useful.
+func validatePullRequestReadPagination(method string, args map[string]any) error {
+	kind, known := pullRequestReadPaginationByMethod[method]
+	if !known {
+		return nil
+	}
+
+	if _, ok := args["after"]; ok && kind != paginationCursor {
+		if kind == paginationOffset {
+			return fmt.Errorf("method %q uses page/perPage pagination; \"after\" is not supported", method)
+		}
+		return fmt.Errorf("method %q does not support pagination; \"after\" is not supported", method)
+	}
+
+	if _, ok := args["page"]; ok && kind == paginationCursor {
+		return fmt.Errorf("method %q uses cursor pagination; \"page\" is not supported, pass \"after\" instead", method)
+	}
+
+	return nil
+}
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -95,6 +155,9 @@ Possible options:
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validatePullRequestReadPagination(method, args); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
