@@ -4877,3 +4877,45 @@ func TestResolveReviewThread(t *testing.T) {
 		})
 	}
 }
+
+func Test_convertToMinimalPullRequest_MergeCommitSHA(t *testing.T) {
+	t.Run("merged pull request carries the merge commit", func(t *testing.T) {
+		mergedAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+		pr := &github.PullRequest{
+			Number:         github.Ptr(42),
+			Title:          github.Ptr("Test PR"),
+			State:          github.Ptr("closed"),
+			Merged:         github.Ptr(true),
+			MergedAt:       &github.Timestamp{Time: mergedAt},
+			MergeCommitSHA: github.Ptr("5b1d8e0c6f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c"),
+		}
+
+		minimal := convertToMinimalPullRequest(pr)
+		assert.Equal(t, "5b1d8e0c6f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c", minimal.MergeCommitSHA)
+
+		// The field has to survive serialisation, since that is what the caller reads.
+		raw, err := json.Marshal(minimal)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(raw, &decoded))
+		assert.Equal(t, "5b1d8e0c6f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c", decoded["merge_commit_sha"])
+	})
+
+	t.Run("pull request without a merge commit omits the field", func(t *testing.T) {
+		pr := &github.PullRequest{
+			Number: github.Ptr(43),
+			Title:  github.Ptr("Open PR"),
+			State:  github.Ptr("open"),
+			Merged: github.Ptr(false),
+		}
+
+		minimal := convertToMinimalPullRequest(pr)
+		assert.Empty(t, minimal.MergeCommitSHA)
+
+		raw, err := json.Marshal(minimal)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(raw, &decoded))
+		assert.NotContains(t, decoded, "merge_commit_sha")
+	})
+}

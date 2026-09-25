@@ -724,6 +724,7 @@ type MinimalPullRequest struct {
 	Assignees          []string         `json:"assignees,omitempty"`
 	RequestedReviewers []string         `json:"requested_reviewers,omitempty"`
 	MergedBy           string           `json:"merged_by,omitempty"`
+	MergeCommitSHA     string           `json:"merge_commit_sha,omitempty"`
 	Head               *MinimalPRBranch `json:"head,omitempty"`
 	Base               *MinimalPRBranch `json:"base,omitempty"`
 	Additions          int              `json:"additions,omitempty"`
@@ -1133,6 +1134,12 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	if mergedBy := pr.GetMergedBy(); mergedBy != nil {
 		m.MergedBy = mergedBy.GetLogin()
 	}
+
+	// For a merged pull request this is the commit the merge produced, which is
+	// otherwise unreachable from the pull request without a second call. For an
+	// open one the API reports a test-merge commit instead, so the field is
+	// omitted when empty rather than presented as a result.
+	m.MergeCommitSHA = pr.GetMergeCommitSHA()
 
 	if head := pr.Head; head != nil {
 		m.Head = convertToMinimalPRBranch(head)
