@@ -46,6 +46,8 @@ func TestResolveServerVersion(t *testing.T) {
 		},
 		{name: "dirty source", release: "version", revision: "commit", info: dirty, want: "vcs-" + sha + "-dirty"},
 		{name: "Docker revision", release: "dev", revision: sha, want: "vcs-" + sha},
+		{name: "Docker revision ignores context dirty state", release: "dev", revision: sha, info: dirty, want: "vcs-" + sha},
+		{name: "linked revision ignores unrelated dirty state", release: "dev", revision: otherSHA, info: dirty, want: "vcs-" + otherSHA},
 		{name: "linked revision precedence", release: "dev", revision: otherSHA, info: source, want: "vcs-" + otherSHA},
 		{name: "SHA256", release: "dev", revision: strings.Repeat("ab", 32), want: "vcs-" + strings.Repeat("ab", 32)},
 		{name: "canonical hex", release: "dev", revision: strings.ToUpper(sha), want: "vcs-" + sha},
@@ -71,5 +73,33 @@ func TestResolveServerVersion(t *testing.T) {
 				assert.Equal(t, tt.want, got)
 			}
 		})
+	}
+}
+
+func TestResolveServerVersionRejectsNullRevisions(t *testing.T) {
+	t.Parallel()
+	for _, revision := range []string{strings.Repeat("0", 40), strings.Repeat("0", 64)} {
+		for _, modified := range []string{"false", "true"} {
+			for _, linked := range []bool{false, true} {
+				name := revision + "/modified=" + modified
+				if linked {
+					name += "/linked"
+				}
+				t.Run(name, func(t *testing.T) {
+					info := &debug.BuildInfo{Settings: []debug.BuildSetting{
+						{Key: "vcs.revision", Value: revision},
+						{Key: "vcs.modified", Value: modified},
+					}}
+					commit := "commit"
+					if linked {
+						commit = revision
+						info.Settings[0].Value = strings.Repeat("ab", 20)
+					}
+					got, err := resolveServerVersion("dev", commit, info)
+					require.ErrorContains(t, err, "invalid server build revision")
+					assert.Empty(t, got)
+				})
+			}
+		}
 	}
 }

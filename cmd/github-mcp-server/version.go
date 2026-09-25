@@ -41,7 +41,8 @@ func resolveServerVersion(release, revision string, info *debug.BuildInfo) (stri
 			}
 		}
 	}
-	if revision == "" || revision == "commit" {
+	revisionFromVCS := revision == "" || revision == "commit"
+	if revisionFromVCS {
 		revision = vcsRevision
 		if revision == "" && info != nil && !isPlaceholder(info.Main.Version) {
 			return validateRelease(info.Main.Version)
@@ -56,8 +57,11 @@ func resolveServerVersion(release, revision string, info *debug.BuildInfo) (stri
 	if _, err := hex.DecodeString(revision); err != nil {
 		return "", fmt.Errorf("invalid server build revision: %w", err)
 	}
+	if strings.Trim(revision, "0") == "" {
+		return "", fmt.Errorf("invalid server build revision: all-zero hashes do not identify source")
+	}
 	resolved := "vcs-" + strings.ToLower(revision)
-	if dirty {
+	if revisionFromVCS && dirty {
 		resolved += "-dirty"
 	}
 	return resolved, nil

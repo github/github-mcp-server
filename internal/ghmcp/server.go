@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -443,7 +444,10 @@ func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory
 func stdioUserAgent(cfg github.MCPServerConfig, client *mcp.Implementation) string {
 	agent := fmt.Sprintf("github-mcp-server/%s", cfg.Version)
 	if client != nil {
-		agent += fmt.Sprintf(" (%s/%s)", client.Name, client.Version)
+		comment := strconv.Quote(client.Name + "/" + client.Version)
+		comment = comment[1 : len(comment)-1]
+		comment = strings.NewReplacer("(", `\(`, ")", `\)`).Replace(comment)
+		agent += " (" + comment + ")"
 	}
 	if cfg.InsidersMode {
 		agent += " (insiders)"

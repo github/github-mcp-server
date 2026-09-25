@@ -88,6 +88,41 @@ func TestStdioGraphQLUserAgent(t *testing.T) {
 			clientInfo: &mcp.Implementation{Name: "test-client", Version: "4.5.6"},
 			want:       "github-mcp-server/v1.2.4 (test-client/4.5.6)",
 		},
+		{
+			name: "HTTP comment delimiters", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{Name: `Editor (Preview) \client`, Version: `v(1)\build`},
+			want:       `github-mcp-server/v1.2.3 (Editor \(Preview\) \\client/v\(1\)\\build)`,
+		},
+		{
+			name: "modern control characters", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{Name: "editor(\x00)\\client\r\nX-Fake:1", Version: "1.0\tbeta\x7f"},
+			want:       `github-mcp-server/v1.2.3 (editor\(\x00\)\\client\r\nX-Fake:1/1.0\tbeta\x7f)`,
+		},
+		{
+			name: "SDK control characters", handshake: "sdk", version: "v1.2.3", insiders: true,
+			clientInfo: &mcp.Implementation{Name: "editor(\x00)\\client\r\nX-Fake:1", Version: "1.0\tbeta\x7f"},
+			want:       `github-mcp-server/v1.2.3 (editor\(\x00\)\\client\r\nX-Fake:1/1.0\tbeta\x7f) (insiders)`,
+		},
+		{
+			name: "legacy control characters", handshake: "legacy", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{Name: "editor(\x00)\\client\r\nX-Fake:1", Version: "1.0\tbeta\x7f"},
+			want:       `github-mcp-server/v1.2.3 (editor\(\x00\)\\client\r\nX-Fake:1/1.0\tbeta\x7f)`,
+		},
+		{
+			name: "spaces and Unicode preserved", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{Name: "VS Code \u03b2", Version: "\u03b1 1.0"},
+			want:       "github-mcp-server/v1.2.3 (VS Code \u03b2/\u03b1 1.0)",
+		},
+		{
+			name: "empty client metadata", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{},
+			want:       "github-mcp-server/v1.2.3 (/)",
+		},
+		{
+			name: "quoted client metadata", version: "v1.2.3",
+			clientInfo: &mcp.Implementation{Name: `"Editor"`, Version: `v"1`},
+			want:       `github-mcp-server/v1.2.3 (\"Editor\"/v\"1)`,
+		},
 	}
 
 	for _, tt := range tests {
