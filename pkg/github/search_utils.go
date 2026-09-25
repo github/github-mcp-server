@@ -43,8 +43,11 @@ func hasTypeFilter(query string) bool {
 // labels) to the call result based on the search payload.
 type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult)
 
+type searchFieldsEnrichmentFn func(ctx context.Context, issues []*github.Issue, items []map[string]any) error
+
 type searchConfig struct {
-	postProcess searchPostProcessFn
+	postProcess  searchPostProcessFn
+	enrichFields searchFieldsEnrichmentFn
 	// fields, when non-empty, restricts each result item to the requested
 	// subset of fields. fieldsTool and fieldsDeps identify the calling tool and
 	// its dependencies so fields telemetry can be recorded.
@@ -59,6 +62,11 @@ type searchOption func(*searchConfig)
 // response. The callback may mutate the call result (e.g. to attach _meta.ifc).
 func withSearchPostProcess(fn searchPostProcessFn) searchOption {
 	return func(c *searchConfig) { c.postProcess = fn }
+}
+
+// withSearchFieldsEnrichment adds optional fields to a filtered search page.
+func withSearchFieldsEnrichment(fn searchFieldsEnrichmentFn) searchOption {
+	return func(c *searchConfig) { c.enrichFields = fn }
 }
 
 // withFieldsFiltering enables the optional `fields` response filtering for a
@@ -216,6 +224,11 @@ func searchHandler(
 		filteredItems, err := filterEachField(result.Issues, cfg.fields)
 		if err != nil {
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
+		}
+		if cfg.enrichFields != nil {
+			if err := cfg.enrichFields(ctx, result.Issues, filteredItems); err != nil {
+				return utils.NewToolResultErrorFromErr(errorPrefix+": failed to enrich results", err), nil
+			}
 		}
 		payload = map[string]any{
 			"total_count":        result.Total,

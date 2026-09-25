@@ -1364,7 +1364,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 		Required: []string{"owner", "repo"},
 	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
-		"Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data.",
+		"Subset of fields to return for each pull request. If omitted, all standard fields are returned. Select review_decision for the nullable review decision and status_check_rollup for the nullable aggregate check state of the PR's latest commit; these add one batch GraphQL request per page. Omitting 'body' drops the largest per-result data.",
 		listPullRequestsItemFieldEnum,
 	)
 	WithPagination(schema)
@@ -1454,9 +1454,11 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
+			nodeIDs := make([]string, 0, len(prs))
 			for _, pr := range prs {
 				if pr != nil {
 					minimalPRs = append(minimalPRs, convertToMinimalPullRequest(pr))
+					nodeIDs = append(nodeIDs, pr.GetNodeID())
 				}
 			}
 
@@ -1466,6 +1468,15 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				filteredPRs, err := filterEachField(minimalPRs, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
+				}
+				if requestedPullRequestReadiness(fields) {
+					readiness, err := fetchPullRequestReadiness(ctx, deps, nodeIDs, fields)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to fetch pull request readiness", err), nil, nil
+					}
+					if err := addPullRequestReadinessFields(filteredPRs, nodeIDs, fields, readiness); err != nil {
+						return utils.NewToolResultErrorFromErr("failed to enrich pull request readiness", err), nil, nil
+					}
 				}
 				payload = filteredPRs
 				filtered = true
@@ -1647,7 +1658,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		Required: []string{"query"},
 	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
-		"Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+		"Subset of fields to return for each pull request result. If omitted, all standard fields are returned. Select review_decision for the nullable review decision and status_check_rollup for the nullable aggregate check state of the PR's latest commit; these add one batch GraphQL request per page. Omitting 'body', 'reactions', and 'labels' drops the largest per-result data.",
 		searchPullRequestsItemFieldEnum,
 	)
 	WithPagination(schema)
@@ -1671,6 +1682,21 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
+			if requestedPullRequestReadiness(fields) {
+				options = append(options, withSearchFieldsEnrichment(func(ctx context.Context, issues []*github.Issue, items []map[string]any) error {
+					nodeIDs := make([]string, len(issues))
+					for i, issue := range issues {
+						if issue != nil {
+							nodeIDs[i] = issue.GetNodeID()
+						}
+					}
+					readiness, err := fetchPullRequestReadiness(ctx, deps, nodeIDs, fields)
+					if err != nil {
+						return err
+					}
+					return addPullRequestReadinessFields(items, nodeIDs, fields, readiness)
+				}))
+			}
 			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
 			return result, nil, err
 		})
