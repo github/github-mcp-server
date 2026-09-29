@@ -26,70 +26,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 <!-- START AUTOMATED INSIDERS TOOLS -->
 
-### `remote_mcp_ui_apps`
-
-- **create_pull_request** - Open new pull request
-  - **OAuth Challenge Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-write`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
-  - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `title`: PR title (string, required)
-
-- **get_me** - Get my user profile
-  - **MCP App UI**: `ui://github-mcp-server/get-me`
-  - No parameters required
-
-- **issue_write** - Create or update issue/pull request
-  - **OAuth Challenge Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/issue-write`
-  - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
-  - `issue_number`: Issue number to update (number, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
-  - `method`: Write operation to perform on a single issue.
-    Options are:
-    - 'create' - creates a new issue.
-    - 'update' - updates an existing issue.
-     (string, required)
-  - `milestone`: Milestone number (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `parent_issue_number`: Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation. (number, optional)
-  - `parent_owner`: Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided. (string, optional)
-  - `parent_repo`: Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided. (string, optional)
-  - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
-
-- **ui_get** - Get UI data
-  - **OAuth Challenge Scopes**: `repo`, `read:org`
-  - `method`: The type of data to fetch (string, required)
-  - `owner`: Repository owner (required for all methods) (string, required)
-  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
-
-- **update_pull_request** - Edit pull request
-  - **OAuth Challenge Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
-  - `base`: New base branch name (string, optional)
-  - `body`: New description (string, optional)
-  - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number to update (number, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `state`: New state (string, optional)
-  - `title`: New title (string, optional)
-
 ### `file_blame`
 
 - **get_file_blame** - Get file blame information
@@ -136,31 +72,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
 <!-- END AUTOMATED INSIDERS TOOLS -->
-
----
-
-## MCP Apps
-
-[MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat using MCP Apps.
-
-This means you can interact with GitHub visually: fill out forms to create issues, see user profiles with avatars, open pull requests — all without leaving your agent chat.
-
-### Supported tools
-
-The following tools have MCP Apps UIs:
-
-| Tool | Description |
-|------|-------------|
-| `get_me` | Displays your GitHub user profile with avatar, bio, and stats in a rich card |
-| `issue_write` | Opens an interactive form to create or update issues |
-| `create_pull_request` | Provides a full PR creation form to create a pull request (or a draft pull request) |
-
-### Client requirements
-
-MCP Apps requires a host that supports the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps). Currently tested and working with:
-
-- **VS Code Insiders** — enable via the `chat.mcp.apps.enabled` setting
-- **Visual Studio Code** — enable via the `chat.mcp.apps.enabled` setting
 
 ---
 

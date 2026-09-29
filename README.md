@@ -704,6 +704,7 @@ The following sets of tools are available:
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> Context</summary>
 
 - **get_me** - Get my user profile
+  - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
 - **get_team_members** - Get team members
@@ -714,6 +715,12 @@ The following sets of tools are available:
 - **get_teams** - Get teams
   - **OAuth Challenge Scopes**: `read:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
+- **ui_get** - Get UI data
+  - **OAuth Challenge Scopes**: `repo`, `read:org`
+  - `method`: The type of data to fetch (string, required)
+  - `owner`: Repository owner (required for all methods) (string, required)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
 
 </details>
 
@@ -983,6 +990,7 @@ The following sets of tools are available:
 
 - **issue_write** - Create or update issue/pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
@@ -1238,6 +1246,7 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -1316,6 +1325,7 @@ The following sets of tools are available:
 
 - **update_pull_request** - Edit pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
   - `base`: New base branch name (string, optional)
   - `body`: New description (string, optional)
   - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)

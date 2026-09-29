@@ -14,11 +14,6 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
-// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
-// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
-// The value must match github.MCPAppsFeatureFlag.
-const mcpAppsFeatureFlag FeatureFlag = "remote_mcp_ui_apps"
-
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
@@ -374,13 +369,13 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 }
 
-// mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.
+// mcpAppsMetaKeys lists the Meta keys that carry MCP Apps UI metadata.
 var mcpAppsMetaKeys = []string{
 	"ui", // MCP Apps UI metadata
 }
 
 // stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
-// remote_mcp_ui_apps feature flag is not enabled.
+// client does not support MCP Apps UI.
 func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	result := make([]ServerTool, 0, len(tools))
 	for _, tool := range tools {

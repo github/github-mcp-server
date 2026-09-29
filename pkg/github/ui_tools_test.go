@@ -12,7 +12,6 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -106,7 +105,7 @@ func Test_UIGet(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner"})
 	assert.True(t, tool.Annotations.ReadOnlyHint, "ui_get should be read-only")
-	assert.Equal(t, []inventory.FeatureFlag{MCPAppsFeatureFlag}, serverTool.FeatureRule.Features())
+	assert.Empty(t, serverTool.FeatureRule.Features(), "ui_get should not be feature-gated")
 
 	// ui_get must be app-only so the host hides it from the agent's tool list
 	// while keeping it callable by the views (MCP Apps 2026-01-26 spec).

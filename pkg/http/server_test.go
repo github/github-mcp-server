@@ -375,12 +375,6 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
-			name:           "MCP Apps flag accepted from header",
-			flagName:       github.MCPAppsFeatureFlag,
-			headerFeatures: []string{github.MCPAppsFeatureFlag},
-			wantEnabled:    true,
-		},
-		{
 			name:           "MCP Apps form deferral opt-out accepted from header",
 			flagName:       github.MCPAppsDisableFormDeferralFeatureFlag,
 			headerFeatures: []string{github.MCPAppsDisableFormDeferralFeatureFlag},
@@ -417,8 +411,8 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    false,
 		},
 		{
-			name:         "insiders mode enables MCP Apps without header",
-			flagName:     github.MCPAppsFeatureFlag,
+			name:         "insiders mode enables CSV output without header",
+			flagName:     github.FeatureFlagCSVOutput,
 			insidersMode: true,
 			wantEnabled:  true,
 		},

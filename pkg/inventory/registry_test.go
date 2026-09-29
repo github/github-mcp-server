@@ -1334,7 +1334,7 @@ func TestMetadataBehaviorRemainsLive(t *testing.T) {
 	meta["typed_map"].(map[string]string)["value"] = "changed"
 	meta["bytes"].([]byte)[0] = 'X'
 
-	require.Contains(t, inv.RequiredFeatures(), mcpAppsFeatureFlag)
+	require.Empty(t, inv.RequiredFeatures())
 	available := inv.AllTools()
 	require.Equal(t, "changed", available[0].Tool.Meta["typed_map"].(map[string]string)["value"])
 	require.Equal(t, byte('X'), available[0].Tool.Meta["bytes"].([]byte)[0])
@@ -2088,15 +2088,14 @@ func mockToolWithMeta(name string, toolsetID string, meta map[string]any) Server
 	)
 }
 
-func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
+func TestWithMCPApps_UnsupportedClientStripsUIMetadata(t *testing.T) {
 	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
 		"ui":          map[string]any{"html": "<div>hello</div>"},
 		"description": "kept",
 	})
 
-	// Default: MCP Apps is disabled - UI meta should be stripped on registration.
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
-	registered := captureRegisteredTools(context.Background(), t, reg)
+	registered := captureRegisteredTools(ghcontext.WithUISupport(context.Background(), false), t, reg)
 
 	require.Len(t, registered, 1)
 	if registered[0].Meta["ui"] != nil {
@@ -2107,27 +2106,22 @@ func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
 	}
 }
 
-func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
+func TestWithMCPApps_PreservesUIMetadataByDefault(t *testing.T) {
 	uiData := map[string]any{"html": "<div>hello</div>"}
 	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
 		"ui":          uiData,
 		"description": "kept",
 	})
 
-	// Feature checker enables MCP Apps - UI meta should be preserved
-	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
-		return flag == string(mcpAppsFeatureFlag), nil
-	}
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolWithUI}).
-		WithToolsets([]string{"all"}).
-		WithFeatureChecker(mcpAppsChecker))
-	available := reg.AvailableTools(context.Background())
+		WithToolsets([]string{"all"}))
+	available := reg.ToolsForRegistration(context.Background())
 
 	require.Len(t, available, 1)
 	// UI metadata should be preserved
 	if available[0].Tool.Meta["ui"] == nil {
-		t.Errorf("Expected 'ui' meta to be preserved with MCP Apps enabled")
+		t.Errorf("Expected 'ui' meta to be preserved")
 	}
 	// Other metadata should also be preserved
 	if available[0].Tool.Meta["description"] != "kept" {
@@ -2142,7 +2136,6 @@ func TestWithMCPApps_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 	})
 	toolNilMeta := mockTool("tool_nil_meta", "toolset1", true)
 
-	// Test with MCP Apps disabled (default) - non-UI meta should be unaffected
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolNoUI, toolNilMeta}).
 		WithToolsets([]string{"all"}))
@@ -2183,7 +2176,7 @@ func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolUIOnly}).
 		WithToolsets([]string{"all"}))
-	registered := captureRegisteredTools(context.Background(), t, reg)
+	registered := captureRegisteredTools(ghcontext.WithUISupport(context.Background(), false), t, reg)
 
 	require.Len(t, registered, 1)
 	if registered[0].Meta != nil {
@@ -2311,8 +2304,8 @@ func TestWithMCPApps_DoesNotMutateOriginalTools(t *testing.T) {
 	tool := mockToolWithMeta("test", "toolset1", originalMeta)
 	tools := []ServerTool{tool}
 
-	// Build with MCP Apps disabled (default) - should strip ui
-	_ = mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
+	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
+	_ = reg.ToolsForRegistration(ghcontext.WithUISupport(context.Background(), false))
 
 	// Original tool should be unchanged
 	require.Equal(t, "data", tools[0].Tool.Meta["ui"], "original tool should not be mutated")
@@ -2484,52 +2477,36 @@ func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) [
 }
 
 // TestShouldStripMCPAppsMetadata verifies the spec-conformant strip decision:
-// strip when the feature flag is off, OR when the client explicitly does not
-// advertise the io.modelcontextprotocol/ui extension.
+// strip only when the client explicitly does not advertise the
+// io.modelcontextprotocol/ui extension.
 func TestShouldStripMCPAppsMetadata(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
 		setupCtx func() context.Context
-		ffOn     bool
 		want     bool
 	}{
 		{
-			name:     "FF off, capability unknown -> strip",
+			name:     "capability unknown -> keep",
 			setupCtx: context.Background,
-			ffOn:     false,
-			want:     true,
-		},
-		{
-			name:     "FF off, capability present -> strip (FF wins)",
-			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), true) },
-			ffOn:     false,
-			want:     true,
-		},
-		{
-			name:     "FF on, capability unknown -> keep",
-			setupCtx: context.Background,
-			ffOn:     true,
 			want:     false,
 		},
 		{
-			name:     "FF on, capability present -> keep",
+			name:     "capability present -> keep",
 			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), true) },
-			ffOn:     true,
 			want:     false,
 		},
 		{
-			name:     "FF on, capability explicitly absent -> strip",
+			name:     "capability explicitly absent -> strip",
 			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), false) },
-			ffOn:     true,
 			want:     true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := shouldStripMCPAppsMetadata(tc.setupCtx(), tc.ffOn)
+			got := shouldStripMCPAppsMetadata(tc.setupCtx())
 			require.Equal(t, tc.want, got)
 		})
 	}

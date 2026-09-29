@@ -2216,7 +2216,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	deps := BaseDeps{
 		Client:         client,
 		GQLClient:      githubv4.NewClient(nil),
-		featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
+		featureChecker: featureCheckerFor(),
 	}
 	handler := serverTool.Handler(deps)
 
