@@ -2106,6 +2106,39 @@ func TestWithMCPApps_UnsupportedClientStripsUIMetadata(t *testing.T) {
 	}
 }
 
+func TestWithMCPApps_UnsupportedClientOmitsAppOnlyTools(t *testing.T) {
+	appOnly := mockToolWithMeta("app_only", "toolset1", map[string]any{
+		"ui": map[string]any{"visibility": []string{"app"}},
+	})
+	appOnlyAny := mockToolWithMeta("app_only_any", "toolset1", map[string]any{
+		"ui": map[string]any{"visibility": []any{"app"}},
+	})
+	modelAndApp := mockToolWithMeta("model_and_app", "toolset1", map[string]any{
+		"ui": map[string]any{"resourceUri": "ui://x", "visibility": []string{"model", "app"}},
+	})
+	noVisibility := mockToolWithMeta("no_visibility", "toolset1", map[string]any{
+		"ui": map[string]any{"resourceUri": "ui://y"},
+	})
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{appOnly, appOnlyAny, modelAndApp, noVisibility}).
+		WithToolsets([]string{"all"}))
+
+	stripped := reg.ToolsForRegistration(ghcontext.WithUISupport(context.Background(), false))
+	names := make([]string, 0, len(stripped))
+	for _, tool := range stripped {
+		names = append(names, tool.Tool.Name)
+		require.Nil(t, tool.Tool.Meta["ui"], "ui meta should be stripped from %s", tool.Tool.Name)
+	}
+	require.ElementsMatch(t, []string{"model_and_app", "no_visibility"}, names)
+
+	for _, ctx := range []context.Context{
+		context.Background(),
+		ghcontext.WithUISupport(context.Background(), true),
+	} {
+		require.Len(t, reg.ToolsForRegistration(ctx), 4, "app-only tools should be kept when UI is supported or unknown")
+	}
+}
+
 func TestWithMCPApps_PreservesUIMetadataByDefault(t *testing.T) {
 	uiData := map[string]any{"html": "<div>hello</div>"}
 	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{

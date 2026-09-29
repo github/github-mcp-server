@@ -375,10 +375,15 @@ var mcpAppsMetaKeys = []string{
 }
 
 // stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
-// client does not support MCP Apps UI.
+// client does not support MCP Apps UI. App-only tools (ui.visibility without
+// "model") are omitted entirely rather than being exposed as ordinary
+// model-visible tools.
 func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	result := make([]ServerTool, 0, len(tools))
 	for _, tool := range tools {
+		if isAppOnlyTool(&tool) {
+			continue
+		}
 		if stripped := stripMetaKeys(tool, mcpAppsMetaKeys); stripped != nil {
 			result = append(result, *stripped)
 		} else {
@@ -386,6 +391,30 @@ func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 		}
 	}
 	return result
+}
+
+// isAppOnlyTool reports whether a tool declares MCP Apps visibility that
+// excludes the model (e.g. `_meta.ui.visibility: ["app"]`). Such tools are
+// only meant to be called by MCP App views, never by the model directly.
+func isAppOnlyTool(tool *ServerTool) bool {
+	ui, ok := tool.Tool.Meta["ui"].(map[string]any)
+	if !ok {
+		return false
+	}
+	var visibility []string
+	switch v := ui["visibility"].(type) {
+	case []string:
+		visibility = v
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				visibility = append(visibility, s)
+			}
+		}
+	default:
+		return false
+	}
+	return len(visibility) > 0 && !slices.Contains(visibility, "model")
 }
 
 // stripMetaKeys removes the specified Meta keys from a single tool.

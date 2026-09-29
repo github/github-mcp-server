@@ -182,8 +182,10 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // MCP Apps UI metadata is stripped only when the client explicitly did not
 // advertise the io.modelcontextprotocol/ui extension capability (per the
 // 2026-01-26 MCP Apps spec, servers SHOULD check client capabilities before
-// exposing UI-enabled tools). When the capability is unknown (e.g. stdio
-// paths that do not populate the context flag) the metadata is kept.
+// exposing UI-enabled tools). In that case app-only tools (whose
+// _meta.ui.visibility excludes "model") are omitted entirely. When the
+// capability is unknown (e.g. stdio paths that do not populate the context
+// flag) the metadata is kept.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
