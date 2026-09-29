@@ -16,12 +16,6 @@ func (r *Inventory) isToolsetEnabled(toolsetID ToolsetID) bool {
 	return true
 }
 
-// checkFeatureFlag checks a feature flag using the feature checker.
-// Returns false if checker is nil or returns an error (errors are logged).
-func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName FeatureFlag) bool {
-	return ResolveFeature(ctx, r.featureChecker, flagName)
-}
-
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
 //  1. Tool.Enabled (tool self-filtering)
