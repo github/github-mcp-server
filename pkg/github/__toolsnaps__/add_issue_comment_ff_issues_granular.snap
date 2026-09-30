@@ -1,0 +1,55 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Add comment to issue"
+  },
+  "description": "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Only works on issues; for pull requests use add_pull_request_comment. At least one of body or reaction is required.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Comment content. Required unless reaction is provided.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The numeric ID of the issue comment to react to. Use this for reactions to comments; omit it to react to the issue itself. Cannot be combined with body.",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "issue_number": {
+        "description": "Issue number to comment on or react to.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "reaction": {
+        "description": "Emoji reaction to add. Required unless body is provided.",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_comment"
+}

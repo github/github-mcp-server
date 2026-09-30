@@ -88,6 +88,16 @@ func TestGranularToolSnaps(t *testing.T) {
 			require.NoError(t, toolsnaps.Test(serverTool.Tool.Name, serverTool.Tool))
 		})
 	}
+
+	for _, constructor := range []func(translations.TranslationHelperFunc) inventory.ServerTool{
+		GranularAddIssueComment,
+		GranularUpdateIssueComment,
+	} {
+		serverTool := constructor(translations.NullTranslationHelper)
+		t.Run(serverTool.Tool.Name+"_ff_"+FeatureFlagIssuesGranular, func(t *testing.T) {
+			require.NoError(t, toolsnaps.Test(serverTool.Tool.Name+"_ff_"+FeatureFlagIssuesGranular, serverTool.Tool))
+		})
+	}
 }
 
 func TestIssuesGranularToolset(t *testing.T) {

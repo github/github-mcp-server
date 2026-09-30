@@ -27,33 +27,43 @@ func normalizeConfidence(confidence string) string {
 // rather than an issue. GitHub's issues API accepts pull request numbers, so tools
 // that should only act on issues must check this explicitly. A nil result means
 // the number refers to an issue.
-func EnsureIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int) *mcp.CallToolResult {
-	return ensureIssueKind(ctx, client, owner, repo, issueNumber, false)
+func EnsureIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, companionTool ...string) *mcp.CallToolResult {
+	return ensureIssueKind(ctx, client, owner, repo, issueNumber, false, firstOrDefault(companionTool, "the pull request tools"))
 }
 
 // EnsurePullRequest returns an error result if the given number refers to an issue
 // rather than a pull request. A nil result means the number refers to a pull request.
-func EnsurePullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) *mcp.CallToolResult {
-	return ensureIssueKind(ctx, client, owner, repo, pullNumber, true)
+func EnsurePullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, companionTool ...string) *mcp.CallToolResult {
+	return ensureIssueKind(ctx, client, owner, repo, pullNumber, true, firstOrDefault(companionTool, "the issue tools"))
 }
 
 // EnsureIssueComment returns an error result if the given conversation comment
 // belongs to a pull request rather than an issue. A nil result means the comment
 // belongs to an issue.
-func EnsureIssueComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64) *mcp.CallToolResult {
-	return ensureCommentKind(ctx, client, owner, repo, commentID, false)
+func EnsureIssueComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64, companionTool ...string) *mcp.CallToolResult {
+	return ensureCommentKind(ctx, client, owner, repo, commentID, false, firstOrDefault(companionTool, "the pull request comment tools"))
 }
 
 // EnsurePullRequestComment returns an error result if the given conversation
 // comment belongs to an issue rather than a pull request. A nil result means the
 // comment belongs to a pull request.
-func EnsurePullRequestComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64) *mcp.CallToolResult {
-	return ensureCommentKind(ctx, client, owner, repo, commentID, true)
+func EnsurePullRequestComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64, companionTool ...string) *mcp.CallToolResult {
+	return ensureCommentKind(ctx, client, owner, repo, commentID, true, firstOrDefault(companionTool, "the issue comment tools"))
 }
 
-func ensureCommentKind(ctx context.Context, client *github.Client, owner, repo string, commentID int64, wantPullRequest bool) *mcp.CallToolResult {
+func firstOrDefault(values []string, fallback string) string {
+	if len(values) > 0 {
+		return values[0]
+	}
+	return fallback
+}
+
+func ensureCommentKind(ctx context.Context, client *github.Client, owner, repo string, commentID int64, wantPullRequest bool, companionTool string) *mcp.CallToolResult {
 	comment, resp, err := client.Issues.GetComment(ctx, owner, repo, commentID)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to get comment %d", commentID), resp, err)
 	}
 	_ = resp.Body.Close()
@@ -62,12 +72,15 @@ func ensureCommentKind(ctx context.Context, client *github.Client, owner, repo s
 	if err != nil {
 		return utils.NewToolResultErrorFromErr(fmt.Sprintf("failed to determine the issue or pull request for comment %d", commentID), err)
 	}
-	return ensureIssueKind(ctx, client, owner, repo, number, wantPullRequest)
+	return ensureIssueKind(ctx, client, owner, repo, number, wantPullRequest, companionTool)
 }
 
-func ensureIssueKind(ctx context.Context, client *github.Client, owner, repo string, number int, wantPullRequest bool) *mcp.CallToolResult {
+func ensureIssueKind(ctx context.Context, client *github.Client, owner, repo string, number int, wantPullRequest bool, companionTool string) *mcp.CallToolResult {
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, number)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to get #%d", number), resp, err)
 	}
 	_ = resp.Body.Close()
@@ -75,9 +88,9 @@ func ensureIssueKind(ctx context.Context, client *github.Client, owner, repo str
 	isPullRequest := issue.IsPullRequest()
 	switch {
 	case isPullRequest && !wantPullRequest:
-		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is a pull request, not an issue. Use the pull request tools to modify it.", number, owner, repo))
+		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is a pull request, not an issue. Use %s to modify it.", number, owner, repo, companionTool))
 	case !isPullRequest && wantPullRequest:
-		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is an issue, not a pull request. Use the issue tools to modify it.", number, owner, repo))
+		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is an issue, not a pull request. Use %s to modify it.", number, owner, repo, companionTool))
 	}
 	return nil
 }
@@ -151,7 +164,7 @@ func issueUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, strings.Replace(name, "update_issue_", "update_pull_request_", 1)); result != nil {
 				return result, nil, nil
 			}
 
@@ -488,7 +501,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "update_issue_assignees"); result != nil {
 				return result, nil, nil
 			}
 
@@ -710,7 +723,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "update_issue_labels"); result != nil {
 				return result, nil, nil
 			}
 
@@ -897,7 +910,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "update_issue_type"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1087,7 +1100,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "update_issue_state"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1725,7 +1738,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "add_issue_reaction"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1811,7 +1824,7 @@ func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "remove_issue_reaction"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1892,7 +1905,7 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+			if result := EnsureIssueComment(ctx, client, owner, repo, commentID, "add_issue_comment_reaction"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1978,7 +1991,7 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+			if result := EnsureIssueComment(ctx, client, owner, repo, commentID, "remove_issue_comment_reaction"); result != nil {
 				return result, nil, nil
 			}
 

@@ -1046,15 +1046,17 @@ func prIssueFieldUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber, name); result != nil {
 				return result, nil, nil
 			}
 
 			issue, resp, err := client.Issues.Update(ctx, owner, repo, pullNumber, issueReq)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", issue.GetID()),
@@ -1085,6 +1087,9 @@ func GranularUpdatePullRequestAssignees(t translations.TranslationHelperFunc) in
 		},
 		[]string{"assignees"},
 		func(args map[string]any) (gogithub.UpdateIssueRequest, error) {
+			if value, ok := args["assignees"]; !ok || value == nil {
+				return gogithub.UpdateIssueRequest{}, fmt.Errorf("parameter assignees is required")
+			}
 			assignees, err := OptionalStringArrayParam(args, "assignees")
 			if err != nil {
 				return gogithub.UpdateIssueRequest{}, err
@@ -1109,6 +1114,9 @@ func GranularUpdatePullRequestLabels(t translations.TranslationHelperFunc) inven
 		},
 		[]string{"labels"},
 		func(args map[string]any) (gogithub.UpdateIssueRequest, error) {
+			if value, ok := args["labels"]; !ok || value == nil {
+				return gogithub.UpdateIssueRequest{}, fmt.Errorf("parameter labels is required")
+			}
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return gogithub.UpdateIssueRequest{}, err
@@ -1204,16 +1212,18 @@ func GranularAddPullRequestReaction(t translations.TranslationHelperFunc) invent
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber, "add_pull_request_reaction"); result != nil {
 				return result, nil, nil
 			}
 
 			// Pull request reactions use the issues reactions endpoint.
 			reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, pullNumber, content)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", reaction.GetID()),
@@ -1291,7 +1301,7 @@ func GranularRemovePullRequestReaction(t translations.TranslationHelperFunc) inv
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber, "remove_pull_request_reaction"); result != nil {
 				return result, nil, nil
 			}
 
@@ -1372,16 +1382,18 @@ func GranularAddPullRequestComment(t translations.TranslationHelperFunc) invento
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber, "add_pull_request_comment"); result != nil {
 				return result, nil, nil
 			}
 
 			// Pull request conversation comments use the issues comments endpoint.
 			comment, resp, err := client.Issues.CreateComment(ctx, owner, repo, pullNumber, &gogithub.IssueComment{Body: gogithub.Ptr(body)})
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create pull request comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", comment.GetID()),
@@ -1459,15 +1471,17 @@ func GranularUpdatePullRequestComment(t translations.TranslationHelperFunc) inve
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID, "update_pull_request_comment"); result != nil {
 				return result, nil, nil
 			}
 
 			comment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentID, &gogithub.IssueComment{Body: gogithub.Ptr(body)})
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", comment.GetID()),
@@ -1545,15 +1559,17 @@ func GranularAddPullRequestCommentReaction(t translations.TranslationHelperFunc)
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID, "add_pull_request_comment_reaction"); result != nil {
 				return result, nil, nil
 			}
 
 			reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, content)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", reaction.GetID()),
@@ -1631,7 +1647,7 @@ func GranularRemovePullRequestCommentReaction(t translations.TranslationHelperFu
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID, "remove_pull_request_comment_reaction"); result != nil {
 				return result, nil, nil
 			}
 

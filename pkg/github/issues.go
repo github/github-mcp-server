@@ -1491,7 +1491,7 @@ func addIssueComment(t translations.TranslationHelperFunc, issueOnly bool) inven
 			if issueOnly {
 				// A comment_id is validated against issue_number below, so checking
 				// issue_number also covers reactions to comments.
-				if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				if result := EnsureIssue(ctx, client, owner, repo, issueNumber, "add_issue_comment"); result != nil {
 					return result, nil, nil
 				}
 			}
@@ -1676,7 +1676,7 @@ func updateIssueComment(t translations.TranslationHelperFunc, issueOnly bool) in
 			}
 
 			if issueOnly {
-				if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+				if result := EnsureIssueComment(ctx, client, owner, repo, commentID, "update_issue_comment"); result != nil {
 					return result, nil, nil
 				}
 			}
