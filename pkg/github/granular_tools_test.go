@@ -1653,49 +1653,15 @@ func TestGranularUpdatePullRequestDraftState(t *testing.T) {
 
 func TestGranularAddPullRequestReviewComment(t *testing.T) {
 	mockedClient := githubv4mock.NewMockedHTTPClient(
-		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}{},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"viewer": map[string]any{"login": "testuser"},
-			}),
-		),
-		githubv4mock.NewQueryMatcher(
-			struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}{},
-			map[string]any{
-				"author": githubv4.String("testuser"),
-				"owner":  githubv4.String("owner"),
-				"name":   githubv4.String("repo"),
-				"prNum":  githubv4.Int(1),
+		viewerIDQuery("U_testuser"),
+		getPendingReviewsQuery(getPendingReviewsQueryParams{
+			owner: "owner",
+			repo:  "repo",
+			prNum: 1,
+			reviews: []pendingReviewQueryReview{
+				{id: "PRR_123", authorID: "U_testuser"},
 			},
-			githubv4mock.DataResponse(map[string]any{
-				"repository": map[string]any{
-					"pullRequest": map[string]any{
-						"reviews": map[string]any{
-							"nodes": []map[string]any{
-								{"id": "PRR_123", "state": "PENDING", "url": "https://github.com/owner/repo/pull/1#pullrequestreview-123"},
-							},
-						},
-					},
-				},
-			}),
-		),
+		}),
 		githubv4mock.NewMutationMatcher(
 			struct {
 				AddPullRequestReviewThread struct {
