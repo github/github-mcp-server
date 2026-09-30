@@ -4101,6 +4101,57 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 	}
 }
 
+func TestGetPendingPullRequestReviewForViewerPaginates(t *testing.T) {
+	t.Parallel()
+
+	var reviewQueries atomic.Int32
+	transport := NewMockRoundTripper().OnRequest(http.MethodPost, "/graphql", func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(request.Query, "viewer"):
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{"id": "U_viewer"},
+				},
+			}))
+		case strings.Contains(request.Query, "reviews"):
+			queryNumber := reviewQueries.Add(1)
+			if queryNumber == 1 {
+				assert.Nil(t, request.Variables["after"])
+				require.NoError(t, json.NewEncoder(w).Encode(pendingReviewsResponse(
+					[]pendingReviewQueryReview{{id: "PR_other", authorID: "U_other"}},
+					true,
+					"cursor-1",
+				)))
+				return
+			}
+
+			assert.Equal(t, "cursor-1", request.Variables["after"])
+			require.NoError(t, json.NewEncoder(w).Encode(pendingReviewsResponse(
+				[]pendingReviewQueryReview{{id: "PR_viewer", authorID: "U_viewer"}},
+				false,
+				"",
+			)))
+		default:
+			t.Fatalf("unexpected GraphQL query: %s", request.Query)
+		}
+	})
+
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+	reviewID, result := getPendingPullRequestReviewForViewer(context.Background(), client, "owner", "repo", 42)
+
+	require.Nil(t, result)
+	require.NotNil(t, reviewID)
+	assert.Equal(t, githubv4.ID("PR_viewer"), *reviewID)
+	assert.Equal(t, int32(2), reviewQueries.Load())
+}
+
 func TestGetPullRequestDiff(t *testing.T) {
 	t.Parallel()
 
@@ -4278,20 +4329,6 @@ type getPendingReviewsQueryParams struct {
 }
 
 func getPendingReviewsQuery(p getPendingReviewsQueryParams) githubv4mock.Matcher {
-	reviews := make([]any, 0, len(p.reviews))
-	for _, review := range p.reviews {
-		authorField := review.authorField
-		if authorField == "" {
-			authorField = "userId"
-		}
-		reviews = append(reviews, map[string]any{
-			"id": review.id,
-			"author": map[string]any{
-				authorField: review.authorID,
-			},
-		})
-	}
-
 	matcher := githubv4mock.NewQueryMatcher(
 		struct {
 			Repository struct {
@@ -4317,21 +4354,47 @@ func getPendingReviewsQuery(p getPendingReviewsQueryParams) githubv4mock.Matcher
 			"states": []githubv4.PullRequestReviewState{githubv4.PullRequestReviewStatePending},
 		},
 		githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"pullRequest": map[string]any{
-					"reviews": map[string]any{
-						"nodes": reviews,
-						"pageInfo": map[string]any{
-							"hasNextPage": false,
-							"endCursor":   "",
-						},
-					},
-				},
-			},
+			"repository": pendingReviewsData(p.reviews, false, "")["repository"],
 		}),
 	)
 	matcher.Variables["states"] = []any{"PENDING"}
 	return matcher
+}
+
+func pendingReviewsResponse(reviews []pendingReviewQueryReview, hasNextPage bool, endCursor string) map[string]any {
+	return map[string]any{
+		"data": pendingReviewsData(reviews, hasNextPage, endCursor),
+	}
+}
+
+func pendingReviewsData(reviews []pendingReviewQueryReview, hasNextPage bool, endCursor string) map[string]any {
+	nodes := make([]any, 0, len(reviews))
+	for _, review := range reviews {
+		authorField := review.authorField
+		if authorField == "" {
+			authorField = "userId"
+		}
+		nodes = append(nodes, map[string]any{
+			"id": review.id,
+			"author": map[string]any{
+				authorField: review.authorID,
+			},
+		})
+	}
+
+	return map[string]any{
+		"repository": map[string]any{
+			"pullRequest": map[string]any{
+				"reviews": map[string]any{
+					"nodes": nodes,
+					"pageInfo": map[string]any{
+						"hasNextPage": hasNextPage,
+						"endCursor":   endCursor,
+					},
+				},
+			},
+		},
+	}
 }
 
 func TestAddReplyToPullRequestComment(t *testing.T) {
