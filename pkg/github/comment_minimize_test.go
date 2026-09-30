@@ -117,7 +117,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRRC_2", "OUTDATED")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
-				"comment_type": "review_comment", "comment_id": float64(2), "classifier": "OUTDATED",
+				"comment_type": "pull_request_review_comment", "comment_id": float64(2), "classifier": "OUTDATED",
 			},
 			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: true, MinimizedReason: "OUTDATED"},
 		},
@@ -130,7 +130,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			gqlMatchers: []githubv4mock.Matcher{unminimizeCommentMatcher("PRR_3")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
-				"comment_type": "review", "comment_id": float64(3), "pull_number": float64(42),
+				"comment_type": "pull_request_review", "comment_id": float64(3), "pull_number": float64(42),
 			},
 			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: false},
 		},
@@ -143,7 +143,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRR_3", "RESOLVED")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
-				"comment_type": "review", "comment_id": float64(3), "pull_number": float64(42), "classifier": "RESOLVED",
+				"comment_type": "pull_request_review", "comment_id": float64(3), "pull_number": float64(42), "classifier": "RESOLVED",
 			},
 			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: true, MinimizedReason: "RESOLVED"},
 		},
@@ -156,7 +156,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			gqlMatchers: []githubv4mock.Matcher{unminimizeCommentMatcher("PRRC_2")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
-				"comment_type": "review_comment", "comment_id": float64(2),
+				"comment_type": "pull_request_review_comment", "comment_id": float64(2),
 			},
 			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: false},
 		},
@@ -261,7 +261,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			name: "invalid pull_number type",
 			tool: GranularUnhideComment(translations.NullTranslationHelper),
 			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo", "comment_type": "review",
+				"owner": "owner", "repo": "repo", "comment_type": "pull_request_review",
 				"comment_id": float64(3), "pull_number": "forty-two",
 			},
 			expectedErrMsg: "pull_number",
@@ -280,7 +280,7 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			tool: GranularUnhideComment(translations.NullTranslationHelper),
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
-				"comment_type": "review", "comment_id": float64(3),
+				"comment_type": "pull_request_review", "comment_id": float64(3),
 			},
 			expectedErrMsg: "pull_number is required",
 		},

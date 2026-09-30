@@ -187,13 +187,13 @@ as output formatting) won't appear here.
 - **hide_comment** - Hide Comment
   - **OAuth Challenge Scopes**: `repo`
   - `classifier`: The reason for hiding the comment (string, required)
-  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'review' (integer, required)
+  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'pull_request_review' (integer, required)
   - `comment_type`: The kind of comment:
     - 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.
-    - 'review_comment' - an inline comment on a pull request diff.
-    - 'review' - the body of a pull request review. Requires 'pull_number'. (string, required)
+    - 'pull_request_review_comment' - an inline comment on a pull request diff.
+    - 'pull_request_review' - the body of a pull request review. Requires 'pull_number'. (string, required)
   - `owner`: Repository owner (string, required)
-  - `pull_number`: Pull request number. Required when comment_type is 'review'. (number, optional)
+  - `pull_number`: Pull request number. Required when comment_type is 'pull_request_review'. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **remove_issue_comment_reaction** - Remove Reaction from Issue or Pull Request Comment
@@ -235,13 +235,13 @@ as output formatting) won't appear here.
 
 - **unhide_comment** - Unhide Comment
   - **OAuth Challenge Scopes**: `repo`
-  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'review' (integer, required)
+  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'pull_request_review' (integer, required)
   - `comment_type`: The kind of comment:
     - 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.
-    - 'review_comment' - an inline comment on a pull request diff.
-    - 'review' - the body of a pull request review. Requires 'pull_number'. (string, required)
+    - 'pull_request_review_comment' - an inline comment on a pull request diff.
+    - 'pull_request_review' - the body of a pull request review. Requires 'pull_number'. (string, required)
   - `owner`: Repository owner (string, required)
-  - `pull_number`: Pull request number. Required when comment_type is 'review'. (number, optional)
+  - `pull_number`: Pull request number. Required when comment_type is 'pull_request_review'. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **update_issue_assignees** - Update Issue Assignees

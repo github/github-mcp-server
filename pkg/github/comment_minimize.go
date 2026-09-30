@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	CommentTypeIssueComment  = "issue_comment"
-	CommentTypeReviewComment = "review_comment"
-	CommentTypeReview        = "review"
+	CommentTypeIssueComment             = "issue_comment"
+	CommentTypePullRequestReviewComment = "pull_request_review_comment"
+	CommentTypePullRequestReview        = "pull_request_review"
 )
 
-// MinimizeCommentResult is the response returned by the minimize_comment tool.
+// MinimizeCommentResult is the response returned by the hide_comment and unhide_comment tools.
 type MinimizeCommentResult struct {
 	NodeID          string `json:"node_id"`
 	IsMinimized     bool   `json:"is_minimized"`
@@ -47,18 +47,18 @@ func commentTargetProperties() map[string]*jsonschema.Schema {
 			Type: "string",
 			Description: "The kind of comment:\n" +
 				"- 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.\n" +
-				"- 'review_comment' - an inline comment on a pull request diff.\n" +
-				"- 'review' - the body of a pull request review. Requires 'pull_number'.",
-			Enum: []any{CommentTypeIssueComment, CommentTypeReviewComment, CommentTypeReview},
+				"- 'pull_request_review_comment' - an inline comment on a pull request diff.\n" +
+				"- 'pull_request_review' - the body of a pull request review. Requires 'pull_number'.",
+			Enum: []any{CommentTypeIssueComment, CommentTypePullRequestReviewComment, CommentTypePullRequestReview},
 		},
 		"comment_id": {
 			Type:        "integer",
-			Description: "The numeric ID of the comment, or of the review when comment_type is 'review'",
+			Description: "The numeric ID of the comment, or of the review when comment_type is 'pull_request_review'",
 			Minimum:     jsonschema.Ptr(1.0),
 		},
 		"pull_number": {
 			Type:        "number",
-			Description: "Pull request number. Required when comment_type is 'review'.",
+			Description: "Pull request number. Required when comment_type is 'pull_request_review'.",
 		},
 	}
 }
@@ -132,13 +132,13 @@ func resolveCommentNodeID(ctx context.Context, client *github.Client, owner, rep
 		var comment *github.IssueComment
 		comment, resp, err = client.Issues.GetComment(ctx, owner, repo, commentID)
 		nodeID = comment.GetNodeID()
-	case CommentTypeReviewComment:
+	case CommentTypePullRequestReviewComment:
 		var comment *github.PullRequestComment
 		comment, resp, err = client.PullRequests.GetComment(ctx, owner, repo, commentID)
 		nodeID = comment.GetNodeID()
-	case CommentTypeReview:
+	case CommentTypePullRequestReview:
 		if pullNumber <= 0 {
-			return "", utils.NewToolResultError("pull_number is required when comment_type is 'review'")
+			return "", utils.NewToolResultError("pull_number is required when comment_type is 'pull_request_review'")
 		}
 		var review *github.PullRequestReview
 		review, resp, err = client.PullRequests.GetReview(ctx, owner, repo, pullNumber, commentID)
