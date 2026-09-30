@@ -3,7 +3,9 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -61,7 +63,7 @@ var issueCommentVisibilityTarget = commentVisibilityTarget{
 	},
 	required: []string{"comment_id"},
 	resolveNodeID: func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult) {
-		commentID, err := RequiredBigInt(args, "comment_id")
+		commentID, err := requiredPositiveBigInt(args, "comment_id")
 		if err != nil {
 			return "", utils.NewToolResultError(err.Error())
 		}
@@ -88,7 +90,7 @@ var pullRequestReviewCommentVisibilityTarget = commentVisibilityTarget{
 	},
 	required: []string{"comment_id"},
 	resolveNodeID: func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult) {
-		commentID, err := RequiredBigInt(args, "comment_id")
+		commentID, err := requiredPositiveBigInt(args, "comment_id")
 		if err != nil {
 			return "", utils.NewToolResultError(err.Error())
 		}
@@ -124,7 +126,10 @@ var pullRequestReviewVisibilityTarget = commentVisibilityTarget{
 		if err != nil {
 			return "", utils.NewToolResultError(err.Error())
 		}
-		reviewID, err := RequiredBigInt(args, "review_id")
+		if pullNumber < 1 {
+			return "", utils.NewToolResultError("pullNumber must be greater than 0")
+		}
+		reviewID, err := requiredPositiveBigInt(args, "review_id")
 		if err != nil {
 			return "", utils.NewToolResultError(err.Error())
 		}
@@ -204,6 +209,10 @@ func setCommentVisibility(ctx context.Context, deps ToolDependencies, target com
 		if err != nil {
 			return utils.NewToolResultError(err.Error())
 		}
+		classifier = strings.ToUpper(classifier)
+		if !slices.Contains(commentClassifiers, any(classifier)) {
+			return utils.NewToolResultError(fmt.Sprintf("invalid classifier %q: must be one of %v", classifier, commentClassifiers))
+		}
 	}
 
 	client, err := deps.GetClient(ctx)
@@ -223,7 +232,7 @@ func setCommentVisibility(ctx context.Context, deps ToolDependencies, target com
 
 	var result MinimizeCommentResult
 	if hide {
-		result, errResult = minimizeComment(ctx, gqlClient, nodeID, strings.ToUpper(classifier))
+		result, errResult = minimizeComment(ctx, gqlClient, nodeID, classifier)
 	} else {
 		result, errResult = unminimizeComment(ctx, gqlClient, nodeID)
 	}
@@ -236,6 +245,19 @@ func setCommentVisibility(ctx context.Context, deps ToolDependencies, target com
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err)
 	}
 	return utils.NewToolResultText(string(r))
+}
+
+// requiredPositiveBigInt reads a required ID argument. The schema's minimum is not enforced
+// when arguments are unmarshalled, so negative values are rejected here before any API call.
+func requiredPositiveBigInt(args map[string]any, p string) (int64, error) {
+	v, err := RequiredBigInt(args, p)
+	if err != nil {
+		return 0, err
+	}
+	if v < 1 {
+		return 0, fmt.Errorf("%s must be greater than 0", p)
+	}
+	return v, nil
 }
 
 // nodeIDFromResponse turns the result of a REST lookup into a GraphQL node ID, since the

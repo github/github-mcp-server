@@ -283,6 +283,36 @@ func Test_HideAndUnhideComments(t *testing.T) {
 			expectedErrMsg: "failed to unminimize comment",
 		},
 		{
+			name:           "invalid classifier is rejected before any API call",
+			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1), "classifier": "BOGUS"},
+			expectedErrMsg: `invalid classifier "BOGUS"`,
+		},
+		{
+			name:           "negative issue comment_id",
+			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(-1), "classifier": "SPAM"},
+			expectedErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name:           "negative pull request review comment_id",
+			tool:           GranularUnhidePullRequestReviewComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(-2)},
+			expectedErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name:           "negative review_id",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42), "review_id": float64(-3)},
+			expectedErrMsg: "review_id must be greater than 0",
+		},
+		{
+			name:           "negative pullNumber",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(-42), "review_id": float64(3)},
+			expectedErrMsg: "pullNumber must be greater than 0",
+		},
+		{
 			name:           "missing owner",
 			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
 			requestArgs:    map[string]any{"repo": "repo", "comment_id": float64(1)},
