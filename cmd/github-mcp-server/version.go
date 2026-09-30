@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"runtime/debug"
 	"strings"
 	"unicode"
 )
 
-func resolveServerVersion(release, revision string, info *debug.BuildInfo) (string, error) {
+const developmentServerVersion = "dev"
+
+func resolveServerVersion(release, revision string, info *debug.BuildInfo) string {
 	isPlaceholder := func(value string) bool {
 		switch value {
 		case "", "version", "dev", "unknown", "(devel)":
@@ -17,16 +18,19 @@ func resolveServerVersion(release, revision string, info *debug.BuildInfo) (stri
 			return false
 		}
 	}
-	validateRelease := func(value string) (string, error) {
+	validRelease := func(value string) bool {
+		if isPlaceholder(value) {
+			return false
+		}
 		for _, r := range value {
 			if r > unicode.MaxASCII || r <= ' ' || r == 127 || strings.ContainsRune("()<>@,;:\\\"/[]?={}", r) {
-				return "", fmt.Errorf("server version must be an HTTP product token: %q", value)
+				return false
 			}
 		}
-		return value, nil
+		return true
 	}
-	if !isPlaceholder(release) {
-		return validateRelease(release)
+	if validRelease(release) {
+		return release
 	}
 
 	var vcsRevision string
@@ -41,28 +45,31 @@ func resolveServerVersion(release, revision string, info *debug.BuildInfo) (stri
 			}
 		}
 	}
-	revisionFromVCS := revision == "" || revision == "commit"
-	if revisionFromVCS {
-		revision = vcsRevision
-		if revision == "" && info != nil && !isPlaceholder(info.Main.Version) {
-			return validateRelease(info.Main.Version)
+	revisions := []struct {
+		value string
+		dirty bool
+	}{
+		{value: revision},
+		{value: vcsRevision, dirty: dirty},
+	}
+	for _, candidate := range revisions {
+		if len(candidate.value) != 40 && len(candidate.value) != 64 {
+			continue
 		}
+		if _, err := hex.DecodeString(candidate.value); err != nil {
+			continue
+		}
+		if strings.Trim(candidate.value, "0") == "" {
+			continue
+		}
+		resolved := "vcs-" + strings.ToLower(candidate.value)
+		if candidate.dirty {
+			resolved += "-dirty"
+		}
+		return resolved
 	}
-	if revision == "" {
-		return "", fmt.Errorf("server build has no release or revision: build the package with VCS metadata or set main.version/main.commit using -ldflags")
+	if info != nil && validRelease(info.Main.Version) {
+		return info.Main.Version
 	}
-	if len(revision) != 40 && len(revision) != 64 {
-		return "", fmt.Errorf("server build revision must be a full SHA-1 or SHA-256: %q", revision)
-	}
-	if _, err := hex.DecodeString(revision); err != nil {
-		return "", fmt.Errorf("invalid server build revision: %w", err)
-	}
-	if strings.Trim(revision, "0") == "" {
-		return "", fmt.Errorf("invalid server build revision: all-zero hashes do not identify source")
-	}
-	resolved := "vcs-" + strings.ToLower(revision)
-	if revisionFromVCS && dirty {
-		resolved += "-dirty"
-	}
-	return resolved, nil
+	return developmentServerVersion
 }

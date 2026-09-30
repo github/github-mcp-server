@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolveServerVersion(t *testing.T) {
@@ -31,10 +30,10 @@ func TestResolveServerVersion(t *testing.T) {
 		revision string
 		info     *debug.BuildInfo
 		want     string
-		wantErr  string
 	}{
 		{name: "release unchanged", release: "v1.2.3", revision: sha, info: dirty, want: "v1.2.3"},
 		{name: "release suffix unchanged", release: "v1.2.3-rc.1+build.4", want: "v1.2.3-rc.1+build.4"},
+		{name: "release before invalid revision", release: "v1.2.3", revision: "short", info: dirty, want: "v1.2.3"},
 		{name: "source build", release: "version", revision: "commit", info: source, want: "vcs-" + sha},
 		{
 			name: "source revision before inferred module version", release: "version", revision: "commit",
@@ -52,31 +51,46 @@ func TestResolveServerVersion(t *testing.T) {
 		{name: "SHA256", release: "dev", revision: strings.Repeat("ab", 32), want: "vcs-" + strings.Repeat("ab", 32)},
 		{name: "canonical hex", release: "dev", revision: strings.ToUpper(sha), want: "vcs-" + sha},
 		{name: "installed module", info: &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, want: "v1.2.3"},
-		{name: "absent build info", release: "version", revision: "commit", wantErr: "no release or revision"},
-		{name: "missing VCS metadata", release: "dev", info: &debug.BuildInfo{}, wantErr: "no release or revision"},
-		{name: "unknown placeholder", release: "unknown", wantErr: "no release or revision"},
-		{name: "short revision", release: "dev", revision: "abcdef", wantErr: "full SHA-1 or SHA-256"},
-		{name: "malformed linked revision", release: "dev", revision: strings.Repeat("x", 40), info: source, wantErr: "invalid server build revision"},
-		{name: "release whitespace", release: "v1.2.3 extra", wantErr: "HTTP product token"},
-		{name: "release newline", release: "v1.2.3\n", wantErr: "HTTP product token"},
-		{name: "release slash", release: "release/v1.2.3", wantErr: "HTTP product token"},
-		{name: "release non ASCII", release: "v1.2.3-\u00e9", wantErr: "HTTP product token"},
+		{name: "absent build info", release: "version", revision: "commit", want: "dev"},
+		{name: "missing VCS metadata", release: "dev", info: &debug.BuildInfo{}, want: "dev"},
+		{name: "unknown placeholder", release: "unknown", want: "dev"},
+		{name: "short revision", release: "dev", revision: "abcdef", want: "dev"},
+		{name: "short revision falls through to VCS", release: "dev", revision: "abcdef", info: source, want: "vcs-" + sha},
+		{name: "malformed linked revision falls through to VCS", release: "dev", revision: strings.Repeat("x", 40), info: source, want: "vcs-" + sha},
+		{name: "malformed linked revision without VCS", release: "dev", revision: strings.Repeat("x", 40), want: "dev"},
+		{
+			name: "malformed VCS falls through to installed module",
+			info: &debug.BuildInfo{
+				Main:     debug.Module{Version: "v1.2.3"},
+				Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "short"}},
+			},
+			want: "v1.2.3",
+		},
+		{
+			name: "malformed VCS without installed module",
+			info: &debug.BuildInfo{
+				Main:     debug.Module{Version: "(devel)"},
+				Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "short"}},
+			},
+			want: "dev",
+		},
+		{name: "invalid installed module", info: &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3\n"}}, want: "dev"},
+		{name: "placeholder installed module", info: &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}, want: "dev"},
+		{name: "release whitespace", release: "v1.2.3 extra", want: "dev"},
+		{name: "release newline", release: "v1.2.3\n", want: "dev"},
+		{name: "release slash", release: "release/v1.2.3", want: "dev"},
+		{name: "release non ASCII", release: "v1.2.3-\u00e9", want: "dev"},
+		{name: "invalid release falls through to linked revision", release: "v1.2.3 extra", revision: otherSHA, info: dirty, want: "vcs-" + otherSHA},
+		{name: "invalid release falls through to dirty VCS", release: "release/v1.2.3", info: dirty, want: "vcs-" + sha + "-dirty"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveServerVersion(tt.release, tt.revision, tt.info)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				assert.Empty(t, got)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
+			assert.Equal(t, tt.want, resolveServerVersion(tt.release, tt.revision, tt.info))
 		})
 	}
 }
 
-func TestResolveServerVersionRejectsNullRevisions(t *testing.T) {
+func TestResolveServerVersionSkipsNullRevisions(t *testing.T) {
 	t.Parallel()
 	for _, revision := range []string{strings.Repeat("0", 40), strings.Repeat("0", 64)} {
 		for _, modified := range []string{"false", "true"} {
@@ -91,13 +105,16 @@ func TestResolveServerVersionRejectsNullRevisions(t *testing.T) {
 						{Key: "vcs.modified", Value: modified},
 					}}
 					commit := "commit"
+					want := "dev"
 					if linked {
 						commit = revision
 						info.Settings[0].Value = strings.Repeat("ab", 20)
+						want = "vcs-" + strings.Repeat("ab", 20)
+						if modified == "true" {
+							want += "-dirty"
+						}
 					}
-					got, err := resolveServerVersion("dev", commit, info)
-					require.ErrorContains(t, err, "invalid server build revision")
-					assert.Empty(t, got)
+					assert.Equal(t, want, resolveServerVersion("dev", commit, info))
 				})
 			}
 		}

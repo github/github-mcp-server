@@ -39,11 +39,11 @@ var (
 		Use:   "stdio",
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			info, _ := debug.ReadBuildInfo()
-			serverVersion, err := resolveServerVersion(version, commit, info)
-			if err != nil {
-				return err
+			serverVersion := resolveServerVersion(version, commit, info)
+			if serverVersion == developmentServerVersion {
+				cmd.PrintErrln("Warning: no usable server build version metadata; using development version dev")
 			}
 
 			token := viper.GetString("personal_access_token")
