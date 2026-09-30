@@ -403,7 +403,13 @@ For a complete overview of all installation options, see our **[Installation Gui
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`.
+
+STDIO API requests identify the server as `github-mcp-server/<version>` and retain the upstream MCP client's name/version in parentheses when available. Control characters, quotes, backslashes and parentheses in client metadata are escaped so the HTTP header remains valid; ordinary names, versions, spaces and printable Unicode are preserved. Release builds keep their release version. Source and default Docker builds with revision metadata use `vcs-<full-commit-sha>`. The `-dirty` marker applies only when both the revision and modified state come from embedded VCS metadata, never to a valid, explicitly supplied `main.commit`. This is a VCS build identifier, not a release number.
+
+Build the complete package with `go build -o github-mcp-server ./cmd/github-mcp-server` from a Git checkout to embed its VCS revision. For builds without VCS metadata, supply the actual release with `-ldflags '-X main.version=<release>'` or the full source revision with `-ldflags '-X main.commit=<sha>'`. Valid metadata is selected in this order: explicit release, explicit source revision, embedded VCS revision, then installed main-module version. Valid explicit revisions remain authoritative even if build-context filtering changes embedded VCS metadata. Missing or malformed candidates fall through to the next usable source. If none is available, STDIO still starts with the development label `dev` and emits a warning on stderr, leaving stdout available for the MCP protocol. Supply real release or revision metadata when version-specific attribution is needed.
+
+For example:
 
 ```JSON
 {

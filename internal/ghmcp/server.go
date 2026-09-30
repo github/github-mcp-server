@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,12 +34,10 @@ import (
 
 // githubClients holds all the GitHub API clients created for a server instance.
 type githubClients struct {
-	rest         *gogithub.Client
-	restUATransp *transport.UserAgentTransport
-	gql          *githubv4.Client
-	gqlHTTP      *http.Client // retained for middleware to modify transport
-	raw          *raw.Client
-	repoAccess   *lockdown.RepoAccessCache
+	rest       *gogithub.Client
+	gql        *githubv4.Client
+	raw        *raw.Client
+	repoAccess *lockdown.RepoAccessCache
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
@@ -90,7 +89,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// client per request (see pkg/github RequestDeps) and does not use this path.
 	restUATransport := &transport.UserAgentTransport{
 		Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
-		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+		Agent:     stdioUserAgent(cfg, nil),
 	}
 	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts)
 	if err != nil {
@@ -102,7 +101,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: &transport.UserAgentTransport{
+					Transport: http.DefaultTransport,
+					Agent:     stdioUserAgent(cfg, nil),
+				},
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
@@ -117,7 +119,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// be large and are streamed rather than retained in memory.
 	rawUATransport := &transport.UserAgentTransport{
 		Transport: http.DefaultTransport,
-		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+		Agent:     stdioUserAgent(cfg, nil),
 	}
 	rawRESTClient, err := newRESTClient(cfg, rawUATransport, restURL.String(), uploadURL.String(), allowedHosts)
 	if err != nil {
@@ -141,12 +143,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}
 
 	return &githubClients{
-		rest:         restClient,
-		restUATransp: restUATransport,
-		gql:          gqlClient,
-		gqlHTTP:      gqlHTTPClient,
-		raw:          rawClient,
-		repoAccess:   repoAccessCache,
+		rest:       restClient,
+		gql:        gqlClient,
+		raw:        rawClient,
+		repoAccess: repoAccessCache,
 	}, nil
 }
 
@@ -232,7 +232,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg))
 
 	return ghServer, nil
 }
@@ -441,36 +441,28 @@ func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory
 	}
 }
 
-func addUserAgentsMiddleware(cfg github.MCPServerConfig, restUATransp *transport.UserAgentTransport, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+func stdioUserAgent(cfg github.MCPServerConfig, client *mcp.Implementation) string {
+	agent := fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+	if client != nil {
+		comment := strconv.Quote(client.Name + "/" + client.Version)
+		comment = comment[1 : len(comment)-1]
+		comment = strings.NewReplacer("(", `\(`, ")", `\)`).Replace(comment)
+		agent += " (" + comment + ")"
+	}
+	if cfg.InsidersMode {
+		agent += " (insiders)"
+	}
+	return agent
+}
+
+func addUserAgentsMiddleware(cfg github.MCPServerConfig) func(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
-			if method != "initialize" {
-				return next(ctx, method, request)
+			var client *mcp.Implementation
+			if info, ok := request.(interface{ ClientInfo() *mcp.Implementation }); ok {
+				client = info.ClientInfo()
 			}
-
-			initializeRequest, ok := request.(*mcp.InitializeRequest)
-			if !ok {
-				return next(ctx, method, request)
-			}
-
-			message := initializeRequest
-			userAgent := fmt.Sprintf(
-				"github-mcp-server/%s (%s/%s)",
-				cfg.Version,
-				message.Params.ClientInfo.Name,
-				message.Params.ClientInfo.Version,
-			)
-			if cfg.InsidersMode {
-				userAgent += " (insiders)"
-			}
-
-			restUATransp.Agent = userAgent
-
-			gqlHTTPClient.Transport = &transport.UserAgentTransport{
-				Transport: gqlHTTPClient.Transport,
-				Agent:     userAgent,
-			}
-
+			ctx = transport.WithUserAgent(ctx, stdioUserAgent(cfg, client))
 			return next(ctx, method, request)
 		}
 	}
