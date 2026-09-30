@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Unhide Issue Comment"
+  },
+  "description": "Unhide (unminimize) a previously hidden comment on an issue, or conversation comment on a pull request. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The numeric ID of the issue or pull request conversation comment",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id"
+    ],
+    "type": "object"
+  },
+  "name": "unhide_issue_comment"
+}

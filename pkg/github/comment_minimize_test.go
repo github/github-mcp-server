@@ -69,24 +69,116 @@ func unminimizeCommentMatcher(nodeID string) githubv4mock.Matcher {
 	)
 }
 
-func Test_CommentVisibilityToolSchemas(t *testing.T) {
-	hide := GranularHideComment(translations.NullTranslationHelper).Tool
-	require.NoError(t, toolsnaps.Test(hide.Name, hide))
-	assert.Equal(t, "hide_comment", hide.Name)
-	assert.False(t, hide.Annotations.ReadOnlyHint)
-	assert.ElementsMatch(t, hide.InputSchema.(*jsonschema.Schema).Required,
-		[]string{"owner", "repo", "comment_type", "comment_id", "classifier"})
-
-	unhide := GranularUnhideComment(translations.NullTranslationHelper).Tool
-	require.NoError(t, toolsnaps.Test(unhide.Name, unhide))
-	assert.Equal(t, "unhide_comment", unhide.Name)
-	assert.False(t, unhide.Annotations.ReadOnlyHint)
-	unhideSchema := unhide.InputSchema.(*jsonschema.Schema)
-	assert.ElementsMatch(t, unhideSchema.Required, []string{"owner", "repo", "comment_type", "comment_id"})
-	assert.NotContains(t, unhideSchema.Properties, "classifier")
+func minimizeCommentErrorMatcher(nodeID, classifier string) githubv4mock.Matcher {
+	return githubv4mock.NewMutationMatcher(
+		struct {
+			MinimizeComment struct {
+				MinimizedComment struct {
+					IsMinimized     githubv4.Boolean
+					MinimizedReason githubv4.String
+				}
+			} `graphql:"minimizeComment(input: $input)"`
+		}{},
+		githubv4.MinimizeCommentInput{
+			SubjectID:  githubv4.ID(nodeID),
+			Classifier: githubv4.ReportedContentClassifiers(classifier),
+		},
+		nil,
+		githubv4mock.ErrorResponse("Resource not accessible by integration"),
+	)
 }
 
-func Test_HideAndUnhideComment(t *testing.T) {
+func unminimizeCommentErrorMatcher(nodeID string) githubv4mock.Matcher {
+	return githubv4mock.NewMutationMatcher(
+		struct {
+			UnminimizeComment struct {
+				UnminimizedComment struct {
+					IsMinimized githubv4.Boolean
+				}
+			} `graphql:"unminimizeComment(input: $input)"`
+		}{},
+		githubv4.UnminimizeCommentInput{SubjectID: githubv4.ID(nodeID)},
+		nil,
+		githubv4mock.ErrorResponse("Resource not accessible by integration"),
+	)
+}
+
+func Test_CommentVisibilityToolSchemas(t *testing.T) {
+	tests := []struct {
+		tool            inventory.ServerTool
+		name            string
+		toolset         inventory.ToolsetID
+		featureFlag     string
+		expectedRequire []string
+	}{
+		{
+			tool:            GranularHideIssueComment(translations.NullTranslationHelper),
+			name:            "hide_issue_comment",
+			toolset:         ToolsetMetadataIssues.ID,
+			featureFlag:     FeatureFlagIssuesGranular,
+			expectedRequire: []string{"owner", "repo", "comment_id", "classifier"},
+		},
+		{
+			tool:            GranularUnhideIssueComment(translations.NullTranslationHelper),
+			name:            "unhide_issue_comment",
+			toolset:         ToolsetMetadataIssues.ID,
+			featureFlag:     FeatureFlagIssuesGranular,
+			expectedRequire: []string{"owner", "repo", "comment_id"},
+		},
+		{
+			tool:            GranularHidePullRequestReviewComment(translations.NullTranslationHelper),
+			name:            "hide_pull_request_review_comment",
+			toolset:         ToolsetMetadataPullRequests.ID,
+			featureFlag:     FeatureFlagPullRequestsGranular,
+			expectedRequire: []string{"owner", "repo", "comment_id", "classifier"},
+		},
+		{
+			tool:            GranularUnhidePullRequestReviewComment(translations.NullTranslationHelper),
+			name:            "unhide_pull_request_review_comment",
+			toolset:         ToolsetMetadataPullRequests.ID,
+			featureFlag:     FeatureFlagPullRequestsGranular,
+			expectedRequire: []string{"owner", "repo", "comment_id"},
+		},
+		{
+			tool:            GranularHidePullRequestReview(translations.NullTranslationHelper),
+			name:            "hide_pull_request_review",
+			toolset:         ToolsetMetadataPullRequests.ID,
+			featureFlag:     FeatureFlagPullRequestsGranular,
+			expectedRequire: []string{"owner", "repo", "pullNumber", "review_id", "classifier"},
+		},
+		{
+			tool:            GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			name:            "unhide_pull_request_review",
+			toolset:         ToolsetMetadataPullRequests.ID,
+			featureFlag:     FeatureFlagPullRequestsGranular,
+			expectedRequire: []string{"owner", "repo", "pullNumber", "review_id"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tool := tc.tool.Tool
+			require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+			assert.Equal(t, tc.name, tool.Name)
+			assert.NotEmpty(t, tool.Description)
+			assert.False(t, tool.Annotations.ReadOnlyHint)
+			assert.Equal(t, tc.toolset, tc.tool.Toolset.ID)
+			assert.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(tc.featureFlag)}, tc.tool.FeatureRule.Features())
+
+			schema := tool.InputSchema.(*jsonschema.Schema)
+			assert.ElementsMatch(t, tc.expectedRequire, schema.Required)
+			assert.Len(t, schema.Properties, len(tc.expectedRequire), "every property should be required")
+		})
+	}
+}
+
+func Test_HideAndUnhideComments(t *testing.T) {
+	issueComment := mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")})
+	reviewComment := mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: github.Ptr(int64(2)), NodeID: github.Ptr("PRRC_2")})
+	review := mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: github.Ptr(int64(3)), NodeID: github.Ptr("PRR_3")})
+	notFound := mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`)
+
 	tests := []struct {
 		name           string
 		tool           inventory.ServerTool
@@ -97,214 +189,140 @@ func Test_HideAndUnhideComment(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name: "hide issue comment",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("IC_1", "SPAM", "spam")},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1), "classifier": "spam",
-			},
+			name:           "hide issue comment",
+			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: issueComment},
+			gqlMatchers:    []githubv4mock.Matcher{minimizeCommentMatcher("IC_1", "SPAM", "spam")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1), "classifier": "spam"},
 			expectedResult: MinimizeCommentResult{NodeID: "IC_1", IsMinimized: true, MinimizedReason: "spam"},
 		},
 		{
-			name: "hide review comment",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getReviewCommentRoute: mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: github.Ptr(int64(2)), NodeID: github.Ptr("PRRC_2")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRRC_2", "OUTDATED", "outdated")},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "pull_request_review_comment", "comment_id": float64(2), "classifier": "OUTDATED",
-			},
+			name:           "unhide issue comment",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: issueComment},
+			gqlMatchers:    []githubv4mock.Matcher{unminimizeCommentMatcher("IC_1")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
+			expectedResult: MinimizeCommentResult{NodeID: "IC_1", IsMinimized: false},
+		},
+		{
+			name:           "hide pull request review comment",
+			tool:           GranularHidePullRequestReviewComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewCommentRoute: reviewComment},
+			gqlMatchers:    []githubv4mock.Matcher{minimizeCommentMatcher("PRRC_2", "OUTDATED", "outdated")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(2), "classifier": "OUTDATED"},
 			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: true, MinimizedReason: "outdated"},
 		},
 		{
-			name: "unhide review",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getReviewRoute: mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: github.Ptr(int64(3)), NodeID: github.Ptr("PRR_3")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{unminimizeCommentMatcher("PRR_3")},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "pull_request_review", "comment_id": float64(3), "pull_number": float64(42),
-			},
-			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: false},
-		},
-		{
-			name: "hide review",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getReviewRoute: mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: github.Ptr(int64(3)), NodeID: github.Ptr("PRR_3")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRR_3", "RESOLVED", "resolved")},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "pull_request_review", "comment_id": float64(3), "pull_number": float64(42), "classifier": "RESOLVED",
-			},
-			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: true, MinimizedReason: "resolved"},
-		},
-		{
-			name: "unhide review comment",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getReviewCommentRoute: mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: github.Ptr(int64(2)), NodeID: github.Ptr("PRRC_2")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{unminimizeCommentMatcher("PRRC_2")},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "pull_request_review_comment", "comment_id": float64(2),
-			},
+			name:           "unhide pull request review comment",
+			tool:           GranularUnhidePullRequestReviewComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewCommentRoute: reviewComment},
+			gqlMatchers:    []githubv4mock.Matcher{unminimizeCommentMatcher("PRRC_2")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(2)},
 			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: false},
 		},
 		{
-			name: "hide mutation fails",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{
-				githubv4mock.NewMutationMatcher(
-					struct {
-						MinimizeComment struct {
-							MinimizedComment struct {
-								IsMinimized     githubv4.Boolean
-								MinimizedReason githubv4.String
-							}
-						} `graphql:"minimizeComment(input: $input)"`
-					}{},
-					githubv4.MinimizeCommentInput{SubjectID: githubv4.ID("IC_1"), Classifier: githubv4.ReportedContentClassifiersSpam},
-					nil,
-					githubv4mock.ErrorResponse("Resource not accessible by integration"),
-				),
-			},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1), "classifier": "SPAM",
-			},
-			expectedErrMsg: "failed to minimize comment",
+			name:           "hide pull request review",
+			tool:           GranularHidePullRequestReview(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewRoute: review},
+			gqlMatchers:    []githubv4mock.Matcher{minimizeCommentMatcher("PRR_3", "RESOLVED", "resolved")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42), "review_id": float64(3), "classifier": "RESOLVED"},
+			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: true, MinimizedReason: "resolved"},
 		},
 		{
-			name: "unhide mutation fails",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")}),
-			},
-			gqlMatchers: []githubv4mock.Matcher{
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UnminimizeComment struct {
-							UnminimizedComment struct {
-								IsMinimized githubv4.Boolean
-							}
-						} `graphql:"unminimizeComment(input: $input)"`
-					}{},
-					githubv4.UnminimizeCommentInput{SubjectID: githubv4.ID("IC_1")},
-					nil,
-					githubv4mock.ErrorResponse("Resource not accessible by integration"),
-				),
-			},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1),
-			},
-			expectedErrMsg: "failed to unminimize comment",
+			name:           "unhide pull request review",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewRoute: review},
+			gqlMatchers:    []githubv4mock.Matcher{unminimizeCommentMatcher("PRR_3")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42), "review_id": float64(3)},
+			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: false},
 		},
 		{
-			name: "comment without node ID",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
+			name:           "issue comment not found",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: notFound},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
+			expectedErrMsg: "failed to get issue comment",
+		},
+		{
+			name:           "pull request review comment not found",
+			tool:           GranularUnhidePullRequestReviewComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewCommentRoute: notFound},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(2)},
+			expectedErrMsg: "failed to get pull request review comment",
+		},
+		{
+			name:           "pull request review not found",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getReviewRoute: notFound},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42), "review_id": float64(3)},
+			expectedErrMsg: "failed to get pull request review",
+		},
+		{
+			name: "response without node ID",
+			tool: GranularUnhideIssueComment(translations.NullTranslationHelper),
 			restHandlers: map[string]http.HandlerFunc{
 				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1))}),
 			},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1),
-			},
-			expectedErrMsg: "comment has no node ID",
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
+			expectedErrMsg: "response has no node ID",
 		},
 		{
-			name: "missing owner",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"repo": "repo", "comment_type": "issue_comment", "comment_id": float64(1),
-			},
+			name:           "hide mutation fails",
+			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: issueComment},
+			gqlMatchers:    []githubv4mock.Matcher{minimizeCommentErrorMatcher("IC_1", "SPAM")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1), "classifier": "SPAM"},
+			expectedErrMsg: "failed to minimize comment",
+		},
+		{
+			name:           "unhide mutation fails",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: issueComment},
+			gqlMatchers:    []githubv4mock.Matcher{unminimizeCommentErrorMatcher("IC_1")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
+			expectedErrMsg: "failed to unminimize comment",
+		},
+		{
+			name:           "missing owner",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"repo": "repo", "comment_id": float64(1)},
 			expectedErrMsg: "owner",
 		},
 		{
-			name: "missing repo",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "comment_type": "issue_comment", "comment_id": float64(1),
-			},
+			name:           "missing repo",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "comment_id": float64(1)},
 			expectedErrMsg: "repo",
 		},
 		{
-			name: "missing comment_type",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo", "comment_id": float64(1),
-			},
-			expectedErrMsg: "comment_type",
-		},
-		{
-			name: "missing comment_id",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo", "comment_type": "issue_comment", "classifier": "SPAM",
-			},
-			expectedErrMsg: "comment_id",
-		},
-		{
-			name: "invalid pull_number type",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo", "comment_type": "pull_request_review",
-				"comment_id": float64(3), "pull_number": "forty-two",
-			},
-			expectedErrMsg: "pull_number",
-		},
-		{
-			name: "hide without classifier",
-			tool: GranularHideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1),
-			},
+			name:           "missing classifier",
+			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
 			expectedErrMsg: "classifier",
 		},
 		{
-			name: "review without pull_number",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "pull_request_review", "comment_id": float64(3),
-			},
-			expectedErrMsg: "pull_number is required",
+			name:           "missing issue comment_id",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectedErrMsg: "comment_id",
 		},
 		{
-			name: "unknown comment type",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "commit_comment", "comment_id": float64(1),
-			},
-			expectedErrMsg: "unknown comment_type",
+			name:           "missing pull request review comment_id",
+			tool:           GranularUnhidePullRequestReviewComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectedErrMsg: "comment_id",
 		},
 		{
-			name: "comment not found",
-			tool: GranularUnhideComment(translations.NullTranslationHelper),
-			restHandlers: map[string]http.HandlerFunc{
-				getIssueCommentRoute: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-			},
-			requestArgs: map[string]any{
-				"owner": "owner", "repo": "repo",
-				"comment_type": "issue_comment", "comment_id": float64(1),
-			},
-			expectedErrMsg: "failed to get comment",
+			name:           "missing pullNumber",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "review_id": float64(3)},
+			expectedErrMsg: "pullNumber",
+		},
+		{
+			name:           "missing review_id",
+			tool:           GranularUnhidePullRequestReview(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42)},
+			expectedErrMsg: "review_id",
 		},
 	}
 
