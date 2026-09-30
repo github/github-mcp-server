@@ -2182,6 +2182,39 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 	return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil
 }
 
+type pendingReviewAuthor struct {
+	Bot struct {
+		ID githubv4.ID `graphql:"botId: id"`
+	} `graphql:"... on Bot"`
+	EnterpriseUserAccount struct {
+		ID githubv4.ID `graphql:"enterpriseUserAccountId: id"`
+	} `graphql:"... on EnterpriseUserAccount"`
+	Mannequin struct {
+		ID githubv4.ID `graphql:"mannequinId: id"`
+	} `graphql:"... on Mannequin"`
+	Organization struct {
+		ID githubv4.ID `graphql:"organizationId: id"`
+	} `graphql:"... on Organization"`
+	User struct {
+		ID githubv4.ID `graphql:"userId: id"`
+	} `graphql:"... on User"`
+}
+
+func (a pendingReviewAuthor) id() githubv4.ID {
+	for _, id := range []githubv4.ID{
+		a.Bot.ID,
+		a.EnterpriseUserAccount.ID,
+		a.Mannequin.ID,
+		a.Organization.ID,
+		a.User.ID,
+	} {
+		if id != nil {
+			return id
+		}
+	}
+	return nil
+}
+
 func getPendingPullRequestReviewForViewer(ctx context.Context, client *githubv4.Client, owner, repo string, pullNumber int32) (*githubv4.ID, *mcp.CallToolResult) {
 	var getViewerQuery struct {
 		Viewer struct {
@@ -2211,9 +2244,7 @@ func getPendingPullRequestReviewForViewer(ctx context.Context, client *githubv4.
 					Reviews struct {
 						Nodes []struct {
 							ID     githubv4.ID
-							Author struct {
-								ID githubv4.ID
-							}
+							Author pendingReviewAuthor
 						}
 						PageInfo struct {
 							HasNextPage githubv4.Boolean
@@ -2232,7 +2263,7 @@ func getPendingPullRequestReviewForViewer(ctx context.Context, client *githubv4.
 		}
 
 		for _, review := range getPendingReviewsQuery.Repository.PullRequest.Reviews.Nodes {
-			if review.Author.ID == getViewerQuery.Viewer.ID {
+			if review.Author.id() == getViewerQuery.Viewer.ID {
 				reviewID := review.ID
 				return &reviewID, nil
 			}

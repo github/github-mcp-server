@@ -3693,8 +3693,9 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 							authorID: "U_other",
 						},
 						{
-							id:       "PR_kwDODKw3uc6WYN1T",
-							authorID: "U_viewer",
+							id:          "PR_kwDODKw3uc6WYN1T",
+							authorID:    "U_viewer",
+							authorField: "botId",
 						},
 					},
 				}),
@@ -4263,8 +4264,9 @@ func viewerIDQuery(id string) githubv4mock.Matcher {
 }
 
 type pendingReviewQueryReview struct {
-	id       string
-	authorID string
+	id          string
+	authorID    string
+	authorField string
 }
 
 type getPendingReviewsQueryParams struct {
@@ -4278,10 +4280,14 @@ type getPendingReviewsQueryParams struct {
 func getPendingReviewsQuery(p getPendingReviewsQueryParams) githubv4mock.Matcher {
 	reviews := make([]any, 0, len(p.reviews))
 	for _, review := range p.reviews {
+		authorField := review.authorField
+		if authorField == "" {
+			authorField = "userId"
+		}
 		reviews = append(reviews, map[string]any{
 			"id": review.id,
 			"author": map[string]any{
-				"id": review.authorID,
+				authorField: review.authorID,
 			},
 		})
 	}
@@ -4293,9 +4299,7 @@ func getPendingReviewsQuery(p getPendingReviewsQueryParams) githubv4mock.Matcher
 					Reviews struct {
 						Nodes []struct {
 							ID     githubv4.ID
-							Author struct {
-								ID githubv4.ID
-							}
+							Author pendingReviewAuthor
 						}
 						PageInfo struct {
 							HasNextPage githubv4.Boolean
