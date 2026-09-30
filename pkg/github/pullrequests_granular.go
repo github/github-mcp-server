@@ -973,3 +973,679 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
+
+// prIssueFieldUpdateTool is a helper to create single-field pull request update
+// tools for fields that GitHub stores on a pull request's underlying issue
+// (labels, assignees, milestone). It verifies the number refers to a pull request
+// before updating it through the issues API.
+func prIssueFieldUpdateTool(
+	t translations.TranslationHelperFunc,
+	name, description, title string,
+	extraProps map[string]*jsonschema.Schema,
+	extraRequired []string,
+	buildRequest func(args map[string]any) (gogithub.UpdateIssueRequest, error),
+) inventory.ServerTool {
+	props := map[string]*jsonschema.Schema{
+		"owner": {
+			Type:        "string",
+			Description: "Repository owner (username or organization)",
+		},
+		"repo": {
+			Type:        "string",
+			Description: "Repository name",
+		},
+		"pullNumber": {
+			Type:        "number",
+			Description: "The pull request number",
+			Minimum:     jsonschema.Ptr(1.0),
+		},
+	}
+	maps.Copy(props, extraProps)
+
+	required := append([]string{"owner", "repo", "pullNumber"}, extraRequired...)
+
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        name,
+			Description: t("TOOL_"+strings.ToUpper(name)+"_DESCRIPTION", description),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", title),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type:       "object",
+				Properties: props,
+				Required:   required,
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			issueReq, err := buildRequest(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+				return result, nil, nil
+			}
+
+			issue, resp, err := client.Issues.Update(ctx, owner, repo, pullNumber, issueReq)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularUpdatePullRequestAssignees creates a tool to update a PR's assignees.
+func GranularUpdatePullRequestAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return prIssueFieldUpdateTool(t,
+		"update_pull_request_assignees",
+		"Update the assignees of an existing pull request. This replaces the current assignees with the provided list.",
+		"Update Pull Request Assignees",
+		map[string]*jsonschema.Schema{
+			"assignees": {
+				Type:        "array",
+				Description: "GitHub usernames to assign to this pull request",
+				Items:       &jsonschema.Schema{Type: "string"},
+			},
+		},
+		[]string{"assignees"},
+		func(args map[string]any) (gogithub.UpdateIssueRequest, error) {
+			assignees, err := OptionalStringArrayParam(args, "assignees")
+			if err != nil {
+				return gogithub.UpdateIssueRequest{}, err
+			}
+			return gogithub.UpdateIssueRequest{Assignees: assignees}, nil
+		},
+	)
+}
+
+// GranularUpdatePullRequestLabels creates a tool to update a PR's labels.
+func GranularUpdatePullRequestLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return prIssueFieldUpdateTool(t,
+		"update_pull_request_labels",
+		"Update the labels of an existing pull request. This replaces the current labels with the provided list.",
+		"Update Pull Request Labels",
+		map[string]*jsonschema.Schema{
+			"labels": {
+				Type:        "array",
+				Description: "Labels to apply to this pull request",
+				Items:       &jsonschema.Schema{Type: "string"},
+			},
+		},
+		[]string{"labels"},
+		func(args map[string]any) (gogithub.UpdateIssueRequest, error) {
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return gogithub.UpdateIssueRequest{}, err
+			}
+			return gogithub.UpdateIssueRequest{Labels: labels}, nil
+		},
+	)
+}
+
+// GranularUpdatePullRequestMilestone creates a tool to update a PR's milestone.
+func GranularUpdatePullRequestMilestone(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return prIssueFieldUpdateTool(t,
+		"update_pull_request_milestone",
+		"Update the milestone of an existing pull request.",
+		"Update Pull Request Milestone",
+		map[string]*jsonschema.Schema{
+			"milestone": {
+				Type:        "integer",
+				Description: "The milestone number to set on the pull request",
+				Minimum:     jsonschema.Ptr(1.0),
+			},
+		},
+		[]string{"milestone"},
+		func(args map[string]any) (gogithub.UpdateIssueRequest, error) {
+			milestone, err := RequiredInt(args, "milestone")
+			if err != nil {
+				return gogithub.UpdateIssueRequest{}, err
+			}
+			return gogithub.UpdateIssueRequest{Milestone: &milestone}, nil
+		},
+	)
+}
+
+// GranularAddPullRequestReaction adds a reaction to a pull request.
+func GranularAddPullRequestReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "add_pull_request_reaction",
+			Description: t("TOOL_ADD_PULL_REQUEST_REACTION_DESCRIPTION", "Add a reaction to a pull request."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_ADD_PULL_REQUEST_REACTION_USER_TITLE", "Add Reaction to Pull Request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"pullNumber": {
+						Type:        "number",
+						Description: "The pull request number",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"content": {
+						Type:        "string",
+						Description: "The emoji reaction type",
+						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
+					},
+				},
+				Required: []string{"owner", "repo", "pullNumber", "content"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			content, err := RequiredParam[string](args, "content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+				return result, nil, nil
+			}
+
+			// Pull request reactions use the issues reactions endpoint.
+			reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, pullNumber, content)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, pullNumber, reaction.GetID()),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularRemovePullRequestReaction removes a reaction from a pull request.
+func GranularRemovePullRequestReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "remove_pull_request_reaction",
+			Description: t("TOOL_REMOVE_PULL_REQUEST_REACTION_DESCRIPTION", "Remove a reaction from a pull request."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_PULL_REQUEST_REACTION_USER_TITLE", "Remove Reaction from Pull Request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"pullNumber": {
+						Type:        "number",
+						Description: "The pull request number",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "pullNumber", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+				return result, nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueReaction(ctx, owner, repo, pullNumber, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from pull request", resp, err), nil, nil
+			}
+
+			return utils.NewToolResultText("reaction successfully removed from pull request"), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularAddPullRequestComment creates a tool to add a conversation comment to a pull request.
+func GranularAddPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "add_pull_request_comment",
+			Description: t("TOOL_ADD_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a conversation comment to a pull request. This does not create a review comment on a specific line; use add_pull_request_review_comment for that."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_ADD_PULL_REQUEST_COMMENT_USER_TITLE", "Add Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"pullNumber": {
+						Type:        "number",
+						Description: "The pull request number",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"body": {
+						Type:        "string",
+						Description: "Comment content",
+						MinLength:   jsonschema.Ptr(1),
+					},
+				},
+				Required: []string{"owner", "repo", "pullNumber", "body"},
+			},
+		},
+		publicRepositoryWriteScopeAccess(),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequest(ctx, client, owner, repo, pullNumber); result != nil {
+				return result, nil, nil
+			}
+
+			// Pull request conversation comments use the issues comments endpoint.
+			comment, resp, err := client.Issues.CreateComment(ctx, owner, repo, pullNumber, &gogithub.IssueComment{Body: gogithub.Ptr(body)})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create pull request comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", comment.GetID()),
+				URL: comment.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularUpdatePullRequestComment creates a tool to update a pull request conversation comment.
+func GranularUpdatePullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "update_pull_request_comment",
+			Description: t("TOOL_UPDATE_PULL_REQUEST_COMMENT_DESCRIPTION", "Update the body of an existing pull request conversation comment. This tool cannot update pull request review comments."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UPDATE_PULL_REQUEST_COMMENT_USER_TITLE", "Update Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "integer",
+						Description: "The numeric ID of the pull request conversation comment to update. Do not use a pull request review comment ID.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"body": {
+						Type:        "string",
+						Description: "New comment content",
+						MinLength:   jsonschema.Ptr(1),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "body"},
+			},
+		},
+		publicRepositoryWriteScopeAccess(),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+				return result, nil, nil
+			}
+
+			comment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentID, &gogithub.IssueComment{Body: gogithub.Ptr(body)})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", comment.GetID()),
+				URL: comment.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularAddPullRequestCommentReaction adds a reaction to a pull request conversation comment.
+func GranularAddPullRequestCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "add_pull_request_comment_reaction",
+			Description: t("TOOL_ADD_PULL_REQUEST_COMMENT_REACTION_DESCRIPTION", "Add a reaction to a pull request conversation comment. For review comments on specific lines, use add_pull_request_review_comment_reaction."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_ADD_PULL_REQUEST_COMMENT_REACTION_USER_TITLE", "Add Reaction to Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The pull request conversation comment ID",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"content": {
+						Type:        "string",
+						Description: "The emoji reaction type",
+						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "content"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			content, err := RequiredParam[string](args, "content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+				return result, nil, nil
+			}
+
+			reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, content)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/issues/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}
+
+// GranularRemovePullRequestCommentReaction removes a reaction from a pull request conversation comment.
+func GranularRemovePullRequestCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "remove_pull_request_comment_reaction",
+			Description: t("TOOL_REMOVE_PULL_REQUEST_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from a pull request conversation comment. For review comments on specific lines, use remove_pull_request_review_comment_reaction."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_PULL_REQUEST_COMMENT_REACTION_USER_TITLE", "Remove Reaction from Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The pull request conversation comment ID",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsurePullRequestComment(ctx, client, owner, repo, commentID); result != nil {
+				return result, nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from pull request comment", resp, err), nil, nil
+			}
+
+			return utils.NewToolResultText("reaction successfully removed from pull request comment"), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}

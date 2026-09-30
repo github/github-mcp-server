@@ -4,9 +4,9 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Add Reaction to Issue"
+    "title": "Add Reaction to Pull Request"
   },
-  "description": "Add a reaction to an issue. Only works on issues; for pull requests use add_pull_request_reaction.",
+  "description": "Add a reaction to a pull request.",
   "inputSchema": {
     "properties": {
       "content": {
@@ -23,14 +23,14 @@
         ],
         "type": "string"
       },
-      "issue_number": {
-        "description": "The issue number",
-        "minimum": 1,
-        "type": "number"
-      },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
       },
       "repo": {
         "description": "Repository name",
@@ -40,10 +40,10 @@
     "required": [
       "owner",
       "repo",
-      "issue_number",
+      "pullNumber",
       "content"
     ],
     "type": "object"
   },
-  "name": "add_issue_reaction"
+  "name": "add_pull_request_reaction"
 }

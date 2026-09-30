@@ -4,23 +4,24 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Update Issue Body"
+    "title": "Add Pull Request Comment"
   },
-  "description": "Update the body content of an existing issue. Only works on issues; for pull requests use update_pull_request_body.",
+  "description": "Add a conversation comment to a pull request. This does not create a review comment on a specific line; use add_pull_request_review_comment for that.",
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "The new body content for the issue",
+        "description": "Comment content",
+        "minLength": 1,
         "type": "string"
-      },
-      "issue_number": {
-        "description": "The issue number to update",
-        "minimum": 1,
-        "type": "number"
       },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
       },
       "repo": {
         "description": "Repository name",
@@ -30,10 +31,10 @@
     "required": [
       "owner",
       "repo",
-      "issue_number",
+      "pullNumber",
       "body"
     ],
     "type": "object"
   },
-  "name": "update_issue_body"
+  "name": "add_pull_request_comment"
 }

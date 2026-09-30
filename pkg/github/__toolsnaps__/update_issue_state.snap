@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue State"
   },
-  "description": "Update the state of an existing issue (open or closed), with an optional state reason. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly.",
+  "description": "Update the state of an existing issue (open or closed), with an optional state reason. Only works on issues; for pull requests use update_pull_request_state. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly.",
   "inputSchema": {
     "properties": {
       "confidence": {

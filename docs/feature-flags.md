@@ -84,6 +84,15 @@ user-controllable flag enabled individually. Complex multi-flag rules may
 require separate documentation. Flags that only affect runtime behavior (such
 as output formatting) won't appear here.
 
+### `issues_granular` and `pull_requests_granular` together
+
+By default, `add_issue_comment` and `update_issue_comment` work on both issues
+and pull requests. When **both** granular flags are enabled, they only accept
+issues and issue comments. Pull request conversation comments are then handled
+by `add_pull_request_comment` and `update_pull_request_comment` from
+`pull_requests_granular`. With only one of the flags enabled, both tools keep
+their default behavior, so pull request commenting is always available.
+
 <!-- START AUTOMATED FEATURE FLAG TOOLS -->
 
 ### `remote_mcp_ui_apps`
@@ -152,14 +161,14 @@ as output formatting) won't appear here.
 
 ### `issues_granular`
 
-- **add_issue_comment_reaction** - Add Reaction to Issue or Pull Request Comment
+- **add_issue_comment_reaction** - Add Reaction to Issue Comment
   - **OAuth Challenge Scopes**: `repo`
-  - `comment_id`: The issue or pull request comment ID (number, required)
+  - `comment_id`: The issue comment ID (number, required)
   - `content`: The emoji reaction type (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_issue_reaction** - Add Reaction to Issue or Pull Request
+- **add_issue_reaction** - Add Reaction to Issue
   - **OAuth Challenge Scopes**: `repo`
   - `content`: The emoji reaction type (string, required)
   - `issue_number`: The issue number (number, required)
@@ -184,14 +193,14 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `title`: Issue title (string, required)
 
-- **remove_issue_comment_reaction** - Remove Reaction from Issue or Pull Request Comment
+- **remove_issue_comment_reaction** - Remove Reaction from Issue Comment
   - **OAuth Challenge Scopes**: `repo`
-  - `comment_id`: The issue or pull request comment ID (number, required)
+  - `comment_id`: The issue comment ID (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `reaction_id`: The reaction ID to remove (number, required)
   - `repo`: Repository name (string, required)
 
-- **remove_issue_reaction** - Remove Reaction from Issue or Pull Request
+- **remove_issue_reaction** - Remove Reaction from Issue
   - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The issue number (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -280,6 +289,27 @@ as output formatting) won't appear here.
 
 ### `pull_requests_granular`
 
+- **add_pull_request_comment** - Add Pull Request Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: Comment content (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **add_pull_request_comment_reaction** - Add Reaction to Pull Request Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The pull request conversation comment ID (number, required)
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **add_pull_request_reaction** - Add Reaction to Pull Request
+  - **OAuth Challenge Scopes**: `repo`
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **add_pull_request_review_comment** - Add Pull Request Review Comment
   - **OAuth Challenge Scopes**: `repo`
   - `body`: The comment body (string, required)
@@ -315,6 +345,20 @@ as output formatting) won't appear here.
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **remove_pull_request_comment_reaction** - Remove Reaction from Pull Request Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The pull request conversation comment ID (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `reaction_id`: The reaction ID to remove (number, required)
+  - `repo`: Repository name (string, required)
+
+- **remove_pull_request_reaction** - Remove Reaction from Pull Request
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `reaction_id`: The reaction ID to remove (number, required)
+  - `repo`: Repository name (string, required)
+
 - **remove_pull_request_review_comment_reaction** - Remove Pull Request Review Comment Reaction
   - **OAuth Challenge Scopes**: `repo`
   - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
@@ -345,6 +389,13 @@ as output formatting) won't appear here.
   - **OAuth Challenge Scopes**: `repo`
   - `threadID`: The node ID of the review thread to unresolve (e.g., PRRT_kwDOxxx) (string, required)
 
+- **update_pull_request_assignees** - Update Pull Request Assignees
+  - **OAuth Challenge Scopes**: `repo`
+  - `assignees`: GitHub usernames to assign to this pull request (string[], required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **update_pull_request_body** - Update Pull Request Body
   - **OAuth Challenge Scopes**: `repo`
   - `body`: The new body content for the pull request (string, required)
@@ -352,9 +403,30 @@ as output formatting) won't appear here.
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **update_pull_request_comment** - Update Pull Request Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: New comment content (string, required)
+  - `comment_id`: The numeric ID of the pull request conversation comment to update. Do not use a pull request review comment ID. (integer, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **update_pull_request_draft_state** - Update Pull Request Draft State
   - **OAuth Challenge Scopes**: `repo`
   - `draft`: Set to true to convert to draft, false to mark as ready for review (boolean, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **update_pull_request_labels** - Update Pull Request Labels
+  - **OAuth Challenge Scopes**: `repo`
+  - `labels`: Labels to apply to this pull request (string[], required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **update_pull_request_milestone** - Update Pull Request Milestone
+  - **OAuth Challenge Scopes**: `repo`
+  - `milestone`: The milestone number to set on the pull request (integer, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)

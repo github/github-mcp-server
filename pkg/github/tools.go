@@ -260,6 +260,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		IssueWrite(t),
 		AddIssueComment(t),
 		UpdateIssueComment(t),
+		GranularAddIssueComment(t),
+		GranularUpdateIssueComment(t),
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
@@ -382,6 +384,9 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUpdatePullRequestBody(t),
 		GranularUpdatePullRequestState(t),
 		GranularUpdatePullRequestDraftState(t),
+		GranularUpdatePullRequestAssignees(t),
+		GranularUpdatePullRequestLabels(t),
+		GranularUpdatePullRequestMilestone(t),
 		GranularRequestPullRequestReviewers(t),
 		GranularCreatePullRequestReview(t),
 		GranularSubmitPendingPullRequestReview(t),
@@ -392,6 +397,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
 		GranularRemovePullRequestReviewCommentReaction(t),
+		GranularAddPullRequestReaction(t),
+		GranularRemovePullRequestReaction(t),
+		GranularAddPullRequestComment(t),
+		GranularUpdatePullRequestComment(t),
+		GranularAddPullRequestCommentReaction(t),
+		GranularRemovePullRequestCommentReaction(t),
 	})
 }
 

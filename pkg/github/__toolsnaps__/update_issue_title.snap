@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue Title"
   },
-  "description": "Update the title of an existing issue.",
+  "description": "Update the title of an existing issue. Only works on issues; for pull requests use update_pull_request_title.",
   "inputSchema": {
     "properties": {
       "issue_number": {

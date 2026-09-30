@@ -1361,15 +1361,39 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return st
 }
 
-// AddIssueComment creates a tool to add a comment or reaction to an issue.
+// AddIssueComment creates a tool to add a comment or reaction to an issue or pull request.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return addIssueComment(t, false)
+}
+
+// GranularAddIssueComment is the issue-only variant of add_issue_comment. It is
+// served instead of AddIssueComment when both granular feature flags are enabled,
+// with add_pull_request_comment covering pull requests.
+func GranularAddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return addIssueComment(t, true)
+}
+
+func addIssueComment(t translations.TranslationHelperFunc, issueOnly bool) inventory.ServerTool {
+	description := "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."
+	title := "Add comment to issue or pull request"
+	issueNumberDescription := "Issue or pull request number to comment on or react to."
+	commentIDDescription := "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body."
+	featureRule := commentsConsolidatedFeatureRule
+	if issueOnly {
+		description = "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Only works on issues; for pull requests use add_pull_request_comment. At least one of body or reaction is required."
+		title = "Add comment to issue"
+		issueNumberDescription = "Issue number to comment on or react to."
+		commentIDDescription = "The numeric ID of the issue comment to react to. Use this for reactions to comments; omit it to react to the issue itself. Cannot be combined with body."
+		featureRule = commentsGranularFeatureRule
+	}
+
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", description),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
+				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", title),
 				ReadOnlyHint: false,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -1385,11 +1409,11 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"issue_number": {
 						Type:        "number",
-						Description: "Issue or pull request number to comment on or react to.",
+						Description: issueNumberDescription,
 					},
 					"comment_id": {
 						Type:        "integer",
-						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
+						Description: commentIDDescription,
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
@@ -1462,6 +1486,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if issueOnly {
+				// A comment_id is validated against issue_number below, so checking
+				// issue_number also covers reactions to comments.
+				if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+					return result, nil, nil
+				}
 			}
 
 			var reactionResponse *MinimalResponse
@@ -1550,15 +1582,37 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+	st.FeatureRule = featureRule
+	return st
 }
 
 // UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
 func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return updateIssueComment(t, false)
+}
+
+// GranularUpdateIssueComment is the issue-only variant of update_issue_comment. It
+// is served instead of UpdateIssueComment when both granular feature flags are
+// enabled, with update_pull_request_comment covering pull requests.
+func GranularUpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return updateIssueComment(t, true)
+}
+
+func updateIssueComment(t translations.TranslationHelperFunc, issueOnly bool) inventory.ServerTool {
+	description := "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments."
+	commentIDDescription := "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID."
+	featureRule := commentsConsolidatedFeatureRule
+	if issueOnly {
+		description = "Update the body of an existing issue comment. Only works on issue comments; for pull request conversation comments use update_pull_request_comment."
+		commentIDDescription = "The numeric ID of the issue comment to update."
+		featureRule = commentsGranularFeatureRule
+	}
+
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_comment",
-			Description: t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments."),
+			Description: t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", description),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update issue comment"),
 				ReadOnlyHint: false,
@@ -1576,7 +1630,7 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 					},
 					"comment_id": {
 						Type:        "integer",
-						Description: "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
+						Description: commentIDDescription,
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
@@ -1621,6 +1675,12 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if issueOnly {
+				if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+					return result, nil, nil
+				}
+			}
+
 			updatedComment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{
 				Body: github.Ptr(body),
 			})
@@ -1641,6 +1701,8 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+	st.FeatureRule = featureRule
+	return st
 }
 
 func isValidIssueReaction(reaction string) bool {

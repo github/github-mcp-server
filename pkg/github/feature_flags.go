@@ -100,7 +100,24 @@ var (
 	issuesConsolidatedFeatureRule   = featureDisabledRule(FeatureFlagIssuesGranular)
 	pullRequestsGranularFeatureRule = featureEnabledRule(FeatureFlagPullRequestsGranular)
 	pullRequestsConsolidatedRule    = featureDisabledRule(FeatureFlagPullRequestsGranular)
+
+	// Conversation comment tools are shared by issues and pull requests. They are
+	// only split into issue-only and pull-request-only tools when both granular
+	// flags are enabled, so enabling one flag never removes pull request commenting.
+	commentsGranularFeatureRule     = bothGranularFlagsRule(true)
+	commentsConsolidatedFeatureRule = bothGranularFlagsRule(false)
 )
+
+func bothGranularFlagsRule(wantBoth bool) inventory.FeatureRule {
+	issues := inventory.FeatureFlag(FeatureFlagIssuesGranular)
+	pullRequests := inventory.FeatureFlag(FeatureFlagPullRequestsGranular)
+	return inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{issues, pullRequests},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return (featureAsBool(issues) && featureAsBool(pullRequests)) == wantBoth
+		},
+	)
+}
 
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
 //  1. Taking the user-supplied flags (from --features or HTTP request

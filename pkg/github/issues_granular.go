@@ -23,6 +23,65 @@ func normalizeConfidence(confidence string) string {
 	return strings.ToUpper(strings.TrimSpace(confidence))
 }
 
+// EnsureIssue returns an error result if the given number refers to a pull request
+// rather than an issue. GitHub's issues API accepts pull request numbers, so tools
+// that should only act on issues must check this explicitly. A nil result means
+// the number refers to an issue.
+func EnsureIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int) *mcp.CallToolResult {
+	return ensureIssueKind(ctx, client, owner, repo, issueNumber, false)
+}
+
+// EnsurePullRequest returns an error result if the given number refers to an issue
+// rather than a pull request. A nil result means the number refers to a pull request.
+func EnsurePullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) *mcp.CallToolResult {
+	return ensureIssueKind(ctx, client, owner, repo, pullNumber, true)
+}
+
+// EnsureIssueComment returns an error result if the given conversation comment
+// belongs to a pull request rather than an issue. A nil result means the comment
+// belongs to an issue.
+func EnsureIssueComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64) *mcp.CallToolResult {
+	return ensureCommentKind(ctx, client, owner, repo, commentID, false)
+}
+
+// EnsurePullRequestComment returns an error result if the given conversation
+// comment belongs to an issue rather than a pull request. A nil result means the
+// comment belongs to a pull request.
+func EnsurePullRequestComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64) *mcp.CallToolResult {
+	return ensureCommentKind(ctx, client, owner, repo, commentID, true)
+}
+
+func ensureCommentKind(ctx context.Context, client *github.Client, owner, repo string, commentID int64, wantPullRequest bool) *mcp.CallToolResult {
+	comment, resp, err := client.Issues.GetComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to get comment %d", commentID), resp, err)
+	}
+	_ = resp.Body.Close()
+
+	number, err := issueNumberFromIssueURL(comment.GetIssueURL())
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(fmt.Sprintf("failed to determine the issue or pull request for comment %d", commentID), err)
+	}
+	return ensureIssueKind(ctx, client, owner, repo, number, wantPullRequest)
+}
+
+func ensureIssueKind(ctx context.Context, client *github.Client, owner, repo string, number int, wantPullRequest bool) *mcp.CallToolResult {
+	issue, resp, err := client.Issues.Get(ctx, owner, repo, number)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to get #%d", number), resp, err)
+	}
+	_ = resp.Body.Close()
+
+	isPullRequest := issue.IsPullRequest()
+	switch {
+	case isPullRequest && !wantPullRequest:
+		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is a pull request, not an issue. Use the pull request tools to modify it.", number, owner, repo))
+	case !isPullRequest && wantPullRequest:
+		return utils.NewToolResultError(fmt.Sprintf("#%d in %s/%s is an issue, not a pull request. Use the issue tools to modify it.", number, owner, repo))
+	}
+	return nil
+}
+
 // issueUpdateTool is a helper to create single-field issue update tools.
 func issueUpdateTool(
 	t translations.TranslationHelperFunc,
@@ -90,6 +149,10 @@ func issueUpdateTool(
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
 			}
 
 			issue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueReq)
@@ -242,7 +305,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_title",
-		"Update the title of an existing issue.",
+		"Update the title of an existing issue. Only works on issues; for pull requests use update_pull_request_title.",
 		"Update Issue Title",
 		map[string]*jsonschema.Schema{
 			"title": {Type: "string", Description: "The new title for the issue"},
@@ -262,7 +325,7 @@ func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.Se
 func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_body",
-		"Update the body content of an existing issue.",
+		"Update the body content of an existing issue. Only works on issues; for pull requests use update_pull_request_body.",
 		"Update Issue Body",
 		map[string]*jsonschema.Schema{
 			"body": {Type: "string", Description: "The new body content for the issue"},
@@ -284,7 +347,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_assignees",
-			Description: t("TOOL_UPDATE_ISSUE_ASSIGNEES_DESCRIPTION", "Update the assignees of an existing issue. This replaces the current assignees with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_ASSIGNEES_DESCRIPTION", "Update the assignees of an existing issue. Only works on issues; for pull requests use update_pull_request_assignees. This replaces the current assignees with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_ASSIGNEES_USER_TITLE", "Update Issue Assignees"),
 				ReadOnlyHint:    false,
@@ -425,6 +488,10 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
+			}
+
 			var body any
 			if useObjectForm {
 				body = &assigneesUpdateRequest{Assignees: payload}
@@ -502,7 +569,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. Only works on issues; for pull requests use update_pull_request_labels. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
@@ -643,6 +710,10 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
+			}
+
 			var body any
 			if useObjectForm {
 				body = &labelsUpdateRequest{Labels: payload}
@@ -686,7 +757,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_milestone",
-		"Update the milestone of an existing issue.",
+		"Update the milestone of an existing issue. Only works on issues; for pull requests use update_pull_request_milestone.",
 		"Update Issue Milestone",
 		map[string]*jsonschema.Schema{
 			"milestone": {
@@ -727,7 +798,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_type",
-			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Set or remove the type of an existing issue. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Set or remove the type of an existing issue. Only works on issues. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
@@ -826,6 +897,10 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
+			}
+
 			var body any
 			switch {
 			case issueType == nil:
@@ -893,7 +968,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_state",
-			Description: t("TOOL_UPDATE_ISSUE_STATE_DESCRIPTION", "Update the state of an existing issue (open or closed), with an optional state reason. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly."),
+			Description: t("TOOL_UPDATE_ISSUE_STATE_DESCRIPTION", "Update the state of an existing issue (open or closed), with an optional state reason. Only works on issues; for pull requests use update_pull_request_state. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_STATE_USER_TITLE", "Update Issue State"),
 				ReadOnlyHint:    false,
@@ -1010,6 +1085,10 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
 			}
 
 			var body any
@@ -1584,15 +1663,15 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 	return st
 }
 
-// GranularAddIssueReaction adds a reaction to an issue or pull request.
+// GranularAddIssueReaction adds a reaction to an issue.
 func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_reaction",
-			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add a reaction to an issue or pull request."),
+			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add a reaction to an issue. Only works on issues; for pull requests use add_pull_request_reaction."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_ADD_ISSUE_REACTION_USER_TITLE", "Add Reaction to Issue or Pull Request"),
+				Title:           t("TOOL_ADD_ISSUE_REACTION_USER_TITLE", "Add Reaction to Issue"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1646,6 +1725,10 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
+			}
+
 			reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, issueNumber, content)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue", resp, err), nil, nil
@@ -1666,15 +1749,15 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 	return st
 }
 
-// GranularRemoveIssueReaction removes a reaction from an issue or pull request.
+// GranularRemoveIssueReaction removes a reaction from an issue.
 func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "remove_issue_reaction",
-			Description: t("TOOL_REMOVE_ISSUE_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request."),
+			Description: t("TOOL_REMOVE_ISSUE_REACTION_DESCRIPTION", "Remove a reaction from an issue. Only works on issues; for pull requests use remove_pull_request_reaction."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_REMOVE_ISSUE_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request"),
+				Title:           t("TOOL_REMOVE_ISSUE_REACTION_USER_TITLE", "Remove Reaction from Issue"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(true),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1728,6 +1811,10 @@ func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssue(ctx, client, owner, repo, issueNumber); result != nil {
+				return result, nil, nil
+			}
+
 			resp, err := client.Reactions.DeleteIssueReaction(ctx, owner, repo, issueNumber, reactionID)
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()
@@ -1743,15 +1830,15 @@ func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory
 	return st
 }
 
-// GranularAddIssueCommentReaction adds a reaction to an issue or pull request comment.
+// GranularAddIssueCommentReaction adds a reaction to an issue comment.
 func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment_reaction",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add a reaction to an issue or pull request comment."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add a reaction to an issue comment. Only works on issue comments; for pull request conversation comments use add_pull_request_comment_reaction."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_ADD_ISSUE_COMMENT_REACTION_USER_TITLE", "Add Reaction to Issue or Pull Request Comment"),
+				Title:           t("TOOL_ADD_ISSUE_COMMENT_REACTION_USER_TITLE", "Add Reaction to Issue Comment"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1769,7 +1856,7 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 					},
 					"comment_id": {
 						Type:        "number",
-						Description: "The issue or pull request comment ID",
+						Description: "The issue comment ID",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"content": {
@@ -1805,6 +1892,10 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+				return result, nil, nil
+			}
+
 			reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, content)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue comment", resp, err), nil, nil
@@ -1825,15 +1916,15 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 	return st
 }
 
-// GranularRemoveIssueCommentReaction removes a reaction from an issue or pull request comment.
+// GranularRemoveIssueCommentReaction removes a reaction from an issue comment.
 func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "remove_issue_comment_reaction",
-			Description: t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request comment."),
+			Description: t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from an issue comment. Only works on issue comments; for pull request conversation comments use remove_pull_request_comment_reaction."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request Comment"),
+				Title:           t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_USER_TITLE", "Remove Reaction from Issue Comment"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(true),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1851,7 +1942,7 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 					},
 					"comment_id": {
 						Type:        "number",
-						Description: "The issue or pull request comment ID",
+						Description: "The issue comment ID",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"reaction_id": {
@@ -1885,6 +1976,10 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if result := EnsureIssueComment(ctx, client, owner, repo, commentID); result != nil {
+				return result, nil, nil
 			}
 
 			resp, err := client.Reactions.DeleteIssueCommentReaction(ctx, owner, repo, commentID, reactionID)

@@ -1,25 +1,27 @@
 {
   "annotations": {
-    "destructiveHint": true,
+    "destructiveHint": false,
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Remove Reaction from Issue"
+    "title": "Update Pull Request Labels"
   },
-  "description": "Remove a reaction from an issue. Only works on issues; for pull requests use remove_pull_request_reaction.",
+  "description": "Update the labels of an existing pull request. This replaces the current labels with the provided list.",
   "inputSchema": {
     "properties": {
-      "issue_number": {
-        "description": "The issue number",
-        "minimum": 1,
-        "type": "number"
+      "labels": {
+        "description": "Labels to apply to this pull request",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
-      "reaction_id": {
-        "description": "The reaction ID to remove",
+      "pullNumber": {
+        "description": "The pull request number",
         "minimum": 1,
         "type": "number"
       },
@@ -31,10 +33,10 @@
     "required": [
       "owner",
       "repo",
-      "issue_number",
-      "reaction_id"
+      "pullNumber",
+      "labels"
     ],
     "type": "object"
   },
-  "name": "remove_issue_reaction"
+  "name": "update_pull_request_labels"
 }

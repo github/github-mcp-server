@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Update Pull Request Assignees"
+  },
+  "description": "Update the assignees of an existing pull request. This replaces the current assignees with the provided list.",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "GitHub usernames to assign to this pull request",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "assignees"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_assignees"
+}

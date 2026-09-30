@@ -4,19 +4,19 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Remove Reaction from Issue Comment"
+    "title": "Remove Reaction from Pull Request"
   },
-  "description": "Remove a reaction from an issue comment. Only works on issue comments; for pull request conversation comments use remove_pull_request_comment_reaction.",
+  "description": "Remove a reaction from a pull request.",
   "inputSchema": {
     "properties": {
-      "comment_id": {
-        "description": "The issue comment ID",
-        "minimum": 1,
-        "type": "number"
-      },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
       },
       "reaction_id": {
         "description": "The reaction ID to remove",
@@ -31,10 +31,10 @@
     "required": [
       "owner",
       "repo",
-      "comment_id",
+      "pullNumber",
       "reaction_id"
     ],
     "type": "object"
   },
-  "name": "remove_issue_comment_reaction"
+  "name": "remove_pull_request_reaction"
 }

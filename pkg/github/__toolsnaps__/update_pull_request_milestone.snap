@@ -1,25 +1,25 @@
 {
   "annotations": {
-    "destructiveHint": true,
+    "destructiveHint": false,
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Remove Reaction from Issue Comment"
+    "title": "Update Pull Request Milestone"
   },
-  "description": "Remove a reaction from an issue comment. Only works on issue comments; for pull request conversation comments use remove_pull_request_comment_reaction.",
+  "description": "Update the milestone of an existing pull request.",
   "inputSchema": {
     "properties": {
-      "comment_id": {
-        "description": "The issue comment ID",
+      "milestone": {
+        "description": "The milestone number to set on the pull request",
         "minimum": 1,
-        "type": "number"
+        "type": "integer"
       },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
-      "reaction_id": {
-        "description": "The reaction ID to remove",
+      "pullNumber": {
+        "description": "The pull request number",
         "minimum": 1,
         "type": "number"
       },
@@ -31,10 +31,10 @@
     "required": [
       "owner",
       "repo",
-      "comment_id",
-      "reaction_id"
+      "pullNumber",
+      "milestone"
     ],
     "type": "object"
   },
-  "name": "remove_issue_comment_reaction"
+  "name": "update_pull_request_milestone"
 }

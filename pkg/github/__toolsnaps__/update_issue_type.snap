@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue Type"
   },
-  "description": "Set or remove the type of an existing issue. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
+  "description": "Set or remove the type of an existing issue. Only works on issues. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "confidence": {

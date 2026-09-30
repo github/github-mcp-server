@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
+  "description": "Update the labels of an existing issue. Only works on issues; for pull requests use update_pull_request_labels. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "issue_number": {

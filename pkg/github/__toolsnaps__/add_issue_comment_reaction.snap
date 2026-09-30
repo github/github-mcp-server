@@ -4,13 +4,13 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Add Reaction to Issue or Pull Request Comment"
+    "title": "Add Reaction to Issue Comment"
   },
-  "description": "Add a reaction to an issue or pull request comment.",
+  "description": "Add a reaction to an issue comment. Only works on issue comments; for pull request conversation comments use add_pull_request_comment_reaction.",
   "inputSchema": {
     "properties": {
       "comment_id": {
-        "description": "The issue or pull request comment ID",
+        "description": "The issue comment ID",
         "minimum": 1,
         "type": "number"
       },

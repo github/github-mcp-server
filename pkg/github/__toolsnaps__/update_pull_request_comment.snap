@@ -4,18 +4,18 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Update Issue Milestone"
+    "title": "Update Pull Request Comment"
   },
-  "description": "Update the milestone of an existing issue. Only works on issues; for pull requests use update_pull_request_milestone.",
+  "description": "Update the body of an existing pull request conversation comment. This tool cannot update pull request review comments.",
   "inputSchema": {
     "properties": {
-      "issue_number": {
-        "description": "The issue number to update",
-        "minimum": 1,
-        "type": "number"
+      "body": {
+        "description": "New comment content",
+        "minLength": 1,
+        "type": "string"
       },
-      "milestone": {
-        "description": "The milestone number to set on the issue",
+      "comment_id": {
+        "description": "The numeric ID of the pull request conversation comment to update. Do not use a pull request review comment ID.",
         "minimum": 1,
         "type": "integer"
       },
@@ -31,10 +31,10 @@
     "required": [
       "owner",
       "repo",
-      "issue_number",
-      "milestone"
+      "comment_id",
+      "body"
     ],
     "type": "object"
   },
-  "name": "update_issue_milestone"
+  "name": "update_pull_request_comment"
 }

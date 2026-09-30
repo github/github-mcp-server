@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -295,6 +296,50 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 			schema := matches[0].Tool.InputSchema.(*jsonschema.Schema)
 			_, hasReason := schema.Properties["resolutionReason"]
 			assert.Equal(t, tt.hasReason, hasReason)
+		})
+	}
+}
+
+func TestCommentToolVariants(t *testing.T) {
+	issues := inventory.FeatureFlag(FeatureFlagIssuesGranular)
+	pullRequests := inventory.FeatureFlag(FeatureFlagPullRequestsGranular)
+
+	tests := []struct {
+		name               string
+		flags              []inventory.FeatureFlag
+		issueOnly          bool
+		hasPRCommentTools  bool
+		hasIssueReactTools bool
+	}{
+		{name: "no granular flags"},
+		{name: "issues granular only", flags: []inventory.FeatureFlag{issues}, hasIssueReactTools: true},
+		{name: "pull requests granular only", flags: []inventory.FeatureFlag{pullRequests}, hasPRCommentTools: true},
+		{name: "both granular flags", flags: []inventory.FeatureFlag{issues, pullRequests}, issueOnly: true, hasPRCommentTools: true, hasIssueReactTools: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv, err := NewInventory(translations.NullTranslationHelper).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(featureCheckerFor(tt.flags...)).
+				Build()
+			require.NoError(t, err)
+
+			tools := map[string][]inventory.ServerTool{}
+			for _, tool := range inv.AvailableTools(context.Background()) {
+				tools[tool.Tool.Name] = append(tools[tool.Tool.Name], tool)
+			}
+
+			for _, name := range []string{"add_issue_comment", "update_issue_comment"} {
+				require.Len(t, tools[name], 1, name)
+				assert.Equal(t, tt.issueOnly, strings.Contains(tools[name][0].Tool.Description, "Only works on issue"), name)
+			}
+			for _, name := range []string{"add_pull_request_comment", "update_pull_request_comment", "add_pull_request_comment_reaction", "remove_pull_request_comment_reaction"} {
+				assert.Equal(t, tt.hasPRCommentTools, len(tools[name]) == 1, name)
+			}
+			for _, name := range []string{"add_issue_comment_reaction", "remove_issue_comment_reaction"} {
+				assert.Equal(t, tt.hasIssueReactTools, len(tools[name]) == 1, name)
+			}
 		})
 	}
 }
