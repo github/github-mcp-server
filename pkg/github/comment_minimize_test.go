@@ -23,7 +23,8 @@ const (
 	getReviewRoute        = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}"
 )
 
-func minimizeCommentMatcher(nodeID, classifier string) githubv4mock.Matcher {
+// minimizedReason is the lowercase, hyphenated form GitHub returns (e.g. "off-topic"), not the classifier enum.
+func minimizeCommentMatcher(nodeID, classifier, minimizedReason string) githubv4mock.Matcher {
 	return githubv4mock.NewMutationMatcher(
 		struct {
 			MinimizeComment struct {
@@ -42,7 +43,7 @@ func minimizeCommentMatcher(nodeID, classifier string) githubv4mock.Matcher {
 			"minimizeComment": map[string]any{
 				"minimizedComment": map[string]any{
 					"isMinimized":     true,
-					"minimizedReason": classifier,
+					"minimizedReason": minimizedReason,
 				},
 			},
 		}),
@@ -101,12 +102,12 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			restHandlers: map[string]http.HandlerFunc{
 				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")}),
 			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("IC_1", "SPAM")},
+			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("IC_1", "SPAM", "spam")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
 				"comment_type": "issue_comment", "comment_id": float64(1), "classifier": "spam",
 			},
-			expectedResult: MinimizeCommentResult{NodeID: "IC_1", IsMinimized: true, MinimizedReason: "SPAM"},
+			expectedResult: MinimizeCommentResult{NodeID: "IC_1", IsMinimized: true, MinimizedReason: "spam"},
 		},
 		{
 			name: "hide review comment",
@@ -114,12 +115,12 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			restHandlers: map[string]http.HandlerFunc{
 				getReviewCommentRoute: mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: github.Ptr(int64(2)), NodeID: github.Ptr("PRRC_2")}),
 			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRRC_2", "OUTDATED")},
+			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRRC_2", "OUTDATED", "outdated")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
 				"comment_type": "pull_request_review_comment", "comment_id": float64(2), "classifier": "OUTDATED",
 			},
-			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: true, MinimizedReason: "OUTDATED"},
+			expectedResult: MinimizeCommentResult{NodeID: "PRRC_2", IsMinimized: true, MinimizedReason: "outdated"},
 		},
 		{
 			name: "unhide review",
@@ -140,12 +141,12 @@ func Test_HideAndUnhideComment(t *testing.T) {
 			restHandlers: map[string]http.HandlerFunc{
 				getReviewRoute: mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: github.Ptr(int64(3)), NodeID: github.Ptr("PRR_3")}),
 			},
-			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRR_3", "RESOLVED")},
+			gqlMatchers: []githubv4mock.Matcher{minimizeCommentMatcher("PRR_3", "RESOLVED", "resolved")},
 			requestArgs: map[string]any{
 				"owner": "owner", "repo": "repo",
 				"comment_type": "pull_request_review", "comment_id": float64(3), "pull_number": float64(42), "classifier": "RESOLVED",
 			},
-			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: true, MinimizedReason: "RESOLVED"},
+			expectedResult: MinimizeCommentResult{NodeID: "PRR_3", IsMinimized: true, MinimizedReason: "resolved"},
 		},
 		{
 			name: "unhide review comment",
