@@ -11,6 +11,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -3681,21 +3682,6 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"startSide":   "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
-
-					reviews: []getLatestPendingReviewQueryReview{
-						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
-						},
-					},
-				}),
 				githubv4mock.NewMutationMatcher(
 					struct {
 						AddPullRequestReviewThread struct {
@@ -3740,21 +3726,6 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"startSide":   "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
-
-					reviews: []getLatestPendingReviewQueryReview{
-						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
-						},
-					},
-				}),
 				githubv4mock.NewMutationMatcher(
 					struct {
 						AddPullRequestReviewThread struct {
@@ -3821,21 +3792,6 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"side":        "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
-
-					reviews: []getLatestPendingReviewQueryReview{
-						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
-						},
-					},
-				}),
 				githubv4mock.NewMutationMatcher(
 					struct {
 						AddPullRequestReviewThread struct {
@@ -3877,6 +3833,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
 			deps := BaseDeps{
+				Client:    mockPendingReviewClient(t, "PR_kwDODKw3uc6WYN1T"),
 				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
@@ -3939,21 +3896,6 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 				"body":       "This is a test review",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
-
-					reviews: []getLatestPendingReviewQueryReview{
-						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
-						},
-					},
-				}),
 				githubv4mock.NewMutationMatcher(
 					struct {
 						SubmitPullRequestReview struct {
@@ -3982,6 +3924,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
+				Client:    mockPendingReviewClient(t, "PR_kwDODKw3uc6WYN1T"),
 				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
@@ -4040,21 +3983,6 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 				"pullNumber": float64(42),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
-
-					reviews: []getLatestPendingReviewQueryReview{
-						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
-						},
-					},
-				}),
 				githubv4mock.NewMutationMatcher(
 					struct {
 						DeletePullRequestReview struct {
@@ -4081,6 +4009,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
+				Client:    mockPendingReviewClient(t, "PR_kwDODKw3uc6WYN1T"),
 				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
@@ -4104,6 +4033,102 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 			require.Equal(t, "pending pull request review successfully deleted", textContent.Text)
 		})
 	}
+}
+
+func TestPendingPullRequestReviewLookupErrors(t *testing.T) {
+	t.Parallel()
+
+	tools := []struct {
+		name   string
+		tool   inventory.ServerTool
+		method string
+	}{
+		{"comment", AddCommentToPendingReview(translations.NullTranslationHelper), ""},
+		{"submit", PullRequestReviewWrite(translations.NullTranslationHelper), "submit_pending"},
+		{"delete", PullRequestReviewWrite(translations.NullTranslationHelper), "delete_pending"},
+		{"granular comment", GranularAddPullRequestReviewComment(translations.NullTranslationHelper), ""},
+		{"granular submit", GranularSubmitPendingPullRequestReview(translations.NullTranslationHelper), ""},
+		{"granular delete", GranularDeletePendingPullRequestReview(translations.NullTranslationHelper), ""},
+	}
+
+	tests := []struct {
+		name          string
+		reviews       []*github.PullRequestReview
+		status        int
+		expectedError string
+	}{
+		{name: "no review", status: http.StatusOK, expectedError: "No pending review found for the viewer"},
+		{
+			name:   "only submitted reviews",
+			status: http.StatusOK,
+			reviews: []*github.PullRequestReview{
+				{NodeID: github.Ptr("PRR_123"), State: github.Ptr("COMMENTED")},
+			},
+			expectedError: "No pending review found for the viewer",
+		},
+		{
+			name:   "pending review without node ID",
+			status: http.StatusOK,
+			reviews: []*github.PullRequestReview{
+				{State: github.Ptr("PENDING")},
+			},
+			expectedError: "Pending review did not include a node ID",
+		},
+		{name: "REST failure", status: http.StatusInternalServerError, expectedError: "failed to list pull request reviews"},
+	}
+
+	for _, tool := range tools {
+		for _, tc := range tests {
+			t.Run(tool.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				restClient, err := github.NewClient(github.WithHTTPClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, tc.status, tc.reviews),
+				})))
+				require.NoError(t, err)
+				gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+				deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+				args := map[string]any{
+					"owner": "owner", "repo": "repo", "pullNumber": float64(42),
+					"event": "COMMENT", "body": "Review comment",
+					"path": "file.go", "subjectType": "FILE",
+				}
+				if tool.method != "" {
+					args["method"] = tool.method
+				}
+				request := createMCPRequest(args)
+				result, err := tool.tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, tc.expectedError)
+			})
+		}
+	}
+}
+
+func TestGetPendingPullRequestReviewIDPaginates(t *testing.T) {
+	t.Parallel()
+
+	client, err := github.NewClient(github.WithHTTPClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.URL.Query().Get("page") == "2" {
+				_ = json.NewEncoder(w).Encode([]*github.PullRequestReview{
+					{NodeID: github.Ptr("PRR_pending"), State: github.Ptr("PENDING")},
+				})
+				return
+			}
+			w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/pulls/42/reviews?page=2>; rel="next"`)
+			_ = json.NewEncoder(w).Encode([]*github.PullRequestReview{
+				{NodeID: github.Ptr("PRR_submitted"), State: github.Ptr("COMMENTED")},
+			})
+		},
+	})))
+	require.NoError(t, err)
+
+	reviewID, errResult := GetPendingPullRequestReviewID(context.Background(), client, "owner", "repo", 42)
+	require.Nil(t, errResult)
+	assert.Equal(t, githubv4.ID("PRR_pending"), reviewID)
 }
 
 func TestGetPullRequestDiff(t *testing.T) {
@@ -4252,76 +4277,15 @@ index 5d6e7b2..8a4f5c3 100644
 	}
 }
 
-func viewerQuery(login string) githubv4mock.Matcher {
-	return githubv4mock.NewQueryMatcher(
-		struct {
-			Viewer struct {
-				Login githubv4.String
-			} `graphql:"viewer"`
-		}{},
-		map[string]any{},
-		githubv4mock.DataResponse(map[string]any{
-			"viewer": map[string]any{
-				"login": login,
-			},
+func mockPendingReviewClient(t *testing.T, nodeID string) *github.Client {
+	t.Helper()
+	client, err := github.NewClient(github.WithHTTPClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, []*github.PullRequestReview{
+			{NodeID: github.Ptr(nodeID), State: github.Ptr("PENDING")},
 		}),
-	)
-}
-
-type getLatestPendingReviewQueryReview struct {
-	id    string
-	state string
-	url   string
-}
-
-type getLatestPendingReviewQueryParams struct {
-	author string
-	owner  string
-	repo   string
-	prNum  int32
-
-	reviews []getLatestPendingReviewQueryReview
-}
-
-func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mock.Matcher {
-	return githubv4mock.NewQueryMatcher(
-		struct {
-			Repository struct {
-				PullRequest struct {
-					Reviews struct {
-						Nodes []struct {
-							ID    githubv4.ID
-							State githubv4.PullRequestReviewState
-							URL   githubv4.URI
-						}
-					} `graphql:"reviews(first: 1, author: $author)"`
-				} `graphql:"pullRequest(number: $prNum)"`
-			} `graphql:"repository(owner: $owner, name: $name)"`
-		}{},
-		map[string]any{
-			"author": githubv4.String(p.author),
-			"owner":  githubv4.String(p.owner),
-			"name":   githubv4.String(p.repo),
-			"prNum":  githubv4.Int(p.prNum),
-		},
-		githubv4mock.DataResponse(
-			map[string]any{
-				"repository": map[string]any{
-					"pullRequest": map[string]any{
-						"reviews": map[string]any{
-							"nodes": []any{
-								map[string]any{
-									"id":    p.reviews[0].id,
-									"state": p.reviews[0].state,
-									"url":   p.reviews[0].url,
-								},
-							},
-						},
-					},
-				},
-			},
-		),
-	)
+	})))
+	require.NoError(t, err)
+	return client
 }
 
 func TestAddReplyToPullRequestComment(t *testing.T) {

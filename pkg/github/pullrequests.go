@@ -1876,31 +1876,38 @@ Available methods:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
-			client, err := deps.GetGQLClient(ctx)
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			switch params.Method {
 			case "create":
-				result, err := CreatePullRequestReview(ctx, client, params)
+				result, err := CreatePullRequestReview(ctx, gqlClient, params)
 				return result, nil, err
 			case "submit_pending":
-				result, err := SubmitPendingPullRequestReview(ctx, client, params)
+				restClient, err := deps.GetClient(ctx)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub client: %v", err)), nil, nil
+				}
+				result, err := SubmitPendingPullRequestReview(ctx, restClient, gqlClient, params)
 				return result, nil, err
 			case "delete_pending":
-				result, err := DeletePendingPullRequestReview(ctx, client, params)
+				restClient, err := deps.GetClient(ctx)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub client: %v", err)), nil, nil
+				}
+				result, err := DeletePendingPullRequestReview(ctx, restClient, gqlClient, params)
 				return result, nil, err
 			case "resolve_thread":
 				if !withResolutionReason {
-					result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+					result, err := ResolveReviewThread(ctx, gqlClient, params.ThreadID, true)
 					return result, nil, err
 				}
-				result, err := ResolveReviewThreadWithReason(ctx, client, params.ThreadID, params.ResolutionReason, true)
+				result, err := ResolveReviewThreadWithReason(ctx, gqlClient, params.ThreadID, params.ResolutionReason, true)
 				return result, nil, err
 			case "unresolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
+				result, err := ResolveReviewThread(ctx, gqlClient, params.ThreadID, false)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
@@ -1988,58 +1995,43 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 	return utils.NewToolResultText("pull request review submitted successfully"), nil
 }
 
-func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
-	// First we'll get the current user
-	var getViewerQuery struct {
-		Viewer struct {
-			Login githubv4.String
+// GetPendingPullRequestReviewID returns the node ID of the viewer's pending review,
+// or a tool error result otherwise. GitHub only includes pending reviews for their
+// author in the REST response, including when the viewer is a GitHub App.
+func GetPendingPullRequestReviewID(ctx context.Context, client *github.Client, owner, repo string, pullNumber int32) (githubv4.ID, *mcp.CallToolResult) {
+	opts := &github.ListOptions{PerPage: 100}
+	for {
+		reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, int(pullNumber), opts)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
 		}
+		if err != nil {
+			return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list pull request reviews", resp, err)
+		}
+
+		for _, review := range reviews {
+			if review.GetState() != "PENDING" {
+				continue
+			}
+			if review.GetNodeID() == "" {
+				return nil, utils.NewToolResultError("Pending review did not include a node ID")
+			}
+			return githubv4.ID(review.GetNodeID()), nil
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
-	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get current user",
-			err,
-		), nil
-	}
+	return nil, utils.NewToolResultError("No pending review found for the viewer")
+}
 
-	var getLatestReviewForViewerQuery struct {
-		Repository struct {
-			PullRequest struct {
-				Reviews struct {
-					Nodes []struct {
-						ID    githubv4.ID
-						State githubv4.PullRequestReviewState
-						URL   githubv4.URI
-					}
-				} `graphql:"reviews(first: 1, author: $author)"`
-			} `graphql:"pullRequest(number: $prNum)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	vars := map[string]any{
-		"author": githubv4.String(getViewerQuery.Viewer.Login),
-		"owner":  githubv4.String(params.Owner),
-		"name":   githubv4.String(params.Repo),
-		"prNum":  githubv4.Int(params.PullNumber),
-	}
-
-	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get latest review for current user",
-			err,
-		), nil
-	}
-
-	// Validate there is one review and the state is pending
-	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-		return utils.NewToolResultError("No pending review found for the viewer"), nil
-	}
-
-	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-	if review.State != githubv4.PullRequestReviewStatePending {
-		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-		return utils.NewToolResultError(errText), nil
+func SubmitPendingPullRequestReview(ctx context.Context, restClient *github.Client, gqlClient *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
+	reviewID, errResult := GetPendingPullRequestReviewID(ctx, restClient, params.Owner, params.Repo, params.PullNumber)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Prepare the mutation
@@ -2051,11 +2043,11 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		} `graphql:"submitPullRequestReview(input: $input)"`
 	}
 
-	if err := client.Mutate(
+	if err := gqlClient.Mutate(
 		ctx,
 		&submitPullRequestReviewMutation,
 		githubv4.SubmitPullRequestReviewInput{
-			PullRequestReviewID: &review.ID,
+			PullRequestReviewID: &reviewID,
 			Event:               githubv4.PullRequestReviewEvent(params.Event),
 			Body:                newGQLStringlikePtr[githubv4.String](&params.Body),
 		},
@@ -2073,58 +2065,10 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully submitted"), nil
 }
 
-func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
-	// First we'll get the current user
-	var getViewerQuery struct {
-		Viewer struct {
-			Login githubv4.String
-		}
-	}
-
-	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get current user",
-			err,
-		), nil
-	}
-
-	var getLatestReviewForViewerQuery struct {
-		Repository struct {
-			PullRequest struct {
-				Reviews struct {
-					Nodes []struct {
-						ID    githubv4.ID
-						State githubv4.PullRequestReviewState
-						URL   githubv4.URI
-					}
-				} `graphql:"reviews(first: 1, author: $author)"`
-			} `graphql:"pullRequest(number: $prNum)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	vars := map[string]any{
-		"author": githubv4.String(getViewerQuery.Viewer.Login),
-		"owner":  githubv4.String(params.Owner),
-		"name":   githubv4.String(params.Repo),
-		"prNum":  githubv4.Int(params.PullNumber),
-	}
-
-	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get latest review for current user",
-			err,
-		), nil
-	}
-
-	// Validate there is one review and the state is pending
-	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-		return utils.NewToolResultError("No pending review found for the viewer"), nil
-	}
-
-	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-	if review.State != githubv4.PullRequestReviewStatePending {
-		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-		return utils.NewToolResultError(errText), nil
+func DeletePendingPullRequestReview(ctx context.Context, restClient *github.Client, gqlClient *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
+	reviewID, errResult := GetPendingPullRequestReviewID(ctx, restClient, params.Owner, params.Repo, params.PullNumber)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Prepare the mutation
@@ -2136,11 +2080,11 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		} `graphql:"deletePullRequestReview(input: $input)"`
 	}
 
-	if err := client.Mutate(
+	if err := gqlClient.Mutate(
 		ctx,
 		&deletePullRequestReviewMutation,
 		githubv4.DeletePullRequestReviewInput{
-			PullRequestReviewID: &review.ID,
+			PullRequestReviewID: &reviewID,
 		},
 		nil,
 	); err != nil {
@@ -2234,58 +2178,10 @@ type AddCommentToPendingReviewParams struct {
 }
 
 // AddCommentToPendingReviewCall adds a review comment to the viewer's pending pull request review.
-func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client, params AddCommentToPendingReviewParams) (*mcp.CallToolResult, error) {
-	// Get the current user
-	var getViewerQuery struct {
-		Viewer struct {
-			Login githubv4.String
-		}
-	}
-
-	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get current user",
-			err,
-		), nil
-	}
-
-	var getLatestReviewForViewerQuery struct {
-		Repository struct {
-			PullRequest struct {
-				Reviews struct {
-					Nodes []struct {
-						ID    githubv4.ID
-						State githubv4.PullRequestReviewState
-						URL   githubv4.URI
-					}
-				} `graphql:"reviews(first: 1, author: $author)"`
-			} `graphql:"pullRequest(number: $prNum)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	vars := map[string]any{
-		"author": githubv4.String(getViewerQuery.Viewer.Login),
-		"owner":  githubv4.String(params.Owner),
-		"name":   githubv4.String(params.Repo),
-		"prNum":  githubv4.Int(params.PullNumber),
-	}
-
-	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-			"failed to get latest review for current user",
-			err,
-		), nil
-	}
-
-	// Validate there is one review and the state is pending
-	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-		return utils.NewToolResultError("No pending review found for the viewer"), nil
-	}
-
-	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-	if review.State != githubv4.PullRequestReviewStatePending {
-		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-		return utils.NewToolResultError(errText), nil
+func AddCommentToPendingReviewCall(ctx context.Context, restClient *github.Client, gqlClient *githubv4.Client, params AddCommentToPendingReviewParams) (*mcp.CallToolResult, error) {
+	reviewID, errResult := GetPendingPullRequestReviewID(ctx, restClient, params.Owner, params.Repo, params.PullNumber)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Create a new review thread comment on the review.
@@ -2297,7 +2193,7 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 		} `graphql:"addPullRequestReviewThread(input: $input)"`
 	}
 
-	if err := client.Mutate(
+	if err := gqlClient.Mutate(
 		ctx,
 		&addPullRequestReviewThreadMutation,
 		githubv4.AddPullRequestReviewThreadInput{
@@ -2308,7 +2204,7 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 			Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
 			StartLine:           newGQLIntPtr(params.StartLine),
 			StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
-			PullRequestReviewID: &review.ID,
+			PullRequestReviewID: &reviewID,
 		},
 		nil,
 	); err != nil {
@@ -2435,9 +2331,13 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			}
 			startSide, _ := OptionalParam[string](args, "startSide")
 
-			client, err := deps.GetGQLClient(ctx)
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+			}
+			restClient, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			var linePtr, startLinePtr *int32
@@ -2457,7 +2357,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				startSidePtr = &startSide
 			}
 
-			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
+			result, err := AddCommentToPendingReviewCall(ctx, restClient, gqlClient, AddCommentToPendingReviewParams{
 				Owner:       owner,
 				Repo:        repo,
 				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers

@@ -489,8 +489,12 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
+			restClient, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
 
-			result, err := SubmitPendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
+			result, err := SubmitPendingPullRequestReview(ctx, restClient, gqlClient, PullRequestReviewWriteParams{
 				Owner:      owner,
 				Repo:       repo,
 				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
@@ -546,8 +550,12 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
+			restClient, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
 
-			result, err := DeletePendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
+			result, err := DeletePendingPullRequestReview(ctx, restClient, gqlClient, PullRequestReviewWriteParams{
 				Owner:      owner,
 				Repo:       repo,
 				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
@@ -630,6 +638,10 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
+			restClient, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
 
 			// Convert optional int params to *int32 for the helper
 			var linePtr, startLinePtr *int32
@@ -651,7 +663,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				startSidePtr = &startSide
 			}
 
-			result, err := AddCommentToPendingReviewCall(ctx, gqlClient, AddCommentToPendingReviewParams{
+			result, err := AddCommentToPendingReviewCall(ctx, restClient, gqlClient, AddCommentToPendingReviewParams{
 				Owner:       owner,
 				Repo:        repo,
 				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
