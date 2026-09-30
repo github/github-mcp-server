@@ -56,6 +56,8 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularRemoveIssueReaction,
 		GranularAddIssueCommentReaction,
 		GranularRemoveIssueCommentReaction,
+		GranularHideComment,
+		GranularUnhideComment,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -105,6 +107,8 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"remove_issue_reaction",
 			"add_issue_comment_reaction",
 			"remove_issue_comment_reaction",
+			"hide_comment",
+			"unhide_comment",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)

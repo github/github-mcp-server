@@ -376,6 +376,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularRemoveIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
 		GranularRemoveIssueCommentReaction(t),
+		GranularHideComment(t),
+		GranularUnhideComment(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),

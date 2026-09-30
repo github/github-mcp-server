@@ -184,6 +184,18 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `title`: Issue title (string, required)
 
+- **hide_comment** - Hide Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `classifier`: The reason for hiding the comment (string, required)
+  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'review' (integer, required)
+  - `comment_type`: The kind of comment:
+    - 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.
+    - 'review_comment' - an inline comment on a pull request diff.
+    - 'review' - the body of a pull request review. Requires 'pull_number'. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pull_number`: Pull request number. Required when comment_type is 'review'. (number, optional)
+  - `repo`: Repository name (string, required)
+
 - **remove_issue_comment_reaction** - Remove Reaction from Issue or Pull Request Comment
   - **OAuth Challenge Scopes**: `repo`
   - `comment_id`: The issue or pull request comment ID (number, required)
@@ -219,6 +231,17 @@ as output formatting) won't appear here.
   - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value. (object[], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unhide_comment** - Unhide Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The numeric ID of the comment, or of the review when comment_type is 'review' (integer, required)
+  - `comment_type`: The kind of comment:
+    - 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.
+    - 'review_comment' - an inline comment on a pull request diff.
+    - 'review' - the body of a pull request review. Requires 'pull_number'. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pull_number`: Pull request number. Required when comment_type is 'review'. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **update_issue_assignees** - Update Issue Assignees

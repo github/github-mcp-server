@@ -1901,3 +1901,70 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
+
+// GranularHideComment hides (minimizes) a comment on an issue or pull request.
+func GranularHideComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	properties := commentTargetProperties()
+	properties["classifier"] = &jsonschema.Schema{
+		Type:        "string",
+		Description: "The reason for hiding the comment",
+		Enum:        commentClassifiers,
+	}
+
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "hide_comment",
+			Description: t("TOOL_HIDE_COMMENT_DESCRIPTION", "Hide (minimize) a comment on an issue or pull request. "+commentVisibilityDescriptionSuffix),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_HIDE_COMMENT_USER_TITLE", "Hide Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type:       "object",
+				Properties: properties,
+				Required:   []string{"owner", "repo", "comment_type", "comment_id", "classifier"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			classifier, err := RequiredParam[string](args, "classifier")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			return setCommentVisibility(ctx, deps, args, true, classifier), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}
+
+// GranularUnhideComment unhides (unminimizes) a previously hidden comment on an issue or pull request.
+func GranularUnhideComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "unhide_comment",
+			Description: t("TOOL_UNHIDE_COMMENT_DESCRIPTION", "Unhide (unminimize) a previously hidden comment on an issue or pull request. "+commentVisibilityDescriptionSuffix),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UNHIDE_COMMENT_USER_TITLE", "Unhide Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type:       "object",
+				Properties: commentTargetProperties(),
+				Required:   []string{"owner", "repo", "comment_type", "comment_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			return setCommentVisibility(ctx, deps, args, false, ""), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}

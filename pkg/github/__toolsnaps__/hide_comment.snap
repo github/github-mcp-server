@@ -1,0 +1,62 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Hide Comment"
+  },
+  "description": "Hide (minimize) a comment on an issue or pull request. Supports issue and pull request conversation comments, pull request review comments, and pull request review bodies. Requires triage or write access to the repository, or authorship of the comment.",
+  "inputSchema": {
+    "properties": {
+      "classifier": {
+        "description": "The reason for hiding the comment",
+        "enum": [
+          "SPAM",
+          "ABUSE",
+          "OFF_TOPIC",
+          "OUTDATED",
+          "DUPLICATE",
+          "RESOLVED",
+          "LOW_QUALITY"
+        ],
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The numeric ID of the comment, or of the review when comment_type is 'review'",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "comment_type": {
+        "description": "The kind of comment:\n- 'issue_comment' - a comment on an issue, or a conversation comment on a pull request.\n- 'review_comment' - an inline comment on a pull request diff.\n- 'review' - the body of a pull request review. Requires 'pull_number'.",
+        "enum": [
+          "issue_comment",
+          "review_comment",
+          "review"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pull_number": {
+        "description": "Pull request number. Required when comment_type is 'review'.",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_type",
+      "comment_id",
+      "classifier"
+    ],
+    "type": "object"
+  },
+  "name": "hide_comment"
+}
