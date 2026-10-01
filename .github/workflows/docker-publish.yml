@@ -116,7 +116,7 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
           secrets: |
             oauth_client_id=${{ secrets.OAUTH_CLIENT_ID }}
             oauth_client_secret=${{ secrets.OAUTH_CLIENT_SECRET }}
