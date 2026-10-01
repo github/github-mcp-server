@@ -560,7 +560,7 @@ func secretScanningOutputFixture() map[string]any {
 		"has_more_locations": false, "state": "", "resolution": "",
 		"resolved_at": "2025-01-02T03:04:05Z",
 		"resolved_by": map[string]any{"login": "", "id": 0.0, "html_url": ""},
-		"secret_type": "", "secret_type_display_name": "", "secret": "",
+		"secret_type": "", "secret_type_display_name": "", "secret": "", // #nosec G101 -- This is a response-schema fixture, not a credential.
 		"updated_at":        "2025-01-02T03:04:05Z",
 		"is_base64_encoded": false, "multi_repo": false, "publicly_leaked": false,
 		"push_protection_bypassed":    false,

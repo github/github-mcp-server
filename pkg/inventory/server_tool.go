@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -294,7 +295,7 @@ func removeRedundantArrayTextContent[Out any](result *mcp.CallToolResult) {
 }
 
 func applyToolHandlerMiddleware(handler mcp.ToolHandler, middleware ...ToolHandlerMiddleware) mcp.ToolHandler {
-	for i := len(middleware) - 1; i >= 0; i-- {
+	for i := range slices.Backward(middleware) {
 		handler = middleware[i](handler)
 	}
 	return handler
