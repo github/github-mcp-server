@@ -125,10 +125,9 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	inv.RegisterAll(ctx, ghServer, deps, cfg.ToolHandlerMiddleware...)
 
 	// Register MCP App UI resources whenever the embedded UI assets are
-	// available. The resources are static HTML and are only referenced by
-	// tools when the remote_mcp_ui_apps feature flag is enabled for the
-	// request (the inventory strips the _meta.ui block otherwise via
-	// stripMCPAppsMetadata), so registering them unconditionally is safe.
+	// available. The resources are static HTML referenced by tools' _meta.ui
+	// block (the inventory strips that block for clients that do not support
+	// MCP Apps), so registering them unconditionally is safe.
 	// Registering here — rather than in the stdio bootstrap — ensures the
 	// remote/HTTP server also serves them, fixing the "-32002 Resource not
 	// found" error clients hit after the tool returns a ui:// URI.
