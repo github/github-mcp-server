@@ -12,7 +12,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/inventory"
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -106,7 +106,7 @@ func Test_UIGet(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner"})
 	assert.True(t, tool.Annotations.ReadOnlyHint, "ui_get should be read-only")
-	assert.Equal(t, []inventory.FeatureFlag{MCPAppsFeatureFlag}, serverTool.FeatureRule.Features())
+	assert.Empty(t, serverTool.FeatureRule.Features(), "ui_get should not be feature-gated")
 
 	// ui_get must be app-only so the host hides it from the agent's tool list
 	// while keeping it callable by the views (MCP Apps 2026-01-26 spec).
@@ -582,4 +582,23 @@ func Test_marshalUIGetIssueFields_TrimsForUI(t *testing.T) {
 
 	textField := fields[1].(map[string]any)
 	assert.NotContains(t, textField, "options")
+}
+
+func Test_UIGet_OmittedForClientsWithoutUISupport(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).WithToolsets([]string{"all"}).Build()
+	require.NoError(t, err)
+
+	hasUIGet := func(ctx context.Context) bool {
+		for _, tool := range inv.ToolsForRegistration(ctx) {
+			if tool.Tool.Name == "ui_get" {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.False(t, hasUIGet(ghcontext.WithUISupport(context.Background(), false)),
+		"app-only ui_get must not be exposed as a model-visible tool to non-UI clients")
+	assert.True(t, hasUIGet(ghcontext.WithUISupport(context.Background(), true)))
+	assert.True(t, hasUIGet(context.Background()), "ui_get is kept when UI support is unknown")
 }

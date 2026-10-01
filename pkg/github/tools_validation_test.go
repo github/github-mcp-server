@@ -234,12 +234,6 @@ func TestFeatureRulesOverlap(t *testing.T) {
 	assert.False(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, disabled}))
 }
 
-func TestMCPAppsFeatureFlagMatchesInventory(t *testing.T) {
-	inv, err := NewInventory(stubTranslation).Build()
-	require.NoError(t, err)
-	assert.Contains(t, inv.RequiredFeatures(), inventory.FeatureFlag(MCPAppsFeatureFlag))
-}
-
 // TestNoDuplicateResourceNames ensures all resources have unique names
 func TestNoDuplicateResourceNames(t *testing.T) {
 	resources := AllResources(stubTranslation)
