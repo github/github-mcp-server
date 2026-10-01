@@ -250,17 +250,10 @@ func Test_ProjectedIssueSearchItem_SanitizesTitleAndBody(t *testing.T) {
 		Body:  github.Ptr(maliciousText),
 	})
 
-	out, err := json.Marshal(result)
-	require.NoError(t, err)
-
-	var decoded struct {
-		Title string `json:"title"`
-		Body  string `json:"body"`
-	}
-	require.NoError(t, json.Unmarshal(out, &decoded))
-
-	assert.Equal(t, sanitizedText, decoded.Title)
-	assert.Equal(t, sanitizedContentText, decoded.Body)
+	require.NotNil(t, result.Title)
+	require.NotNil(t, result.Body)
+	assert.Equal(t, sanitizedText, *result.Title)
+	assert.Equal(t, sanitizedContentText, *result.Body)
 }
 
 func Test_SanitizedStringPointer(t *testing.T) {

@@ -227,7 +227,7 @@ func convertToProjectedIssueSearchItem(issue *github.Issue) ProjectedIssueSearch
 	result := ProjectedIssueSearchItem{
 		Number:        issue.Number,
 		Title:         sanitizedStringPointer(issue.Title),
-		Body:          sanitizedStringPointer(issue.Body),
+		Body:          sanitizedContentStringPointer(issue.Body),
 		State:         issue.State,
 		StateReason:   issue.StateReason,
 		Draft:         issue.Draft,
@@ -343,6 +343,13 @@ func sanitizedStringPointer(value *string) *string {
 		return nil
 	}
 	return github.Ptr(sanitize.Sanitize(*value))
+}
+
+func sanitizedContentStringPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	return github.Ptr(sanitize.Content(*value))
 }
 
 func timestampStringPointer(value *github.Timestamp) *string {

@@ -141,7 +141,7 @@ func newDiscussionDetailOutput(
 	output := &DiscussionDetailOutput{
 		Number:     int(number),
 		Title:      sanitizeDiscussionText(string(title)),
-		Body:       sanitizeDiscussionText(string(body)),
+		Body:       sanitize.Content(string(body)),
 		URL:        string(url),
 		Closed:     bool(closed),
 		IsAnswered: bool(isAnswered),
