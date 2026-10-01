@@ -230,26 +230,26 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, MinimalCodeSearchResult, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCodeSearchResult{}, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCodeSearchResult{}, nil
 			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCodeSearchResult{}, nil
 			}
 			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCodeSearchResult{}, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCodeSearchResult{}, nil
 			}
 
 			opts := &github.SearchOptions{
@@ -264,7 +264,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), MinimalCodeSearchResult{}, nil
 			}
 
 			result, resp, err := client.Search.Code(ctx, query, opts)
@@ -273,59 +273,57 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 					fmt.Sprintf("failed to search code with query '%s'", query),
 					resp,
 					err,
-				), nil, nil
+				), MinimalCodeSearchResult{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), MinimalCodeSearchResult{}, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), MinimalCodeSearchResult{}, nil
 			}
 
 			minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
 			for _, code := range result.CodeResults {
-				item := MinimalCodeResult{
-					Name:        code.GetName(),
-					Path:        code.GetPath(),
-					SHA:         code.GetSHA(),
-					TextMatches: code.TextMatches,
-				}
+				name := code.GetName()
+				path := code.GetPath()
+				sha := code.GetSHA()
+				repository := ""
 				if code.Repository != nil {
-					item.Repository = code.Repository.GetFullName()
+					repository = code.Repository.GetFullName()
+				}
+				item := MinimalCodeResult{
+					Name:        &name,
+					Path:        &path,
+					SHA:         &sha,
+					Repository:  &repository,
+					TextMatches: convertToMinimalTextMatches(code.TextMatches),
 				}
 				minimalItems = append(minimalItems, item)
 			}
 
-			minimalResult := &MinimalCodeSearchResult{
+			projectedItems, err := projectEachField(minimalItems, fields)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to filter code search results", err), MinimalCodeSearchResult{}, nil
+			}
+			minimalResult := MinimalCodeSearchResult{
 				TotalCount:        result.GetTotal(),
 				IncompleteResults: result.GetIncompleteResults(),
-				Items:             minimalItems,
+				Items:             projectedItems,
 			}
 
-			filtered := false
-			var payload any = minimalResult
-			if len(fields) > 0 {
-				filteredItems, err := filterEachField(minimalItems, fields)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to filter code search results", err), nil, nil
-				}
-				payload = map[string]any{
-					"total_count":        minimalResult.TotalCount,
-					"incomplete_results": minimalResult.IncompleteResults,
-					"items":              filteredItems,
-				}
-				filtered = true
-			}
-
-			r, err := json.Marshal(payload)
+			r, err := json.Marshal(minimalResult)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), MinimalCodeSearchResult{}, nil
 			}
 
-			recordSearchCodeFieldsUsage(ctx, deps, minimalResult, filtered, len(r))
+			recordSearchCodeFieldsUsage(ctx, deps, &MinimalCodeSearchResult{
+				TotalCount:        minimalResult.TotalCount,
+				IncompleteResults: minimalResult.IncompleteResults,
+				Items:             minimalItems,
+			}, len(fields) > 0, len(r))
 
 			callResult := utils.NewToolResultText(string(r))
 			// Code search spans repositories; the IFC label is the conservative
@@ -338,7 +336,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 			callResult = attachJoinedIFCLabel(ctx, deps, callResult, visibilities, ifc.LabelSearchIssues)
-			return callResult, nil, nil
+			return callResult, minimalResult, nil
 		},
 	)
 }

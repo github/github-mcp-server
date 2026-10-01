@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,7 +46,7 @@ func GetCodeQualityFinding(t translations.TranslationHelperFunc) inventory.Serve
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *CodeQualityFindingOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -72,7 +71,7 @@ func GetCodeQualityFinding(t translations.TranslationHelperFunc) inventory.Serve
 				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
 			}
 
-			finding := make(map[string]any)
+			var finding *CodeQualityFindingOutput
 
 			resp, err := client.Do(req, &finding)
 			if err != nil {
@@ -88,12 +87,7 @@ func GetCodeQualityFinding(t translations.TranslationHelperFunc) inventory.Serve
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get finding", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(finding)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal finding", err), nil, nil
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(finding), finding, nil
 		},
 	)
 }

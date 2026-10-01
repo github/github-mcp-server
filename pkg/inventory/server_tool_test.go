@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testStructuredOutput struct {
+	Value string `json:"value"`
+}
+
 func TestNewServerToolWithContextHandler_Arguments(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -159,6 +163,110 @@ func TestServerToolRegisterFuncAppliesMiddleware(t *testing.T) {
 	}
 	require.Len(t, result.Content, 1)
 	assert.Equal(t, "handler", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestServerToolRegisterFuncUsesTypedOutput(t *testing.T) {
+	var calls []string
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{
+			Name:        "typed_tool",
+			InputSchema: &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{}},
+		},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, testStructuredOutput, error) {
+			calls = append(calls, "handler")
+			output := testStructuredOutput{Value: "typed"}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: `{"value":"typed"}`}},
+			}, output, nil
+		},
+	)
+	require.NotNil(t, tool.TypedRegisterFunc)
+	require.NotNil(t, tool.Tool.OutputSchema)
+
+	tool.AddHandlerMiddleware(func(deps any) ToolHandlerMiddleware {
+		assert.Equal(t, "dependencies", deps)
+		return func(next mcp.ToolHandler) mcp.ToolHandler {
+			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				calls = append(calls, "tool-before")
+				result, err := next(ctx, req)
+				calls = append(calls, "tool-after")
+				return result, err
+			}
+		}
+	})
+	externalMiddleware := func(next mcp.ToolHandler) mcp.ToolHandler {
+		return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			calls = append(calls, "external-before")
+			result, err := next(ctx, req)
+			calls = append(calls, "external-after")
+			return result, err
+		}
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, "dependencies", externalMiddleware)
+	st, ct := mcp.NewInMemoryTransports()
+	ss, err := server.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cs.Close() })
+
+	tools, err := cs.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, tools.Tools, 1)
+	require.NotNil(t, tools.Tools[0].OutputSchema)
+
+	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_tool"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"external-before", "tool-before", "handler", "tool-after", "external-after"}, calls)
+	assert.Equal(t, map[string]any{"value": "typed"}, result.StructuredContent)
+
+	schema := tool.Tool.OutputSchema.(*jsonschema.Schema)
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, resolved.Validate(result.StructuredContent))
+
+	var textValue any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &textValue))
+	assert.Equal(t, textValue, result.StructuredContent)
+}
+
+func TestNewServerToolWithContextHandlerAnyOutputRemainsUntyped(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "untyped_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{}, nil, nil
+		},
+	)
+
+	assert.Nil(t, tool.TypedRegisterFunc)
+	assert.Nil(t, tool.Tool.OutputSchema)
+}
+
+func TestRemoveRedundantArrayTextContent(t *testing.T) {
+	jsonResult := &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: `["one"]`}},
+	}
+	removeRedundantArrayTextContent[[]string](jsonResult)
+	assert.Nil(t, jsonResult.Content)
+
+	nullResult := &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: "null"}},
+	}
+	removeRedundantArrayTextContent[[]string](nullResult)
+	assert.Nil(t, nullResult.Content)
+
+	csvResult := &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: "value\none\n"}},
+	}
+	removeRedundantArrayTextContent[[]string](csvResult)
+	require.Len(t, csvResult.Content, 1)
 }
 
 func TestAnnotateHeaderParams(t *testing.T) {

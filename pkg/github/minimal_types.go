@@ -69,11 +69,9 @@ var listReleasesItemFieldEnum = []any{
 	"prerelease", "draft", "author",
 }
 
-// searchIssuesItemFieldEnum lists the selectable fields for search_issues result
-// items. Items are full github.Issue objects enriched with normalized
-// field_values, so this is a curated subset of the most useful JSON field names.
-// The body, reactions, and labels fields are the heaviest, so omitting them is
-// the main lever for shrinking large result sets.
+// searchIssuesItemFieldEnum lists every field in ProjectedSearchIssue. The body,
+// reactions, and labels fields are the heaviest, so omitting them is the main
+// lever for shrinking large result sets.
 var searchIssuesItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
 	"html_url", "user", "author_association", "labels", "assignee", "assignees",
@@ -82,10 +80,9 @@ var searchIssuesItemFieldEnum = []any{
 }
 
 // searchPullRequestsItemFieldEnum lists the selectable fields for
-// search_pull_requests result items. Issue search returns pull requests as
-// github.Issue objects, so this is a curated subset of those JSON field names.
-// The body, reactions, and labels fields are the heaviest, so omitting them is
-// the main lever for shrinking large result sets.
+// search_pull_requests result items, matching ProjectedIssueSearchItem. The
+// body, reactions, and labels fields are the heaviest, so omitting them is the
+// main lever for shrinking large result sets.
 var searchPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
 	"html_url", "user", "author_association", "labels", "assignee", "assignees",
@@ -130,6 +127,32 @@ func filterEachField[T any](items []T, fields []string) ([]map[string]any, error
 		filtered = append(filtered, picked)
 	}
 	return filtered, nil
+}
+
+// projectEachField applies a fields projection while retaining the concrete
+// item type used to derive and validate a tool's output schema.
+func projectEachField[T any](items []T, fields []string) ([]T, error) {
+	if len(fields) == 0 {
+		return items, nil
+	}
+
+	projected := make([]T, 0, len(items))
+	for _, item := range items {
+		picked, err := filterFields(item, fields)
+		if err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(picked)
+		if err != nil {
+			return nil, err
+		}
+		var projection T
+		if err := json.Unmarshal(data, &projection); err != nil {
+			return nil, err
+		}
+		projected = append(projected, projection)
+	}
+	return projected, nil
 }
 
 // fieldsSchemaProperty builds the optional `fields` array parameter shared by
@@ -218,11 +241,26 @@ type MinimalCodeSearchResult struct {
 
 // MinimalCodeResult is the trimmed output type for a single code search hit.
 type MinimalCodeResult struct {
-	Name        string              `json:"name"`
-	Path        string              `json:"path"`
-	SHA         string              `json:"sha"`
-	Repository  string              `json:"repository"`
-	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
+	Name        *string            `json:"name,omitempty"`
+	Path        *string            `json:"path,omitempty"`
+	SHA         *string            `json:"sha,omitempty"`
+	Repository  *string            `json:"repository,omitempty"`
+	TextMatches []MinimalTextMatch `json:"text_matches,omitempty"`
+}
+
+// MinimalTextMatch is the compact text-match metadata returned by code search.
+type MinimalTextMatch struct {
+	ObjectURL  string         `json:"object_url,omitempty"`
+	ObjectType string         `json:"object_type,omitempty"`
+	Property   string         `json:"property,omitempty"`
+	Fragment   string         `json:"fragment,omitempty"`
+	Matches    []MinimalMatch `json:"matches,omitempty"`
+}
+
+// MinimalMatch is a single matching fragment within code-search metadata.
+type MinimalMatch struct {
+	Text    string `json:"text,omitempty"`
+	Indices []int  `json:"indices,omitempty"`
 }
 
 // MinimalCommitAuthor represents commit author information.
@@ -881,19 +919,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		m.IssueFieldValues = append(m.IssueFieldValues, mfv)
 	}
 
-	if r := issue.Reactions; r != nil {
-		m.Reactions = &MinimalReactions{
-			TotalCount: r.GetTotalCount(),
-			PlusOne:    r.GetPlusOne(),
-			MinusOne:   r.GetMinusOne(),
-			Laugh:      r.GetLaugh(),
-			Confused:   r.GetConfused(),
-			Heart:      r.GetHeart(),
-			Hooray:     r.GetHooray(),
-			Rocket:     r.GetRocket(),
-			Eyes:       r.GetEyes(),
-		}
-	}
+	m.Reactions = convertToMinimalReactions(issue.Reactions)
 
 	return m
 }
@@ -1028,19 +1054,7 @@ func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComm
 		m.UpdatedAt = comment.UpdatedAt.Format(time.RFC3339)
 	}
 
-	if r := comment.Reactions; r != nil {
-		m.Reactions = &MinimalReactions{
-			TotalCount: r.GetTotalCount(),
-			PlusOne:    r.GetPlusOne(),
-			MinusOne:   r.GetMinusOne(),
-			Laugh:      r.GetLaugh(),
-			Confused:   r.GetConfused(),
-			Heart:      r.GetHeart(),
-			Hooray:     r.GetHooray(),
-			Rocket:     r.GetRocket(),
-			Eyes:       r.GetEyes(),
-		}
-	}
+	m.Reactions = convertToMinimalReactions(comment.Reactions)
 
 	return m
 }

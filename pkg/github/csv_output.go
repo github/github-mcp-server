@@ -51,7 +51,7 @@ func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 		if !isCSVOutputTool(tools[i]) {
 			continue
 		}
-		tools[i].HandlerFunc = wrapHandlerWithCSVOutput(tools[i].HandlerFunc)
+		tools[i].AddHandlerMiddleware(csvOutputMiddleware)
 	}
 	return tools
 }
@@ -68,12 +68,11 @@ func isCSVOutputTool(tool inventory.ServerTool) bool {
 	return strings.HasPrefix(tool.Tool.Name, "list_")
 }
 
-func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc {
-	return func(deps any) mcp.ToolHandler {
-		handler := next(deps)
-		csvDeps, _ := deps.(ToolDependencies)
+func csvOutputMiddleware(deps any) inventory.ToolHandlerMiddleware {
+	csvDeps, _ := deps.(ToolDependencies)
+	return func(next mcp.ToolHandler) mcp.ToolHandler {
 		return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result, err := handler(ctx, req)
+			result, err := next(ctx, req)
 			if err != nil || result == nil || result.IsError {
 				return result, err
 			}
@@ -101,7 +100,6 @@ func convertJSONTextResultToCSV(result *mcp.CallToolResult) *mcp.CallToolResult 
 	}
 
 	result.Content = []mcp.Content{&mcp.TextContent{Text: csvText}}
-	result.StructuredContent = nil
 	return result
 }
 

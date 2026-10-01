@@ -27,5 +27,63 @@
     ],
     "type": "object"
   },
-  "name": "get_discussion"
+  "name": "get_discussion",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "answerChosenAt": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "body": {
+        "type": "string"
+      },
+      "category": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "closed": {
+        "type": "boolean"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "isAnswered": {
+        "type": "boolean"
+      },
+      "number": {
+        "type": "integer"
+      },
+      "title": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "number",
+      "title",
+      "body",
+      "url",
+      "closed",
+      "isAnswered",
+      "createdAt",
+      "category"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

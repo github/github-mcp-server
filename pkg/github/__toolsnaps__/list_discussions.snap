@@ -51,5 +51,121 @@
     ],
     "type": "object"
   },
-  "name": "list_discussions"
+  "name": "list_discussions",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "discussions": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "created_at": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "html_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "number": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "updated_at": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "user": {
+              "additionalProperties": false,
+              "properties": {
+                "login": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "endCursor": {
+            "type": "string"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "startCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage",
+          "startCursor",
+          "endCursor"
+        ],
+        "type": "object"
+      },
+      "totalCount": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "discussions",
+      "pageInfo",
+      "totalCount"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

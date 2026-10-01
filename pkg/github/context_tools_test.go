@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -138,6 +139,50 @@ func Test_GetMe(t *testing.T) {
 			assert.Equal(t, *tc.expectedUser.TwitterUsername, returnedUser.Details.TwitterUsername)
 		})
 	}
+}
+
+func Test_GetMeStructuredContentMatchesSchema(t *testing.T) {
+	serverTool := GetMe(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: mockResponse(t, http.StatusOK, &github.User{
+				Login:   github.Ptr("testuser"),
+				HTMLURL: github.Ptr("https://github.com/testuser"),
+			}),
+		})),
+		Obsv: stubExporters(),
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	serverTool.RegisterFunc(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_me",
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.NotNil(t, result.StructuredContent)
+
+	schema := serverTool.Tool.OutputSchema.(*jsonschema.Schema)
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, resolved.Validate(result.StructuredContent))
+
+	var textValue any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &textValue))
+	assert.Equal(t, textValue, result.StructuredContent)
 }
 
 func Test_GetMe_OmittedArguments(t *testing.T) {

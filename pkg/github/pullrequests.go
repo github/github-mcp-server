@@ -1381,7 +1381,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []ProjectedPullRequest, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1460,29 +1460,27 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			filtered := false
-			var payload any = minimalPRs
-			if len(fields) > 0 {
-				filteredPRs, err := filterEachField(minimalPRs, fields)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
-				}
-				payload = filteredPRs
-				filtered = true
+			projectedPRs := make([]ProjectedPullRequest, 0, len(minimalPRs))
+			for _, pr := range minimalPRs {
+				projectedPRs = append(projectedPRs, convertToProjectedPullRequest(pr))
+			}
+			projectedPRs, err = projectEachField(projectedPRs, fields)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
 			}
 
-			r, err := json.Marshal(payload)
+			r, err := json.Marshal(projectedPRs)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, filtered, len(r))
+			recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, len(fields) > 0, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			// Pull request titles/bodies are user-authored (untrusted);
 			// confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
+			return result, projectedPRs, nil
 		})
 }
 
@@ -1664,15 +1662,14 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, ProjectedSearchPullRequestsResponse, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
 			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ProjectedSearchPullRequestsResponse{}, nil
 			}
 			options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
-			return result, nil, err
+			return searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
 		})
 }
 

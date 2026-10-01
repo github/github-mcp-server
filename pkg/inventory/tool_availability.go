@@ -82,7 +82,11 @@ func knownToolAvailability(protocolVersion string, capabilities *mcp.ClientCapab
 
 func addToolAvailabilityMiddleware(server *mcp.Server, tools []ServerTool) {
 	availabilityByName := make(map[string]toolAvailability)
+	outputSchemaByName := make(map[string]struct{})
 	for _, tool := range tools {
+		if tool.Tool.OutputSchema != nil {
+			outputSchemaByName[tool.Tool.Name] = struct{}{}
+		}
 		availability := tool.availability()
 		if availability.unrestricted() {
 			delete(availabilityByName, tool.Tool.Name)
@@ -92,39 +96,74 @@ func addToolAvailabilityMiddleware(server *mcp.Server, tools []ServerTool) {
 			availabilityByName[tool.Tool.Name] = availability
 		}
 	}
-	if len(availabilityByName) == 0 {
+	if len(availabilityByName) == 0 && len(outputSchemaByName) == 0 {
 		return
 	}
 
-	server.AddReceivingMiddleware(toolAvailabilityMiddleware(availabilityByName))
+	server.AddReceivingMiddleware(toolAvailabilityMiddleware(availabilityByName, outputSchemaByName))
 }
 
-func toolAvailabilityMiddleware(availabilityByName map[string]toolAvailability) mcp.Middleware {
+func toolAvailabilityMiddleware(availabilityByName map[string]toolAvailability, outputSchemaByName map[string]struct{}) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
-			req, ok := request.(*mcp.ListToolsRequest)
-			if !ok {
-				return next(ctx, method, request)
-			}
-			result, err := next(ctx, method, request)
-			if err != nil {
-				return nil, err
-			}
-			list, ok := result.(*mcp.ListToolsResult)
-			if !ok {
-				return result, nil
-			}
+			switch req := request.(type) {
+			case *mcp.ListToolsRequest:
+				result, err := next(ctx, method, request)
+				if err != nil {
+					return nil, err
+				}
+				list, ok := result.(*mcp.ListToolsResult)
+				if !ok {
+					return result, nil
+				}
 
-			tools := make([]*mcp.Tool, 0, len(list.Tools))
-			for _, tool := range list.Tools {
-				if toolAvailable(req.ProtocolVersion(), req.ClientCapabilities(), availabilityByName[tool.Name]) {
+				protocolVersion := requestProtocolVersion(ctx, req.ProtocolVersion())
+				tools := make([]*mcp.Tool, 0, len(list.Tools))
+				for _, tool := range list.Tools {
+					if !toolAvailable(protocolVersion, req.ClientCapabilities(), availabilityByName[tool.Name]) {
+						continue
+					}
+					if _, hasOutputSchema := outputSchemaByName[tool.Name]; hasOutputSchema &&
+						!protocolVersionAllowed(protocolVersion, ProtocolVersionMultiRoundTrip) {
+						toolCopy := *tool
+						toolCopy.OutputSchema = nil
+						tool = &toolCopy
+					}
 					tools = append(tools, tool)
 				}
+				list.Tools = tools
+				return list, nil
+			case *mcp.CallToolRequest:
+				result, err := next(ctx, method, request)
+				if err != nil {
+					return nil, err
+				}
+				if _, hasOutputSchema := outputSchemaByName[req.Params.Name]; !hasOutputSchema {
+					return result, nil
+				}
+				if !protocolVersionAllowed(requestProtocolVersion(ctx, req.ProtocolVersion()), ProtocolVersionMultiRoundTrip) {
+					if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.StructuredContent != nil {
+						resultCopy := *callResult
+						resultCopy.StructuredContent = nil
+						return &resultCopy, nil
+					}
+				}
+				return result, nil
+			default:
+				return next(ctx, method, request)
 			}
-			list.Tools = tools
-			return list, nil
 		}
 	}
+}
+
+func requestProtocolVersion(ctx context.Context, requestVersion string) string {
+	if requestVersion != "" {
+		return requestVersion
+	}
+	if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil {
+		return info.ProtocolVersion
+	}
+	return ""
 }
 
 func (st *ServerTool) wrapAvailabilityCheck(next mcp.ToolHandler) mcp.ToolHandler {

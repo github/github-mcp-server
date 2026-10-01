@@ -64,7 +64,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			}),
 		},
 		scopes.RequireAll(scopes.Notifications),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*NotificationOutput, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -151,13 +151,8 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notifications", resp, body), nil, nil
 			}
 
-			// Marshal response to JSON
-			r, err := json.Marshal(notifications)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
+			output := convertPointerListOutput(notifications, convertNotificationOutput)
+			return MarshalledTextResult(output), output, nil
 		},
 	)
 }
@@ -353,7 +348,7 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 			},
 		},
 		scopes.RequireAll(scopes.Notifications),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *NotificationOutput, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -382,18 +377,14 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notification details", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(thread)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-
-			result := utils.NewToolResultText(string(r))
+			output := convertNotificationOutput(thread)
+			result := MarshalledTextResult(output)
 			// A notification subject points at an issue, PR, comment, or
 			// discussion whose content is user-authored (untrusted). It is
 			// delivered to a specific recipient and may reference private
 			// repositories, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelNotificationDetails())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }

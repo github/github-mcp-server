@@ -176,67 +176,63 @@ func searchHandler(
 	targetType string,
 	errorPrefix string,
 	options ...searchOption,
-) (*mcp.CallToolResult, error) {
+) (*mcp.CallToolResult, ProjectedSearchPullRequestsResponse, error) {
 	cfg := searchConfig{}
 	for _, opt := range options {
 		opt(&cfg)
 	}
 	query, opts, err := prepareSearchArgs(args, targetType, searchModeLexical)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), ProjectedSearchPullRequestsResponse{}, nil
 	}
 
 	client, err := getClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), ProjectedSearchPullRequestsResponse{}, nil
 	}
 	result, resp, err := client.Search.Issues(ctx, query, opts)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), ProjectedSearchPullRequestsResponse{}, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), ProjectedSearchPullRequestsResponse{}, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), ProjectedSearchPullRequestsResponse{}, nil
 	}
 
-	// result.Issues are raw *github.Issue objects marshaled directly below rather than through
-	// a convertToMinimal* helper (see minimal_types.go), so Title/Body must be sanitized here.
+	items := make([]ProjectedIssueSearchItem, 0, len(result.Issues))
 	for _, iss := range result.Issues {
-		sanitizeIssueTitleAndBody(iss)
+		if iss != nil {
+			items = append(items, convertToProjectedIssueSearchItem(iss))
+		}
 	}
 
-	filtered := false
-	var payload any = result
-	if len(cfg.fields) > 0 {
-		filteredItems, err := filterEachField(result.Issues, cfg.fields)
-		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
-		}
-		payload = map[string]any{
-			"total_count":        result.Total,
-			"incomplete_results": result.IncompleteResults,
-			"items":              filteredItems,
-		}
-		filtered = true
-	}
-
-	r, err := json.Marshal(payload)
+	items, err = projectEachField(items, cfg.fields)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), ProjectedSearchPullRequestsResponse{}, nil
+	}
+
+	output := ProjectedSearchPullRequestsResponse{
+		TotalCount:        result.Total,
+		IncompleteResults: result.IncompleteResults,
+		Items:             items,
+	}
+	r, err := json.Marshal(output)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), ProjectedSearchPullRequestsResponse{}, nil
 	}
 
 	if cfg.fieldsTool != "" {
-		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, result, filtered, len(r))
+		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, result, len(cfg.fields) > 0, len(r))
 	}
 
 	callResult := utils.NewToolResultText(string(r))
 	if cfg.postProcess != nil {
 		cfg.postProcess(ctx, result, callResult)
 	}
-	return callResult, nil
+	return callResult, output, nil
 }

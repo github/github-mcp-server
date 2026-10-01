@@ -282,6 +282,96 @@ func TestToolCallAvailabilitySkipsFeatureChecksOnlyWhenUnavailable(t *testing.T)
 	}
 }
 
+func TestOutputSchemasAndStructuredContentAreProtocolGated(t *testing.T) {
+	tests := []struct {
+		name         string
+		legacyClient bool
+	}{
+		{name: "2025-11-25 client", legacyClient: true},
+		{name: "2026-07-28 client"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := ServerTool{
+				Tool: mcp.Tool{
+					Name:         "structured",
+					InputSchema:  &jsonschema.Schema{Type: "object"},
+					OutputSchema: &jsonschema.Schema{Type: "object"},
+				},
+				Toolset: ToolsetMetadata{ID: "test"},
+				HandlerFunc: func(any) mcp.ToolHandler {
+					return func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+						return &mcp.CallToolResult{
+							Content:           []mcp.Content{&mcp.TextContent{Text: `{"value":"text"}`}},
+							StructuredContent: map[string]any{"value": "structured"},
+						}, nil
+					}
+				},
+			}
+			inv, err := NewBuilder().
+				SetTools([]ServerTool{tool}).
+				WithToolsets([]string{"all"}).
+				Build()
+			require.NoError(t, err)
+
+			server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+			inv.RegisterTools(context.Background(), server, nil)
+			if tt.legacyClient {
+				server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+					return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+						if method == "server/discover" {
+							return nil, errors.New("legacy server does not support discovery")
+						}
+						return next(ctx, method, request)
+					}
+				})
+			}
+
+			serverTransport, clientTransport := mcp.NewInMemoryTransports()
+			serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = serverSession.Close() })
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+			clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = clientSession.Close() })
+
+			list, err := clientSession.ListTools(context.Background(), nil)
+			require.NoError(t, err)
+			require.Len(t, list.Tools, 1)
+			assert.Equal(t, "structured", list.Tools[0].Name)
+			if tt.legacyClient {
+				assert.Nil(t, list.Tools[0].OutputSchema)
+			} else {
+				assert.NotNil(t, list.Tools[0].OutputSchema)
+			}
+
+			result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "structured"})
+			require.NoError(t, err)
+			require.Len(t, result.Content, 1)
+			text, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, `{"value":"text"}`, text.Text)
+			if tt.legacyClient {
+				assert.Nil(t, result.StructuredContent)
+			} else {
+				assert.Equal(t, map[string]any{"value": "structured"}, result.StructuredContent)
+			}
+		})
+	}
+}
+
+func TestRequestProtocolVersionFallsBackToPerRequestMetadata(t *testing.T) {
+	ctx := ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+		ProtocolVersion: ProtocolVersionMultiRoundTrip,
+	})
+	assert.Equal(t, ProtocolVersionMultiRoundTrip, requestProtocolVersion(ctx, ""))
+	assert.Equal(t, "2025-11-25", requestProtocolVersion(ctx, "2025-11-25"))
+	assert.Equal(t, "", requestProtocolVersion(context.Background(), ""))
+	assert.False(t, protocolVersionAllowed(requestProtocolVersion(context.Background(), ""), ProtocolVersionMultiRoundTrip))
+}
+
 func availabilityTestTool(name, minimumProtocolVersion string, requiredElicitationMode ElicitationMode, onCall func()) ServerTool {
 	return ServerTool{
 		Tool: mcp.Tool{

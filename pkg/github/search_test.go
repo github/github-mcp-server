@@ -492,10 +492,14 @@ func Test_SearchCode(t *testing.T) {
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
 			assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
 			for i, code := range returnedResult.Items {
-				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
-				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
-				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
-				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
+				require.NotNil(t, code.Name)
+				require.NotNil(t, code.Path)
+				require.NotNil(t, code.SHA)
+				require.NotNil(t, code.Repository)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), *code.Name)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), *code.Path)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), *code.SHA)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), *code.Repository)
 			}
 
 			// Verify text matches are included when present
@@ -503,7 +507,7 @@ func Test_SearchCode(t *testing.T) {
 				require.NotEmpty(t, returnedResult.Items[0].TextMatches)
 				assert.Equal(t,
 					tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
-					returnedResult.Items[0].TextMatches[0].GetFragment(),
+					returnedResult.Items[0].TextMatches[0].Fragment,
 				)
 			}
 		})

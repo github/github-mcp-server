@@ -338,7 +338,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []MinimalBranch, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -398,7 +398,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// with push access can create, so integrity is trusted.
 			// Confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			return result, minimalBranches, nil
 		},
 	)
 }
@@ -1877,7 +1877,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []MinimalTag, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1936,7 +1936,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// push access, so integrity is trusted. Confidentiality follows
 			// repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			return result, minimalTags, nil
 		},
 	)
 }

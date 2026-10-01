@@ -1,7 +1,6 @@
 package github
 
 import (
-	"encoding/json"
 	"net/url"
 	"testing"
 	"time"
@@ -243,54 +242,31 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 	}
 }
 
-// Test_SearchIssueResult_SanitizesTitleAndBody covers search_issues, which marshals the raw
-// *github.Issue REST search hit directly (via SearchIssueResult.MarshalJSON) instead of routing
-// through a convertToMinimal* helper. Sanitization must happen at serialization time here.
-func Test_SearchIssueResult_SanitizesTitleAndBody(t *testing.T) {
-	result := SearchIssueResult{
-		Issue: &github.Issue{
-			Title: github.Ptr(maliciousText),
-			Body:  github.Ptr(maliciousText),
-		},
-	}
+// Test_ProjectedIssueSearchItem_SanitizesTitleAndBody covers the compact DTO
+// shared by search_issues and search_pull_requests.
+func Test_ProjectedIssueSearchItem_SanitizesTitleAndBody(t *testing.T) {
+	result := convertToProjectedIssueSearchItem(&github.Issue{
+		Title: github.Ptr(maliciousText),
+		Body:  github.Ptr(maliciousText),
+	})
 
-	out, err := json.Marshal(result)
-	require.NoError(t, err)
-
-	var decoded struct {
-		Title string `json:"title"`
-		Body  string `json:"body"`
-	}
-	require.NoError(t, json.Unmarshal(out, &decoded))
-
-	assert.Equal(t, sanitizedText, decoded.Title)
-	assert.Equal(t, sanitizedContentText, decoded.Body)
+	require.NotNil(t, result.Title)
+	require.NotNil(t, result.Body)
+	assert.Equal(t, sanitizedText, *result.Title)
+	assert.Equal(t, sanitizedContentText, *result.Body)
 }
 
-// Test_SanitizeIssueTitleAndBody exercises the shared helper directly, including its nil-safety,
-// since it backs both search_issues and search_pull_requests.
-func Test_SanitizeIssueTitleAndBody(t *testing.T) {
-	t.Run("nil issue is a no-op", func(t *testing.T) {
-		assert.NotPanics(t, func() { sanitizeIssueTitleAndBody(nil) })
+func Test_SanitizedStringPointer(t *testing.T) {
+	t.Run("nil input remains nil", func(t *testing.T) {
+		assert.Nil(t, sanitizedStringPointer(nil))
 	})
 
-	t.Run("nil title/body fields are left nil", func(t *testing.T) {
-		issue := &github.Issue{}
-		sanitizeIssueTitleAndBody(issue)
-		assert.Nil(t, issue.Title)
-		assert.Nil(t, issue.Body)
-	})
-
-	t.Run("sanitizes in place", func(t *testing.T) {
-		issue := &github.Issue{
-			Title: github.Ptr(maliciousText),
-			Body:  github.Ptr(maliciousText),
-		}
-		sanitizeIssueTitleAndBody(issue)
-		require.NotNil(t, issue.Title)
-		require.NotNil(t, issue.Body)
-		assert.Equal(t, sanitizedText, *issue.Title)
-		assert.Equal(t, sanitizedContentText, *issue.Body)
+	t.Run("sanitizes without mutating source", func(t *testing.T) {
+		source := github.Ptr(maliciousText)
+		result := sanitizedStringPointer(source)
+		require.NotNil(t, result)
+		assert.Equal(t, sanitizedText, *result)
+		assert.Equal(t, maliciousText, *source)
 	})
 }
 

@@ -27,5 +27,528 @@
     ],
     "type": "object"
   },
-  "name": "get_dependabot_alert"
+  "name": "get_dependabot_alert",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "auto_dismissed_at": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "created_at": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "dependency": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest_path": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "package": {
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "name": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "scope": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "dismissed_at": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "dismissed_by": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "login": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "dismissed_comment": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "dismissed_reason": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "fixed_at": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "html_url": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "number": {
+        "type": [
+          "null",
+          "integer"
+        ]
+      },
+      "security_advisory": {
+        "additionalProperties": false,
+        "properties": {
+          "classification": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cve_id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cvss": {
+            "additionalProperties": false,
+            "properties": {
+              "score": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "vector_string": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "cvss_severities": {
+            "additionalProperties": false,
+            "properties": {
+              "cvss_v3": {
+                "additionalProperties": false,
+                "properties": {
+                  "score": {
+                    "type": [
+                      "null",
+                      "number"
+                    ]
+                  },
+                  "vector_string": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "cvss_v4": {
+                "additionalProperties": false,
+                "properties": {
+                  "score": {
+                    "type": [
+                      "null",
+                      "number"
+                    ]
+                  },
+                  "vector_string": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "type": [
+                  "null",
+                  "object"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "cwes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cwe_id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "epss": {
+            "additionalProperties": false,
+            "properties": {
+              "percentage": {
+                "type": "number"
+              },
+              "percentile": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "percentage",
+              "percentile"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "ghsa_id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identifiers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "published_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "references": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "severity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vulnerabilities": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "first_patched_version": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "identifier": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "package": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ecosystem": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "patched_versions": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "severity": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "vulnerable_functions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "vulnerable_version_range": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "withdrawn_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "security_vulnerability": {
+        "additionalProperties": false,
+        "properties": {
+          "first_patched_version": {
+            "additionalProperties": false,
+            "properties": {
+              "identifier": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "package": {
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "name": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "patched_versions": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "severity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vulnerable_functions": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "vulnerable_version_range": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "state": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "updated_at": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "url": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

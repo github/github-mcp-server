@@ -54,5 +54,106 @@
     ],
     "type": "object"
   },
-  "name": "search_code"
+  "name": "search_code",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "repository": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "text_matches": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "fragment": {
+                    "type": "string"
+                  },
+                  "matches": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "indices": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "object_type": {
+                    "type": "string"
+                  },
+                  "object_url": {
+                    "type": "string"
+                  },
+                  "property": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": "object"
+  }
 }
