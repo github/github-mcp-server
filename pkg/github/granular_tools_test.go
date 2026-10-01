@@ -56,6 +56,8 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularRemoveIssueReaction,
 		GranularAddIssueCommentReaction,
 		GranularRemoveIssueCommentReaction,
+		GranularHideIssueComment,
+		GranularUnhideIssueComment,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -69,6 +71,10 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularUnresolveReviewThread,
 		GranularAddPullRequestReviewCommentReaction,
 		GranularRemovePullRequestReviewCommentReaction,
+		GranularHidePullRequestReviewComment,
+		GranularUnhidePullRequestReviewComment,
+		GranularHidePullRequestReview,
+		GranularUnhidePullRequestReview,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -105,6 +111,8 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"remove_issue_reaction",
 			"add_issue_comment_reaction",
 			"remove_issue_comment_reaction",
+			"hide_issue_comment",
+			"unhide_issue_comment",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -142,6 +150,10 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"unresolve_review_thread",
 			"add_pull_request_review_comment_reaction",
 			"remove_pull_request_review_comment_reaction",
+			"hide_pull_request_review_comment",
+			"unhide_pull_request_review_comment",
+			"hide_pull_request_review",
+			"unhide_pull_request_review",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)

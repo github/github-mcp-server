@@ -120,6 +120,13 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `title`: Issue title (string, required)
 
+- **hide_issue_comment** - Hide Issue Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `classifier`: The reason for hiding the comment (string, required)
+  - `comment_id`: The numeric ID of the issue or pull request conversation comment (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **remove_issue_comment_reaction** - Remove Reaction from Issue or Pull Request Comment
   - **OAuth Challenge Scopes**: `repo`
   - `comment_id`: The issue or pull request comment ID (number, required)
@@ -154,6 +161,12 @@ as output formatting) won't appear here.
   - **OAuth Challenge Scopes**: `repo`
   - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value. (object[], required)
   - `issue_number`: The issue number to update (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unhide_issue_comment** - Unhide Issue Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The numeric ID of the issue or pull request conversation comment (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
@@ -251,6 +264,21 @@ as output formatting) won't appear here.
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **hide_pull_request_review** - Hide Pull Request Review
+  - **OAuth Challenge Scopes**: `repo`
+  - `classifier`: The reason for hiding the comment (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `review_id`: The numeric ID of the pull request review (number, required)
+
+- **hide_pull_request_review_comment** - Hide Pull Request Review Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `classifier`: The reason for hiding the comment (string, required)
+  - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **remove_pull_request_review_comment_reaction** - Remove Pull Request Review Comment Reaction
   - **OAuth Challenge Scopes**: `repo`
   - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
@@ -275,6 +303,19 @@ as output formatting) won't appear here.
   - `event`: The review action to perform (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **unhide_pull_request_review** - Unhide Pull Request Review
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `pullNumber`: The pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `review_id`: The numeric ID of the pull request review (number, required)
+
+- **unhide_pull_request_review_comment** - Unhide Pull Request Review Comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
 - **unresolve_review_thread** - Unresolve Review Thread

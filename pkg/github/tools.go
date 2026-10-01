@@ -376,6 +376,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularRemoveIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
 		GranularRemoveIssueCommentReaction(t),
+		GranularHideIssueComment(t),
+		GranularUnhideIssueComment(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -392,6 +394,10 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
 		GranularRemovePullRequestReviewCommentReaction(t),
+		GranularHidePullRequestReviewComment(t),
+		GranularUnhidePullRequestReviewComment(t),
+		GranularHidePullRequestReview(t),
+		GranularUnhidePullRequestReview(t),
 	})
 }
 

@@ -1901,3 +1901,13 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
+
+// GranularHideIssueComment hides (minimizes) an issue or pull request conversation comment.
+func GranularHideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, true)
+}
+
+// GranularUnhideIssueComment unhides (unminimizes) an issue or pull request conversation comment.
+func GranularUnhideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, false)
+}
