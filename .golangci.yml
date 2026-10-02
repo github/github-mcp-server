@@ -35,6 +35,9 @@ linters:
           - revive
         text: "var-naming: avoid package names that conflict with Go standard library package names"
   settings:
+    modernize:
+      disable:
+        - newexpr
     staticcheck:
       checks:
         - "all"
