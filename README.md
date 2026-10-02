@@ -902,72 +902,72 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **create_repository_ruleset** - Create repository ruleset
   - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
-  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
-  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
-  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
-  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset Validated by the legacy handler to preserve its error behavior. (object[] | any, optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} Validated by the legacy handler to preserve its error behavior. (object | any, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `level`: The level at which the ruleset is configured:
     - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
     - 'organization': A ruleset covering repositories in an organization (requires 'org').
-    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
-  - `name`: The name of the ruleset (string, required)
-  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `name`: The name of the ruleset Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `org`: Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
-  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
-  - `target`: The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. (string, optional)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (object[] | any, optional)
+  - `target`: The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
 
 - **custom_properties_read** - Read custom properties
   - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
-  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `level`: The level at which custom properties are managed:
     - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
     - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
-    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
-  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `org`: Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
 
 - **custom_properties_write** - Set custom properties
   - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
-  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `level`: The level at which custom properties are managed:
     - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
     - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
-    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
-  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `org`: Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
-  - `properties`: The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields). (object[], required)
+  - `properties`: The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (object[] | any, optional)
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
 
 - **repository_ruleset_read** - Read repository rulesets
   - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
-  - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. (string, optional)
-  - `branch`: Branch name. Required for the 'get_rules_for_branch' method. (string, optional)
-  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
-  - `evaluate_status`: Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. (string, optional)
-  - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. (boolean, optional)
+  - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `branch`: Branch name. Required for the 'get_rules_for_branch' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `evaluate_status`: Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. Validated by the legacy handler to preserve its error behavior. (boolean | any, optional)
   - `level`: The level at which the ruleset is configured:
     - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
     - 'organization': A ruleset covering repositories in an organization (requires 'org').
-    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `method`: Operation to perform:
     - 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.
     - 'list': List all rulesets. Supported at every level.
     - 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.
     - 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.
-    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. (string, required)
-  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `org`: Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+  - `page`: Page number for pagination (min 1) Validated by the legacy handler to preserve its error behavior. (number | any, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) Validated by the legacy handler to preserve its error behavior. (number | any, optional)
+  - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
-  - `repository_name`: Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. (string, optional)
-  - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. (number, optional)
-  - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. (string, optional)
-  - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)
-  - `time_period`: The time period to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+  - `repository_name`: Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. Validated by the legacy handler to preserve its error behavior. (number | any, optional)
+  - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `ruleset_id`: Ruleset ID. Required for the 'get' method. Validated by the legacy handler to preserve its error behavior. (number | any, optional)
+  - `time_period`: The time period to filter rule suites by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
 
 </details>
 
@@ -986,9 +986,9 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **get_label** - Get a specific label from a repository
   - **OAuth Challenge Scopes**: `repo`
-  - `name`: Label name. (string, required)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
+  - `name`: Label name. Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `owner`: Repository owner (username or organization name) (string, optional)
+  - `repo`: Repository name (string, optional)
 
 - **issue_read** - Get issue details
   - **OAuth Challenge Scopes**: `repo`
@@ -1098,24 +1098,24 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **get_label** - Get a specific label from a repository
   - **OAuth Challenge Scopes**: `repo`
-  - `name`: Label name. (string, required)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
+  - `name`: Label name. Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `owner`: Repository owner (username or organization name) (string, optional)
+  - `repo`: Repository name (string, optional)
 
 - **label_write** - Write operations on repository labels
   - **OAuth Challenge Scopes**: `repo`
-  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
-  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
-  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
-  - `name`: Label name - required for all operations (string, required)
-  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
+  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `description`: Label description text. Optional for 'create' and 'update'. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `name`: Label name - required for all operations Required by the legacy handler. Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `new_name`: New name for the label (used only with 'update' method to rename) Validated by the legacy handler to preserve its error behavior. (string | any, optional)
+  - `owner`: Repository owner (username or organization name) (string, optional)
+  - `repo`: Repository name (string, optional)
 
 - **list_label** - List labels from a repository
   - **OAuth Challenge Scopes**: `repo`
-  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
-  - `repo`: Repository name - required for all operations (string, required)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, optional)
+  - `repo`: Repository name - required for all operations (string, optional)
 
 </details>
 

@@ -6,6 +6,18 @@
     "title": "Write operations on repository labels"
   },
   "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABgklEQVRIicXUzS7EUBjG8f85TYQVlzChmjGTMWJj6+MSWIqVzMYKG6zYsGThUmxEfCzsJCgx0zTDFbgBi3NeG51MhranM8SzbN8+vzZ9W/jjKAC/MnOIyDYwlDPf1MYux/FzVAyYqn+guEO4zRoWWAPwjF10RRJAUOqg3XzczxoeL9cDrbgGPBRL7Wb4kgdol7tI8haFsRUWAINw6Vfq1V8F+kFSgVKpNOxPzWxMVqbnBkFSAW94dB3kVESdDfIkqYDWcge8I5ynzbgghbYoLVnbVfgl/5S3KIy1sUsCVoSLIKiVe4EXEWl0nyiaOH6OPGMXAYynryaqs34H0MauJCd+A1EwpqzZ7QC9+iCI9XQDGBHhoQMkiAjzCsR6+sblK+2NX6kfAZsgJ69ReApfW9Sdfv43nXJhB+Sk3XraTI5/A/pB0spTgSJIVnkm4ILklecCWYhLuRPwEwKsupQ7AwBBUCsbT18pGANGgON2K9zKu84ZAJiozvrKmD2B+2TP/z2fmn7za1yyQLYAAAAASUVORK5CYII=",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAA/klEQVRIicWUMQ4BQRSG/1E5iIjEAdS4hwtwCBUdJ+AeIjqdlkT0REItUfBpRiLszM6MDa+ZZOfN9+3bN2+lXwQwAK7kxwaoxbCNFVwlrSQtc/I7dm0ZY7YxFQD0A/KqwB44AvUQdin4LSQZY3aSmpJukhYhkihBisQpAMpAF2h8K8nsAdCzz0+ec7k98X2ilaSzpJkrIbiS0FvkCl8l0U3OCltJW9Jd0vxjGIE1cIid0vcAapZzACqujSIkF2DisydLgJHtaS9rM/pX8HZ+aOFjX1KSJAieKomCx0qS4KGSr+B5kkLgLkmh8BfJc04uFj4qDP4iqQDTzCH6VzwAiELCiF8OvUMAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "additionalProperties": true,
     "properties": {
@@ -76,11 +88,13 @@
       },
       "owner": {
         "description": "Repository owner (username or organization name)",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       }
     },
     "type": "object"
