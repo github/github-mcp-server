@@ -616,6 +616,10 @@ The following sets of tools are available:
 
 ## Tools
 
+Repository tools expose output schemas and typed `structuredContent` to clients using MCP protocol `2026-07-28` or later. Older clients, or clients with an unknown protocol version, receive the existing content without an output schema or structured output.
+
+For `get_file_contents`, directory results (including field projections) are structured arrays. File downloads and metadata-only responses use a `content` array of typed text, embedded-resource, or resource-link blocks, preserving status messages, text, base64 blobs, empty files, and download links. Text-only repository mutations such as starring and deletion also return a structured `message`; fork responses distinguish a repository reference from an in-progress message. Repository deletion still requires its existing confirmation flow before returning a completed result.
+
 The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issue_comment`, `update_issue_comment`), dependency (`issue_dependency_read`, `issue_dependency_write`), and duplicate-detection (`find_duplicate`) tools provide typed `outputSchema` and `structuredContent` for protocol `2026-07-28` and newer. Older or unknown protocol versions retain the same text responses without these fields. Tool errors do not return structured content. Dependency and duplicate-detection tools retain their existing feature gates.
 
 <!-- START AUTOMATED TOOLS -->
