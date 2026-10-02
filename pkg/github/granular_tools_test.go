@@ -1683,7 +1683,7 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 				} `graphql:"addPullRequestReviewThread(input: $input)"`
 			}{},
 			githubv4.AddPullRequestReviewThreadInput{
-				Path:                githubv4.String("src/main.go"),
+				Path:                githubv4.NewString("src/main.go"),
 				Body:                githubv4.String("This needs a fix"),
 				SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
 				Line:                githubv4mock.Ptr(githubv4.Int(42)),

@@ -2157,7 +2157,7 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 		ctx,
 		&addPullRequestReviewThreadMutation,
 		githubv4.AddPullRequestReviewThreadInput{
-			Path:                githubv4.String(params.Path),
+			Path:                newGQLStringlikePtr[githubv4.String](&params.Path),
 			Body:                githubv4.String(params.Body),
 			SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&params.SubjectType),
 			Line:                newGQLIntPtr(params.Line),
