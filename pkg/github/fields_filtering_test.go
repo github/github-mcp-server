@@ -3,13 +3,16 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -512,4 +515,461 @@ func assertFieldsTelemetry(t *testing.T, serverTool inventory.ServerTool, client
 		_, ok = rec.counter(metricFieldsBytesFull)
 		assert.False(t, ok, "no byte counters when not filtered")
 	})
+}
+
+// --- pull_request_read ----------------------------------------------------
+
+func Test_PullRequestRead_FieldsSchema(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+
+	fields, ok := schema.Properties["fields"]
+	require.True(t, ok)
+	require.Equal(t, "array", fields.Type)
+	require.NotNil(t, fields.Items)
+
+	assert.Contains(t, fields.Items.Enum, "state")
+	assert.Contains(t, fields.Items.Enum, "user")
+	assert.Contains(t, fields.Items.Enum, "body")
+
+	assert.Contains(t, fields.Items.Enum, "name")
+	assert.Contains(t, fields.Items.Enum, "conclusion")
+	assert.Contains(t, fields.Items.Enum, "details_url")
+}
+
+func Test_PullRequestRead_FieldsRejectUnsupportedMethod(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+	}
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"state"},
+	})
+
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(
+		t,
+		getErrorResult(t, result).Text,
+		`fields is not supported for pull_request_read method "get"`,
+	)
+}
+
+func Test_PullRequestRead_FieldsRejectFieldForWrongMethod(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+	}
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"name"},
+	})
+
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(
+		t,
+		getErrorResult(t, result).Text,
+		`field "name" is not supported for pull_request_read method "get_reviews"`,
+	)
+}
+
+func mockPullRequestReviews() []*github.PullRequestReview {
+	return []*github.PullRequestReview{
+		{
+			ID:    github.Ptr(int64(101)),
+			State: github.Ptr("APPROVED"),
+			Body: github.Ptr(
+				"large review body that should disappear when fields are selected",
+			),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#pullrequestreview-101"),
+			User: &github.User{
+				Login: github.Ptr("reviewer"),
+			},
+			CommitID:    github.Ptr("abcdef123456"),
+			SubmittedAt: &github.Timestamp{Time: time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)},
+		},
+	}
+}
+
+func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	call := func(t *testing.T, args map[string]any) string {
+		t.Helper()
+		request := createMCPRequest(args)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		if result.IsError {
+			t.Fatalf("unexpected tool error: %s", getErrorResult(t, result).Text)
+		}
+		return getTextResult(t, result).Text
+	}
+
+	baseArgs := map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	}
+
+	t.Run("selected fields filter each review", func(t *testing.T) {
+		args := map[string]any{}
+		maps.Copy(args, baseArgs)
+		args["fields"] = []any{"state", "user"}
+
+		text := call(t, args)
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		require.Len(t, returned[0], 2)
+
+		assert.Equal(t, "APPROVED", returned[0]["state"])
+		assert.Contains(t, returned[0], "user")
+		assert.NotContains(t, returned[0], "body")
+		assert.NotContains(t, returned[0], "id")
+	})
+
+	t.Run("omitted fields keeps the full response", func(t *testing.T) {
+		text := call(t, baseArgs)
+
+		assert.Contains(t, text, `"body"`)
+		assert.Contains(t, text, "large review body that should disappear when fields are selected")
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		assert.Contains(t, returned[0], "id")
+		assert.Contains(t, returned[0], "state")
+		assert.Contains(t, returned[0], "body")
+		assert.Contains(t, returned[0], "user")
+	})
+
+	t.Run("empty fields keeps the full response", func(t *testing.T) {
+		args := map[string]any{}
+		maps.Copy(args, baseArgs)
+		args["fields"] = []any{}
+
+		text := call(t, args)
+
+		assert.Contains(t, text, `"body"`)
+
+		var returned []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		require.Len(t, returned, 1)
+		assert.Contains(t, returned[0], "id")
+		assert.Contains(t, returned[0], "body")
+	})
+}
+
+func mockPullRequestForCheckRuns() *github.PullRequest {
+	return &github.PullRequest{
+		Number: github.Ptr(42),
+		Head: &github.PullRequestBranch{
+			SHA: github.Ptr("abcd1234"),
+			Ref: github.Ptr("feature-branch"),
+		},
+	}
+}
+
+func mockCheckRuns() *github.ListCheckRunsResults {
+	return &github.ListCheckRunsResults{
+		Total: github.Ptr(2),
+		CheckRuns: []*github.CheckRun{
+			{
+				ID:         github.Ptr(int64(1)),
+				Name:       github.Ptr("test"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+				DetailsURL: github.Ptr("https://example.test/test"),
+			},
+			{
+				ID:         github.Ptr(int64(2)),
+				Name:       github.Ptr("lint"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("failure"),
+				DetailsURL: github.Ptr("https://example.test/lint"),
+			},
+		},
+	}
+}
+
+func Test_PullRequestRead_GetCheckRuns_Fields(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+		GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	call := func(t *testing.T, args map[string]any) string {
+		t.Helper()
+		request := createMCPRequest(args)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		if result.IsError {
+			t.Fatalf("unexpected tool error: %s", getErrorResult(t, result).Text)
+		}
+		return getTextResult(t, result).Text
+	}
+
+	baseArgs := map[string]any{
+		"method":     "get_check_runs",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	}
+
+	type checkRunsResult struct {
+		TotalCount int              `json:"total_count"`
+		CheckRuns  []map[string]any `json:"check_runs"`
+	}
+
+	t.Run("selected fields filter each check run and preserve the wrapper", func(t *testing.T) {
+		args := map[string]any{}
+		maps.Copy(args, baseArgs)
+		args["fields"] = []any{"name", "conclusion"}
+
+		text := call(t, args)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+
+		require.Len(t, returned.CheckRuns[0], 2)
+		assert.Equal(t, "test", returned.CheckRuns[0]["name"])
+		assert.Equal(t, "success", returned.CheckRuns[0]["conclusion"])
+		assert.NotContains(t, returned.CheckRuns[0], "id")
+		assert.NotContains(t, returned.CheckRuns[0], "details_url")
+
+		assert.Equal(t, "lint", returned.CheckRuns[1]["name"])
+		assert.Equal(t, "failure", returned.CheckRuns[1]["conclusion"])
+	})
+
+	t.Run("omitted fields keeps the full response", func(t *testing.T) {
+		text := call(t, baseArgs)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+		assert.Contains(t, returned.CheckRuns[0], "id")
+		assert.Contains(t, returned.CheckRuns[0], "details_url")
+	})
+
+	t.Run("empty fields keeps the full response", func(t *testing.T) {
+		args := map[string]any{}
+		maps.Copy(args, baseArgs)
+		args["fields"] = []any{}
+
+		text := call(t, args)
+
+		var returned checkRunsResult
+		require.NoError(t, json.Unmarshal([]byte(text), &returned))
+		assert.Equal(t, 2, returned.TotalCount)
+		require.Len(t, returned.CheckRuns, 2)
+		assert.Contains(t, returned.CheckRuns[0], "id")
+		assert.Contains(t, returned.CheckRuns[0], "details_url")
+	})
+}
+
+func Test_PullRequestRead_FieldsTelemetry(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	t.Run("get_reviews", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+		}))
+
+		base := map[string]any{
+			"method":     "get_reviews",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+		}
+
+		filtered := map[string]any{}
+		maps.Copy(filtered, base)
+		filtered["fields"] = []any{"state"}
+
+		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
+	})
+
+	t.Run("get_check_runs", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+			GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+		}))
+
+		base := map[string]any{
+			"method":     "get_check_runs",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+		}
+
+		filtered := map[string]any{}
+		maps.Copy(filtered, base)
+		filtered["fields"] = []any{"name"}
+
+		assertFieldsTelemetry(t, serverTool, client, "pull_request_read", filtered, base)
+	})
+}
+
+// Test_PullRequestRead_FieldsPreserveIFCLabel guards the constraint that
+// response field filtering must not change IFC label behavior: the label is
+// attached by the consolidated handler after the getter returns, so filtering
+// the payload must leave it intact.
+func Test_PullRequestRead_FieldsPreserveIFCLabel(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	t.Run("get_reviews", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPullRequestReviews()),
+				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+					"name":    "repo",
+					"private": false,
+				}),
+			})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":     "get_reviews",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"fields":     []any{"state"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("get_check_runs", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPullRequestForCheckRuns()),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns()),
+				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+					"name":    "repo",
+					"private": false,
+				}),
+			})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":     "get_check_runs",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"fields":     []any{"name"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+}
+
+// Test_PullRequestRead_FieldsAfterLockdown proves that lockdown/security
+// filtering and response field filtering compose in the required order on a
+// single call: disallowed reviews are dropped first, then the surviving review
+// is trimmed to the requested fields.
+func Test_PullRequestRead_FieldsAfterLockdown(t *testing.T) {
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+	reviews := []*github.PullRequestReview{
+		{
+			ID:    github.Ptr(int64(2030)),
+			State: github.Ptr("APPROVED"),
+			Body:  github.Ptr("Maintainer review"),
+			User:  &github.User{Login: github.Ptr("maintainer")},
+		},
+		{
+			ID:    github.Ptr(int64(2031)),
+			State: github.Ptr("COMMENTED"),
+			Body:  github.Ptr("External reviewer"),
+			User:  &github.User{Login: github.Ptr("testuser")},
+		},
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, reviews),
+	}))
+	restClient := mockRESTPermissionServer(t, "read", map[string]string{
+		"maintainer": "write",
+		"testuser":   "read",
+	})
+
+	deps := BaseDeps{
+		Client:          client,
+		RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": true}),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_reviews",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+		"fields":     []any{"state"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var returned []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+
+	// Lockdown dropped the external reviewer (read-only permission).
+	require.Len(t, returned, 1)
+	// Field filtering then kept only `state` on the survivor.
+	require.Len(t, returned[0], 1)
+	assert.Equal(t, "APPROVED", returned[0]["state"])
+	assert.NotContains(t, returned[0], "body")
+	assert.NotContains(t, returned[0], "id")
 }
