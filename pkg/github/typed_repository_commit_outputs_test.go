@@ -89,6 +89,10 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 		GetReposCommitsByOwnerByRepo: func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "4", r.URL.Query().Get("page"))
 			assert.Equal(t, "9", r.URL.Query().Get("per_page"))
+			if r.URL.Query().Get("sha") == "empty" {
+				mockResponse(t, http.StatusOK, []*github.RepositoryCommit{})(w, r)
+				return
+			}
 			mockResponse(t, http.StatusOK, []*github.RepositoryCommit{commit})(w, r)
 		},
 	}
@@ -137,6 +141,26 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9"},
 					text: expectedList,
 				},
+				{
+					name: "list_commits",
+					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "fields": []any{"sha"}},
+					text: `[{"sha":"abc123"}]`,
+				},
+				{
+					name: "list_commits",
+					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "fields": []any{"commit"}},
+					text: `[{"commit":{"message":"A commit"}}]`,
+				},
+				{
+					name: "list_commits",
+					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "sha": "empty"},
+					text: `[]`,
+				},
+				{
+					name: "list_commits",
+					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "sha": "empty", "fields": []any{"sha", "commit"}},
+					text: `[]`,
+				},
 			}
 			for _, call := range calls {
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: call.name, Arguments: call.args})
@@ -172,7 +196,12 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, filtered.IsError, filtered)
 			assert.Equal(t, `[{"sha":"abc123"}]`, getTextResult(t, filtered).Text)
-			assert.Nil(t, filtered.StructuredContent, "field projection keeps the legacy wire shape")
+			if protocolVersion == "2025-11-25" {
+				assert.Nil(t, filtered.StructuredContent)
+			} else {
+				require.NotNil(t, filtered.StructuredContent)
+				assert.JSONEq(t, `[{"sha":"abc123"}]`, mustMarshalJSON(t, filtered.StructuredContent))
+			}
 		})
 	}
 }
