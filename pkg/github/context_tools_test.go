@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func Test_GetMe(t *testing.T) {
 
 	serverTool := GetMe(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testContextToolSnapshot[GetMeInput, MinimalUser](t, tool)
 
 	// Verify some basic very important properties
 	assert.Equal(t, "get_me", tool.Name)
@@ -169,6 +170,138 @@ func Test_GetMe_OmittedArguments(t *testing.T) {
 	assert.Equal(t, mockUser.GetHTMLURL(), returnedUser.ProfileURL)
 }
 
+func TestContextToolsTypedRegistration(t *testing.T) {
+	mockUser := &github.User{
+		Login:     new("testuser"),
+		HTMLURL:   new("https://github.com/testuser"),
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+	}
+	teamsMatcher := githubv4mock.NewQueryMatcher(
+		"query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}",
+		map[string]any{"login": "specificuser"},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{
+				"organizations": map[string]any{
+					"nodes": []map[string]any{{
+						"login": "testorg",
+						"teams": map[string]any{
+							"nodes": []map[string]any{{
+								"name":        "team1",
+								"slug":        "team1",
+								"description": "Team 1",
+							}},
+						},
+					}},
+				},
+			},
+		}),
+	)
+	membersMatcher := githubv4mock.NewQueryMatcher(
+		"query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}",
+		map[string]any{"org": "testorg", "teamSlug": "testteam"},
+		githubv4mock.DataResponse(map[string]any{
+			"organization": map[string]any{
+				"team": map[string]any{
+					"members": map[string]any{
+						"nodes": []map[string]any{{"login": "user1"}, {"login": "user2"}},
+					},
+				},
+			},
+		}),
+	)
+	mockedGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(teamsMatcher, membersMatcher))
+	failGetMe := false
+	var graphQLCalls int
+	deps := stubDeps{
+		clientFn: stubClientFnFromHTTP(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: func(w http.ResponseWriter, r *http.Request) {
+				if failGetMe {
+					badRequestHandler("expected typed output test failure")(w, r)
+					return
+				}
+				mockResponse(t, http.StatusOK, mockUser)(w, r)
+			},
+		})),
+		obsv: stubExporters(),
+		gqlClientFn: func(context.Context) (*githubv4.Client, error) {
+			graphQLCalls++
+			return mockedGQLClient, nil
+		},
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	getMeTool := GetMe(translations.NullTranslationHelper)
+	getMeTool.RegisterFunc(server, nil)
+	getTeamsTool := GetTeams(translations.NullTranslationHelper)
+	getTeamsTool.RegisterFunc(server, nil)
+	teamMembersTool := GetTeamMembers(translations.NullTranslationHelper)
+	teamMembersTool.RegisterFunc(server, nil)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	list, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 3)
+	for _, tool := range list.Tools {
+		assert.NotNil(t, tool.InputSchema)
+		assert.NotNil(t, tool.OutputSchema)
+	}
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.NotNil(t, result.StructuredContent)
+
+	structuredJSON, err := json.Marshal(result.StructuredContent)
+	require.NoError(t, err)
+	assert.JSONEq(t, getTextResult(t, result).Text, string(structuredJSON))
+
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_teams",
+		Arguments: map[string]any{"user": "specificuser"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	structuredJSON, err = json.Marshal(result.StructuredContent)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, string(structuredJSON))
+	assert.Equal(t, 1, graphQLCalls)
+
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_team_members",
+		Arguments: map[string]any{"org": "testorg", "team_slug": "testteam"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	structuredJSON, err = json.Marshal(result.StructuredContent)
+	require.NoError(t, err)
+	assert.JSONEq(t, `["user1","user2"]`, string(structuredJSON))
+	assert.Equal(t, 2, graphQLCalls)
+
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_team_members",
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError, "missing required arguments should be rejected by the inferred input schema")
+	assert.Equal(t, 2, graphQLCalls, "schema validation must happen before invoking the handler")
+
+	failGetMe = true
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Nil(t, result.StructuredContent, "handler errors must not expose a successful typed output")
+}
+
 func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +373,7 @@ func Test_GetTeams(t *testing.T) {
 
 	serverTool := GetTeams(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testContextToolSnapshot[GetTeamsInput, []OrganizationTeams](t, tool)
 
 	assert.Equal(t, "get_teams", tool.Name)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
@@ -483,7 +616,7 @@ func Test_GetTeamMembers(t *testing.T) {
 
 	serverTool := GetTeamMembers(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testContextToolSnapshot[GetTeamMembersInput, []string](t, tool)
 
 	assert.Equal(t, "get_team_members", tool.Name)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "get_team_members tool should be read-only")
@@ -611,4 +744,20 @@ func Test_GetTeamMembers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testContextToolSnapshot[In, Out any](t *testing.T, tool mcp.Tool) {
+	t.Helper()
+
+	if tool.InputSchema == nil {
+		inputSchema, err := jsonschema.For[In](nil)
+		require.NoError(t, err)
+		tool.InputSchema = inputSchema
+	}
+	if tool.OutputSchema == nil {
+		outputSchema, err := jsonschema.For[Out](nil)
+		require.NoError(t, err)
+		tool.OutputSchema = outputSchema
+	}
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 }
