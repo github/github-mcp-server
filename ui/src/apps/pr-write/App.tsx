@@ -876,7 +876,7 @@ function CreatePRApp() {
                 <Label
                   key={reviewer.id}
                   style={{
-                    backgroundColor: "canvas.inset",
+                    backgroundColor: "var(--bgColor-inset)",
                     color: "var(--fgColor-muted)",
                     borderColor: "var(--borderColor-default)",
                   }}
