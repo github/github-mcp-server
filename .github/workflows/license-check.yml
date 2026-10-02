@@ -17,6 +17,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+# Create a github action that runs the license check script and fails if it exits with a non-zero status
+
+name: License Check
+on: [push, pull_request]
+permissions:
+  contents: read
 
 jobs:
   license-check:
@@ -114,3 +120,11 @@ jobs:
         if: steps.changes.outcome == 'failure'
         run: exit 1
 
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: check licenses
+        run: ./script/licenses-check

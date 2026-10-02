@@ -1,8 +1,5 @@
-#!/bin/bash
-#
-# Check that license files are up to date.
-# This script regenerates the license files and compares them with the committed versions.
-# If there are differences, it exits with an error.
+
+
 
 set -e
 
@@ -32,3 +29,36 @@ fi
 
 echo "License check passed for all platforms."
 
+## ${group_archs}
+
+The following packages are included for the ${group_archs} architectures.
+
+${packages}
+
+EOF
+    done
+    
+    # Add footer
+    echo "[github/github-mcp-server]: https://github.com/github/github-mcp-server" >> "${output_file}"
+    
+    echo "Generated ${output_file}"
+done
+
+echo "Done! License files generated."
+
+
+go install github.com/google/go-licenses@latest
+go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.md || echo "Ignore warnings"
+go-licenses save ./... --save_path=third-party --force || echo "warnings"
+
+
+trap 'rm -f third-party-licenses.copy.md' EXIT
+
+go install github.com/google/go-licenses@latest
+go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.copy.md || echo "Ignore warnings"
+# if not diff -s then exit 1
+
+if ! diff -s third-party-licenses.copy.md third-party-licenses.md; then
+  echo "License check failed. Please update the license file."
+  exit 1
+f/ licences

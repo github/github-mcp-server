@@ -1,5 +1,28 @@
-#!/bin/bash
 #
+cat >> "${output_file}" << EOF
+## ${group_archs}
+
+The following packages are included for the ${group_archs} architectures.
+
+${packages}
+
+EOF
+    done
+    
+    # Add footer
+    echo "[github/github-mcp-server]: https://github.com/github/github-mcp-server" >> "${output_file}"
+    
+    echo "Generated ${output_file}"
+done
+
+echo "Done! License files generated."
+
+
+go install github.com/google/go-licenses@latest
+go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.md || echo "Ignore warnings"
+go-licenses save ./... --save_path=third-party --force || echo "warnings"
+
+
 # Generate license files for all platform/arch combinations.
 # This script handles architecture-specific dependency differences by:
 # 1. Generating separate license reports per GOOS/GOARCH combination
@@ -152,21 +175,4 @@ EOF
         first_arch=$(echo "${group_archs}" | cut -d',' -f1 | tr -d ' ')
         packages=$(cat "${TEMPDIR}/${goos}_${first_arch}_packages.txt")
         
-        cat >> "${output_file}" << EOF
-## ${group_archs}
-
-The following packages are included for the ${group_archs} architectures.
-
-${packages}
-
-EOF
-    done
-    
-    # Add footer
-    echo "[github/github-mcp-server]: https://github.com/github/github-mcp-server" >> "${output_file}"
-    
-    echo "Generated ${output_file}"
-done
-
-echo "Done! License files generated."
-
+        
