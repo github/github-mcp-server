@@ -122,15 +122,20 @@ jobs:
             oauth_client_secret=${{ secrets.OAUTH_CLIENT_SECRET }}
 
       # Sign the resulting Docker image digest except on PRs.
-      # Keep v2-compatible .sig tags and Rekor v1 entries during the v3 transition.
+      # Publish both v2-compatible .sig tags and native Sigstore bundles.
       # --yes also consents to publishing signing metadata to the public log.
       # https://github.com/sigstore/cosign
-      - name: Sign the published Docker image
+      - name: Sign the published Docker image (legacy)
         if: ${{ github.event_name != 'pull_request' }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
-          TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy {}@${DIGEST}
+        run: cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+
+      - name: Sign the published Docker image (native bundle)
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"

@@ -242,16 +242,6 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
-### Verify published images and release archives
-
-Container images are signed keylessly with cosign. The publisher uses cosign v3
-in legacy compatibility mode: existing cosign v2 image verification commands
-continue to work. The cosign v3 examples explicitly select that format with
-`--new-bundle-format=false`.
-Release archives use GitHub artifact attestations, not cosign blob signatures.
-See [Verifying published artifacts](docs/verify-artifacts.md) for exact commands,
-certificate identities, and the signature-format transition policy.
-
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
