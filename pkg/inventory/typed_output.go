@@ -16,8 +16,9 @@ const typedOutputMetaKey = "github.com/github/github-mcp-server/typed-output"
 type inputNormalizationContextKey struct{}
 
 type typedOutputMetadata struct {
-	hasOutput  bool
-	contentSet bool
+	hasOutput      bool
+	contentSet     bool
+	explicitOutput any
 }
 
 func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, Out] {
@@ -49,8 +50,9 @@ func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middlewa
 			result.Meta = make(mcp.Meta)
 		}
 		result.Meta[typedOutputMetaKey] = typedOutputMetadata{
-			hasOutput:  handlerCalled && !result.IsError,
-			contentSet: result.Content != nil,
+			hasOutput:      handlerCalled && !result.IsError,
+			contentSet:     result.Content != nil,
+			explicitOutput: result.StructuredContent,
 		}
 		return result, output, nil
 	}
@@ -132,7 +134,12 @@ func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Midd
 				if err := removeTypedOutputFallback(&resultCopy, metadata); err != nil {
 					return nil, err
 				}
-				if !metadata.hasOutput || !protocolVersionAllowed(requestProtocolVersion(ctx, req.ProtocolVersion()), ProtocolVersionMultiRoundTrip) {
+				if metadata.explicitOutput != nil {
+					// The SDK may replace a handler's explicit status with
+					// its serialized typed output, including an error zero.
+					resultCopy.StructuredContent = metadata.explicitOutput
+				}
+				if (!metadata.hasOutput && metadata.explicitOutput == nil) || !protocolVersionAllowed(requestProtocolVersion(ctx, req.ProtocolVersion()), ProtocolVersionMultiRoundTrip) {
 					resultCopy.StructuredContent = nil
 				}
 				return &resultCopy, nil
