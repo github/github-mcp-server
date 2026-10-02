@@ -1,11 +1,10 @@
 import { StrictMode, useState, useCallback, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Box,
   Text,
   TextInput,
   Button,
-  Flash,
+  Banner,
   Spinner,
   FormControl,
   ActionMenu,
@@ -15,6 +14,7 @@ import {
   CounterLabel,
   Label,
 } from "@primer/react";
+import styles from "../../styles.module.css";
 import {
   GitPullRequestIcon,
   CheckCircleIcon,
@@ -82,46 +82,65 @@ function SuccessView({
   const prUrl = pr.html_url || pr.url || pr.URL || "#";
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+      }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        mb={3}
-        pb={3}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
+        <div
+          style={{
+            color: "var(--fgColor-success)",
+            flexShrink: 0,
+            marginRight: 8,
+          }}
+        >
           <CheckCircleIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold" }}>
+        </div>
+        <Text style={{ fontWeight: 500 }}>
           Pull request created successfully
         </Text>
-      </Box>
+      </div>
 
-      <Box
-        display="flex"
-        alignItems="flex-start"
-        gap={2}
-        p={3}
-        bg="canvas.subtle"
-        borderRadius={2}
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 2,
+          padding: 16,
+          backgroundColor: "var(--bgColor-muted)",
+          borderRadius: 6,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
+        <div
+          style={{
+            color: "var(--fgColor-open)",
+            flexShrink: 0,
+            marginTop: "2px",
+            marginRight: 4,
+          }}
+        >
           <GitPullRequestIcon size={16} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
+        </div>
+        <div style={{ minWidth: 0 }}>
           <a
             href={prUrl}
             target="_blank"
@@ -147,17 +166,23 @@ function SuccessView({
           >
             {pr.title || submittedTitle}
             {pr.number && (
-              <Text sx={{ color: "fg.muted", fontWeight: "normal", ml: 1 }}>
+              <Text
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontWeight: 400,
+                  marginLeft: 4,
+                }}
+              >
                 #{pr.number}
               </Text>
             )}
           </a>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>
             {owner}/{repo}
           </Text>
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -462,9 +487,16 @@ function CreatePRApp() {
   if (!app && !appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
           <Spinner size="medium" />
-        </Box>
+        </div>
       </AppProvider>
     );
   }
@@ -472,59 +504,78 @@ function CreatePRApp() {
   if (appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Flash variant="danger">{appError.message}</Flash>
+        <Banner variant="critical" title={appError.message} />
       </AppProvider>
     );
   }
 
   return (
     <AppProvider hostContext={hostContext}>
-      <Box
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
-        borderRadius={2}
-        bg="canvas.subtle"
-        p={3}
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+          borderRadius: 6,
+          backgroundColor: "var(--bgColor-muted)",
+          padding: 16,
+        }}
       >
         {/* Repository picker */}
-        <Box
-          display="flex"
-          alignItems="center"
-          gap={2}
-          mb={3}
-          pb={2}
-          borderBottomWidth={1}
-          borderBottomStyle="solid"
-          borderBottomColor="border.default"
-          sx={{ minWidth: 0, overflow: "hidden" }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            marginBottom: 16,
+            paddingBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--borderColor-default)",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
         >
-          <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+          <div style={{ minWidth: 0, maxWidth: "100%" }}>
             <ActionMenu>
               <ActionMenu.Button
                 size="small"
                 leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
-                sx={{ maxWidth: "100%", overflow: "hidden", "& > span:last-child": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
+                style={{ maxWidth: "100%", overflow: "hidden" }}
+                className={styles.truncateLastChild}
               >
                 {selectedRepo ? selectedRepo.fullName : "Select repository"}
               </ActionMenu.Button>
             <ActionMenu.Overlay width="medium">
               <ActionList selectionVariant="single">
-                <Box px={3} py={2}>
+                <div
+                    style={{
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                    }}
+                  >
                   <TextInput
-                    placeholder="Search repositories..."
-                    value={repoFilter}
-                    onChange={(e) => setRepoFilter(e.target.value)}
-                    sx={{ width: "100%" }}
-                    size="small"
-                    autoFocus
-                  />
-                </Box>
+                      placeholder="Search repositories..."
+                      value={repoFilter}
+                      onChange={(e) => setRepoFilter(e.target.value)}
+                      size="small"
+                      autoFocus
+                      style={{ width: "100%" }}
+                    />
+                </div>
                 <ActionList.Divider />
                 {repoSearchLoading ? (
-                  <Box display="flex" justifyContent="center" p={3}>
+                  <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: 16,
+                      }}
+                    >
                     <Spinner size="small" />
-                  </Box>
+                  </div>
                 ) : repoSearchResults.length > 0 ? (
                   repoSearchResults.map((r) => (
                     <ActionList.Item
@@ -555,27 +606,57 @@ function CreatePRApp() {
                     {selectedRepo.fullName}
                   </ActionList.Item>
                 ) : (
-                  <Box px={3} py={2}>
-                    <Text sx={{ color: "fg.muted", fontSize: 1 }}>Type to search repositories...</Text>
-                  </Box>
+                  <div
+                      style={{
+                        paddingLeft: 16,
+                        paddingRight: 16,
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                      }}
+                    >
+                    <Text
+                        style={{ color: "var(--fgColor-muted)", fontSize: 14 }}
+                      >Type to search repositories...</Text>
+                  </div>
                 )}
               </ActionList>
             </ActionMenu.Overlay>
           </ActionMenu>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* Branch selectors */}
-        <Box display="flex" gap={2} mb={3} alignItems="flex-end" sx={{ minWidth: 0, flexWrap: "wrap" }}>
-          <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
-            <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>base</Text>
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            marginBottom: 16,
+            alignItems: "flex-end",
+            minWidth: 0,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "var(--fgColor-muted)",
+                marginBottom: 4,
+                display: "block",
+              }}
+            >base</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                style={{ width: "100%" }}
+                className={styles.truncateChildren}
+              >
                 {baseBranch || "Select base"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
                 <ActionList selectionVariant="single">
-                  <Box p={2}>
+                  <div style={{ padding: 8 }}>
                     <TextInput
                       placeholder="Filter branches..."
                       value={baseFilter}
@@ -583,7 +664,7 @@ function CreatePRApp() {
                       size="small"
                       block
                     />
-                  </Box>
+                  </div>
                   <ActionList.Divider />
                   {branchesLoading ? (
                     <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
@@ -604,19 +685,39 @@ function CreatePRApp() {
                 </ActionList>
               </ActionMenu.Overlay>
             </ActionMenu>
-          </Box>
+          </div>
 
-          <Text sx={{ color: "fg.muted", pb: 1, px: 1, flexShrink: 0 }}>←</Text>
+          <Text
+            style={{
+              color: "var(--fgColor-muted)",
+              paddingBottom: 4,
+              paddingLeft: 4,
+              paddingRight: 4,
+              flexShrink: 0,
+            }}
+          >←</Text>
 
-          <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
-            <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>compare</Text>
+          <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "var(--fgColor-muted)",
+                marginBottom: 4,
+                display: "block",
+              }}
+            >compare</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                style={{ width: "100%" }}
+                className={styles.truncateChildren}
+              >
                 {headBranch || "Select head"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
                 <ActionList selectionVariant="single">
-                  <Box p={2}>
+                  <div style={{ padding: 8 }}>
                     <TextInput
                       placeholder="Filter branches..."
                       value={headFilter}
@@ -624,7 +725,7 @@ function CreatePRApp() {
                       size="small"
                       block
                     />
-                  </Box>
+                  </div>
                   <ActionList.Divider />
                   {branchesLoading ? (
                     <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
@@ -644,15 +745,15 @@ function CreatePRApp() {
                 </ActionList>
               </ActionMenu.Overlay>
             </ActionMenu>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* Error banner */}
-        {error && <Flash variant="danger" sx={{ mb: 3 }}>{error}</Flash>}
+        {error && <Banner variant="critical" title={error} style={{ marginBottom: 16 }} />}
 
         {/* Title */}
-        <FormControl sx={{ mb: 3 }}>
-          <FormControl.Label sx={{ fontWeight: "semibold" }}>Title</FormControl.Label>
+        <FormControl style={{ marginBottom: 16 }}>
+          <FormControl.Label style={{ fontWeight: 500 }}>Title</FormControl.Label>
           <TextInput
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -663,29 +764,55 @@ function CreatePRApp() {
         </FormControl>
 
         {/* Description */}
-        <Box sx={{ mb: 3 }}>
-          <Text as="label" sx={{ fontWeight: "semibold", fontSize: 1, display: "block", mb: 2 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Text
+            as="label"
+            style={{
+              fontWeight: 500,
+              fontSize: 14,
+              display: "block",
+              marginBottom: 8,
+            }}
+          >
             Description
           </Text>
           <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
-        </Box>
+        </div>
 
         {/* Reviewers */}
-        <Box sx={{ mb: 3 }}>
-          <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>reviewers</Text>
+        <div style={{ marginBottom: 16 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              color: "var(--fgColor-muted)",
+              marginBottom: 4,
+              display: "block",
+            }}
+          >reviewers</Text>
           <ActionMenu>
-            <ActionMenu.Button size="small" leadingVisual={PersonIcon} sx={{ minWidth: 160 }}>
+            <ActionMenu.Button
+              size="small"
+              leadingVisual={PersonIcon}
+              style={{ minWidth: 160 }}
+            >
               {selectedReviewers.length === 0 ? (
                 "No reviewers"
               ) : (
                 <>
                   Reviewers
-                  <CounterLabel sx={{ ml: 1 }}>{selectedReviewers.length}</CounterLabel>
+                  <CounterLabel style={{ marginLeft: 4 }}>{selectedReviewers.length}</CounterLabel>
                 </>
               )}
             </ActionMenu.Button>
             <ActionMenu.Overlay width="medium">
-              <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+              <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
                 <TextInput
                   placeholder="Search reviewers"
                   value={reviewersFilter}
@@ -693,7 +820,7 @@ function CreatePRApp() {
                   size="small"
                   block
                 />
-              </Box>
+              </div>
               <ActionList selectionVariant="multiple">
                 {reviewersLoading ? (
                   <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
@@ -737,29 +864,52 @@ function CreatePRApp() {
             </ActionMenu.Overlay>
           </ActionMenu>
           {selectedReviewers.length > 0 && (
-            <Box display="flex" gap={1} mt={2} flexWrap="wrap">
+            <div
+              style={{
+                display: "flex",
+                gap: 1,
+                marginTop: 8,
+                flexWrap: "wrap",
+              }}
+            >
               {selectedReviewers.map((reviewer) => (
                 <Label
                   key={reviewer.id}
-                  sx={{
+                  style={{
                     backgroundColor: "canvas.inset",
-                    color: "fg.muted",
-                    borderColor: "border.default",
+                    color: "var(--fgColor-muted)",
+                    borderColor: "var(--borderColor-default)",
                   }}
                 >
                   {reviewer.text}
                 </Label>
               ))}
-            </Box>
+            </div>
           )}
-        </Box>
+        </div>
 
         {/* Options and Submit */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3}>
-          <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2, mt: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+            gap: 3,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              cursor: "pointer",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             <Checkbox checked={maintainerCanModify} onChange={(e) => setMaintainerCanModify(e.target.checked)} />
-            <Text sx={{ fontSize: 1, color: "fg.muted" }}>Allow maintainer edits</Text>
-          </Box>
+            <Text style={{ fontSize: 14, color: "var(--fgColor-muted)" }}>Allow maintainer edits</Text>
+          </label>
 
           <ButtonGroup>
             <Button
@@ -768,7 +918,7 @@ function CreatePRApp() {
               disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
             >
               {isSubmitting ? (
-                <><Spinner size="small" sx={{ mr: 1 }} />Creating...</>
+                <><Spinner size="small" style={{ marginRight: 4 }} />Creating...</>
               ) : isDraft ? (
                 "Draft pull request"
               ) : (
@@ -779,9 +929,15 @@ function CreatePRApp() {
               <ActionMenu.Anchor>
                 <Button
                   variant="primary"
-                  disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
-                  sx={{ px: 2 }}
+                  disabled={
+                    isSubmitting ||
+                    !owner ||
+                    !repo ||
+                    !baseBranch ||
+                    !headBranch
+                  }
                   aria-label="Select pull request type"
+                  style={{ paddingLeft: 8, paddingRight: 8 }}
                 >
                   <TriangleDownIcon />
                 </Button>
@@ -810,8 +966,8 @@ function CreatePRApp() {
               </ActionMenu.Overlay>
             </ActionMenu>
           </ButtonGroup>
-        </Box>
-      </Box>
+        </div>
+      </div>
     </AppProvider>
   );
 }

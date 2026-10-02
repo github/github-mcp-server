@@ -31,6 +31,14 @@ These are one time installations required to be able to test your changes locall
 
 The repository-pinned golangci-lint v2.9.0 supports Go 1.26, but cannot read Go 1.27 export data. When using a newer Go installation, run lint with `GOTOOLCHAIN=go1.26.8 script/lint`.
 
+### MCP Apps UI
+
+The `ui/` views use React 19 and Primer React 38. With Node.js 20.19+ or 22.12+, run `cd ui && npm ci && npm run typecheck && npm run build && npm audit` before `script/test`. The build writes self-contained HTML to `pkg/github/ui_dist/`, which the Go server embeds; these generated files are not committed.
+
+Primer 38 no longer exports `Box` or accepts `sx`/styled-system props. Use semantic HTML, native `style` props for dynamic/layout styles, and CSS Modules for nested selectors. `AppProvider` loads Primer's primitive tokens and light/dark themes, so use CSS variables rather than JavaScript theme values. Custom element typings must augment `react/jsx-runtime` rather than the global `JSX` namespace.
+
+For UI dependency upgrades, compare all four views (`get-me`, `issue-write`, `pr-write`, and `pr-edit`) in light/dark themes and at narrow widths in an MCP Apps host, including menus, Markdown editing/preview, and completed-result views. Include before/after screenshots in the pull request.
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository
