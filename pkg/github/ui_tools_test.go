@@ -97,7 +97,7 @@ func Test_UIGet(t *testing.T) {
 	// Verify tool definition
 	serverTool := UIGet(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_typed", tool))
 
 	assert.Equal(t, "ui_get", tool.Name)
 	assert.NotEmpty(t, tool.Description)

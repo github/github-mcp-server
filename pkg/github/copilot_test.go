@@ -26,7 +26,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	// Verify tool definition
 	serverTool := AssignCopilotToIssue(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_typed", tool))
 
 	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -888,7 +888,7 @@ func Test_RequestCopilotReview(t *testing.T) {
 
 	serverTool := RequestCopilotReview(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_typed", tool))
 
 	assert.Equal(t, "request_copilot_review", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1114,7 +1114,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 
 	serverTool := AssignCopilotToIssueWithIntent(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_typed", tool))
 
 	assert.Equal(t, "assign_copilot_to_issue_with_intent", tool.Name)
 	assert.NotEmpty(t, tool.Description)
