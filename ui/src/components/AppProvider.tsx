@@ -9,9 +9,18 @@ interface AppProviderProps {
   hostContext?: McpUiHostContext;
 }
 
+function createDeviceId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `mcp-app-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export function AppProvider({ children, hostContext }: AppProviderProps) {
   const hostTheme = hostContext?.theme;
   const hostVariables = hostContext?.styles?.variables;
+  const [instanceId] = useState(() => createDeviceId());
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 768px)").matches;
@@ -32,6 +41,8 @@ export function AppProvider({ children, hostContext }: AppProviderProps) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     // Prefer the host-supplied theme; fall back to the OS preference.
     const colorMode =
       hostTheme === "light" || hostTheme === "dark"
@@ -43,7 +54,8 @@ export function AppProvider({ children, hostContext }: AppProviderProps) {
     document.body.setAttribute("data-light-theme", "light");
     document.body.setAttribute("data-dark-theme", "dark");
     document.body.setAttribute("data-device-type", isMobile ? "mobile" : "desktop");
-  }, [hostTheme, isMobile]);
+    document.body.setAttribute("data-app-instance-id", instanceId);
+  }, [hostTheme, isMobile, instanceId]);
 
   // Project the host's standardized CSS variables onto the root so child
   // components can consume them via `var(--color-...)`. We rely on Primer's
