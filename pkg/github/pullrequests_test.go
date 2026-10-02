@@ -3667,7 +3667,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 		expectedToolErrMsg string
 	}{
 		{
-			name: "successful line comment addition",
+			name: "selects viewer pending review by ID",
 			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -3681,18 +3681,21 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"startSide":   "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
+				viewerIDQuery("U_viewer"),
+				getPendingReviewsQuery(getPendingReviewsQueryParams{
+					owner: "owner",
+					repo:  "repo",
+					prNum: 42,
 
-					reviews: []getLatestPendingReviewQueryReview{
+					reviews: []pendingReviewQueryReview{
 						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
+							id:       "PR_other",
+							authorID: "U_other",
+						},
+						{
+							id:          "PR_kwDODKw3uc6WYN1T",
+							authorID:    "U_viewer",
+							authorField: "botId",
 						},
 					},
 				}),
@@ -3740,18 +3743,16 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"startSide":   "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
+				viewerIDQuery("U_viewer"),
+				getPendingReviewsQuery(getPendingReviewsQueryParams{
+					owner: "owner",
+					repo:  "repo",
+					prNum: 42,
 
-					reviews: []getLatestPendingReviewQueryReview{
+					reviews: []pendingReviewQueryReview{
 						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
+							id:       "PR_kwDODKw3uc6WYN1T",
+							authorID: "U_viewer",
 						},
 					},
 				}),
@@ -3821,18 +3822,16 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				"side":        "RIGHT",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
+				viewerIDQuery("U_viewer"),
+				getPendingReviewsQuery(getPendingReviewsQueryParams{
+					owner: "owner",
+					repo:  "repo",
+					prNum: 42,
 
-					reviews: []getLatestPendingReviewQueryReview{
+					reviews: []pendingReviewQueryReview{
 						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
+							id:       "PR_kwDODKw3uc6WYN1T",
+							authorID: "U_viewer",
 						},
 					},
 				}),
@@ -3939,18 +3938,16 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 				"body":       "This is a test review",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
+				viewerIDQuery("U_viewer"),
+				getPendingReviewsQuery(getPendingReviewsQueryParams{
+					owner: "owner",
+					repo:  "repo",
+					prNum: 42,
 
-					reviews: []getLatestPendingReviewQueryReview{
+					reviews: []pendingReviewQueryReview{
 						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
+							id:       "PR_kwDODKw3uc6WYN1T",
+							authorID: "U_viewer",
 						},
 					},
 				}),
@@ -4040,18 +4037,16 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 				"pullNumber": float64(42),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				viewerQuery("williammartin"),
-				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
-					author: "williammartin",
-					owner:  "owner",
-					repo:   "repo",
-					prNum:  42,
+				viewerIDQuery("U_viewer"),
+				getPendingReviewsQuery(getPendingReviewsQueryParams{
+					owner: "owner",
+					repo:  "repo",
+					prNum: 42,
 
-					reviews: []getLatestPendingReviewQueryReview{
+					reviews: []pendingReviewQueryReview{
 						{
-							id:    "PR_kwDODKw3uc6WYN1T",
-							state: "PENDING",
-							url:   "https://github.com/owner/repo/pull/42",
+							id:       "PR_kwDODKw3uc6WYN1T",
+							authorID: "U_viewer",
 						},
 					},
 				}),
@@ -4104,6 +4099,57 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 			require.Equal(t, "pending pull request review successfully deleted", textContent.Text)
 		})
 	}
+}
+
+func TestGetPendingPullRequestReviewForViewerPaginates(t *testing.T) {
+	t.Parallel()
+
+	var reviewQueries atomic.Int32
+	transport := NewMockRoundTripper().OnRequest(http.MethodPost, "/graphql", func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(request.Query, "viewer"):
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{"id": "U_viewer"},
+				},
+			}))
+		case strings.Contains(request.Query, "reviews"):
+			queryNumber := reviewQueries.Add(1)
+			if queryNumber == 1 {
+				assert.Nil(t, request.Variables["after"])
+				require.NoError(t, json.NewEncoder(w).Encode(pendingReviewsResponse(
+					[]pendingReviewQueryReview{{id: "PR_other", authorID: "U_other"}},
+					true,
+					"cursor-1",
+				)))
+				return
+			}
+
+			assert.Equal(t, "cursor-1", request.Variables["after"])
+			require.NoError(t, json.NewEncoder(w).Encode(pendingReviewsResponse(
+				[]pendingReviewQueryReview{{id: "PR_viewer", authorID: "U_viewer"}},
+				false,
+				"",
+			)))
+		default:
+			t.Fatalf("unexpected GraphQL query: %s", request.Query)
+		}
+	})
+
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+	reviewID, result := getPendingPullRequestReviewForViewer(context.Background(), client, "owner", "repo", 42)
+
+	require.Nil(t, result)
+	require.NotNil(t, reviewID)
+	assert.Equal(t, githubv4.ID("PR_viewer"), *reviewID)
+	assert.Equal(t, int32(2), reviewQueries.Load())
 }
 
 func TestGetPullRequestDiff(t *testing.T) {
@@ -4252,76 +4298,103 @@ index 5d6e7b2..8a4f5c3 100644
 	}
 }
 
-func viewerQuery(login string) githubv4mock.Matcher {
+func viewerIDQuery(id string) githubv4mock.Matcher {
 	return githubv4mock.NewQueryMatcher(
 		struct {
 			Viewer struct {
-				Login githubv4.String
+				ID githubv4.ID
 			} `graphql:"viewer"`
 		}{},
 		map[string]any{},
 		githubv4mock.DataResponse(map[string]any{
 			"viewer": map[string]any{
-				"login": login,
+				"id": id,
 			},
 		}),
 	)
 }
 
-type getLatestPendingReviewQueryReview struct {
-	id    string
-	state string
-	url   string
+type pendingReviewQueryReview struct {
+	id          string
+	authorID    string
+	authorField string
 }
 
-type getLatestPendingReviewQueryParams struct {
-	author string
-	owner  string
-	repo   string
-	prNum  int32
+type getPendingReviewsQueryParams struct {
+	owner string
+	repo  string
+	prNum int32
 
-	reviews []getLatestPendingReviewQueryReview
+	reviews []pendingReviewQueryReview
 }
 
-func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mock.Matcher {
-	return githubv4mock.NewQueryMatcher(
+func getPendingReviewsQuery(p getPendingReviewsQueryParams) githubv4mock.Matcher {
+	matcher := githubv4mock.NewQueryMatcher(
 		struct {
 			Repository struct {
 				PullRequest struct {
 					Reviews struct {
 						Nodes []struct {
-							ID    githubv4.ID
-							State githubv4.PullRequestReviewState
-							URL   githubv4.URI
+							ID     githubv4.ID
+							Author pendingReviewAuthor
 						}
-					} `graphql:"reviews(first: 1, author: $author)"`
+						PageInfo struct {
+							HasNextPage githubv4.Boolean
+							EndCursor   githubv4.String
+						}
+					} `graphql:"reviews(first: 100, after: $after, states: $states)"`
 				} `graphql:"pullRequest(number: $prNum)"`
 			} `graphql:"repository(owner: $owner, name: $name)"`
 		}{},
 		map[string]any{
-			"author": githubv4.String(p.author),
+			"after":  (*githubv4.String)(nil),
 			"owner":  githubv4.String(p.owner),
 			"name":   githubv4.String(p.repo),
 			"prNum":  githubv4.Int(p.prNum),
+			"states": []githubv4.PullRequestReviewState{githubv4.PullRequestReviewStatePending},
 		},
-		githubv4mock.DataResponse(
-			map[string]any{
-				"repository": map[string]any{
-					"pullRequest": map[string]any{
-						"reviews": map[string]any{
-							"nodes": []any{
-								map[string]any{
-									"id":    p.reviews[0].id,
-									"state": p.reviews[0].state,
-									"url":   p.reviews[0].url,
-								},
-							},
-						},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": pendingReviewsData(p.reviews, false, "")["repository"],
+		}),
+	)
+	matcher.Variables["states"] = []any{"PENDING"}
+	return matcher
+}
+
+func pendingReviewsResponse(reviews []pendingReviewQueryReview, hasNextPage bool, endCursor string) map[string]any {
+	return map[string]any{
+		"data": pendingReviewsData(reviews, hasNextPage, endCursor),
+	}
+}
+
+func pendingReviewsData(reviews []pendingReviewQueryReview, hasNextPage bool, endCursor string) map[string]any {
+	nodes := make([]any, 0, len(reviews))
+	for _, review := range reviews {
+		authorField := review.authorField
+		if authorField == "" {
+			authorField = "userId"
+		}
+		nodes = append(nodes, map[string]any{
+			"id": review.id,
+			"author": map[string]any{
+				authorField: review.authorID,
+			},
+		})
+	}
+
+	return map[string]any{
+		"repository": map[string]any{
+			"pullRequest": map[string]any{
+				"reviews": map[string]any{
+					"nodes": nodes,
+					"pageInfo": map[string]any{
+						"hasNextPage": hasNextPage,
+						"endCursor":   endCursor,
 					},
 				},
 			},
-		),
-	)
+		},
+	}
 }
 
 func TestAddReplyToPullRequestComment(t *testing.T) {
