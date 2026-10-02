@@ -1488,7 +1488,7 @@ func Test_BuildIssueFieldUpdate(t *testing.T) {
 func Test_ProjectItemIssueID_RejectsNonIssueItems(t *testing.T) {
 	for _, contentType := range []string{"PullRequest", "DraftIssue"} {
 		t.Run(contentType, func(t *testing.T) {
-			item := &gogithub.ProjectV2Item{ContentType: gogithub.Ptr(gogithub.ProjectV2ItemContentType(contentType))}
+			item := &gogithub.ProjectV2Item{ContentType: new(gogithub.ProjectV2ItemContentType(contentType))}
 			_, err := projectItemIssueID(item)
 			var structured *ghErrors.StructuredResolutionError
 			require.ErrorAs(t, err, &structured)

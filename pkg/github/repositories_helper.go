@@ -34,9 +34,9 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	defaultBranch := repository.GetDefaultBranch()
 
 	fileOpts := &github.RepositoryContentFileOptions{
-		Message: github.Ptr("Initial commit"),
+		Message: new("Initial commit"),
 		Content: []byte(""),
-		Branch:  github.Ptr(defaultBranch),
+		Branch:  new(defaultBranch),
 	}
 
 	// Create an initial empty commit to create the default branch

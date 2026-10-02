@@ -37,30 +37,30 @@ func Test_ListGists(t *testing.T) {
 	// Setup mock gists for success case
 	mockGists := []*github.Gist{
 		{
-			ID:          github.Ptr("gist1"),
-			Description: github.Ptr("First Gist"),
-			HTMLURL:     github.Ptr("https://gist.github.com/user/gist1"),
-			Public:      github.Ptr(true),
+			ID:          new("gist1"),
+			Description: new("First Gist"),
+			HTMLURL:     new("https://gist.github.com/user/gist1"),
+			Public:      new(true),
 			CreatedAt:   &github.Timestamp{Time: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
-			Owner:       &github.User{Login: github.Ptr("user")},
+			Owner:       &github.User{Login: new("user")},
 			Files: map[github.GistFilename]github.GistFile{
 				"file1.txt": {
-					Filename: github.Ptr("file1.txt"),
-					Content:  github.Ptr("content of file 1"),
+					Filename: new("file1.txt"),
+					Content:  new("content of file 1"),
 				},
 			},
 		},
 		{
-			ID:          github.Ptr("gist2"),
-			Description: github.Ptr("Second Gist"),
-			HTMLURL:     github.Ptr("https://gist.github.com/testuser/gist2"),
-			Public:      github.Ptr(false),
+			ID:          new("gist2"),
+			Description: new("Second Gist"),
+			HTMLURL:     new("https://gist.github.com/testuser/gist2"),
+			Public:      new(false),
 			CreatedAt:   &github.Timestamp{Time: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC)},
-			Owner:       &github.User{Login: github.Ptr("testuser")},
+			Owner:       &github.User{Login: new("testuser")},
 			Files: map[github.GistFilename]github.GistFile{
 				"file2.js": {
-					Filename: github.Ptr("file2.js"),
-					Content:  github.Ptr("console.log('hello');"),
+					Filename: new("file2.js"),
+					Content:  new("console.log('hello');"),
 				},
 			},
 		},
@@ -202,16 +202,16 @@ func Test_GetGist(t *testing.T) {
 
 	// Setup mock gist for success case
 	mockGist := github.Gist{
-		ID:          github.Ptr("gist1"),
-		Description: github.Ptr("First Gist"),
-		HTMLURL:     github.Ptr("https://gist.github.com/user/gist1"),
-		Public:      github.Ptr(true),
+		ID:          new("gist1"),
+		Description: new("First Gist"),
+		HTMLURL:     new("https://gist.github.com/user/gist1"),
+		Public:      new(true),
 		CreatedAt:   &github.Timestamp{Time: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
-		Owner:       &github.User{Login: github.Ptr("user")},
+		Owner:       &github.User{Login: new("user")},
 		Files: map[github.GistFilename]github.GistFile{
 			github.GistFilename("file1.txt"): {
-				Filename: github.Ptr("file1.txt"),
-				Content:  github.Ptr("content of file 1"),
+				Filename: new("file1.txt"),
+				Content:  new("content of file 1"),
 			},
 		},
 	}
@@ -315,16 +315,16 @@ func Test_CreateGist(t *testing.T) {
 
 	// Setup mock data for test cases
 	createdGist := &github.Gist{
-		ID:          github.Ptr("new-gist-id"),
-		Description: github.Ptr("Test Gist"),
-		HTMLURL:     github.Ptr("https://gist.github.com/user/new-gist-id"),
-		Public:      github.Ptr(false),
+		ID:          new("new-gist-id"),
+		Description: new("Test Gist"),
+		HTMLURL:     new("https://gist.github.com/user/new-gist-id"),
+		Public:      new(false),
 		CreatedAt:   &github.Timestamp{Time: time.Now()},
-		Owner:       &github.User{Login: github.Ptr("user")},
+		Owner:       &github.User{Login: new("user")},
 		Files: map[github.GistFilename]github.GistFile{
 			"test.go": {
-				Filename: github.Ptr("test.go"),
-				Content:  github.Ptr("package main\n\nfunc main() {\n\tfmt.Println(\"Hello, Gist!\")\n}"),
+				Filename: new("test.go"),
+				Content:  new("package main\n\nfunc main() {\n\tfmt.Println(\"Hello, Gist!\")\n}"),
 			},
 		},
 	}
@@ -454,16 +454,16 @@ func Test_UpdateGist(t *testing.T) {
 
 	// Setup mock data for test cases
 	updatedGist := &github.Gist{
-		ID:          github.Ptr("existing-gist-id"),
-		Description: github.Ptr("Updated Test Gist"),
-		HTMLURL:     github.Ptr("https://gist.github.com/user/existing-gist-id"),
-		Public:      github.Ptr(true),
+		ID:          new("existing-gist-id"),
+		Description: new("Updated Test Gist"),
+		HTMLURL:     new("https://gist.github.com/user/existing-gist-id"),
+		Public:      new(true),
 		UpdatedAt:   &github.Timestamp{Time: time.Now()},
-		Owner:       &github.User{Login: github.Ptr("user")},
+		Owner:       &github.User{Login: new("user")},
 		Files: map[github.GistFilename]github.GistFile{
 			"updated.go": {
-				Filename: github.Ptr("updated.go"),
-				Content:  github.Ptr("package main\n\nfunc main() {\n\tfmt.Println(\"Updated Gist!\")\n}"),
+				Filename: new("updated.go"),
+				Content:  new("package main\n\nfunc main() {\n\tfmt.Println(\"Updated Gist!\")\n}"),
 			},
 		},
 	}
@@ -586,8 +586,8 @@ func Test_UpdateGist_DescriptionOnlySentWhenProvided(t *testing.T) {
 	serverTool := UpdateGist(translations.NullTranslationHelper)
 
 	updatedGist := &github.Gist{
-		ID:      github.Ptr("existing-gist-id"),
-		HTMLURL: github.Ptr("https://gist.github.com/user/existing-gist-id"),
+		ID:      new("existing-gist-id"),
+		HTMLURL: new("https://gist.github.com/user/existing-gist-id"),
 	}
 
 	cases := []struct {

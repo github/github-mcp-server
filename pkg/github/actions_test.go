@@ -46,19 +46,19 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposActionsWorkflowsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					workflows := &github.Workflows{
-						TotalCount: github.Ptr(2),
+						TotalCount: new(2),
 						Workflows: []*github.Workflow{
 							{
-								ID:    github.Ptr(int64(1)),
-								Name:  github.Ptr("CI"),
-								Path:  github.Ptr(".github/workflows/ci.yml"),
-								State: github.Ptr("active"),
+								ID:    new(int64(1)),
+								Name:  new("CI"),
+								Path:  new(".github/workflows/ci.yml"),
+								State: new("active"),
 							},
 							{
-								ID:    github.Ptr(int64(2)),
-								Name:  github.Ptr("Deploy"),
-								Path:  github.Ptr(".github/workflows/deploy.yml"),
-								State: github.Ptr("active"),
+								ID:    new(int64(2)),
+								Name:  new("Deploy"),
+								Path:  new(".github/workflows/deploy.yml"),
+								State: new("active"),
 							},
 						},
 					}
@@ -122,13 +122,13 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				runs := &github.WorkflowRuns{
-					TotalCount: github.Ptr(1),
+					TotalCount: new(1),
 					WorkflowRuns: []*github.WorkflowRun{
 						{
-							ID:         github.Ptr(int64(123)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(123)),
+							Name:       new("CI"),
+							Status:     new("completed"),
+							Conclusion: new("success"),
 						},
 					},
 				}
@@ -167,18 +167,18 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				runs := &github.WorkflowRuns{
-					TotalCount: github.Ptr(2),
+					TotalCount: new(2),
 					WorkflowRuns: []*github.WorkflowRun{
 						{
-							ID:         github.Ptr(int64(123)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(123)),
+							Name:       new("CI"),
+							Status:     new("completed"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(456)),
-							Name:       github.Ptr("Deploy"),
-							Status:     github.Ptr("in_progress"),
+							ID:         new(int64(456)),
+							Name:       new("Deploy"),
+							Status:     new("in_progress"),
 							Conclusion: nil,
 						},
 					},
@@ -217,7 +217,7 @@ func Test_ActionsList_ListWorkflowJobs(t *testing.T) {
 	toolDef := ActionsList(translations.NullTranslationHelper)
 	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetReposActionsRunsJobsByOwnerByRepoByRunID: mockResponse(t, http.StatusOK, &github.Jobs{
-			TotalCount: github.Ptr(1),
+			TotalCount: new(1),
 			Jobs:       []*github.WorkflowJob{actionsTestWorkflowJob()},
 		}),
 	})
@@ -268,10 +268,10 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsWorkflowsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				workflow := &github.Workflow{
-					ID:    github.Ptr(int64(1)),
-					Name:  github.Ptr("CI"),
-					Path:  github.Ptr(".github/workflows/ci.yml"),
-					State: github.Ptr("active"),
+					ID:    new(int64(1)),
+					Name:  new("CI"),
+					Path:  new(".github/workflows/ci.yml"),
+					State: new("active"),
 				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(workflow)
@@ -651,22 +651,22 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				jobs := &github.Jobs{
-					TotalCount: github.Ptr(3),
+					TotalCount: new(3),
 					Jobs: []*github.WorkflowJob{
 						{
-							ID:         github.Ptr(int64(1)),
-							Name:       github.Ptr("test-job-1"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(1)),
+							Name:       new("test-job-1"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(2)),
-							Name:       github.Ptr("test-job-2"),
-							Conclusion: github.Ptr("failure"),
+							ID:         new(int64(2)),
+							Name:       new("test-job-2"),
+							Conclusion: new("failure"),
 						},
 						{
-							ID:         github.Ptr(int64(3)),
-							Name:       github.Ptr("test-job-3"),
-							Conclusion: github.Ptr("failure"),
+							ID:         new(int64(3)),
+							Name:       new("test-job-3"),
+							Conclusion: new("failure"),
 						},
 					},
 				}
@@ -710,17 +710,17 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				jobs := &github.Jobs{
-					TotalCount: github.Ptr(2),
+					TotalCount: new(2),
 					Jobs: []*github.WorkflowJob{
 						{
-							ID:         github.Ptr(int64(1)),
-							Name:       github.Ptr("test-job-1"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(1)),
+							Name:       new("test-job-1"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(2)),
-							Name:       github.Ptr("test-job-2"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(2)),
+							Name:       new("test-job-2"),
+							Conclusion: new("success"),
 						},
 					},
 				}

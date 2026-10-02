@@ -1211,19 +1211,19 @@ func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 	}
 
 	return &MinimalProject{
-		ID:               github.Ptr(fullProject.GetID()),
-		NodeID:           github.Ptr(fullProject.GetNodeID()),
+		ID:               new(fullProject.GetID()),
+		NodeID:           new(fullProject.GetNodeID()),
 		Owner:            convertToMinimalUser(fullProject.GetOwner()),
 		Creator:          convertToMinimalUser(fullProject.GetCreator()),
-		Title:            github.Ptr(fullProject.GetTitle()),
-		Description:      github.Ptr(fullProject.GetDescription()),
-		Public:           github.Ptr(fullProject.GetPublic()),
-		ClosedAt:         github.Ptr(fullProject.GetClosedAt()),
-		CreatedAt:        github.Ptr(fullProject.GetCreatedAt()),
-		UpdatedAt:        github.Ptr(fullProject.GetUpdatedAt()),
-		DeletedAt:        github.Ptr(fullProject.GetDeletedAt()),
-		Number:           github.Ptr(fullProject.GetNumber()),
-		ShortDescription: github.Ptr(fullProject.GetShortDescription()),
+		Title:            new(fullProject.GetTitle()),
+		Description:      new(fullProject.GetDescription()),
+		Public:           new(fullProject.GetPublic()),
+		ClosedAt:         new(fullProject.GetClosedAt()),
+		CreatedAt:        new(fullProject.GetCreatedAt()),
+		UpdatedAt:        new(fullProject.GetUpdatedAt()),
+		DeletedAt:        new(fullProject.GetDeletedAt()),
+		Number:           new(fullProject.GetNumber()),
+		ShortDescription: new(fullProject.GetShortDescription()),
 		DeletedBy:        convertToMinimalUser(fullProject.GetDeletedBy()),
 	}
 }

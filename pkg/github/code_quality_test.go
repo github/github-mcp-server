@@ -65,11 +65,11 @@ func Test_GetCodeQualityFinding(t *testing.T) {
 
 	// Setup mock finding for success case
 	mockFinding := &codeQualityFinding{
-		Number: github.Ptr(42),
-		State:  github.Ptr("open"),
+		Number: new(42),
+		State:  new("open"),
 		Rule: &codeQualityRule{
-			ID:          github.Ptr("test-rule"),
-			Description: github.Ptr("Test Rule Description"),
+			ID:          new("test-rule"),
+			Description: new("Test Rule Description"),
 		},
 	}
 

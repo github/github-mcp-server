@@ -89,7 +89,7 @@ func newMockGQLClient(viewerLogin string, isPrivate bool) (*githubv4.Client, *co
 func newMockRESTServer(t *testing.T, permission string) *gogithub.Client {
 	t.Helper()
 	restServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		resp := gogithub.RepositoryPermissionLevel{Permission: gogithub.Ptr(permission)}
+		resp := gogithub.RepositoryPermissionLevel{Permission: new(permission)}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	}))

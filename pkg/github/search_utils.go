@@ -135,7 +135,7 @@ func prepareSearchArgs(args map[string]any, targetType string, mode searchMode) 
 
 	// field.<name>:<value> qualifiers require the advanced search API.
 	if strings.Contains(query, "field.") {
-		opts.AdvancedSearch = github.Ptr(true)
+		opts.AdvancedSearch = new(true)
 	}
 
 	// Lexical is the API default, so it leaves search_type unset.

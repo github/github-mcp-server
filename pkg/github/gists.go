@@ -231,8 +231,8 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			gist := github.CreateGistRequest{
 				Files:       files,
-				Public:      github.Ptr(public),
-				Description: github.Ptr(description),
+				Public:      new(public),
+				Description: new(description),
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -327,8 +327,8 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			files := make(map[github.GistFilename]*github.UpdateGistFile)
 			files[github.GistFilename(filename)] = &github.UpdateGistFile{
-				Filename: github.Ptr(filename),
-				Content:  github.Ptr(content),
+				Filename: new(filename),
+				Content:  new(content),
 			}
 
 			// Only set Description when the caller actually provided it, so
@@ -336,7 +336,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// explicit empty string still clears it.
 			var descriptionPtr *string
 			if _, ok := args["description"]; ok {
-				descriptionPtr = github.Ptr(description)
+				descriptionPtr = new(description)
 			}
 
 			gist := github.UpdateGistRequest{

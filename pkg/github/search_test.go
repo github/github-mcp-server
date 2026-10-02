@@ -35,24 +35,24 @@ func Test_SearchRepositories(t *testing.T) {
 
 	// Setup mock search results
 	mockSearchResult := &github.RepositoriesSearchResult{
-		Total:             github.Ptr(2),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(2),
+		IncompleteResults: new(false),
 		Repositories: []*github.Repository{
 			{
-				ID:              github.Ptr(int64(12345)),
-				Name:            github.Ptr("repo-1"),
-				FullName:        github.Ptr("owner/repo-1"),
-				HTMLURL:         github.Ptr("https://github.com/owner/repo-1"),
-				Description:     github.Ptr("Test repository 1"),
-				StargazersCount: github.Ptr(100),
+				ID:              new(int64(12345)),
+				Name:            new("repo-1"),
+				FullName:        new("owner/repo-1"),
+				HTMLURL:         new("https://github.com/owner/repo-1"),
+				Description:     new("Test repository 1"),
+				StargazersCount: new(100),
 			},
 			{
-				ID:              github.Ptr(int64(67890)),
-				Name:            github.Ptr("repo-2"),
-				FullName:        github.Ptr("owner/repo-2"),
-				HTMLURL:         github.Ptr("https://github.com/owner/repo-2"),
-				Description:     github.Ptr("Test repository 2"),
-				StargazersCount: github.Ptr(50),
+				ID:              new(int64(67890)),
+				Name:            new("repo-2"),
+				FullName:        new("owner/repo-2"),
+				HTMLURL:         new("https://github.com/owner/repo-2"),
+				Description:     new("Test repository 2"),
+				StargazersCount: new(50),
 			},
 		},
 	}
@@ -181,18 +181,18 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	makeRepo := func(r repoFixture) *github.Repository {
 		return &github.Repository{
-			ID:       github.Ptr(int64(1)),
-			Name:     github.Ptr(r.name),
-			FullName: github.Ptr(r.owner + "/" + r.name),
-			Private:  github.Ptr(r.isPrivate),
-			Owner:    &github.User{Login: github.Ptr(r.owner)},
+			ID:       new(int64(1)),
+			Name:     new(r.name),
+			FullName: new(r.owner + "/" + r.name),
+			Private:  new(r.isPrivate),
+			Owner:    &github.User{Login: new(r.owner)},
 		}
 	}
 
 	makeMockClient := func(repos []repoFixture) *http.Client {
 		searchResult := &github.RepositoriesSearchResult{
-			Total:             github.Ptr(len(repos)),
-			IncompleteResults: github.Ptr(false),
+			Total:             new(len(repos)),
+			IncompleteResults: new(false),
 		}
 		for _, r := range repos {
 			searchResult.Repositories = append(searchResult.Repositories, makeRepo(r))
@@ -280,16 +280,16 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 func Test_SearchRepositories_FullOutput(t *testing.T) {
 	mockSearchResult := &github.RepositoriesSearchResult{
-		Total:             github.Ptr(1),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(1),
+		IncompleteResults: new(false),
 		Repositories: []*github.Repository{
 			{
-				ID:              github.Ptr(int64(12345)),
-				Name:            github.Ptr("test-repo"),
-				FullName:        github.Ptr("owner/test-repo"),
-				HTMLURL:         github.Ptr("https://github.com/owner/test-repo"),
-				Description:     github.Ptr("Test repository"),
-				StargazersCount: github.Ptr(100),
+				ID:              new(int64(12345)),
+				Name:            new("test-repo"),
+				FullName:        new("owner/test-repo"),
+				HTMLURL:         new("https://github.com/owner/test-repo"),
+				Description:     new("Test repository"),
+				StargazersCount: new(100),
 			},
 		},
 	}
@@ -359,30 +359,30 @@ func Test_SearchCode(t *testing.T) {
 
 	// Setup mock search results
 	mockSearchResult := &github.CodeSearchResult{
-		Total:             github.Ptr(2),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(2),
+		IncompleteResults: new(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name: github.Ptr("file1.go"),
-				Path: github.Ptr("path/to/file1.go"),
-				SHA:  github.Ptr("abc123def456"),
+				Name: new("file1.go"),
+				Path: new("path/to/file1.go"),
+				SHA:  new("abc123def456"),
 				Repository: &github.Repository{
-					Name:     github.Ptr("repo"),
-					FullName: github.Ptr("owner/repo"),
+					Name:     new("repo"),
+					FullName: new("owner/repo"),
 				},
 				TextMatches: []*github.TextMatch{
 					{
-						Fragment: github.Ptr("func main() { fmt.Println(\"hello\") }"),
+						Fragment: new("func main() { fmt.Println(\"hello\") }"),
 					},
 				},
 			},
 			{
-				Name: github.Ptr("file2.go"),
-				Path: github.Ptr("path/to/file2.go"),
-				SHA:  github.Ptr("def456abc123"),
+				Name: new("file2.go"),
+				Path: new("path/to/file2.go"),
+				SHA:  new("def456abc123"),
 				Repository: &github.Repository{
-					Name:     github.Ptr("repo"),
-					FullName: github.Ptr("owner/repo"),
+					Name:     new("repo"),
+					FullName: new("owner/repo"),
 				},
 			},
 		},
@@ -512,19 +512,19 @@ func Test_SearchCode(t *testing.T) {
 
 func Test_SearchCode_FieldFiltering(t *testing.T) {
 	mockSearchResult := &github.CodeSearchResult{
-		Total:             github.Ptr(1),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(1),
+		IncompleteResults: new(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name: github.Ptr("file1.go"),
-				Path: github.Ptr("path/to/file1.go"),
-				SHA:  github.Ptr("abc123def456"),
+				Name: new("file1.go"),
+				Path: new("path/to/file1.go"),
+				SHA:  new("abc123def456"),
 				Repository: &github.Repository{
-					Name:     github.Ptr("repo"),
-					FullName: github.Ptr("owner/repo"),
+					Name:     new("repo"),
+					FullName: new("owner/repo"),
 				},
 				TextMatches: []*github.TextMatch{
-					{Fragment: github.Ptr("func main() {}")},
+					{Fragment: new("func main() {}")},
 				},
 			},
 		},
@@ -569,19 +569,19 @@ func Test_SearchCode_FieldFiltering(t *testing.T) {
 
 func Test_SearchCode_FieldsTelemetry(t *testing.T) {
 	mockSearchResult := &github.CodeSearchResult{
-		Total:             github.Ptr(1),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(1),
+		IncompleteResults: new(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name: github.Ptr("file1.go"),
-				Path: github.Ptr("path/to/file1.go"),
-				SHA:  github.Ptr("abc123def456"),
+				Name: new("file1.go"),
+				Path: new("path/to/file1.go"),
+				SHA:  new("abc123def456"),
 				Repository: &github.Repository{
-					Name:     github.Ptr("repo"),
-					FullName: github.Ptr("owner/repo"),
+					Name:     new("repo"),
+					FullName: new("owner/repo"),
 				},
 				TextMatches: []*github.TextMatch{
-					{Fragment: github.Ptr("func main() {}")},
+					{Fragment: new("func main() {}")},
 				},
 			},
 		},
@@ -656,21 +656,21 @@ func Test_SearchUsers(t *testing.T) {
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
-		Total:             github.Ptr(2),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(2),
+		IncompleteResults: new(false),
 		Users: []*github.User{
 			{
-				Login:     github.Ptr("user1"),
-				ID:        github.Ptr(int64(1001)),
-				HTMLURL:   github.Ptr("https://github.com/user1"),
-				AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1001"),
+				Login:     new("user1"),
+				ID:        new(int64(1001)),
+				HTMLURL:   new("https://github.com/user1"),
+				AvatarURL: new("https://avatars.githubusercontent.com/u/1001"),
 			},
 			{
-				Login:     github.Ptr("user2"),
-				ID:        github.Ptr(int64(1002)),
-				HTMLURL:   github.Ptr("https://github.com/user2"),
-				AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1002"),
-				Type:      github.Ptr("User"),
+				Login:     new("user2"),
+				ID:        new(int64(1002)),
+				HTMLURL:   new("https://github.com/user2"),
+				AvatarURL: new("https://avatars.githubusercontent.com/u/1002"),
+				Type:      new("User"),
 			},
 		},
 	}
@@ -843,20 +843,20 @@ func Test_SearchOrgs(t *testing.T) {
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
-		Total:             github.Ptr(int(2)),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(int(2)),
+		IncompleteResults: new(false),
 		Users: []*github.User{
 			{
-				Login:     github.Ptr("org-1"),
-				ID:        github.Ptr(int64(111)),
-				HTMLURL:   github.Ptr("https://github.com/org-1"),
-				AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/111?v=4"),
+				Login:     new("org-1"),
+				ID:        new(int64(111)),
+				HTMLURL:   new("https://github.com/org-1"),
+				AvatarURL: new("https://avatars.githubusercontent.com/u/111?v=4"),
 			},
 			{
-				Login:     github.Ptr("org-2"),
-				ID:        github.Ptr(int64(222)),
-				HTMLURL:   github.Ptr("https://github.com/org-2"),
-				AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/222?v=4"),
+				Login:     new("org-2"),
+				ID:        new(int64(222)),
+				HTMLURL:   new("https://github.com/org-2"),
+				AvatarURL: new("https://avatars.githubusercontent.com/u/222?v=4"),
 			},
 		},
 	}
@@ -1001,41 +1001,41 @@ func Test_SearchCommits(t *testing.T) {
 
 	now := time.Now().Truncate(time.Second)
 	mockSearchResult := &github.CommitsSearchResult{
-		Total:             github.Ptr(2),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(2),
+		IncompleteResults: new(false),
 		Commits: []*github.CommitResult{
 			{
-				SHA:     github.Ptr("abc123commit"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123commit"),
+				SHA:     new("abc123commit"),
+				HTMLURL: new("https://github.com/owner/repo/commit/abc123commit"),
 				Commit: &github.Commit{
-					Message: github.Ptr("Initial commit"),
+					Message: new("Initial commit"),
 					Author: &github.CommitAuthor{
-						Name:  github.Ptr("Author Name"),
-						Email: github.Ptr("author@example.com"),
+						Name:  new("Author Name"),
+						Email: new("author@example.com"),
 						Date:  &github.Timestamp{Time: now},
 					},
 				},
 				Author: &github.User{
-					Login:   github.Ptr("author"),
-					ID:      github.Ptr(int64(1)),
-					HTMLURL: github.Ptr("https://github.com/author"),
+					Login:   new("author"),
+					ID:      new(int64(1)),
+					HTMLURL: new("https://github.com/author"),
 				},
 				Repository: &github.Repository{
-					FullName: github.Ptr("owner/repo"),
-					HTMLURL:  github.Ptr("https://github.com/owner/repo"),
-					Private:  github.Ptr(false),
+					FullName: new("owner/repo"),
+					HTMLURL:  new("https://github.com/owner/repo"),
+					Private:  new(false),
 				},
 			},
 			{
 				// Commit with no resolved GitHub user for author or committer
 				// (common when the commit email isn't linked to an account).
-				SHA:     github.Ptr("def456commit"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456commit"),
+				SHA:     new("def456commit"),
+				HTMLURL: new("https://github.com/owner/repo/commit/def456commit"),
 				Commit: &github.Commit{
-					Message: github.Ptr("Unlinked author"),
+					Message: new("Unlinked author"),
 				},
 				Repository: &github.Repository{
-					FullName: github.Ptr("owner/repo"),
+					FullName: new("owner/repo"),
 				},
 			},
 		},

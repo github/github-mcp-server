@@ -1780,7 +1780,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID:    int64(subIssueID),
-		ReplaceParent: github.Ptr(replaceParent),
+		ReplaceParent: new(replaceParent),
 	}
 
 	subIssue, resp, err := client.SubIssue.Add(ctx, owner, repo, int64(issueNumber), subIssueRequest)
@@ -2092,10 +2092,10 @@ func sanitizeIssueTitleAndBody(issue *github.Issue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
+		issue.Title = new(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
+		issue.Body = new(sanitize.Content(*issue.Body))
 	}
 }
 
@@ -2104,10 +2104,10 @@ func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
+		issue.Title = new(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
+		issue.Body = new(sanitize.Content(*issue.Body))
 	}
 }
 
@@ -3102,7 +3102,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	// Create the issue request
 	issueRequest := github.CreateIssueRequest{
 		Title:            title,
-		Body:             github.Ptr(body),
+		Body:             new(body),
 		Assignees:        assignees,
 		Labels:           labels,
 		IssueFieldValues: issueFieldValues,
@@ -3113,7 +3113,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	if issueType != "" {
-		issueRequest.Type = github.Ptr(issueType)
+		issueRequest.Type = new(issueType)
 	}
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
@@ -3185,11 +3185,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Set optional parameters if provided
 	if title != "" {
-		issueRequest.Title = github.Ptr(title)
+		issueRequest.Title = new(title)
 	}
 
 	if body != "" {
-		issueRequest.Body = github.Ptr(body)
+		issueRequest.Body = new(body)
 	}
 
 	if updateOptions.LabelsProvided {
@@ -3205,7 +3205,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	if issueType != "" {
-		issueRequest.Type = github.Ptr(issueType)
+		issueRequest.Type = new(issueType)
 	}
 
 	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop

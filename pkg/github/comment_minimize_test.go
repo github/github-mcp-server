@@ -174,9 +174,9 @@ func Test_CommentVisibilityToolSchemas(t *testing.T) {
 }
 
 func Test_HideAndUnhideComments(t *testing.T) {
-	issueComment := mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1)), NodeID: github.Ptr("IC_1")})
-	reviewComment := mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: github.Ptr(int64(2)), NodeID: github.Ptr("PRRC_2")})
-	review := mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: github.Ptr(int64(3)), NodeID: github.Ptr("PRR_3")})
+	issueComment := mockResponse(t, http.StatusOK, &github.IssueComment{ID: new(int64(1)), NodeID: new("IC_1")})
+	reviewComment := mockResponse(t, http.StatusOK, &github.PullRequestComment{ID: new(int64(2)), NodeID: new("PRRC_2")})
+	review := mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: new(int64(3)), NodeID: new("PRR_3")})
 	notFound := mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`)
 
 	tests := []struct {
@@ -261,7 +261,7 @@ func Test_HideAndUnhideComments(t *testing.T) {
 			name: "response without node ID",
 			tool: GranularUnhideIssueComment(translations.NullTranslationHelper),
 			restHandlers: map[string]http.HandlerFunc{
-				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: github.Ptr(int64(1))}),
+				getIssueCommentRoute: mockResponse(t, http.StatusOK, &github.IssueComment{ID: new(int64(1))}),
 			},
 			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": float64(1)},
 			expectedErrMsg: "response has no node ID",
