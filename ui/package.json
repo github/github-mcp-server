@@ -20,7 +20,7 @@
     "@primer/octicons-react": "^19.38.0",
     "@primer/react": "^36.27.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "zod": "^4.2.0"
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@types/node": "^26.6.4",
     "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
