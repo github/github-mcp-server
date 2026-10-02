@@ -629,7 +629,7 @@ The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issu
 
 - **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - **OAuth Challenge Scopes**: `repo`
-  - `method`: The method to execute (string, required)
+  - `method`: The method to execute Supported values: get_workflow, get_workflow_run, get_workflow_job, download_workflow_run_artifact, get_workflow_run_usage, get_workflow_run_logs_url. (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
@@ -641,7 +641,7 @@ The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issu
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - **OAuth Challenge Scopes**: `repo`
-  - `method`: The action to perform (string, required)
+  - `method`: The action to perform Supported values: list_workflows, list_workflow_runs, list_workflow_jobs, list_workflow_run_artifacts. (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
   - `perPage`: Results per page for pagination (default: 30, max: 100) (number, optional)
@@ -651,13 +651,13 @@ The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issu
     - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
     - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
      (string, optional)
-  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
-  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
+  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object | any, optional)
+  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object | any, optional)
 
 - **actions_run_trigger** - Trigger GitHub Actions workflow actions
   - **OAuth Challenge Scopes**: `repo`
   - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
-  - `method`: The method to execute (string, required)
+  - `method`: The method to execute Supported values: run_workflow, rerun_workflow_run, rerun_failed_jobs, cancel_workflow_run, delete_workflow_run_logs. (string, required)
   - `owner`: Repository owner (string, required)
   - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method. (string, optional)
   - `repo`: Repository name (string, required)

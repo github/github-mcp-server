@@ -111,7 +111,7 @@ func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Midd
 						toolCopy.Meta = maps.Clone(tool.Meta)
 						delete(toolCopy.Meta, typedOutputMetaKey)
 					}
-					if !protocolVersionAllowed(protocolVersion, ProtocolVersionMultiRoundTrip) {
+					if !typedOutputProtocolSupported(protocolVersion) {
 						toolCopy.OutputSchema = nil
 					}
 					tools[i] = &toolCopy
@@ -139,7 +139,7 @@ func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Midd
 					// its serialized typed output, including an error zero.
 					resultCopy.StructuredContent = metadata.explicitOutput
 				}
-				if (!metadata.hasOutput && metadata.explicitOutput == nil) || !protocolVersionAllowed(requestProtocolVersion(ctx, req.ProtocolVersion()), ProtocolVersionMultiRoundTrip) {
+				if (!metadata.hasOutput && metadata.explicitOutput == nil) || !typedOutputProtocolSupported(requestProtocolVersion(ctx, req.ProtocolVersion())) {
 					resultCopy.StructuredContent = nil
 				}
 				return &resultCopy, nil
@@ -148,6 +148,11 @@ func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Midd
 			}
 		}
 	}
+}
+
+func typedOutputProtocolSupported(version string) bool {
+	// Unknown versions must not acquire capabilities through lexical ordering.
+	return version == ProtocolVersionMultiRoundTrip
 }
 
 func removeTypedOutputFallback(result *mcp.CallToolResult, metadata typedOutputMetadata) error {
