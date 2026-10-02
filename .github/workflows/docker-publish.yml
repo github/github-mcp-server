@@ -48,7 +48,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 #v4.1.2
         with:
-          cosign-release: "v2.6.5"
+          cosign-release: "v3.1.3"
 
       # Set up BuildKit Docker container builder to be able to build
       # multi-platform images and export cache
@@ -122,9 +122,8 @@ jobs:
             oauth_client_secret=${{ secrets.OAUTH_CLIENT_SECRET }}
 
       # Sign the resulting Docker image digest except on PRs.
-      # This will only write to the public Rekor transparency log when the Docker
-      # repository is public to avoid leaking data.  If you would like to publish
-      # transparency data even for private images, pass --force to cosign below.
+      # Keep v2-compatible .sig tags and Rekor v1 entries during the v3 transition.
+      # --yes also consents to publishing signing metadata to the public log.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
@@ -134,4 +133,4 @@ jobs:
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy {}@${DIGEST}

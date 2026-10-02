@@ -2,6 +2,13 @@ Thanks for helping make GitHub safe for everyone.
 
 # Security
 
+## Verifying published artifacts
+
+See [Verifying published artifacts](docs/verify-artifacts.md) for cosign v2 and v3
+container-image verification commands and GitHub release-archive attestation
+verification. Verification must check the expected workflow identity and OIDC
+issuer as well as the artifact digest.
+
 GitHub takes the security of our software products and services seriously, including all of the open source code repositories managed through our GitHub organizations, such as [GitHub](https://github.com/GitHub).
 
 Even though [open source repositories are outside of the scope of our bug bounty program](https://bounty.github.com/index.html#scope) and therefore not eligible for bounty rewards, we will ensure that your finding gets passed along to the appropriate maintainers for remediation. 
