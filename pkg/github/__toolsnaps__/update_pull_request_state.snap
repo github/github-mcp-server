@@ -15,7 +15,6 @@
       },
       "pullNumber": {
         "description": "The pull request number",
-        "minimum": 1,
         "type": "number"
       },
       "repo": {
@@ -23,11 +22,7 @@
         "type": "string"
       },
       "state": {
-        "description": "The new state for the pull request",
-        "enum": [
-          "open",
-          "closed"
-        ],
+        "description": "The new state for the pull request (open or closed)",
         "type": "string"
       }
     },

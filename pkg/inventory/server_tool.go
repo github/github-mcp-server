@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -379,6 +380,12 @@ func combineInputNormalizers(normalizers []InputNormalizer) InputNormalizer {
 }
 
 func invalidArgumentsResult(err error) *mcp.CallToolResult {
+	if inputError, ok := errors.AsType[*ToolInputError](err); ok {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: inputError.Message}},
+			IsError: true,
+		}
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},

@@ -27,7 +27,6 @@
       },
       "pullNumber": {
         "description": "The pull request number",
-        "minimum": 1,
         "type": "number"
       },
       "repo": {
@@ -35,11 +34,7 @@
         "type": "string"
       },
       "side": {
-        "description": "The side of the diff to comment on (optional)",
-        "enum": [
-          "LEFT",
-          "RIGHT"
-        ],
+        "description": "The side of the diff to comment on (LEFT or RIGHT, optional)",
         "type": "string"
       },
       "startLine": {
@@ -47,19 +42,11 @@
         "type": "number"
       },
       "startSide": {
-        "description": "The start side of a multi-line comment (optional)",
-        "enum": [
-          "LEFT",
-          "RIGHT"
-        ],
+        "description": "The start side of a multi-line comment (LEFT or RIGHT, optional)",
         "type": "string"
       },
       "subjectType": {
-        "description": "The subject type of the comment",
-        "enum": [
-          "FILE",
-          "LINE"
-        ],
+        "description": "The subject type of the comment (FILE or LINE)",
         "type": "string"
       }
     },
