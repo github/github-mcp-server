@@ -237,15 +237,15 @@ as output formatting) won't appear here.
   - `path`: The relative path of the file to comment on (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `side`: The side of the diff to comment on (optional) (string, optional)
+  - `side`: The side of the diff to comment on (LEFT or RIGHT, optional) (string, optional)
   - `startLine`: The start line of a multi-line comment (optional) (number, optional)
-  - `startSide`: The start side of a multi-line comment (optional) (string, optional)
-  - `subjectType`: The subject type of the comment (string, required)
+  - `startSide`: The start side of a multi-line comment (LEFT or RIGHT, optional) (string, optional)
+  - `subjectType`: The subject type of the comment (FILE or LINE) (string, required)
 
 - **add_pull_request_review_comment_reaction** - Add Pull Request Review Comment Reaction
   - **OAuth Challenge Scopes**: `repo`
   - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
-  - `content`: The emoji reaction type (string, required)
+  - `content`: The emoji reaction type (+1, -1, laugh, confused, heart, hooray, rocket, or eyes) (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
@@ -253,7 +253,7 @@ as output formatting) won't appear here.
   - **OAuth Challenge Scopes**: `repo`
   - `body`: The review body text (optional) (string, optional)
   - `commitID`: The SHA of the commit to review (optional, defaults to latest) (string, optional)
-  - `event`: The review action to perform. If omitted, creates a pending review. (string, optional)
+  - `event`: The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT). If omitted, creates a pending review. (string, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
@@ -300,7 +300,7 @@ as output formatting) won't appear here.
 - **submit_pending_pull_request_review** - Submit Pending Pull Request Review
   - **OAuth Challenge Scopes**: `repo`
   - `body`: The review body text (optional) (string, optional)
-  - `event`: The review action to perform (string, required)
+  - `event`: The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT) (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
@@ -341,7 +341,7 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `state`: The new state for the pull request (string, required)
+  - `state`: The new state for the pull request (open or closed) (string, required)
 
 - **update_pull_request_title** - Update Pull Request Title
   - **OAuth Challenge Scopes**: `repo`

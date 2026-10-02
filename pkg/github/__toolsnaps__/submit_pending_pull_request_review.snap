@@ -14,12 +14,7 @@
         "type": "string"
       },
       "event": {
-        "description": "The review action to perform",
-        "enum": [
-          "APPROVE",
-          "REQUEST_CHANGES",
-          "COMMENT"
-        ],
+        "description": "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT)",
         "type": "string"
       },
       "owner": {
@@ -28,7 +23,6 @@
       },
       "pullNumber": {
         "description": "The pull request number",
-        "minimum": 1,
         "type": "number"
       },
       "repo": {
