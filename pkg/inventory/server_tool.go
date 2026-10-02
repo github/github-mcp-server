@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
@@ -50,6 +51,10 @@ type ScopeAccess struct {
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
 // right to left, so the first middleware passed to RegisterFunc executes first.
 type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
+
+// ToolHandlerMiddlewareProvider creates tool-specific middleware using the
+// dependencies supplied when the tool is registered.
+type ToolHandlerMiddlewareProvider func(deps any) ToolHandlerMiddleware
 
 // ToolsetID is a unique identifier for a toolset.
 // Using a distinct type provides compile-time type safety.
@@ -116,6 +121,9 @@ type ServerTool struct {
 
 	// ScopeAccess controls fixed-token visibility and per-call OAuth challenges.
 	ScopeAccess ScopeAccess
+
+	registerTyped              func(*mcp.Server, *mcp.Tool, ...ToolHandlerMiddleware)
+	handlerMiddlewareProviders []ToolHandlerMiddlewareProvider
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -134,7 +142,23 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 	if st.HandlerFunc == nil {
 		panic("HandlerFunc is nil for tool: " + st.Tool.Name)
 	}
-	return st.HandlerFunc(deps)
+	return applyToolHandlerMiddleware(st.HandlerFunc(deps), st.handlerMiddlewares(deps)...)
+}
+
+// AddHandlerMiddleware adds dependency-aware middleware used on both typed and
+// raw registration paths.
+func (st *ServerTool) AddHandlerMiddleware(provider ToolHandlerMiddlewareProvider) {
+	if provider != nil {
+		st.handlerMiddlewareProviders = append(st.handlerMiddlewareProviders, provider)
+	}
+}
+
+func (st *ServerTool) handlerMiddlewares(deps any) []ToolHandlerMiddleware {
+	middleware := make([]ToolHandlerMiddleware, 0, len(st.handlerMiddlewareProviders))
+	for _, provider := range st.handlerMiddlewareProviders {
+		middleware = append(middleware, provider(deps))
+	}
+	return middleware
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
@@ -142,11 +166,13 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
-	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
-	for _, m := range slices.Backward(middleware) {
-		handler = m(handler)
+	st.registerFunc(s, deps, true, middleware...)
+}
+
+func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddleware bool, middleware ...ToolHandlerMiddleware) {
+	if st.HandlerFunc == nil {
+		panic("HandlerFunc is nil for tool: " + st.Tool.Name)
 	}
-	handler = st.wrapAvailabilityCheck(handler)
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set
@@ -157,7 +183,32 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
 	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
+	allMiddleware := make([]ToolHandlerMiddleware, 0, len(middleware)+len(st.handlerMiddlewareProviders)+1)
+	allMiddleware = append(allMiddleware, func(next mcp.ToolHandler) mcp.ToolHandler {
+		return st.wrapAvailabilityCheck(next)
+	})
+	allMiddleware = append(allMiddleware, middleware...)
+	allMiddleware = append(allMiddleware, st.handlerMiddlewares(deps)...)
+	if st.registerTyped != nil {
+		if addTypedOutputMiddleware {
+			s.AddReceivingMiddleware(typedOutputMiddleware())
+		}
+		st.registerTyped(s, &toolCopy, allMiddleware...)
+		return
+	}
+
+	if addTypedOutputMiddleware && toolCopy.OutputSchema != nil {
+		s.AddReceivingMiddleware(typedOutputMiddleware())
+	}
+	handler := applyToolHandlerMiddleware(st.HandlerFunc(deps), allMiddleware...)
 	s.AddTool(&toolCopy, handler)
+}
+
+func applyToolHandlerMiddleware(handler mcp.ToolHandler, middleware ...ToolHandlerMiddleware) mcp.ToolHandler {
+	for i := range slices.Backward(middleware) {
+		handler = middleware[i](handler)
+	}
+	return handler
 }
 
 // HeaderParams maps owner/repo input properties to the MCP-Param-* headers a
@@ -214,10 +265,14 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 // This is the preferred approach for tools because it doesn't create closures at registration time,
 // which is critical for performance in servers that create a new instance per request.
 //
+// When Out is concrete, registration uses mcp.AddTool so the SDK infers missing
+// schemas and validates typed input and output. Out=any retains the raw handler
+// registration path. Direct Handler calls keep their existing JSON decoding behavior.
+//
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
 func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
-	return ServerTool{
+	serverTool := ServerTool{
 		Tool:    tool,
 		Toolset: toolset,
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
@@ -241,6 +296,25 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 			}
 		},
 	}
+	if reflect.TypeFor[Out]() != reflect.TypeFor[any]() {
+		serverTool.registerTyped = func(server *mcp.Server, tool *mcp.Tool, middleware ...ToolHandlerMiddleware) {
+			if reflect.TypeFor[In]() != reflect.TypeFor[any]() && tool.InputSchema == nil {
+				inputSchema, err := jsonschema.For[In](nil)
+				if err != nil {
+					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
+				}
+				tool.InputSchema = inputSchema
+				AnnotateHeaderParams(tool)
+			}
+			tool.Meta = maps.Clone(tool.Meta)
+			if tool.Meta == nil {
+				tool.Meta = make(mcp.Meta)
+			}
+			tool.Meta[typedOutputMetaKey] = true
+			mcp.AddTool(server, tool, wrapTypedHandler(handler, middleware...))
+		}
+	}
+	return serverTool
 }
 
 func invalidArgumentsResult(err error) *mcp.CallToolResult {

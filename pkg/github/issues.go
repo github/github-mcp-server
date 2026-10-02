@@ -1390,12 +1390,12 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					"comment_id": {
 						Type:        "integer",
 						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"body": {
 						Type:        "string",
 						Description: "Comment content. Required unless reaction is provided.",
-						MinLength:   jsonschema.Ptr(1),
+						MinLength:   new(1),
 					},
 					"reaction": {
 						Type:        "string",
@@ -1577,12 +1577,12 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 					"comment_id": {
 						Type:        "integer",
 						Description: "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"body": {
 						Type:        "string",
 						Description: "New comment content",
-						MinLength:   jsonschema.Ptr(1),
+						MinLength:   new(1),
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "body"},
@@ -2537,7 +2537,7 @@ Options are:
 					"parent_issue_number": {
 						Type:        "number",
 						Description: "Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation.",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"parent_owner": {
 						Type:        "string",
@@ -2575,7 +2575,7 @@ Options are:
 					},
 					"type": {
 						AnyOf: []*jsonschema.Schema{
-							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "string", MinLength: new(1)},
 							{Type: "null"},
 						},
 						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",

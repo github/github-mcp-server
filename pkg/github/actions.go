@@ -311,13 +311,13 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					"page": {
 						Type:        "number",
 						Description: "Page number for pagination (default: 1)",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"perPage": {
 						Type:        "number",
 						Description: "Results per page for pagination (default: 30, max: 100)",
-						Minimum:     jsonschema.Ptr(1.0),
-						Maximum:     jsonschema.Ptr(100.0),
+						Minimum:     new(1.0),
+						Maximum:     new(100.0),
 					},
 				},
 				Required: []string{"method", "owner", "repo"},
@@ -536,7 +536,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ACTIONS_RUN_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

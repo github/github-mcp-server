@@ -126,6 +126,41 @@ func TestCSVOutputPreservesOriginalJSONWhenFlagOff(t *testing.T) {
 	assert.JSONEq(t, jsonResponse, text.Text)
 }
 
+func TestCSVOutputMiddlewareAppliesToTypedToolRegistration(t *testing.T) {
+	type row struct {
+		Number int `json:"number"`
+	}
+	tools := withCSVOutput([]inventory.ServerTool{
+		inventory.NewServerToolWithContextHandler(
+			mcp.Tool{Name: "list_typed_things"},
+			ToolsetMetadataRepos,
+			func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, []row, error) {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: `[{"number":1}]`}},
+				}, []row{{Number: 1}}, nil
+			},
+		),
+	})
+	deps := newCSVOutputTestDeps(true)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tools[0].RegisterFunc(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_typed_things"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `[{"number":1}]`, mustMarshalCSVJSON(t, result.StructuredContent))
+	assert.Contains(t, textResult(t, result), "number\n1")
+}
+
 func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
 	csvText, err := jsonTextToCSV(`{
 		"issues": [
@@ -150,6 +185,13 @@ func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
 	assert.Equal(t, "First issue", row["title"])
 	assert.NotContains(t, row, "pageInfo.endCursor")
 	assert.NotContains(t, row, "totalCount")
+}
+
+func mustMarshalCSVJSON(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(data)
 }
 
 func TestJSONTextToCSVFlattensPrimaryRows(t *testing.T) {

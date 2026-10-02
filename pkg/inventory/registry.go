@@ -244,7 +244,13 @@ func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, 
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		if tool.registerTyped != nil || tool.Tool.OutputSchema != nil {
+			s.AddReceivingMiddleware(typedOutputMiddleware())
+			break
+		}
+	}
+	for _, tool := range tools {
+		tool.registerFunc(s, deps, false, middleware...)
 	}
 }
 
