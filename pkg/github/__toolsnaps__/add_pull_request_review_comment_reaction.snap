@@ -11,21 +11,10 @@
     "properties": {
       "comment_id": {
         "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-        "minimum": 1,
         "type": "number"
       },
       "content": {
-        "description": "The emoji reaction type",
-        "enum": [
-          "+1",
-          "-1",
-          "laugh",
-          "confused",
-          "heart",
-          "hooray",
-          "rocket",
-          "eyes"
-        ],
+        "description": "The emoji reaction type (+1, -1, laugh, confused, heart, hooray, rocket, or eyes)",
         "type": "string"
       },
       "owner": {
