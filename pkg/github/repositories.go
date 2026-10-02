@@ -2784,12 +2784,12 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"start_line": {
 						Type:        "number",
 						Description: "Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window.",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"end_line": {
 						Type:        "number",
 						Description: "Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided.",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 				},
 				Required: []string{"owner", "repo", "path"},
