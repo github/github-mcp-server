@@ -104,7 +104,7 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 	assert.Equal(t, "1", capturedURL.Query().Get("page"))
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []DuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 2)
 
@@ -162,7 +162,7 @@ func Test_FindDuplicate_SanitizesIssueTitle(t *testing.T) {
 	require.False(t, result.IsError, "expected result to not be an error")
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []DuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 1)
 	assert.Equal(t, sanitizedText, candidates[0].Issue.Title)
@@ -218,7 +218,7 @@ func Test_FindDuplicate_EmptyResults(t *testing.T) {
 	require.False(t, result.IsError, "empty results is a successful search")
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []DuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	assert.Empty(t, candidates)
 }
