@@ -26,8 +26,17 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+type GetCommitInput struct {
+	Owner   string `json:"owner"`
+	Repo    string `json:"repo"`
+	SHA     string `json:"sha"`
+	Detail  string `json:"detail,omitempty"`
+	Page    *int   `json:"page,omitempty"`
+	PerPage *int   `json:"perPage,omitempty"`
+}
+
 func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetCommitInput, MinimalCommit](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_commit",
@@ -62,30 +71,26 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetCommitInput) (*mcp.CallToolResult, MinimalCommit, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), MinimalCommit{}, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), MinimalCommit{}, nil
 			}
-			sha, err := RequiredParam[string](args, "sha")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.SHA == "" {
+				return utils.NewToolResultError("missing required parameter: sha"), MinimalCommit{}, nil
 			}
-			detailRaw, err := OptionalParam[string](args, "detail")
+			detail, err := parseCommitDetail(input.Detail)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalCommit{}, nil
 			}
-			detail, err := parseCommitDetail(detailRaw)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{Page: 1, PerPage: 30}
+			if input.Page != nil {
+				pagination.Page = *input.Page
 			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 
 			opts := &github.ListOptions{
@@ -95,24 +100,24 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, MinimalCommit{}, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			commit, resp, err := client.Repositories.GetCommit(ctx, owner, repo, sha, opts)
+			commit, resp, err := client.Repositories.GetCommit(ctx, input.Owner, input.Repo, input.SHA, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to get commit: %s", sha),
+					fmt.Sprintf("failed to get commit: %s", input.SHA),
 					resp,
 					err,
-				), nil, nil
+				), MinimalCommit{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != 200 {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, MinimalCommit{}, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), MinimalCommit{}, nil
 			}
 
 			// Convert to minimal commit
@@ -120,7 +125,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			r, err := json.Marshal(minimalCommit)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				return nil, MinimalCommit{}, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -128,14 +133,28 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// repos anyone can land it via a PR (untrusted), in private repos
 			// only collaborators can (trusted). Confidentiality follows repo
 			// visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
-			return result, nil, nil
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelCommitContents)
+			return result, minimalCommit, nil
 		},
+		normalizeTypedReadArgumentsPreservingZero(nil),
 	)
 }
 
 // ListCommits creates a tool to get the list of commits of a branch in a GitHub
 // repository.
+type ListCommitsInput struct {
+	Owner   string   `json:"owner"`
+	Repo    string   `json:"repo"`
+	SHA     string   `json:"sha,omitempty"`
+	Author  string   `json:"author,omitempty"`
+	Path    string   `json:"path,omitempty"`
+	Since   string   `json:"since,omitempty"`
+	Until   string   `json:"until,omitempty"`
+	Fields  []string `json:"fields,omitempty"`
+	Page    *int     `json:"page,omitempty"`
+	PerPage *int     `json:"perPage,omitempty"`
+}
+
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -177,7 +196,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[ListCommitsInput, []MinimalCommit](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_commits",
@@ -189,42 +208,19 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, []MinimalCommit, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			sha, err := OptionalParam[string](args, "sha")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{Page: 1, PerPage: 30}
+			if input.Page != nil {
+				pagination.Page = *input.Page
 			}
-			author, err := OptionalParam[string](args, "author")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			path, err := OptionalParam[string](args, "path")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sinceStr, err := OptionalParam[string](args, "since")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			untilStr, err := OptionalParam[string](args, "until")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 			// Set default perPage to 30 if not provided
 			perPage := pagination.PerPage
@@ -232,23 +228,23 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				perPage = 30
 			}
 			opts := &github.CommitsListOptions{
-				SHA:    sha,
-				Path:   path,
-				Author: author,
+				SHA:    input.SHA,
+				Path:   input.Path,
+				Author: input.Author,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
 				},
 			}
-			if sinceStr != "" {
-				sinceTime, err := parseISOTimestamp(sinceStr)
+			if input.Since != "" {
+				sinceTime, err := parseISOTimestamp(input.Since)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), nil, nil
 				}
 				opts.Since = sinceTime
 			}
-			if untilStr != "" {
-				untilTime, err := parseISOTimestamp(untilStr)
+			if input.Until != "" {
+				untilTime, err := parseISOTimestamp(input.Until)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), nil, nil
 				}
@@ -259,10 +255,10 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			commits, resp, err := client.Repositories.ListCommits(ctx, owner, repo, opts)
+			commits, resp, err := client.Repositories.ListCommits(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to list commits: %s", sha),
+					fmt.Sprintf("failed to list commits: %s", input.SHA),
 					resp,
 					err,
 				), nil, nil
@@ -285,8 +281,8 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			filtered := false
 			var payload any = minimalCommits
-			if len(fields) > 0 {
-				filteredCommits, err := filterEachField(minimalCommits, fields)
+			if len(input.Fields) > 0 {
+				filteredCommits, err := filterEachField(minimalCommits, input.Fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter commits", err), nil, nil
 				}
@@ -305,9 +301,13 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Commit content is reachable from the repo's history; integrity
 			// follows the same public-untrusted / private-trusted rule as file
 			// contents. Confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
-			return result, nil, nil
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelCommitContents)
+			if len(input.Fields) > 0 {
+				return result, nil, nil
+			}
+			return result, minimalCommits, nil
 		},
+		normalizeTypedReadArgumentsPreservingZero(nil),
 	)
 }
 
