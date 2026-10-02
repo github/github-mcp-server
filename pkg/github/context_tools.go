@@ -38,6 +38,7 @@ func contextToolInputSchema[In any](descriptions map[string]string) *jsonschema.
 	if schema.Properties == nil {
 		schema.Properties = make(map[string]*jsonschema.Schema)
 	}
+	schema.AdditionalProperties = &jsonschema.Schema{}
 	for name, description := range descriptions {
 		schema.Properties[name].Description = description
 	}
@@ -239,6 +240,14 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
+	inputSchema := contextToolInputSchema[GetTeamMembersInput](map[string]string{
+		"org":       t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
+		"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
+	})
+	minLength := 1
+	inputSchema.Properties["org"].MinLength = &minLength
+	inputSchema.Properties["team_slug"].MinLength = &minLength
+
 	return NewTool[GetTeamMembersInput, []string](
 		ToolsetMetadataContext,
 		mcp.Tool{
@@ -248,10 +257,7 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: contextToolInputSchema[GetTeamMembersInput](map[string]string{
-				"org":       t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
-				"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
-			}),
+			InputSchema: inputSchema,
 		},
 		scopes.RequireAll(scopes.ReadOrg),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamMembersInput) (*mcp.CallToolResult, []string, error) {
