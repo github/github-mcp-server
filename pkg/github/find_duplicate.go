@@ -33,9 +33,9 @@ type rankedSimilarIssue struct {
 	LikelyDuplicate bool     `json:"likely_duplicate"`
 }
 
-// duplicateCandidate is the trimmed output for a ranked duplicate candidate,
+// DuplicateCandidate is the trimmed output for a ranked duplicate candidate,
 // carrying only what an agent needs to explain and act on it.
-type duplicateCandidate struct {
+type DuplicateCandidate struct {
 	Issue           MinimalIssueRef `json:"issue"`
 	Score           *float64        `json:"score"`
 	Confidence      string          `json:"confidence"`
@@ -71,8 +71,14 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Required: []string{"owner", "repo", "issue_number"},
 	}
 	WithPagination(schema)
+	// This endpoint owns its defaults. Unlike issue_dependency_read, explicit
+	// zero pagination values must be forwarded, not replaced by SDK defaults.
+	for _, field := range []string{"page", "perPage"} {
+		schema.Properties[field].Default = nil
+		schema.Properties[field].Minimum = new(0.0)
+	}
 
-	st := NewTool(
+	st := NewTool[FindDuplicateInput, []DuplicateCandidate](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "find_duplicate",
@@ -84,41 +90,23 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input FindDuplicateInput) (*mcp.CallToolResult, []DuplicateCandidate, error) {
+			owner, repo, issueNumber := input.Owner, input.Repo, input.IssueNumber
+			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Build the query preserving whether each optional value was supplied
 			// so unset parameters fall back to the API's own defaults.
 			query := url.Values{}
-			if threshold, ok, err := OptionalParamOK[float64](args, "confidence_threshold"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			} else if ok {
-				query.Set("threshold", strconv.FormatFloat(threshold, 'g', -1, 64))
+			if input.ConfidenceThreshold != nil {
+				query.Set("threshold", strconv.FormatFloat(*input.ConfidenceThreshold, 'g', -1, 64))
 			}
-			if _, ok := args["perPage"]; ok {
-				perPage, err := OptionalIntParam(args, "perPage")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				query.Set("per_page", strconv.Itoa(perPage))
+			if input.PerPage != nil {
+				query.Set("per_page", strconv.Itoa(*input.PerPage))
 			}
-			if _, ok := args["page"]; ok {
-				page, err := OptionalIntParam(args, "page")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				query.Set("page", strconv.Itoa(page))
+			if input.Page != nil {
+				query.Set("page", strconv.Itoa(*input.Page))
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -143,7 +131,7 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			candidates := make([]duplicateCandidate, 0, len(results))
+			candidates := make([]DuplicateCandidate, 0, len(results))
 			for _, res := range results {
 				// A bare issue (no ranking metadata) means ranked duplicate
 				// detection is not enabled for this caller; fail clearly rather
@@ -151,7 +139,7 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if res.Confidence == "" || res.Issue == nil {
 					return utils.NewToolResultError("ranked duplicate detection is unavailable: the semantic-similarity endpoint returned issues without ranking metadata (the server-side duplicate-ranking feature is not enabled for this caller or repository)"), nil, nil
 				}
-				candidates = append(candidates, duplicateCandidate{
+				candidates = append(candidates, DuplicateCandidate{
 					// Candidates are always scoped to the requested repository, so the
 					// ref's repository field is left empty as it was before.
 					Issue: newMinimalIssueRef(
@@ -176,8 +164,9 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// repository, so classify the result like issue_read.
 			result := utils.NewToolResultText(string(r))
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
-		})
+			return result, candidates, nil
+		}, normalizeIssueStrings([]string{"owner", "repo"}, nil),
+		normalizeIssueIntegers([]string{"issue_number"}, []string{"page", "perPage"}), normalizeDuplicateThreshold)
 	st.FeatureRule = featureEnabledRule(FeatureFlagDuplicateDetection)
 	return st
 }

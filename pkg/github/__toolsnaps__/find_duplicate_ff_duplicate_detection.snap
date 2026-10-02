@@ -21,13 +21,13 @@
       },
       "page": {
         "description": "Page number for pagination (min 1)",
-        "minimum": 1,
+        "minimum": 0,
         "type": "number"
       },
       "perPage": {
         "description": "Results per page for pagination (min 1, max 100)",
         "maximum": 100,
-        "minimum": 1,
+        "minimum": 0,
         "type": "number"
       },
       "repo": {
