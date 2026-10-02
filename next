@@ -1,0 +1,10 @@
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+declare namespace NodeJS {
+  interface ProcessEnv {
+    NODE_ENV: 'development' | 'production' | 'test'
+    NEXT_PUBLIC_API_URL?: string
+    NEXT_PUBLIC_SITE_NAME?: string
+  }
+}
