@@ -243,8 +243,15 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	if len(tools) > 0 {
+		inputNormalizers := make(map[string]InputNormalizer, len(tools))
+		for _, tool := range tools {
+			inputNormalizers[tool.Tool.Name] = tool.inputNormalizer
+		}
+		s.AddReceivingMiddleware(typedOutputMiddleware(inputNormalizers))
+	}
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		tool.registerFunc(s, deps, false, middleware...)
 	}
 }
 

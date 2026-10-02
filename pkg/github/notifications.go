@@ -415,7 +415,7 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage notification subscription"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -512,7 +512,7 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage repository notification subscription"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
