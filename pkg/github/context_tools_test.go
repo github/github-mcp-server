@@ -254,6 +254,30 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	for _, tool := range list.Tools {
 		assert.NotNil(t, tool.InputSchema)
 		assert.NotNil(t, tool.OutputSchema)
+		schemaJSON, err := json.Marshal(tool.InputSchema)
+		require.NoError(t, err)
+		var schema struct {
+			Type       string                     `json:"type"`
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+			AnyOf      []json.RawMessage          `json:"anyOf"`
+		}
+		require.NoError(t, json.Unmarshal(schemaJSON, &schema))
+		assert.Equal(t, "object", schema.Type, "input roots must remain non-nullable objects")
+		assert.Empty(t, schema.AnyOf)
+		switch tool.Name {
+		case "get_me":
+			assert.NotNil(t, schema.Properties, "empty input schemas must retain properties")
+			assert.Empty(t, schema.Properties)
+			assert.Empty(t, schema.Required)
+		case "get_teams":
+			assert.Contains(t, schema.Properties, "user")
+			assert.Empty(t, schema.Required, "user must remain optional")
+		case "get_team_members":
+			assert.ElementsMatch(t, []string{"org", "team_slug"}, schema.Required)
+		default:
+			t.Fatalf("unexpected context tool %q", tool.Name)
+		}
 	}
 
 	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
