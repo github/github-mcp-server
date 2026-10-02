@@ -42,7 +42,8 @@
       },
       "owner": {
         "description": "Repository owner",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "pullNumber": {
         "description": "Pull request number",
@@ -50,7 +51,8 @@
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       }
     },
     "required": [
