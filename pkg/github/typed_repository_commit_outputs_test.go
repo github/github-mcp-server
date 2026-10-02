@@ -15,6 +15,65 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTypedRepositoryCommitPaginationDefaults(t *testing.T) {
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		t.Run(protocol, func(t *testing.T) {
+			for _, tool := range []inventory.ServerTool{
+				GetCommit(translations.NullTranslationHelper),
+				ListCommits(translations.NullTranslationHelper),
+			} {
+				t.Run(tool.Tool.Name, func(t *testing.T) {
+					for _, tc := range []struct {
+						name string
+						args map[string]any
+					}{
+						{"omitted", map[string]any{}},
+						{"numeric_zero", map[string]any{"page": 0, "perPage": 0}},
+						{"string_zero", map[string]any{"page": "0", "perPage": "0"}},
+					} {
+						t.Run(tc.name, func(t *testing.T) {
+							calls := 0
+							handler := func(w http.ResponseWriter, r *http.Request) {
+								calls++
+								assert.Equal(t, "1", r.URL.Query().Get("page"))
+								assert.Equal(t, "30", r.URL.Query().Get("per_page"))
+								var response any = &github.RepositoryCommit{SHA: new("abc123")}
+								if tool.Tool.Name == "list_commits" {
+									response = []*github.RepositoryCommit{{SHA: new("abc123")}}
+								}
+								mockResponse(t, http.StatusOK, response)(w, r)
+							}
+							deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+								GetReposCommitsByOwnerByRepoByRef: handler,
+								GetReposCommitsByOwnerByRepo:      handler,
+							}))}
+							server := mcp.NewServer(&mcp.Implementation{Name: "commit-pagination-test", Version: "v1"}, nil)
+							server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+							tool.RegisterFunc(server, deps)
+							session := connectCommentVisibilityClient(t, server, protocol)
+							tc.args["owner"] = "owner"
+							tc.args["repo"] = "repo"
+							if tool.Tool.Name == "get_commit" {
+								tc.args["sha"] = "abc123"
+							}
+							result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+								Name: tool.Tool.Name, Arguments: tc.args,
+							})
+							require.NoError(t, err)
+							require.False(t, result.IsError, "%+v", result)
+							assert.Equal(t, 1, calls)
+							request := createMCPRequest(tc.args)
+							directResult, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+							require.NoError(t, err)
+							require.False(t, directResult.IsError, "%+v", directResult)
+							assert.Equal(t, 2, calls)
+						})
+					}
+				})
+			}
+		})
+	}
+}
 func TestTypedRepositoryCommitOutputs(t *testing.T) {
 	commit := &github.RepositoryCommit{
 		SHA:     new("abc123"),
