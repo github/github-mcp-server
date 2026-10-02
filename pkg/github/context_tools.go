@@ -261,6 +261,13 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		scopes.RequireAll(scopes.ReadOrg),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamMembersInput) (*mcp.CallToolResult, []string, error) {
+			if args.Org == "" {
+				return utils.NewToolResultError("missing required parameter: org"), nil, nil
+			}
+			if args.TeamSlug == "" {
+				return utils.NewToolResultError("missing required parameter: team_slug"), nil, nil
+			}
+
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
