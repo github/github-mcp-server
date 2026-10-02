@@ -822,11 +822,12 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[IssueReadInput, *IssueReadOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
-			Name:        "issue_read",
-			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
+			Name:         "issue_read",
+			OutputSchema: issueReadOutputSchema(),
+			Description:  t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
 				ReadOnlyHint: true,
@@ -834,7 +835,11 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueReadInput) (*mcp.CallToolResult, *IssueReadOutput, error) {
+			args, err := discussionNotificationArguments(input)
+			if err != nil {
+				return nil, nil, err
+			}
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -875,50 +880,55 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch method {
 			case "get":
-				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				result, output, err := getIssue(ctx, client, deps, owner, repo, issueNumber)
+				return attachIFC(result), output, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return attachIFC(result), nil, err
+				result, output, err := getIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), output, err
 			case "get_sub_issues":
-				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return attachIFC(result), nil, err
+				result, output, err := getSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), output, err
 			case "get_parent":
-				result, err := GetIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				result, output, err := getIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
+				return attachIFC(result), output, err
 			case "get_labels":
-				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				result, output, err := getIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return attachIFC(result), output, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}, normalizeConsolidatedIssueArguments("read"))
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	result, _, err := getIssue(ctx, client, deps, owner, repo, issueNumber)
+	return result, err
+}
+
+func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	flags := deps.GetFlags(ctx)
 
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get issue: %w", err)
+		return nil, nil, fmt.Errorf("failed to get issue: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue", resp, body), nil, nil
 	}
 
 	if flags.LockdownMode {
 		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, issue.GetUser().GetLogin(), lockdownIssueRestrictedMessage); restricted != nil || err != nil {
-			return restricted, err
+			return restricted, nil, err
 		}
 	}
 
@@ -937,7 +947,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	return MarshalledTextResult(minimalIssue), nil
+	return MarshalledTextResult(minimalIssue), &IssueReadOutput{Issue: issueDetailsOutput(minimalIssue)}, nil
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
@@ -1004,9 +1014,14 @@ func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repo
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	result, _, err := getIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
+	return result, err
+}
+
+func getIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	flags := deps.GetFlags(ctx)
 
@@ -1019,20 +1034,20 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 
 	comments, resp, err := client.Issues.ListComments(ctx, owner, repo, issueNumber, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get issue comments: %w", err)
+		return nil, nil, fmt.Errorf("failed to get issue comments: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue comments", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue comments", resp, body), nil, nil
 	}
 	if flags.LockdownMode {
 		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
+			return nil, nil, fmt.Errorf("lockdown cache is not configured")
 		}
 		filteredComments := make([]*github.IssueComment, 0, len(comments))
 		for _, comment := range comments {
@@ -1046,7 +1061,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 			}
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
 			}
 			if isSafeContent {
 				filteredComments = append(filteredComments, comment)
@@ -1060,13 +1075,18 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
 	}
 
-	return MarshalledTextResult(minimalComments), nil
+	return MarshalledTextResult(minimalComments), &IssueReadOutput{Comments: &minimalComments}, nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	result, _, err := getSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
+	return result, err
+}
+
+func getSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	featureFlags := deps.GetFlags(ctx)
 
@@ -1081,7 +1101,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			"failed to list sub-issues",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -1089,14 +1109,14 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list sub-issues", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list sub-issues", resp, body), nil, nil
 	}
 
 	if featureFlags.LockdownMode {
 		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
+			return nil, nil, fmt.Errorf("lockdown cache is not configured")
 		}
 		filteredSubIssues := make([]*github.SubIssue, 0, len(subIssues))
 		for _, subIssue := range subIssues {
@@ -1110,7 +1130,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			}
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
 			}
 			if isSafeContent {
 				filteredSubIssues = append(filteredSubIssues, subIssue)
@@ -1124,10 +1144,21 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	}
 	r, err := json.Marshal(subIssues)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	var output []*SubIssueOutput
+	if subIssues != nil {
+		output = make([]*SubIssueOutput, 0, len(subIssues))
+	}
+	for _, issue := range subIssues {
+		item, err := subIssueOutput(issue)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to build sub-issue output: %w", err)
+		}
+		output = append(output, item)
+	}
+	return utils.NewToolResultText(string(r)), &IssueReadOutput{SubIssues: &output}, nil
 }
 
 // GetIssueParent returns the parent issue of the given issue, or a null
@@ -1138,9 +1169,14 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 // lockdown mode the parent is only returned when its author has push
 // access to the parent repo (mirroring GetIssue); otherwise it is omitted.
 func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	result, _, err := getIssueParent(ctx, client, deps, owner, repo, issueNumber)
+	return result, err
+}
+
+func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	flags := deps.GetFlags(ctx)
 
@@ -1170,43 +1206,48 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	}
 
 	if err := client.Query(ctx, &query, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue parent", err), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue parent", err), nil, nil
 	}
 
 	parent := query.Repository.Issue.Parent
 	if parent == nil {
-		return MarshalledTextResult(map[string]any{"parent": nil}), nil
+		output := &IssueParentOutput{}
+		return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
 	}
 
 	if flags.LockdownMode {
 		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
+			return nil, nil, fmt.Errorf("lockdown cache is not configured")
 		}
 		// Fail closed: omit the parent if anything needed for the safe-content
 		// check is missing or unverifiable.
 		parentAuthorLogin := string(parent.Author.Login)
 		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
 		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
-			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+			output := &IssueParentOutput{}
+			return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
 		}
 		isSafeContent, err := cache.IsSafeContent(ctx, parentAuthorLogin, parentOwner, parentRepo)
 		if err != nil || !isSafeContent {
-			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+			output := &IssueParentOutput{}
+			return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
 		}
 	}
 
-	return MarshalledTextResult(map[string]any{
-		"parent": map[string]any{
-			"number":     int(parent.Number),
-			"title":      sanitize.PlainText(string(parent.Title)),
-			"state":      string(parent.State),
-			"url":        string(parent.URL),
-			"repository": string(parent.Repository.NameWithOwner),
-		},
-	}), nil
+	output := &IssueParentOutput{Parent: &IssueParentRef{
+		Number: int(parent.Number), Title: sanitize.PlainText(string(parent.Title)),
+		State: string(parent.State), URL: string(parent.URL),
+		Repository: string(parent.Repository.NameWithOwner),
+	}}
+	return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	result, _, err := getIssueLabels(ctx, client, owner, repo, issueNumber)
+	return result, err
+}
+
+func getIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	// Get current labels on the issue using GraphQL
 	var query struct {
 		Repository struct {
@@ -1231,31 +1272,28 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	if err := client.Query(ctx, &query, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil, nil
 	}
 
 	// Extract label information
-	issueLabels := make([]map[string]any, len(query.Repository.Issue.Labels.Nodes))
+	issueLabels := make([]IssueLabelOutput, len(query.Repository.Issue.Labels.Nodes))
 	for i, label := range query.Repository.Issue.Labels.Nodes {
-		issueLabels[i] = map[string]any{
-			"id":          fmt.Sprintf("%v", label.ID),
-			"name":        string(label.Name),
-			"color":       string(label.Color),
-			"description": string(label.Description),
+		issueLabels[i] = IssueLabelOutput{
+			ID: fmt.Sprintf("%v", label.ID), Name: string(label.Name),
+			Color: string(label.Color), Description: string(label.Description),
 		}
 	}
 
-	response := map[string]any{
-		"labels":     issueLabels,
-		"totalCount": int(query.Repository.Issue.Labels.TotalCount),
+	response := &IssueLabelsOutput{
+		Labels: issueLabels, TotalCount: int(query.Repository.Issue.Labels.TotalCount),
 	}
 
 	out, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(out)), nil
+	return utils.NewToolResultText(string(out)), &IssueReadOutput{Labels: response}, nil
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization or repository.
@@ -1643,11 +1681,12 @@ func issueNumberFromIssueURL(issueURL string) (int, error) {
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[SubIssueWriteInput, *SubIssueWriteOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
-			Name:        "sub_issue_write",
-			Description: t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
+			Name:         "sub_issue_write",
+			OutputSchema: subIssueWriteOutputSchema(),
+			Description:  t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SUB_ISSUE_WRITE_USER_TITLE", "Change sub-issue"),
 				ReadOnlyHint: false,
@@ -1697,7 +1736,11 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SubIssueWriteInput) (*mcp.CallToolResult, *SubIssueWriteOutput, error) {
+			args, err := discussionNotificationArguments(input)
+			if err != nil {
+				return nil, nil, err
+			}
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1739,25 +1782,27 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch strings.ToLower(method) {
 			case "add":
-				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
-				return result, nil, err
+				return subIssueWriteResult(addSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent))
 			case "remove":
 				// Call the remove sub-issue function
-				result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
-				return result, nil, err
+				return subIssueWriteResult(removeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID))
 			case "reprioritize":
 				// Call the reprioritize sub-issue function
-				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
-				return result, nil, err
+				return subIssueWriteResult(reprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID))
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}, normalizeConsolidatedIssueArguments("sub"))
 	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
+	result, _, err := addSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
+	return result, err
+}
+
+func addSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, *SubIssueOutput, error) {
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID:    int64(subIssueID),
 		ReplaceParent: new(replaceParent),
@@ -1769,7 +1814,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 			"failed to add sub-issue",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -1777,21 +1822,27 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil, nil
 	}
 
 	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	output, err := subIssueOutput(subIssue)
+	return utils.NewToolResultText(string(r)), output, err
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
+	result, _, err := removeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
+	return result, err
+}
+
+func removeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, *SubIssueOutput, error) {
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID: int64(subIssueID),
 	}
@@ -1802,34 +1853,40 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 			"failed to remove sub-issue",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil, nil
 	}
 
 	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	output, err := subIssueOutput(subIssue)
+	return utils.NewToolResultText(string(r)), output, err
 }
 
 func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, error) {
+	result, _, err := reprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
+	return result, err
+}
+
+func reprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, *SubIssueOutput, error) {
 	// Validate that either after_id or before_id is specified, but not both
 	if afterID == 0 && beforeID == 0 {
-		return utils.NewToolResultError("either after_id or before_id must be specified"), nil
+		return utils.NewToolResultError("either after_id or before_id must be specified"), nil, nil
 	}
 	if afterID != 0 && beforeID != 0 {
-		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil
+		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil, nil
 	}
 
 	subIssueRequest := github.SubIssueRequest{
@@ -1851,7 +1908,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 			"failed to reprioritize sub-issue",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -1859,18 +1916,19 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil, nil
 	}
 
 	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	output, err := subIssueOutput(subIssue)
+	return utils.NewToolResultText(string(r)), output, err
 }
 
 // The two search engines want opposite things from a caller, so steering advice
@@ -2619,11 +2677,12 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 // flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
 // fields on IssueWrite.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[IssueWriteInput, *IssueWriteOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
-			Name:        "issue_write",
-			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Name:         "issue_write",
+			OutputSchema: issueWriteOutputSchema(),
+			Description:  t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue/pull request"),
 				ReadOnlyHint: false,
@@ -2751,6 +2810,7 @@ Options are:
 								},
 							},
 							Required: []string{"field_name"},
+							OneOf:    issueWriteFieldVariants(),
 						},
 					},
 				},
@@ -2758,7 +2818,14 @@ Options are:
 			},
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, input IssueWriteInput) (*mcp.CallToolResult, *IssueWriteOutput, error) {
+			args, err := discussionNotificationArguments(input)
+			if err != nil {
+				return nil, nil, err
+			}
+			if input.TypeProvided && input.Type == nil {
+				args["type"] = nil
+			}
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -2775,7 +2842,13 @@ Options are:
 
 			// Hand off to the interactive MCP App form unless this call must
 			// execute now (see shouldDeferToForm).
-			if shouldDeferToForm(ctx, deps, req, args, issueWriteFormParams) {
+			formArgs := args
+			if req != nil && req.Params != nil && len(req.Params.Arguments) > 0 {
+				if err := json.Unmarshal(req.Params.Arguments, &formArgs); err != nil {
+					return nil, nil, err
+				}
+			}
+			if shouldDeferToForm(ctx, deps, req, formArgs, issueWriteFormParams) {
 				issueNumber := 0
 				if method == "update" {
 					n, numErr := RequiredInt(args, "issue_number")
@@ -2784,7 +2857,13 @@ Options are:
 					}
 					issueNumber = n
 				}
-				return issueWriteAwaitingFormResult(method, owner, repo, issueNumber), nil, nil
+				result := issueWriteAwaitingFormResult(method, owner, repo, issueNumber)
+				output := &IssueWriteAwaitingOutput{
+					Status: "awaiting_user_submission",
+					Reason: "An interactive form is being shown to the user. The operation has not been performed.",
+				}
+				result.StructuredContent = output
+				return result, &IssueWriteOutput{Awaiting: output}, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -2912,27 +2991,24 @@ Options are:
 			switch method {
 			case "create":
 				if parentProvided {
-					result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo)
-					return result, nil, err
+					return issueWriteResult(createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo))
 				}
 
-				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
-				return result, nil, err
+				return issueWriteResult(createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues))
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+				return issueWriteResult(updateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
 					IssueTypeProvided: issueTypeProvided,
-				})
-				return result, nil, err
+				}))
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
-		})
+		}, normalizeConsolidatedIssueArguments("write"))
 	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
@@ -2988,17 +3064,22 @@ func CreateIssueWithParent(
 	parentOwner string,
 	parentRepo string,
 ) (*mcp.CallToolResult, error) {
+	result, _, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNumber, issueType, parentIssueNumber, parentOwner, parentRepo)
+	return result, err
+}
+
+func createIssueWithParent(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo, title, body string, assignees, labels []string, milestoneNumber int, issueType string, parentIssueNumber int, parentOwner, parentRepo string) (*mcp.CallToolResult, *MinimalResponse, error) {
 	if title == "" {
-		return utils.NewToolResultError("missing required parameter: title"), nil
+		return utils.NewToolResultError("missing required parameter: title"), nil, nil
 	}
 	if parentIssueNumber < 1 {
-		return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil
+		return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
 	}
 
 	parentOwner, parentRepo = parentRepository(owner, repo, parentOwner, parentRepo)
 	repositoryID, parentIssueID, err := resolveCreateIssueParent(ctx, gqlClient, owner, repo, parentOwner, parentRepo, parentIssueNumber)
 	if err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve parent issue", err), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve parent issue", err), nil, nil
 	}
 
 	input := CreateIssueInput{
@@ -3015,7 +3096,7 @@ func CreateIssueWithParent(
 		for _, label := range labels {
 			labelID, err := getLabelID(ctx, gqlClient, owner, repo, label)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve label %q", label), err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve label %q", label), err), nil, nil
 			}
 			labelIDs = append(labelIDs, labelID)
 		}
@@ -3027,7 +3108,7 @@ func CreateIssueWithParent(
 		for _, assignee := range assignees {
 			assigneeID, err := resolveUserID(ctx, gqlClient, assignee)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve assignee %q", assignee), err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve assignee %q", assignee), err), nil, nil
 			}
 			assigneeIDs = append(assigneeIDs, assigneeID)
 		}
@@ -3037,7 +3118,7 @@ func CreateIssueWithParent(
 	if milestoneNumber != 0 {
 		milestoneID, err := resolveMilestoneID(ctx, gqlClient, owner, repo, milestoneNumber)
 		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve milestone", err), nil
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve milestone", err), nil, nil
 		}
 		input.MilestoneID = &milestoneID
 	}
@@ -3045,17 +3126,17 @@ func CreateIssueWithParent(
 	if issueType != "" {
 		issueTypeID, resp, err := resolveIssueTypeID(ctx, client, owner, repo, issueType)
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to resolve issue type %q", issueType), resp, err), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to resolve issue type %q", issueType), resp, err), nil, nil
 		}
 		input.IssueTypeID = &issueTypeID
 	}
 
 	var mutation createIssueMutation
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil, nil
 	}
 	if mutation.CreateIssue.Issue.FullDatabaseID == "" || mutation.CreateIssue.Issue.URL.URL == nil {
-		return utils.NewToolResultError("failed to create issue: response did not include the created issue"), nil
+		return utils.NewToolResultError("failed to create issue: response did not include the created issue"), nil, nil
 	}
 
 	response := MinimalResponse{
@@ -3064,9 +3145,9 @@ func CreateIssueWithParent(
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 	}
-	return utils.NewToolResultText(string(encoded)), nil
+	return utils.NewToolResultText(string(encoded)), &response, nil
 }
 
 func parentRepository(owner, repo, parentOwner, parentRepo string) (string, string) {
@@ -3219,8 +3300,13 @@ func containsIssueLabel(labels []string, target string) bool {
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
+	result, _, err := createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
+	return result, err
+}
+
+func createIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, *MinimalResponse, error) {
 	if title == "" {
-		return utils.NewToolResultError("missing required parameter: title"), nil
+		return utils.NewToolResultError("missing required parameter: title"), nil, nil
 	}
 
 	// Create the issue request
@@ -3246,21 +3332,21 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 			"failed to create issue",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
+			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil, nil
 	}
 
 	if len(labels) > 0 {
 		if err := unappliedIssueLabelsError(labels, issue); err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested labels were not fully applied", resp, err), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested labels were not fully applied", resp, err), nil, nil
 		}
 	}
 
@@ -3272,10 +3358,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	r, err := json.Marshal(minimalResponse)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), &minimalResponse, nil
 }
 
 // UpdateIssueOptions controls which optional fields are included in an issue update request.
@@ -3289,9 +3375,14 @@ type UpdateIssueOptions struct {
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	result, _, err := updateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, opts...)
+	return result, err
+}
+
+func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, *MinimalResponse, error) {
 	// UpdateIssue is exported and may be called without the tool handler.
 	if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	updateOptions := UpdateIssueOptions{
@@ -3341,7 +3432,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		// the new ones, then drop anything explicitly deleted.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil, nil
 		}
 		merged := mergeIssueFieldValues(existing, issueFieldValues)
 		if len(fieldIDsToDelete) > 0 {
@@ -3381,16 +3472,16 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			"failed to update issue",
 			resp,
 			err,
-		), nil
+		), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil, nil
 	}
 
 	// Per-field DELETE fallback. The PATCH can't clear field values when the
@@ -3426,7 +3517,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 		if len(failedIDs) > 0 {
 			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil, nil
 		}
 	}
 
@@ -3435,7 +3526,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil, nil
 		}
 
 		switch state {
@@ -3456,7 +3547,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 				IssueID: issueID,
 			}, nil)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to reopen issue", err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to reopen issue", err), nil, nil
 			}
 		case "closed":
 			// Use CloseIssue mutation for closing
@@ -3484,14 +3575,14 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 			err = gqlClient.Mutate(ctx, &mutation, closeInput, nil)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue", err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue", err), nil, nil
 			}
 		}
 	}
 
 	if updateOptions.LabelsProvided {
 		if err := unappliedIssueLabelsError(labels, updatedIssue); err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue updated but requested labels were not fully applied", resp, err), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue updated but requested labels were not fully applied", resp, err), nil, nil
 		}
 	}
 
@@ -3503,10 +3594,10 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	r, err := json.Marshal(minimalResponse)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), &minimalResponse, nil
 }
 
 func validateDuplicateState(state, stateReason string, duplicateOf int) error {
