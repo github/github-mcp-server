@@ -155,6 +155,41 @@ type ListCommitsInput struct {
 	PerPage *int     `json:"perPage,omitempty"`
 }
 
+type ListCommitOutput struct {
+	SHA       *string            `json:"sha,omitempty"`
+	HTMLURL   *string            `json:"html_url,omitempty"`
+	Commit    *MinimalCommitInfo `json:"commit,omitempty"`
+	Author    *MinimalUser       `json:"author,omitempty"`
+	Committer *MinimalUser       `json:"committer,omitempty"`
+}
+
+func structuredListCommitsOutput(commits []MinimalCommit, fields []string) []ListCommitOutput {
+	output := make([]ListCommitOutput, 0, len(commits))
+	selected := func(field string) bool {
+		return len(fields) == 0 || slices.Contains(fields, field)
+	}
+	for _, commit := range commits {
+		item := ListCommitOutput{}
+		if selected("sha") {
+			item.SHA = new(commit.SHA)
+		}
+		if selected("html_url") {
+			item.HTMLURL = new(commit.HTMLURL)
+		}
+		if selected("commit") {
+			item.Commit = commit.Commit
+		}
+		if selected("author") {
+			item.Author = commit.Author
+		}
+		if selected("committer") {
+			item.Committer = commit.Committer
+		}
+		output = append(output, item)
+	}
+	return output
+}
+
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -196,7 +231,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 	WithPagination(schema)
 
-	return NewTool[ListCommitsInput, []MinimalCommit](
+	return NewTool[ListCommitsInput, []ListCommitOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_commits",
@@ -208,7 +243,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, []MinimalCommit, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, []ListCommitOutput, error) {
 			if input.Owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
@@ -302,10 +337,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// follows the same public-untrusted / private-trusted rule as file
 			// contents. Confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelCommitContents)
-			if len(input.Fields) > 0 {
-				return result, nil, nil
-			}
-			return result, minimalCommits, nil
+			return result, structuredListCommitsOutput(minimalCommits, input.Fields), nil
 		},
 		normalizeTypedReadArguments(nil, false),
 	)
