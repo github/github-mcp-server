@@ -256,7 +256,10 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 		assert.NotNil(t, tool.OutputSchema)
 	}
 
-	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_me",
+		Arguments: map[string]any{"legacy_ignored_argument": true},
+	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 	require.NotNil(t, result.StructuredContent)
@@ -264,27 +267,34 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	structuredJSON, err := json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, getTextResult(t, result).Text, string(structuredJSON))
+	var returnedUser MinimalUser
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedUser))
+	legacyText, err := json.Marshal(returnedUser)
+	require.NoError(t, err)
+	assert.Equal(t, string(legacyText), getTextResult(t, result).Text)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_teams",
-		Arguments: map[string]any{"user": "specificuser"},
+		Arguments: map[string]any{"user": "specificuser", "legacy_ignored_argument": true},
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, string(structuredJSON))
+	assert.Equal(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, getTextResult(t, result).Text)
 	assert.Equal(t, 1, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_team_members",
-		Arguments: map[string]any{"org": "testorg", "team_slug": "testteam"},
+		Arguments: map[string]any{"org": "testorg", "team_slug": "testteam", "legacy_ignored_argument": true},
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `["user1","user2"]`, string(structuredJSON))
+	assert.Equal(t, `["user1","user2"]`, getTextResult(t, result).Text)
 	assert.Equal(t, 2, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
@@ -294,6 +304,14 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.IsError, "missing required arguments should be rejected by the inferred input schema")
 	assert.Equal(t, 2, graphQLCalls, "schema validation must happen before invoking the handler")
+
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_team_members",
+		Arguments: map[string]any{"org": "", "team_slug": "testteam"},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError, "empty required strings should remain invalid")
+	assert.Equal(t, 2, graphQLCalls, "schema validation must reject empty required strings before the handler")
 
 	failGetMe = true
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
