@@ -1103,8 +1103,7 @@ func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo str
 func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
 	resp, err := client.Actions.CancelWorkflowRunByID(ctx, owner, repo, runID)
 	if err != nil {
-		var acceptedErr *github.AcceptedError
-		if !errors.As(err, &acceptedErr) {
+		if _, ok := errors.AsType[*github.AcceptedError](err); !ok {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to cancel workflow run", resp, err), nil, nil
 		}
 	}

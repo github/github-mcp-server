@@ -23,4 +23,4 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           # sync with script/lint
-          version: v2.9
+          version: v2.14.0
