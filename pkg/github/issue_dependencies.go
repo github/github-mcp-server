@@ -51,7 +51,7 @@ Options are:
 	}
 	WithPagination(schema)
 
-	st := NewTool(
+	st := NewTool[IssueDependencyReadInput, *IssueDependencyReadOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_dependency_read",
@@ -63,29 +63,22 @@ Options are:
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueDependencyReadInput) (*mcp.CallToolResult, *IssueDependencyReadOutput, error) {
+			method, owner, repo, issueNumber := input.Method, input.Owner, input.Repo, input.IssueNumber
+			if method == "" {
+				return utils.NewToolResultError("missing required parameter: method"), nil, nil
+			}
+			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			page, perPage := input.Page, input.PerPage
+			if page == 0 {
+				page = 1
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if perPage == 0 {
+				perPage = 30
 			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			opts := &github.ListOptions{Page: pagination.Page, PerPage: pagination.PerPage}
+			opts := &github.ListOptions{Page: page, PerPage: perPage}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -94,58 +87,70 @@ Options are:
 
 			switch method {
 			case "get_blocked_by":
-				result, err := GetIssueBlockedBy(ctx, client, owner, repo, issueNumber, opts)
-				return result, nil, err
+				return getIssueBlockedByOutput(ctx, client, owner, repo, issueNumber, opts)
 			case "get_blocking":
-				result, err := GetIssueBlocking(ctx, client, owner, repo, issueNumber, opts)
-				return result, nil, err
+				return getIssueBlockingOutput(ctx, client, owner, repo, issueNumber, opts)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}, normalizeIssueStrings([]string{"method", "owner", "repo"}, nil),
+		normalizeIssueIntegers([]string{"issue_number"}, []string{"page", "perPage"}),
+		normalizeTypedReadArguments(nil, false))
 	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
 
 // GetIssueBlockedBy lists the issues that block the given issue.
 func GetIssueBlockedBy(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, error) {
+	result, _, err := getIssueBlockedByOutput(ctx, client, owner, repo, issueNumber, opts)
+	return result, err
+}
+
+func getIssueBlockedByOutput(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, *IssueDependencyReadOutput, error) {
 	issues, resp, err := client.Issues.ListBlockedBy(ctx, owner, repo, int64(issueNumber), opts)
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list blocked-by issues", resp, err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list blocked-by issues", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocked-by issues", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocked-by issues", resp, body), nil, nil
 	}
-	return dependencyReadResult(issues, resp), nil
+	output := dependencyReadOutput(issues, resp)
+	return MarshalledTextResult(output), output, nil
 }
 
 // GetIssueBlocking lists the issues that the given issue blocks.
 func GetIssueBlocking(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, error) {
+	result, _, err := getIssueBlockingOutput(ctx, client, owner, repo, issueNumber, opts)
+	return result, err
+}
+
+func getIssueBlockingOutput(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, *IssueDependencyReadOutput, error) {
 	issues, resp, err := client.Issues.ListBlocking(ctx, owner, repo, int64(issueNumber), opts)
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list blocking issues", resp, err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list blocking issues", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocking issues", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocking issues", resp, body), nil, nil
 	}
-	return dependencyReadResult(issues, resp), nil
+	output := dependencyReadOutput(issues, resp)
+	return MarshalledTextResult(output), output, nil
 }
 
-// dependencyReadResult projects a list of related issues into the minimal
+// dependencyReadOutput projects a list of related issues into the minimal
 // dependency shape and attaches page-based pagination info.
-func dependencyReadResult(issues []*github.Issue, resp *github.Response) *mcp.CallToolResult {
+func dependencyReadOutput(issues []*github.Issue, resp *github.Response) *IssueDependencyReadOutput {
 	refs := make([]MinimalIssueRef, 0, len(issues))
 	for _, issue := range issues {
 		if issue == nil {
@@ -153,13 +158,13 @@ func dependencyReadResult(issues []*github.Issue, resp *github.Response) *mcp.Ca
 		}
 		refs = append(refs, issueToDependencyRef(issue))
 	}
-	return MarshalledTextResult(map[string]any{
-		"issues": refs,
-		"pageInfo": map[string]any{
-			"hasNextPage": resp.NextPage != 0,
-			"nextPage":    resp.NextPage,
+	return &IssueDependencyReadOutput{
+		Issues: refs,
+		PageInfo: IssueDependencyPageInfo{
+			HasNextPage: resp.NextPage != 0,
+			NextPage:    resp.NextPage,
 		},
-	})
+	}
 }
 
 // issueToDependencyRef converts a REST issue into the compact reference used by
@@ -189,7 +194,7 @@ func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
 // expressed as "the blocked issue is blocked_by the blocking issue", so both
 // directions are served by the same endpoint pair with the two issues swapped.
 func IssueDependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[IssueDependencyWriteInput, *IssueDependencyWriteOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name: "issue_dependency_write",
@@ -250,39 +255,23 @@ Options are:
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueDependencyWriteInput) (*mcp.CallToolResult, *IssueDependencyWriteOutput, error) {
+			method, relationshipType := input.Method, input.Type
+			if method == "" {
+				return utils.NewToolResultError("missing required parameter: method"), nil, nil
+			}
+			if relationshipType == "" {
+				return utils.NewToolResultError("missing required parameter: type"), nil, nil
+			}
+			owner, repo, issueNumber := input.Owner, input.Repo, input.IssueNumber
+			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			relationshipType, err := RequiredParam[string](args, "type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			relatedIssueNumber := input.RelatedIssueNumber
+			if relatedIssueNumber == 0 {
+				return utils.NewToolResultError("missing required parameter: related_issue_number"), nil, nil
 			}
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			relatedIssueNumber, err := RequiredInt(args, "related_issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			relatedOwner, err := OptionalParam[string](args, "related_owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			relatedRepo, err := OptionalParam[string](args, "related_repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			relatedOwner, relatedRepo := input.RelatedOwner, input.RelatedRepo
 			if relatedOwner == "" {
 				relatedOwner = owner
 			}
@@ -318,9 +307,9 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			result, err := writeIssueDependency(ctx, client, method, blocked, blocking)
-			return result, nil, err
-		})
+			return writeIssueDependency(ctx, client, method, blocked, blocking)
+		}, normalizeIssueStrings([]string{"method", "type", "owner", "repo"}, []string{"related_owner", "related_repo"}),
+		normalizeIssueIntegers([]string{"issue_number", "related_issue_number"}, nil), normalizeIssueDependencyWriteArguments)
 	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
@@ -334,12 +323,12 @@ type issueCoordinate struct {
 
 // writeIssueDependency resolves the blocking issue to its global database ID and
 // then adds or removes the blocked-by relationship on the blocked issue.
-func writeIssueDependency(ctx context.Context, client *github.Client, method string, blocked, blocking issueCoordinate) (*mcp.CallToolResult, error) {
+func writeIssueDependency(ctx context.Context, client *github.Client, method string, blocked, blocking issueCoordinate) (*mcp.CallToolResult, *IssueDependencyWriteOutput, error) {
 	// The REST API identifies the blocking issue by its global database ID
 	// (not its number), so resolve the number to an ID first.
 	blockingIssue, resp, err := client.Issues.Get(ctx, blocking.owner, blocking.repo, blocking.number)
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to resolve blocking issue", resp, err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to resolve blocking issue", resp, err), nil, nil
 	}
 	_ = resp.Body.Close()
 	blockingID := blockingIssue.GetID()
@@ -348,41 +337,43 @@ func writeIssueDependency(ctx context.Context, client *github.Client, method str
 	case "add":
 		blockedIssue, opResp, err := client.Issues.AddBlockedBy(ctx, blocked.owner, blocked.repo, int64(blocked.number), github.IssueDependencyRequest{IssueID: blockingID})
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add issue dependency", opResp, err), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add issue dependency", opResp, err), nil, nil
 		}
 		defer func() { _ = opResp.Body.Close() }()
 		if opResp.StatusCode != http.StatusCreated {
 			body, readErr := io.ReadAll(opResp.Body)
 			if readErr != nil {
-				return nil, fmt.Errorf("failed to read response body: %w", readErr)
+				return nil, nil, fmt.Errorf("failed to read response body: %w", readErr)
 			}
-			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", opResp, body), nil
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", opResp, body), nil, nil
 		}
-		return dependencyWriteResult("dependency added", blockedIssue, blockingIssue, blocked, blocking), nil
+		output := dependencyWriteOutput("dependency added", blockedIssue, blockingIssue, blocked, blocking)
+		return MarshalledTextResult(output), output, nil
 	case "remove":
 		blockedIssue, opResp, err := client.Issues.RemoveBlockedBy(ctx, blocked.owner, blocked.repo, int64(blocked.number), blockingID)
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove issue dependency", opResp, err), nil
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove issue dependency", opResp, err), nil, nil
 		}
 		defer func() { _ = opResp.Body.Close() }()
 		if opResp.StatusCode != http.StatusOK {
 			body, readErr := io.ReadAll(opResp.Body)
 			if readErr != nil {
-				return nil, fmt.Errorf("failed to read response body: %w", readErr)
+				return nil, nil, fmt.Errorf("failed to read response body: %w", readErr)
 			}
-			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", opResp, body), nil
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", opResp, body), nil, nil
 		}
-		return dependencyWriteResult("dependency removed", blockedIssue, blockingIssue, blocked, blocking), nil
+		output := dependencyWriteOutput("dependency removed", blockedIssue, blockingIssue, blocked, blocking)
+		return MarshalledTextResult(output), output, nil
 	default:
-		return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
+		return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 	}
 }
 
-// dependencyWriteResult builds the minimal description of the affected issues.
+// dependencyWriteOutput builds the minimal description of the affected issues.
 // The blocked issue comes from the mutation response and the blocking issue from
 // the earlier resolve; each falls back to its known coordinate when the API
 // response omits the repository URL.
-func dependencyWriteResult(message string, blockedIssue, blockingIssue *github.Issue, blocked, blocking issueCoordinate) *mcp.CallToolResult {
+func dependencyWriteOutput(message string, blockedIssue, blockingIssue *github.Issue, blocked, blocking issueCoordinate) *IssueDependencyWriteOutput {
 	blockedRef := issueToDependencyRef(blockedIssue)
 	if blockedRef.Repository == "" {
 		blockedRef.Repository = blocked.owner + "/" + blocked.repo
@@ -391,9 +382,7 @@ func dependencyWriteResult(message string, blockedIssue, blockingIssue *github.I
 	if blockingRef.Repository == "" {
 		blockingRef.Repository = blocking.owner + "/" + blocking.repo
 	}
-	return MarshalledTextResult(map[string]any{
-		"message":        message,
-		"blocked_issue":  blockedRef,
-		"blocking_issue": blockingRef,
-	})
+	return &IssueDependencyWriteOutput{
+		BlockedIssue: blockedRef, BlockingIssue: blockingRef, Message: message,
+	}
 }
