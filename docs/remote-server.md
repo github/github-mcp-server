@@ -131,12 +131,12 @@ The Remote GitHub MCP server supports the following URL path patterns:
 - `/x/all/readonly` - All available toolsets in read-only mode
 - `/x/all/insiders` - All available toolsets with insiders mode enabled
 - `/x/all/readonly/insiders` - All available toolsets in read-only mode with insiders mode enabled
-- `/x/{toolset}` - Single specific toolset
-- `/x/{toolset}/readonly` - Single specific toolset in read-only mode
-- `/x/{toolset}/insiders` - Single specific toolset with insiders mode enabled
-- `/x/{toolset}/readonly/insiders` - Single specific toolset in read-only mode with insiders mode enabled
+- `/x/{toolsets}` - One or more comma-separated toolsets
+- `/x/{toolsets}/readonly` - One or more toolsets in read-only mode
+- `/x/{toolsets}/insiders` - One or more toolsets with insiders mode enabled
+- `/x/{toolsets}/readonly/insiders` - One or more toolsets in read-only mode with insiders mode enabled
 
-Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead. Path modifiers like `/readonly` and `/insiders` can be combined with the `X-MCP-Insiders` or `X-MCP-Readonly` headers.
+The `{toolsets}` path segment accepts the same comma-separated values as the `X-MCP-Toolsets` header. For example, `/x/default,actions,projects` enables exactly that bundle. URL-based toolsets take precedence over `X-MCP-Toolsets` when both are present. Path modifiers like `/readonly` and `/insiders` can be combined with the `X-MCP-Insiders` or `X-MCP-Readonly` headers.
 
 Example:
 
