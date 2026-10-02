@@ -866,6 +866,8 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 		{name: "stateless modern", protocolVersion: ProtocolVersionMultiRoundTrip, wantSchema: true, wantStructured: true},
 		{name: "stateless legacy", protocolVersion: "2025-11-25"},
 		{name: "unknown version defaults to legacy behavior"},
+		{name: "unrecognized token defaults to legacy behavior", protocolVersion: "unknown"},
+		{name: "unrecognized future date defaults to legacy behavior", protocolVersion: "2099-01-01"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := mcp.Meta{}

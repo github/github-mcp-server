@@ -1,0 +1,249 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get GitHub Actions workflow job logs"
+  },
+  "description": "Get logs for GitHub Actions workflow jobs.\nUse this tool to retrieve logs for a specific job or all failed jobs in a workflow run.\nFor single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.\n",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABqUlEQVRIie2UMUtbURTHf+fmqdQKBR21k8+SF9AXDHTRyaWBbqWddLZCyWcwawc7ONUhW2YHBeNX6BSDxEB57ZJJkICgAZPHOx0iVfC+0hvJIHiWyz3nf87vcvnfCyMOAVgI8u8V3QNmU3Q9VA6IrzaiKLpxAXgAqvodoQNUbSKFVyK6xdjkMVBxBiDMIVKJzk7KaUI/CLcQ89plOIBxbXgGPF1ATxKdThNls9kZAJLE6Q3AnU0PFUp+EJZsoniw9E0mczQcoHe9zvjLI5Q3t8BVlBXg62DLlRhz+LNZb7gCxJb0c/kyqttRq2GvB0vLKqyJSsY+Vi/od6tRFN14rifyg6VlkB+i/KNXwJsqAp+cASjvELwJE880m82OTbKQDXdV9DOk2FSVPkChUBh7UDRmAiBtOIAa6QDj6QCoA1xexyUrxCGsV/S7dVKbD8J9EXYuu/GOH4T36Pp4AKC/Wo2P87nFoiTyFpEXfyt3Fn4UYAA5O60BtftJP5cvg/43YOR/0RA2Tdog+EH4DTi3a/QD0B4O0O9W8aaKiH7h1oqWaKvRTefZw8QfOA2GtnSwHcIAAAAASUVORK5CYII=",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABLElEQVRIie2Wr04DQRjEf8O/C4qEvgOWBIEpCkMTEgQBhUVgeAbOYjDoOhygSHgHFOEVKIaEFIO5IgbBXlJxu2WvKQkJY+7PNzszm/2+y8FvwPau7RfHUdm+tl3kaisYDIB34D7CWwFOgGNJ/TY7sO1yWk4T5rLT/Bv8WYMRsBoj2e6E26qVi+2bxJDVGNlez9WuB60AjoC18H4L6ALn4fkDuJP01MqgYUclcCYpVt8AtoH5iO4bcCWpWshNFMQfgElre8Bhmy7aCeIdRQBcAnsQb9PPkHaxoVYASBomQgyBpZTBY7ieRkymg23Zvk317IT1Zc1pPChJtn3A90FtAstj5bqFZ4PxdD/hzPxblD0HwADA9gXwGuHs17xs2C7CD0CV6IFn271WBrn4Aj4U/yN7l7QYAAAAAElFTkSuQmCC",
+      "theme": "dark"
+    }
+  ],
+  "inputSchema": {
+    "properties": {
+      "failed_only": {
+        "description": "When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.",
+        "type": "boolean"
+      },
+      "job_id": {
+        "description": "The unique identifier of the workflow job. Required when getting logs for a single job.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string",
+        "x-mcp-header": "owner"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string",
+        "x-mcp-header": "repo"
+      },
+      "return_content": {
+        "description": "Returns actual log content instead of URLs",
+        "type": "boolean"
+      },
+      "run_id": {
+        "description": "The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.",
+        "type": "number"
+      },
+      "tail_lines": {
+        "default": 500,
+        "description": "Number of lines to return from the end of the log",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "get_job_logs",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "integer"
+          },
+          "job_name": {
+            "type": "string"
+          },
+          "logs_content": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "original_length": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_id",
+          "logs_content",
+          "message",
+          "original_length"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "integer"
+          },
+          "job_name": {
+            "type": "string"
+          },
+          "logs_url": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "logs_url",
+          "message",
+          "note"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "failed_jobs": {
+            "type": "integer"
+          },
+          "logs": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "job_id": {
+                      "type": "integer"
+                    },
+                    "job_name": {
+                      "type": "string"
+                    },
+                    "logs_content": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "original_length": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "job_id",
+                    "logs_content",
+                    "message",
+                    "original_length"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "job_id": {
+                      "type": "integer"
+                    },
+                    "job_name": {
+                      "type": "string"
+                    },
+                    "logs_url": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "job_id",
+                    "logs_url",
+                    "message",
+                    "note"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "job_id": {
+                      "type": "integer"
+                    },
+                    "job_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "job_id",
+                    "job_name"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "return_format": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "boolean"
+              },
+              "urls": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "content",
+              "urls"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "total_jobs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failed_jobs",
+          "message",
+          "run_id",
+          "total_jobs"
+        ],
+        "type": "object"
+      }
+    ]
+  }
+}
