@@ -26,7 +26,8 @@ func Test_CustomPropertiesRead(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.ElementsMatch(t, schema.Required, []string{"level"})
+	assert.Empty(t, schema.Required)
+	assert.Contains(t, schema.Properties["level"].Description, "Required by the legacy handler")
 
 	t.Run("repository level: returns property values", func(t *testing.T) {
 		mockValues := []*github.CustomPropertyValue{{PropertyName: "environment", Value: "production"}}
@@ -137,10 +138,12 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.ElementsMatch(t, schema.Required, []string{"level", "properties"})
+	assert.Empty(t, schema.Required)
+	assert.Contains(t, schema.Properties["level"].Description, "Required by the legacy handler")
+	assert.Contains(t, schema.Properties["properties"].Description, "Required by the legacy handler")
 
 	t.Run("property items use level-specific schemas", func(t *testing.T) {
-		itemSchema := schema.Properties["properties"].Items
+		itemSchema := schema.Properties["properties"].AnyOf[0].Items
 		assert.Equal(t, "object", itemSchema.Type)
 		require.Len(t, itemSchema.OneOf, 2)
 		valueItemSchema := itemSchema.OneOf[0]
