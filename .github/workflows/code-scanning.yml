@@ -82,7 +82,7 @@ jobs:
         if: matrix.language == 'javascript'
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version-file: ui/package.json
           cache: "npm"
           cache-dependency-path: ui/package-lock.json
 

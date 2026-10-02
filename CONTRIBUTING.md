@@ -31,6 +31,17 @@ These are one time installations required to be able to test your changes locall
 
 The repository-pinned golangci-lint v2.9.0 supports Go 1.26, but cannot read Go 1.27 export data. When using a newer Go installation, run lint with `GOTOOLCHAIN=go1.26.8 script/lint`.
 
+### UI development
+
+Use Node.js 26.x for the UI in `ui/`. This matches the Docker UI build stage
+and `@types/node`; GitHub Actions reads the Node version from `ui/package.json`.
+Node 26 is a supported Current release, with LTS scheduled for October 2026.
+
+From `ui/`, run `npm ci`, `npm run typecheck`, and `npm run build`.
+Type checking uses the native TypeScript 7 compiler through `tsc`; Vite handles
+transpilation and bundling separately. No TypeScript compiler API integration,
+typescript-eslint, or ts-node is required.
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository
