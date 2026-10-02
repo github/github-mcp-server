@@ -322,6 +322,7 @@ func TestTypedGranularIssueWireErrors(t *testing.T) {
 		{"add_issue_reaction", map[string]any{"content": "HEART"}, "heart"},
 		{"remove_issue_reaction", map[string]any{"reaction_id": "1.5"}, "non-integer"},
 		{"add_issue_comment_reaction", map[string]any{"comment_id": 42, "content": "invalid"}, "heart"},
+		// Float-to-int overflow diagnostics differ across architectures.
 		{"remove_issue_comment_reaction", map[string]any{"comment_id": "9223372036854775808", "reaction_id": 9}, "comment_id"},
 	}
 

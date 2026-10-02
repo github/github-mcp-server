@@ -19,12 +19,15 @@ import (
 )
 
 // prUpdateTool is a helper to create single-field pull request update tools via REST.
-func prUpdateTool(
+func prUpdateTool[In interface {
+	pullRequestCoordinate() GranularPullRequestCoordinate
+}](
 	t translations.TranslationHelperFunc,
 	name, description, title string,
 	extraProps map[string]*jsonschema.Schema,
 	extraRequired []string,
-	buildRequest func(args map[string]any) (*gogithub.PullRequest, error),
+	buildRequest func(args In) *gogithub.PullRequest,
+	normalizer inventory.InputNormalizer,
 ) inventory.ServerTool {
 	props := map[string]*jsonschema.Schema{
 		"owner": {
@@ -38,7 +41,6 @@ func prUpdateTool(
 		"pullNumber": {
 			Type:        "number",
 			Description: "The pull request number",
-			Minimum:     new(1.0),
 		},
 	}
 	maps.Copy(props, extraProps)
@@ -63,24 +65,10 @@ func prUpdateTool(
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			prReq, err := buildRequest(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args In) (*mcp.CallToolResult, *MinimalResponse, error) {
+			coordinate := args.pullRequestCoordinate()
+			owner, repo, pullNumber := coordinate.Owner, coordinate.Repo, coordinate.PullNumber
+			prReq := buildRequest(args)
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -93,15 +81,17 @@ func prUpdateTool(
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(MinimalResponse{
+			output := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", pr.GetID()),
 				URL: pr.GetHTMLURL(),
-			})
+			}
+			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText(string(r)), output, nil
 		},
+		normalizer,
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -117,13 +107,10 @@ func GranularUpdatePullRequestTitle(t translations.TranslationHelperFunc) invent
 			"title": {Type: "string", Description: "The new title for the pull request"},
 		},
 		[]string{"title"},
-		func(args map[string]any) (*gogithub.PullRequest, error) {
-			title, err := RequiredParam[string](args, "title")
-			if err != nil {
-				return nil, err
-			}
-			return &gogithub.PullRequest{Title: &title}, nil
+		func(args GranularPullRequestTitleInput) *gogithub.PullRequest {
+			return &gogithub.PullRequest{Title: &args.Title}
 		},
+		normalizeGranularPullRequestArguments("title"),
 	)
 }
 
@@ -137,13 +124,10 @@ func GranularUpdatePullRequestBody(t translations.TranslationHelperFunc) invento
 			"body": {Type: "string", Description: "The new body content for the pull request"},
 		},
 		[]string{"body"},
-		func(args map[string]any) (*gogithub.PullRequest, error) {
-			body, err := RequiredParam[string](args, "body")
-			if err != nil {
-				return nil, err
-			}
-			return &gogithub.PullRequest{Body: &body}, nil
+		func(args GranularPullRequestBodyInput) *gogithub.PullRequest {
+			return &gogithub.PullRequest{Body: &args.Body}
 		},
+		normalizeGranularPullRequestArguments("body"),
 	)
 }
 
@@ -156,18 +140,14 @@ func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) invent
 		map[string]*jsonschema.Schema{
 			"state": {
 				Type:        "string",
-				Description: "The new state for the pull request",
-				Enum:        []any{"open", "closed"},
+				Description: "The new state for the pull request (open or closed)",
 			},
 		},
 		[]string{"state"},
-		func(args map[string]any) (*gogithub.PullRequest, error) {
-			state, err := RequiredParam[string](args, "state")
-			if err != nil {
-				return nil, err
-			}
-			return &gogithub.PullRequest{State: &state}, nil
+		func(args GranularPullRequestStateInput) *gogithub.PullRequest {
+			return &gogithub.PullRequest{State: &args.State}
 		},
+		normalizeGranularPullRequestArguments("state"),
 	)
 }
 
@@ -189,34 +169,15 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number"},
 					"draft":      {Type: "boolean", Description: "Set to true to convert to draft, false to mark as ready for review"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "draft"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			// Use presence check + OptionalParam since RequiredParam rejects false (zero-value for bool)
-			if _, ok := args["draft"]; !ok {
-				return utils.NewToolResultError("missing required parameter: draft"), nil, nil
-			}
-			draft, err := OptionalParam[bool](args, "draft")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularPullRequestDraftInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, pullNumber, draft := args.Owner, args.Repo, args.PullNumber, args.Draft
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -253,7 +214,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				}, nil); err != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to convert to draft", err), nil, nil
 				}
-				return utils.NewToolResultText("pull request converted to draft"), nil, nil
+				return pullRequestMessageResult(utils.NewToolResultText("pull request converted to draft"), nil)
 			}
 
 			var mutation struct {
@@ -269,8 +230,9 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			}, nil); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to mark ready for review", err), nil, nil
 			}
-			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
+			return pullRequestMessageResult(utils.NewToolResultText("pull request marked as ready for review"), nil)
 		},
+		normalizeGranularPullRequestArguments("draft"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -294,7 +256,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number"},
 					"reviewers": {
 						Type:        "array",
 						Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
@@ -305,27 +267,9 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			reviewers, err := OptionalStringArrayParam(args, "reviewers")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			if len(reviewers) == 0 {
-				return utils.NewToolResultError("missing required parameter: reviewers"), nil, nil
-			}
-			userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularPullRequestReviewersInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
+			userReviewers, teamReviewers := splitPullRequestReviewers(args.Reviewers)
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -341,15 +285,17 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(MinimalResponse{
+			output := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", pr.GetID()),
 				URL: pr.GetHTMLURL(),
-			})
+			}
+			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText(string(r)), output, nil
 		},
+		normalizeGranularPullRequestArguments("reviewers"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -389,31 +335,18 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number"},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
-					"event":      {Type: "string", Description: "The review action to perform. If omitted, creates a pending review.", Enum: []any{"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
+					"event":      {Type: "string", Description: "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT). If omitted, creates a pending review."},
 					"commitID":   {Type: "string", Description: "The SHA of the commit to review (optional, defaults to latest)"},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			body, _ := OptionalParam[string](args, "body")
-			event, _ := OptionalParam[string](args, "event")
-			commitID, _ := OptionalParam[string](args, "commitID")
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularCreatePullRequestReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
+			body, event, commitID := args.Body, args.Event, args.CommitID
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -433,8 +366,9 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 				Event:      event,
 				CommitID:   commitIDPtr,
 			})
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularPullRequestArguments("create_review"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -458,32 +392,16 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
-					"event":      {Type: "string", Description: "The review action to perform", Enum: []any{"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
+					"pullNumber": {Type: "number", Description: "The pull request number"},
+					"event":      {Type: "string", Description: "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT)"},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "event"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			event, err := RequiredParam[string](args, "event")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			body, _ := OptionalParam[string](args, "body")
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularSubmitPullRequestReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, pullNumber, event, body := args.Owner, args.Repo, args.PullNumber, args.Event, args.Body
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -497,8 +415,9 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 				Event:      event,
 				Body:       body,
 			})
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularPullRequestArguments("submit_review"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -522,25 +441,14 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number"},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularPullRequestCoordinate) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -552,8 +460,9 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 				Repo:       repo,
 				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
 			})
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularPullRequestArguments("delete_review"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -577,54 +486,21 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":       {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":        {Type: "string", Description: "Repository name"},
-					"pullNumber":  {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"pullNumber":  {Type: "number", Description: "The pull request number"},
 					"path":        {Type: "string", Description: "The relative path of the file to comment on"},
 					"body":        {Type: "string", Description: "The comment body"},
-					"subjectType": {Type: "string", Description: "The subject type of the comment", Enum: []any{"FILE", "LINE"}},
+					"subjectType": {Type: "string", Description: "The subject type of the comment (FILE or LINE)"},
 					"line":        {Type: "number", Description: "The line number in the diff to comment on (optional)"},
-					"side":        {Type: "string", Description: "The side of the diff to comment on (optional)", Enum: []any{"LEFT", "RIGHT"}},
+					"side":        {Type: "string", Description: "The side of the diff to comment on (LEFT or RIGHT, optional)"},
 					"startLine":   {Type: "number", Description: "The start line of a multi-line comment (optional)"},
-					"startSide":   {Type: "string", Description: "The start side of a multi-line comment (optional)", Enum: []any{"LEFT", "RIGHT"}},
+					"startSide":   {Type: "string", Description: "The start side of a multi-line comment (LEFT or RIGHT, optional)"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			path, err := RequiredParam[string](args, "path")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			body, err := RequiredParam[string](args, "body")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			subjectType, err := RequiredParam[string](args, "subjectType")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			line, err := OptionalIntParam(args, "line")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			side, _ := OptionalParam[string](args, "side")
-			startLine, err := OptionalIntParam(args, "startLine")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			startSide, _ := OptionalParam[string](args, "startSide")
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args AddCommentToPendingReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -633,38 +509,39 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 
 			// Convert optional int params to *int32 for the helper
 			var linePtr, startLinePtr *int32
-			if line != 0 {
-				l := int32(line) // #nosec G115
+			if args.Line != nil && *args.Line != 0 {
+				l := int32(*args.Line) // #nosec G115
 				linePtr = &l
 			}
-			if startLine != 0 {
-				sl := int32(startLine) // #nosec G115
+			if args.StartLine != nil && *args.StartLine != 0 {
+				sl := int32(*args.StartLine) // #nosec G115
 				startLinePtr = &sl
 			}
 
 			// Convert optional string params: pass nil (not empty string) when absent
 			var sidePtr, startSidePtr *string
-			if side != "" {
-				sidePtr = &side
+			if args.Side != nil && *args.Side != "" {
+				sidePtr = args.Side
 			}
-			if startSide != "" {
-				startSidePtr = &startSide
+			if args.StartSide != nil && *args.StartSide != "" {
+				startSidePtr = args.StartSide
 			}
 
 			result, err := AddCommentToPendingReviewCall(ctx, gqlClient, AddCommentToPendingReviewParams{
 				Owner:       owner,
 				Repo:        repo,
 				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-				Path:        path,
-				Body:        body,
-				SubjectType: subjectType,
+				Path:        args.Path,
+				Body:        args.Body,
+				SubjectType: args.SubjectType,
 				Line:        linePtr,
 				Side:        sidePtr,
 				StartLine:   startLinePtr,
 				StartSide:   startSidePtr,
 			})
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularPullRequestArguments("comment"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -719,20 +596,11 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			threadID, err := RequiredParam[string](args, "threadID")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularResolveReviewThreadInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			threadID := args.ThreadID
 			var resolutionReasonPtr *string
 			if withResolutionReason {
-				resolutionReason, hasResolutionReason, err := OptionalParamOK[string](args, "resolutionReason")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				if hasResolutionReason {
-					resolutionReasonPtr = &resolutionReason
-				}
+				resolutionReasonPtr = args.ResolutionReason
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -742,11 +610,12 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 
 			if !withResolutionReason {
 				result, err := ResolveReviewThread(ctx, gqlClient, threadID, true)
-				return result, nil, err
+				return pullRequestMessageResult(result, err)
 			}
 			result, err := ResolveReviewThreadWithReason(ctx, gqlClient, threadID, resolutionReasonPtr, true)
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularResolveReviewThreadArguments(withResolutionReason),
 	)
 	switch {
 	case withResolutionReason:
@@ -796,11 +665,8 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			threadID, err := RequiredParam[string](args, "threadID")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularReviewThreadInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			threadID := args.ThreadID
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -808,8 +674,9 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 			}
 
 			result, err := ResolveReviewThread(ctx, gqlClient, threadID, false)
-			return result, nil, err
+			return pullRequestMessageResult(result, err)
 		},
+		normalizeGranularPullRequestArguments("unresolve"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -842,35 +709,18 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-						Minimum:     new(1.0),
 					},
 					"content": {
 						Type:        "string",
-						Description: "The emoji reaction type",
-						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
+						Description: "The emoji reaction type (+1, -1, laugh, confused, heart, hooray, rocket, or eyes)",
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "content"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			commentID, err := RequiredBigInt(args, "comment_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			content, err := RequiredParam[string](args, "content")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularAddPullRequestCommentReactionInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+			owner, repo, commentID, content := args.Owner, args.Repo, args.CommentID, args.Content
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -883,15 +733,17 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(MinimalResponse{
+			output := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", reaction.GetID()),
 				URL: fmt.Sprintf("%srepos/%s/%s/pulls/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
-			})
+			}
+			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText(string(r)), output, nil
 		},
+		normalizeGranularPullRequestArguments("add_reaction"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
@@ -924,35 +776,18 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-						Minimum:     new(1.0),
 					},
 					"reaction_id": {
 						Type:        "number",
 						Description: "The reaction ID to remove",
-						Minimum:     new(1.0),
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			commentID, err := RequiredBigInt(args, "comment_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			reactionID, err := RequiredBigInt(args, "reaction_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularRemovePullRequestCommentReactionInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+			owner, repo, commentID, reactionID := args.Owner, args.Repo, args.CommentID, args.ReactionID
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -967,8 +802,9 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from pull request review comment", resp, err), nil, nil
 			}
 
-			return utils.NewToolResultText("reaction successfully removed from pull request review comment"), nil, nil
+			return pullRequestMessageResult(utils.NewToolResultText("reaction successfully removed from pull request review comment"), nil)
 		},
+		normalizeGranularPullRequestArguments("remove_reaction"),
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
