@@ -80,6 +80,40 @@ func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	assert.Equal(t, 1, handlerCalls, "SDK validation must reject invalid arguments before calling the handler")
 }
 
+func TestTypedToolInferredInputSchemaUsesStablePointer(t *testing.T) {
+	type input struct {
+		Owner string `json:"owner"`
+		Repo  string `json:"repo"`
+	}
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "cached_schema_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, input) (*mcp.CallToolResult, struct{}, error) {
+			return nil, struct{}{}, nil
+		},
+	)
+	require.NotNil(t, tool.inferredInputSchema)
+	require.Nil(t, tool.inferredInputSchema.schema)
+
+	cache := mcp.NewSchemaCache()
+	var inferredSchema *jsonschema.Schema
+	for range 2 {
+		server := mcp.NewServer(
+			&mcp.Implementation{Name: "test-server", Version: "v0.0.1"},
+			&mcp.ServerOptions{SchemaCache: cache},
+		)
+		tool.RegisterFunc(server, nil)
+		require.NotNil(t, tool.inferredInputSchema.schema)
+		if inferredSchema == nil {
+			inferredSchema = tool.inferredInputSchema.schema
+		} else {
+			assert.Same(t, inferredSchema, tool.inferredInputSchema.schema, "re-registration must reuse the inferred schema pointer")
+		}
+	}
+	assert.Equal(t, "owner", inferredSchema.Properties["owner"].Extra["x-mcp-header"])
+	assert.Equal(t, "repo", inferredSchema.Properties["repo"].Extra["x-mcp-header"])
+}
+
 func TestTypedToolInputSchemasPreserveObjectOptionality(t *testing.T) {
 	type optionalPointerInput struct {
 		Owner  string  `json:"owner"`
@@ -636,6 +670,32 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 
 	require.Nil(t, tool.Tool.OutputSchema, "registration must not mutate the shared definition")
 	assert.NotContains(t, tool.Tool.Meta, typedOutputMetaKey)
+}
+
+func TestTypedScalarOutputProtocolGatePreservesHandlerText(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_scalar_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, string, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "custom legacy text"}},
+			}, "structured scalar", nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	legacy := connectTypedTestClient(t, server, "2025-11-25")
+
+	list, err := legacy.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+
+	result, err := legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_scalar_tool"})
+	require.NoError(t, err)
+	assert.Nil(t, result.StructuredContent)
+	require.Len(t, result.Content, 1, "SDK scalar fallback must not replace or duplicate handler text")
+	assert.Equal(t, "custom legacy text", result.Content[0].(*mcp.TextContent).Text)
 }
 
 func TestTypedToolSupportsExplicitRootUnionOutputSchema(t *testing.T) {
