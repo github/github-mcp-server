@@ -20,7 +20,7 @@ import (
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -6346,7 +6346,9 @@ func TestAddIssueCommentHandler(t *testing.T) {
 		{
 			name: "successful comment on issue",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"body": "This is a comment",
+				}).andThen(mockResponse(t, http.StatusCreated, mockComment)),
 			}),
 			requestArgs: map[string]any{
 				"owner":        "owner",

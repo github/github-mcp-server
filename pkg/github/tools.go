@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
