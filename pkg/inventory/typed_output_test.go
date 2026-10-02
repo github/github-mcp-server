@@ -639,12 +639,23 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
 	tool.RegisterFunc(server, nil)
 
+	modern := connectTypedTestClient(t, server, "")
 	legacy := connectTypedTestClient(t, server, "2025-11-25")
+	assert.Equal(t, ProtocolVersionMultiRoundTrip, modern.InitializeResult().ProtocolVersion)
+	assert.Equal(t, "2025-11-25", legacy.InitializeResult().ProtocolVersion)
+
 	legacyList, err := legacy.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, legacyList.Tools, 1)
 	assert.Nil(t, legacyList.Tools[0].OutputSchema)
 	assert.NotContains(t, legacyList.Tools[0].Meta, typedOutputMetaKey)
+
+	modernList, err := modern.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, modernList.Tools, 1)
+	assert.NotNil(t, modernList.Tools[0].OutputSchema)
+	assert.NotContains(t, modernList.Tools[0].Meta, typedOutputMetaKey)
+	assert.JSONEq(t, `{"type":["null","array"],"items":{"type":"string"}}`, mustMarshalJSON(t, modernList.Tools[0].OutputSchema))
 
 	legacyResult, err := legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
 	require.NoError(t, err)
@@ -652,17 +663,24 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 	require.Len(t, legacyResult.Content, 1, "the SDK's array fallback must not duplicate the old text")
 	assert.Equal(t, "legacy array text", legacyResult.Content[0].(*mcp.TextContent).Text)
 
-	modernServer := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
-	tool.RegisterFunc(modernServer, nil)
-	modern := connectTypedTestClient(t, modernServer, "")
-	assert.Equal(t, ProtocolVersionMultiRoundTrip, modern.InitializeResult().ProtocolVersion)
-	modernList, err := modern.ListTools(context.Background(), nil)
-	require.NoError(t, err)
-	require.Len(t, modernList.Tools, 1)
-	assert.NotNil(t, modernList.Tools[0].OutputSchema)
-	assert.NotContains(t, modernList.Tools[0].Meta, typedOutputMetaKey)
-
 	modernResult, err := modern.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `["one","two"]`, mustMarshalJSON(t, modernResult.StructuredContent))
+	require.Len(t, modernResult.Content, 1)
+	assert.Equal(t, "legacy array text", modernResult.Content[0].(*mcp.TextContent).Text)
+
+	legacyList, err = legacy.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, legacyList.Tools, 1)
+	assert.Nil(t, legacyList.Tools[0].OutputSchema, "modern discovery must not leak schema to an active legacy session")
+
+	legacyResult, err = legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
+	require.NoError(t, err)
+	assert.Nil(t, legacyResult.StructuredContent)
+	require.Len(t, legacyResult.Content, 1)
+	assert.Equal(t, "legacy array text", legacyResult.Content[0].(*mcp.TextContent).Text)
+
+	modernResult, err = modern.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
 	require.NoError(t, err)
 	assert.JSONEq(t, `["one","two"]`, mustMarshalJSON(t, modernResult.StructuredContent))
 	require.Len(t, modernResult.Content, 1)
