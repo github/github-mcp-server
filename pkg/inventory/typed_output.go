@@ -14,6 +14,8 @@ import (
 
 const typedOutputMetaKey = "github.com/github/github-mcp-server/typed-output"
 
+type inputNormalizationContextKey struct{}
+
 type typedOutputMetadata struct {
 	hasOutput   bool
 	arrayOutput bool
@@ -64,9 +66,33 @@ func isArrayOutput[Out any]() bool {
 
 // typedOutputMiddleware runs after SDK serialization so negotiated protocol
 // gating can cover both inferred tool schemas and generated structured output.
-func typedOutputMiddleware() mcp.Middleware {
+func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+			call, isCall := request.(*mcp.CallToolRequest)
+			if isCall && call.Params != nil {
+				if normalizedName, ok := ctx.Value(inputNormalizationContextKey{}).(string); !ok || normalizedName != call.Params.Name {
+					if normalizer, registered := normalizerByName[call.Params.Name]; registered {
+						if normalizer != nil {
+							arguments := call.Params.Arguments
+							if len(arguments) == 0 {
+								arguments = json.RawMessage(`{}`)
+							}
+							normalized, normalizeErr := normalizer(arguments)
+							if normalizeErr != nil {
+								return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", normalizeErr)), nil
+							}
+							callCopy := *call
+							paramsCopy := *call.Params
+							paramsCopy.Arguments = normalized
+							callCopy.Params = &paramsCopy
+							request = &callCopy
+						}
+						ctx = context.WithValue(ctx, inputNormalizationContextKey{}, call.Params.Name)
+					}
+				}
+			}
+
 			result, err := next(ctx, method, request)
 			if err != nil {
 				return nil, err

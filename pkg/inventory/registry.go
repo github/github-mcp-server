@@ -247,11 +247,12 @@ func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, 
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
 	schemas := make(map[string]listedToolSchemas, len(tools))
-	for _, tool := range tools {
-		if tool.registerTyped != nil || tool.Tool.OutputSchema != nil {
-			s.AddReceivingMiddleware(typedOutputMiddleware())
-			break
+	if len(tools) > 0 {
+		inputNormalizers := make(map[string]InputNormalizer, len(tools))
+		for _, tool := range tools {
+			inputNormalizers[tool.Tool.Name] = tool.inputNormalizer
 		}
+		s.AddReceivingMiddleware(typedOutputMiddleware(inputNormalizers))
 	}
 	for _, tool := range tools {
 		registered := tool.register(s, deps, middleware...)

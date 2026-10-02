@@ -56,6 +56,11 @@ type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
 // dependencies supplied when the tool is registered.
 type ToolHandlerMiddlewareProvider func(deps any) ToolHandlerMiddleware
 
+// InputNormalizer transforms raw tool arguments before the SDK validates and
+// decodes them. Use it only for compatibility normalization; the registered
+// input schema remains the contract clients see and the SDK validates.
+type InputNormalizer func(json.RawMessage) (json.RawMessage, error)
+
 // ToolsetID is a unique identifier for a toolset.
 // Using a distinct type provides compile-time type safety.
 type ToolsetID string
@@ -124,6 +129,7 @@ type ServerTool struct {
 
 	registerTyped              func(*mcp.Server, *mcp.Tool, ...ToolHandlerMiddleware)
 	handlerMiddlewareProviders []ToolHandlerMiddlewareProvider
+	inputNormalizer            InputNormalizer
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -187,6 +193,11 @@ func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddle
 	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
 	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
+	if addTypedOutputMiddleware {
+		s.AddReceivingMiddleware(typedOutputMiddleware(map[string]InputNormalizer{
+			st.Tool.Name: st.inputNormalizer,
+		}))
+	}
 	allMiddleware := make([]ToolHandlerMiddleware, 0, len(middleware)+len(st.handlerMiddlewareProviders)+1)
 	allMiddleware = append(allMiddleware, func(next mcp.ToolHandler) mcp.ToolHandler {
 		return st.wrapAvailabilityCheck(next)
@@ -194,16 +205,10 @@ func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddle
 	allMiddleware = append(allMiddleware, middleware...)
 	allMiddleware = append(allMiddleware, st.handlerMiddlewares(deps)...)
 	if st.registerTyped != nil {
-		if addTypedOutputMiddleware {
-			s.AddReceivingMiddleware(typedOutputMiddleware())
-		}
 		st.registerTyped(s, &toolCopy, allMiddleware...)
 		return &toolCopy
 	}
 
-	if addTypedOutputMiddleware && toolCopy.OutputSchema != nil {
-		s.AddReceivingMiddleware(typedOutputMiddleware())
-	}
 	handler := applyToolHandlerMiddleware(st.HandlerFunc(deps), allMiddleware...)
 	s.AddTool(&toolCopy, handler)
 	return &toolCopy
@@ -273,20 +278,31 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 //
 // When Out is concrete, registration uses mcp.AddTool so the SDK infers missing
 // schemas and validates typed input and output. Out=any retains the raw handler
-// registration path. Direct Handler calls keep their existing JSON decoding behavior.
+// registration path. Optional InputNormalizer callbacks can canonicalize raw
+// JSON before SDK validation without weakening the advertised schema. Direct
+// Handler calls apply the same normalization before decoding.
 //
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
-func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
+func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out], inputNormalizers ...InputNormalizer) ServerTool {
+	inputNormalizer := combineInputNormalizers(inputNormalizers)
 	serverTool := ServerTool{
-		Tool:    tool,
-		Toolset: toolset,
+		Tool:            tool,
+		Toolset:         toolset,
+		inputNormalizer: inputNormalizer,
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				rawArguments := req.Params.Arguments
 				if len(rawArguments) == 0 {
 					rawArguments = json.RawMessage(`{}`)
+				}
+				if inputNormalizer != nil {
+					normalized, err := inputNormalizer(rawArguments)
+					if err != nil {
+						return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", err)), nil
+					}
+					rawArguments = normalized
 				}
 
 				if bytes.Equal(bytes.TrimSpace(rawArguments), []byte("null")) {
@@ -321,6 +337,32 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		}
 	}
 	return serverTool
+}
+
+func combineInputNormalizers(normalizers []InputNormalizer) InputNormalizer {
+	var active []InputNormalizer
+	for _, normalizer := range normalizers {
+		if normalizer != nil {
+			active = append(active, normalizer)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return nil
+	case 1:
+		return active[0]
+	default:
+		return func(arguments json.RawMessage) (json.RawMessage, error) {
+			for _, normalizer := range active {
+				normalized, err := normalizer(arguments)
+				if err != nil {
+					return nil, err
+				}
+				arguments = normalized
+			}
+			return arguments, nil
+		}
+	}
 }
 
 func invalidArgumentsResult(err error) *mcp.CallToolResult {
