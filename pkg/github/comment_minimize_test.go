@@ -3,6 +3,8 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -165,11 +169,281 @@ func Test_CommentVisibilityToolSchemas(t *testing.T) {
 			assert.False(t, tool.Annotations.ReadOnlyHint)
 			assert.Equal(t, tc.toolset, tc.tool.Toolset.ID)
 			assert.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(tc.featureFlag)}, tc.tool.FeatureRule.Features())
+			assert.Equal(t, []string{"repo"}, tc.tool.ScopeAccess.Scopes)
+			assert.True(t, tc.tool.ScopeAccess.Visible([]string{"repo"}))
+			assert.False(t, tc.tool.ScopeAccess.Visible(nil))
+			assert.Equal(t, []string{"repo"}, tc.tool.ScopeAccess.Challenge(nil, nil))
+			assert.Empty(t, tc.tool.ScopeAccess.Challenge(nil, []string{"repo"}))
 
 			schema := tool.InputSchema.(*jsonschema.Schema)
 			assert.ElementsMatch(t, tc.expectedRequire, schema.Required)
 			assert.Len(t, schema.Properties, len(tc.expectedRequire), "every property should be required")
 		})
+	}
+}
+
+func TestCommentVisibilityTypedInputSchemaMatchesLegacy(t *testing.T) {
+	for _, target := range []commentVisibilityTarget{issueCommentVisibilityTarget, pullRequestReviewCommentVisibilityTarget, pullRequestReviewVisibilityTarget} {
+		for _, hide := range []bool{true, false} {
+			tool := commentVisibilityTool(translations.NullTranslationHelper, target, hide)
+			t.Run(tool.Tool.Name, func(t *testing.T) {
+				legacyProperties := map[string]*jsonschema.Schema{
+					"owner": {Type: "string", Description: "Repository owner (username or organization)"},
+					"repo":  {Type: "string", Description: "Repository name"},
+				}
+				maps.Copy(legacyProperties, target.properties())
+				legacyRequired := append([]string{"owner", "repo"}, target.required...)
+				if hide {
+					legacyProperties["classifier"] = &jsonschema.Schema{
+						Type:        "string",
+						Description: "The reason for hiding the comment",
+						Enum:        commentClassifiers,
+					}
+					legacyRequired = append(legacyRequired, "classifier")
+				}
+				legacy := &jsonschema.Schema{
+					Type:       "object",
+					Properties: legacyProperties,
+					Required:   legacyRequired,
+				}
+				got, err := json.Marshal(tool.Tool.InputSchema)
+				require.NoError(t, err)
+				want, err := json.Marshal(legacy)
+				require.NoError(t, err)
+				assert.JSONEq(t, string(want), string(got))
+			})
+		}
+	}
+}
+
+func connectCommentVisibilityClient(t *testing.T, server *mcp.Server, version string) *mcp.ClientSession {
+	t.Helper()
+	if version == "2025-11-25" {
+		server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+			return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+				if method == "server/discover" {
+					return nil, errors.New("use initialize for legacy protocol compatibility test")
+				}
+				return next(ctx, method, req)
+			}
+		})
+	}
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "comment-visibility-test", Version: "v1"}, nil)
+	session, err := client.Connect(context.Background(), commentVisibilityProtocolTransport{clientTransport, version}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+	require.Equal(t, version, session.InitializeResult().ProtocolVersion)
+	return session
+}
+
+type commentVisibilityProtocolTransport struct {
+	mcp.Transport
+	version string
+}
+
+func (t commentVisibilityProtocolTransport) Connect(ctx context.Context) (mcp.Connection, error) {
+	connection, err := t.Transport.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return commentVisibilityProtocolConnection{connection, t.version}, nil
+}
+
+type commentVisibilityProtocolConnection struct {
+	mcp.Connection
+	version string
+}
+
+func (c commentVisibilityProtocolConnection) Write(ctx context.Context, message jsonrpc.Message) error {
+	req, ok := message.(*jsonrpc.Request)
+	if !ok || req.Method != "initialize" {
+		return c.Connection.Write(ctx, message)
+	}
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return err
+	}
+	version, err := json.Marshal(c.version)
+	if err != nil {
+		return err
+	}
+	params["protocolVersion"] = version
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	requestCopy := *req
+	requestCopy.Params = encoded
+	return c.Connection.Write(ctx, &requestCopy)
+}
+
+func TestCommentVisibilityProtocols(t *testing.T) {
+	for _, version := range []string{"2025-11-25", "2026-07-28"} {
+		for _, target := range []commentVisibilityTarget{issueCommentVisibilityTarget, pullRequestReviewCommentVisibilityTarget, pullRequestReviewVisibilityTarget} {
+			for _, hide := range []bool{true, false} {
+				tool := commentVisibilityTool(translations.NullTranslationHelper, target, hide)
+				t.Run(version+"/"+tool.Tool.Name, func(t *testing.T) {
+					route := getIssueCommentRoute
+					switch target.name {
+					case "pull_request_review_comment":
+						route = getReviewCommentRoute
+					case "pull_request_review":
+						route = getReviewRoute
+					}
+					matcher := unminimizeCommentMatcher("NODE_1")
+					expected := MinimizeCommentResult{NodeID: "NODE_1"}
+					if hide {
+						matcher = minimizeCommentMatcher("NODE_1", "OFF_TOPIC", "off-topic")
+						expected.IsMinimized, expected.MinimizedReason = true, "off-topic"
+					}
+					deps := BaseDeps{
+						Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+							route: mockResponse(t, http.StatusOK, map[string]any{"node_id": "NODE_1"}),
+						})),
+						GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher)),
+					}
+					inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
+						WithToolsets([]string{"all"}).
+						WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
+					require.NoError(t, err)
+					server := mcp.NewServer(&mcp.Implementation{Name: "visibility-test", Version: "v1"}, nil)
+					server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+					inv.RegisterTools(context.Background(), server, deps)
+					session := connectCommentVisibilityClient(t, server, version)
+					list, err := session.ListTools(context.Background(), nil)
+					require.NoError(t, err)
+					require.Len(t, list.Tools, 1)
+					if version == "2025-11-25" {
+						assert.Nil(t, list.Tools[0].OutputSchema)
+					} else {
+						assert.NotNil(t, list.Tools[0].OutputSchema)
+					}
+					args := map[string]any{"owner": "owner", "repo": "repo", "extra": "ignored"}
+					if target.name == "pull_request_review" {
+						args["pullNumber"], args["review_id"] = "42", "3"
+					} else {
+						args["comment_id"] = "1e0"
+					}
+					if hide {
+						args["classifier"] = "oFf_ToPiC"
+					}
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: args})
+					require.NoError(t, err)
+					require.False(t, result.IsError, result)
+					text, err := json.Marshal(expected)
+					require.NoError(t, err)
+					require.Len(t, result.Content, 1)
+					assert.Equal(t, string(text), getTextResult(t, result).Text)
+					if version == "2025-11-25" {
+						assert.Nil(t, result.StructuredContent)
+					} else {
+						structured, err := json.Marshal(result.StructuredContent)
+						require.NoError(t, err)
+						assert.JSONEq(t, string(text), string(structured))
+						schema := tool.Tool.OutputSchema.(*jsonschema.Schema)
+						resolved, err := schema.Resolve(nil)
+						require.NoError(t, err)
+						var value any
+						require.NoError(t, json.Unmarshal(structured, &value))
+						require.NoError(t, resolved.Validate(value))
+					}
+					invalid := maps.Clone(args)
+					delete(invalid, "owner")
+					result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: invalid})
+					require.NoError(t, err)
+					require.True(t, result.IsError)
+					assert.Nil(t, result.StructuredContent)
+					assert.Contains(t, getErrorResult(t, result).Text, "missing required parameter: owner")
+				})
+			}
+		}
+	}
+}
+
+func TestCommentVisibilityProtocolGating(t *testing.T) {
+	for _, version := range []string{"2025-11-25", "2026-07-28"} {
+		for _, target := range []commentVisibilityTarget{issueCommentVisibilityTarget, pullRequestReviewCommentVisibilityTarget, pullRequestReviewVisibilityTarget} {
+			for _, hide := range []bool{true, false} {
+				tool := commentVisibilityTool(translations.NullTranslationHelper, target, hide)
+				for _, gate := range []string{"feature disabled", "missing repo scope", "read only"} {
+					t.Run(version+"/"+tool.Tool.Name+"/"+gate, func(t *testing.T) {
+						builder := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
+							WithToolsets([]string{"all"}).
+							WithFeatureChecker(func(context.Context, string) (bool, error) { return gate != "feature disabled", nil })
+						if gate == "missing repo scope" {
+							builder.WithFilter(CreateToolScopeFilter([]string{"public_repo"}))
+						}
+						if gate == "read only" {
+							builder.WithReadOnly(true)
+						}
+						inv, err := builder.Build()
+						require.NoError(t, err)
+						server := mcp.NewServer(&mcp.Implementation{Name: "visibility-gates", Version: "v1"}, nil)
+						inv.RegisterTools(context.Background(), server, nil)
+						session := connectCommentVisibilityClient(t, server, version)
+						list, err := session.ListTools(context.Background(), nil)
+						require.NoError(t, err)
+						assert.Empty(t, list.Tools)
+						result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name})
+						if err == nil {
+							require.NotNil(t, result)
+							assert.True(t, result.IsError)
+							assert.Nil(t, result.StructuredContent)
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestNormalizeCommentVisibilityInput(t *testing.T) {
+	for _, target := range []commentVisibilityTarget{issueCommentVisibilityTarget, pullRequestReviewCommentVisibilityTarget, pullRequestReviewVisibilityTarget} {
+		for _, tc := range []struct {
+			name  string
+			value any
+			want  int64
+		}{
+			{"number", float64(1), 1},
+			{"string", "1", 1},
+			{"decimal string", "1.0", 1},
+			{"exponent string", "1e0", 1},
+			{"signed string", "+1", 1},
+			{"leading zero string", "001", 1},
+			{"legacy float precision", "9007199254740993", 9007199254740992},
+			{"largest round-trippable positive ID", "9223372036854774784", 9223372036854774784},
+		} {
+			t.Run(target.name+"/"+tc.name, func(t *testing.T) {
+				args := map[string]any{"owner": "owner", "repo": "repo", "classifier": "sPaM"}
+				for _, name := range target.required {
+					args[name] = tc.value
+				}
+				if target.name == "pull_request_review" {
+					args["pullNumber"] = "42"
+				}
+				input, err := normalizeCommentVisibilityInput(args, target, true)
+				require.NoError(t, err)
+				tool := commentVisibilityTool(translations.NullTranslationHelper, target, true)
+				schema, err := tool.Tool.InputSchema.(*jsonschema.Schema).Resolve(nil)
+				require.NoError(t, err)
+				encoded, err := json.Marshal(input)
+				require.NoError(t, err)
+				var canonical any
+				require.NoError(t, json.Unmarshal(encoded, &canonical))
+				require.NoError(t, schema.Validate(canonical))
+				assert.Equal(t, "SPAM", input.Classifier)
+				if target.name == "pull_request_review" {
+					assert.Equal(t, tc.want, input.ReviewID)
+					assert.Equal(t, 42, input.PullNumber)
+				} else {
+					assert.Equal(t, tc.want, input.CommentID)
+				}
+			})
+		}
 	}
 }
 
@@ -179,7 +453,7 @@ func Test_HideAndUnhideComments(t *testing.T) {
 	review := mockResponse(t, http.StatusOK, &github.PullRequestReview{ID: new(int64(3)), NodeID: new("PRR_3")})
 	notFound := mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`)
 
-	tests := []struct {
+	type visibilityTestCase struct {
 		name           string
 		tool           inventory.ServerTool
 		restHandlers   map[string]http.HandlerFunc
@@ -187,7 +461,8 @@ func Test_HideAndUnhideComments(t *testing.T) {
 		requestArgs    map[string]any
 		expectedResult MinimizeCommentResult
 		expectedErrMsg string
-	}{
+	}
+	tests := []visibilityTestCase{
 		{
 			name:           "hide issue comment",
 			tool:           GranularHideIssueComment(translations.NullTranslationHelper),
@@ -354,30 +629,69 @@ func Test_HideAndUnhideComments(t *testing.T) {
 			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42)},
 			expectedErrMsg: "review_id",
 		},
+		{
+			name:           "unhide ignores classifier and unrelated identifiers",
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			restHandlers:   map[string]http.HandlerFunc{getIssueCommentRoute: issueComment},
+			gqlMatchers:    []githubv4mock.Matcher{unminimizeCommentMatcher("IC_1")},
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": "1.0", "classifier": false, "review_id": "invalid", "pullNumber": nil},
+			expectedResult: MinimizeCommentResult{NodeID: "IC_1"},
+		},
+	}
+	for _, tc := range []struct {
+		name  string
+		value any
+		error string
+	}{
+		{"zero", float64(0), "missing required parameter: comment_id"},
+		{"string zero", "0", "missing required parameter: comment_id"},
+		{"fractional", 1.5, "non-integer numeric value"},
+		{"fractional string", "1.5", "non-integer numeric value"},
+		{"invalid string", "abc", "invalid numeric value"},
+		{"null", nil, "expected number, got <nil>"},
+		{"boolean", true, "expected number, got bool"},
+		{"string NaN", "NaN", "non-finite numeric value"},
+		{"string infinity", "+Inf", "non-finite numeric value"},
+		{"overflow", "9223372036854777856", "too large to fit in int64"},
+	} {
+		tests = append(tests, visibilityTestCase{
+			name:           "issue ID " + tc.name,
+			tool:           GranularUnhideIssueComment(translations.NullTranslationHelper),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "comment_id": tc.value},
+			expectedErrMsg: tc.error,
+		})
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			deps := BaseDeps{
-				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(tc.restHandlers)),
-				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.gqlMatchers...)),
-			}
-			handler := tc.tool.Handler(deps)
+		for _, version := range []string{"2025-11-25", "2026-07-28"} {
+			t.Run(version+"/"+tc.name, func(t *testing.T) {
+				deps := BaseDeps{
+					Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(tc.restHandlers)),
+					GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.gqlMatchers...)),
+				}
+				inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tc.tool}).
+					WithToolsets([]string{"all"}).
+					WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
+				require.NoError(t, err)
+				server := mcp.NewServer(&mcp.Implementation{Name: "visibility-behavior", Version: "v1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				inv.RegisterTools(context.Background(), server, deps)
+				session := connectCommentVisibilityClient(t, server, version)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool.Tool.Name, Arguments: tc.requestArgs})
+				require.NoError(t, err)
 
-			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
+				if tc.expectedErrMsg != "" {
+					require.True(t, result.IsError)
+					assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+					assert.Nil(t, result.StructuredContent)
+					return
+				}
 
-			if tc.expectedErrMsg != "" {
-				require.True(t, result.IsError)
-				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
-				return
-			}
-
-			require.False(t, result.IsError, getTextResult(t, result).Text)
-			var got MinimizeCommentResult
-			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &got))
-			assert.Equal(t, tc.expectedResult, got)
-		})
+				require.False(t, result.IsError, getTextResult(t, result).Text)
+				var got MinimizeCommentResult
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &got))
+				assert.Equal(t, tc.expectedResult, got)
+			})
+		}
 	}
 }
