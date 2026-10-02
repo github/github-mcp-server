@@ -625,8 +625,7 @@ Use this tool to get details about individual projects, project fields, project 
 					}
 					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 					if resolveErr != nil {
-						var structured *ghErrors.StructuredResolutionError
-						if errors.As(resolveErr, &structured) {
+						if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 						}
 						return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -984,8 +983,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					// Resolve the item by (item_owner, item_repo, issue_number).
 					resolvedItemID, resolveErr := resolveItemIDFromIssueArgs(ctx, gqlClient, owner, ownerType, projectNumber, args)
 					if resolveErr != nil {
-						var structured *ghErrors.StructuredResolutionError
-						if errors.As(resolveErr, &structured) {
+						if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 						}
 						return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -1252,8 +1250,7 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 	if len(fieldNames) > 0 {
 		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 		if resolveErr != nil {
-			var structured *ghErrors.StructuredResolutionError
-			if errors.As(resolveErr, &structured) {
+			if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -1446,8 +1443,7 @@ func fetchProjectItem(ctx context.Context, client *github.Client, owner, ownerTy
 func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
 	updatePayload, issueField, err := buildUpdateProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, fieldValue)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -1469,8 +1465,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 
 		issueID, resolveErr := projectItemIssueID(projectItem)
 		if resolveErr != nil {
-			var structured *ghErrors.StructuredResolutionError
-			if errors.As(resolveErr, &structured) {
+			if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -2136,8 +2131,7 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	}
 	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -2267,8 +2261,7 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 
 	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -142,8 +143,8 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
-	for i := len(middleware) - 1; i >= 0; i-- {
-		handler = middleware[i](handler)
+	for _, m := range slices.Backward(middleware) {
+		handler = m(handler)
 	}
 	handler = st.wrapAvailabilityCheck(handler)
 	// Make a shallow copy of the tool to avoid mutating the original
