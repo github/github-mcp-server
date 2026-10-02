@@ -17,7 +17,16 @@
         "type": "string"
       },
       "content": {
-        "description": "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API.",
+        "description": "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. If the content is binary (for example an image), pass it base64-encoded together with encoding \"base64\".",
+        "type": "string"
+      },
+      "encoding": {
+        "default": "utf-8",
+        "description": "Encoding of the content parameter. \"utf-8\" (default) writes the content as-is. \"base64\" decodes the content once and writes the resulting raw bytes; use it for binary files such as images, whose bytes cannot be represented in a JSON string.",
+        "enum": [
+          "utf-8",
+          "base64"
+        ],
         "type": "string"
       },
       "message": {

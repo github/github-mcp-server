@@ -12,12 +12,21 @@
         "type": "string"
       },
       "files": {
-        "description": "Array of file objects to push, each object with path (string) and content (string)",
+        "description": "Array of file objects to push, each with path (string), content (string), and optional encoding (\"utf-8\" or \"base64\"; defaults to \"utf-8\")",
         "items": {
           "additionalProperties": false,
           "properties": {
             "content": {
-              "description": "file content",
+              "description": "file content; when encoding is \"base64\", this is the base64-encoded content of the file",
+              "type": "string"
+            },
+            "encoding": {
+              "default": "utf-8",
+              "description": "Encoding of the file content. \"utf-8\" (default) writes the content as-is. \"base64\" decodes the content once and writes the resulting raw bytes; use it for binary files such as images, whose bytes cannot be represented in a JSON string.",
+              "enum": [
+                "utf-8",
+                "base64"
+              ],
               "type": "string"
             },
             "path": {
