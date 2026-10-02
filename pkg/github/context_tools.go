@@ -2,7 +2,7 @@ package github
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -18,6 +18,31 @@ import (
 
 // GetMeUIResourceURI is the URI for the get_me tool's MCP App UI resource.
 const GetMeUIResourceURI = "ui://github-mcp-server/get-me"
+
+type GetMeInput struct{}
+
+type GetTeamsInput struct {
+	User string `json:"user,omitempty" jsonschema:"Username to get teams for. If not provided, uses the authenticated user."`
+}
+
+type GetTeamMembersInput struct {
+	Org      string `json:"org" jsonschema:"Organization login (owner) that contains the team."`
+	TeamSlug string `json:"team_slug" jsonschema:"Team slug"`
+}
+
+func contextToolInputSchema[In any](descriptions map[string]string) *jsonschema.Schema {
+	schema, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate context tool input schema: %v", err))
+	}
+	if schema.Properties == nil {
+		schema.Properties = make(map[string]*jsonschema.Schema)
+	}
+	for name, description := range descriptions {
+		schema.Properties[name].Description = description
+	}
+	return schema
+}
 
 // UserDetails contains additional fields about a GitHub user not already
 // present in MinimalUser. Used by get_me context tool but omitted from search_users.
@@ -43,7 +68,7 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetMeInput, MinimalUser](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
@@ -52,9 +77,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
-			// Use json.RawMessage to ensure "properties" is included even when empty.
-			// OpenAI strict mode requires the properties field to be present.
-			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+			InputSchema: contextToolInputSchema[GetMeInput](nil),
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
@@ -63,10 +86,10 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.NoScopes(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ GetMeInput) (*mcp.CallToolResult, MinimalUser, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), MinimalUser{}, nil
 			}
 
 			user, res, err := client.Users.Get(ctx, "")
@@ -75,7 +98,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"failed to get user",
 					res,
 					err,
-				), nil, nil
+				), MinimalUser{}, nil
 			}
 
 			// Create minimal user representation instead of returning full user object
@@ -107,7 +130,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := MarshalledTextResult(minimalUser)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGetMe())
-			return result, nil, nil
+			return result, minimalUser, nil
 		},
 	)
 }
@@ -124,7 +147,7 @@ type OrganizationTeams struct {
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetTeamsInput, []OrganizationTeams](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_teams",
@@ -133,26 +156,15 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"user": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
-					},
-				},
-			},
+			InputSchema: contextToolInputSchema[GetTeamsInput](map[string]string{
+				"user": t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
+			}),
 		},
 		scopes.RequireAll(scopes.ReadOrg),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			user, err := OptionalParam[string](args, "user")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamsInput) (*mcp.CallToolResult, []OrganizationTeams, error) {
 			var username string
-			if user != "" {
-				username = user
+			if args.User != "" {
+				username = args.User
 			} else {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
@@ -221,13 +233,13 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). Org team rosters are visible only
 			// to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
-			return result, nil, nil
+			return result, organizations, nil
 		},
 	)
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetTeamMembersInput, []string](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_team_members",
@@ -236,33 +248,13 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"org": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
-					},
-					"team_slug": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
-					},
-				},
-				Required: []string{"org", "team_slug"},
-			},
+			InputSchema: contextToolInputSchema[GetTeamMembersInput](map[string]string{
+				"org":       t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
+				"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
+			}),
 		},
 		scopes.RequireAll(scopes.ReadOrg),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			org, err := RequiredParam[string](args, "org")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			teamSlug, err := RequiredParam[string](args, "team_slug")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamMembersInput) (*mcp.CallToolResult, []string, error) {
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
@@ -280,8 +272,8 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				} `graphql:"organization(login: $org)"`
 			}
 			vars := map[string]any{
-				"org":      githubv4.String(org),
-				"teamSlug": githubv4.String(teamSlug),
+				"org":      githubv4.String(args.Org),
+				"teamSlug": githubv4.String(args.TeamSlug),
 			}
 			if err := gqlClient.Query(ctx, &q, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get team members", err), nil, nil
@@ -297,7 +289,7 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). A team's member roster is visible
 			// only to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
-			return result, nil, nil
+			return result, members, nil
 		},
 	)
 }
