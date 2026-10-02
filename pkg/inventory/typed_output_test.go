@@ -31,6 +31,93 @@ type typedTestOutput struct {
 	Query string `json:"query"`
 }
 
+func TestTypedExplicitErrorOutputProtocolGate(t *testing.T) {
+	for _, protocol := range []string{ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			tool := NewServerToolWithContextHandler(
+				mcp.Tool{Name: "pending", OutputSchema: &jsonschema.Schema{
+					Type: "object", Required: []string{"query"},
+					Properties:           map[string]*jsonschema.Schema{"query": {Type: "string", Enum: []any{"", "awaiting"}}},
+					AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+				}},
+				testToolsetMetadata("test"),
+				func(_ context.Context, _ *mcp.CallToolRequest, input typedTestOutput) (*mcp.CallToolResult, typedTestOutput, error) {
+					result := &mcp.CallToolResult{
+						IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "wait for input"}},
+					}
+					switch input.Query {
+					case "explicit":
+						result.StructuredContent = typedTestOutput{Query: "awaiting"}
+					case "invalid":
+						return result, typedTestOutput{Query: "invalid"}, nil
+					}
+					return result, typedTestOutput{}, nil
+				},
+			)
+			server := mcp.NewServer(&mcp.Implementation{Name: "explicit-error", Version: "v1"}, nil)
+			tool.RegisterFunc(server, nil)
+			if protocol == "" {
+				server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+					return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+						if call, ok := request.(*mcp.CallToolRequest); ok {
+							call.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: ""}
+						}
+						return next(ctx, method, request)
+					}
+				})
+			}
+			version := protocol
+			if version == "" || version == ProtocolVersionMultiRoundTrip {
+				version = ""
+			}
+			session := connectTypedTestClient(t, server, version)
+			for _, query := range []string{"explicit", "ordinary", "invalid"} {
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+					Name: "pending", Arguments: typedTestOutput{Query: query},
+				})
+				if query == "invalid" {
+					require.Error(t, err, "explicit output must still pass SDK schema validation")
+					continue
+				}
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				require.Len(t, result.Content, 1)
+				assert.Equal(t, "wait for input", result.Content[0].(*mcp.TextContent).Text)
+				if query == "explicit" && protocol == ProtocolVersionMultiRoundTrip {
+					assert.JSONEq(t, `{"query":"awaiting"}`, mustMarshalJSON(t, result.StructuredContent))
+				} else {
+					assert.Nil(t, result.StructuredContent, "never expose an SDK-generated error fallback")
+				}
+			}
+		})
+	}
+}
+
+func TestTypedInputRequestsBypassOutputGate(t *testing.T) {
+	pending := &mcp.CallToolResult{
+		StructuredContent: typedTestOutput{Query: "awaiting"},
+		InputRequests:     mcp.InputRequestMap{"form": &mcp.ElicitParams{Mode: "form"}},
+	}
+	handler := wrapTypedHandler(func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, typedTestOutput, error) {
+		return pending, typedTestOutput{}, nil
+	})
+	result, _, err := handler(context.Background(), nil, struct{}{})
+	require.NoError(t, err)
+	assert.Same(t, pending, result)
+	assert.NotContains(t, result.Meta, typedOutputMetaKey)
+	for _, protocol := range []string{ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
+		middleware := typedOutputMiddleware(nil)(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			return result, nil
+		})
+		gated, err := middleware(context.Background(), MCPMethodToolsCall, &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{Name: "pending", Meta: mcp.Meta{mcp.MetaKeyProtocolVersion: protocol}},
+		})
+		require.NoError(t, err)
+		assert.Same(t, pending, gated)
+		assert.Len(t, pending.InputRequests, 1)
+	}
+}
+
 func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	handlerCalls := 0
 	tool := NewServerToolWithContextHandler(
