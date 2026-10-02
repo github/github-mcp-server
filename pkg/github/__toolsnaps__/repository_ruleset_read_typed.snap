@@ -5,6 +5,18 @@
     "title": "Read repository rulesets"
   },
   "description": "Read rulesets at the repository, organization, or enterprise level, and rule suites at the repository or organization level. Select the level with the 'level' parameter and the operation with the 'method' parameter.",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAC/klEQVRIieWVz2sUZxjHP887UzcqRmixelC6SSZhN9HdtQUvKq5SouKhFBo8qAextJU2Jj14sCKlgiiIYNAUWrAtvbSiByk9SC/Z/AHWbHfXjOusLq1CWjD422ycmacHk20Ss13TnsTvaXje5/v9PDO8PAMvlZx46ksnnuifi8eeG0LjIHNy1O1u6UhskVCSE90fPOXwNYAazZYKv138T4BYLPaaL5F+YHudGc7aWvnYdd3bNQFObPUGJPwFmDfjvILqF8uXvXo8k8n4Tjw5AOANZzem02n75sjofkQ+ByIzfOOo6fTcy4M2QMQaz1UC+wgQRdgNXBP4XoLwfLGYcz332ckymYwPHG1d+eYFguA9hV1AK8q3QDlijecADEChUBj13OxhFW5O+JcFFftUsZibJXq6ruV/HdYnDX3AUp4m/uG52cOFQmG0CgCIRqMNAh8BeWCRmefvqRdelT32PtAI5FH2RqPRhsmjKsCe37gTWIJKN+ggwr50Ov0c17jLQvgEyGjIPmCJPb9xxzMAwXQDOc8dGlTMSeCNWyOj79SLdzquvgs0IXKydDU7AAyB9DJxgQxAW3z124omVOUEoKXhoZ9ASqFITz2AhNID3PCutP4MICp9wMrm9sSmKiAg7EX5Kxi7c3bCFwKnBda3dSTX1Apvia16S2GdoH1wLgBQ/8EPwIhR6QUwzfFUq8BWoL9cLo9Nmq3w8RngbhjSXXN6zKfA/aDyyneTNc/zKoh8BWxra1sVsw10AgZhbUs8ud2IlkNhYRDIOiAANtf+PnQCvon4B5z21CUleCBqNaFsBCS0rE22//jOGXvB4tdRPhT4UVUQBYQQJYPowVr5oZFtRvUQSg+qDYIBFJASogf9R3e/mbKLuiynvZhAdAWBuRfY/vCNfP7PqYFTV8XUeiKRWPjwCU2i1qLQMreuFy79XvOt/01OPDkwCXlemfot/08117XTnupCtXlG97T/wT91ue5dGTo3W07tVaD6GZCaXqs+HZvRexmYFfDi629RIBtl1zP+PwAAAABJRU5ErkJggg==",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAB20lEQVRIieWVz4uNYRTHP8+9t9ya7qiZNUWpmQ0LkaLGRcOOQpaUWbBipxE3439gacNiyg4LG12xRoNSmqZJidkxKTPl+lg4V++89+eblXxX7znne77fc56etwf+K6i31VtFeioFPSYL8gcbqMeAXRFujdyViBdSSo+LmraFx9V5B2NeHR8kNqWud2leU2fVSvCaajO+K1Fb69K3rk5lDcbUhnonCO/Va+pEbpA/BpncpHo9egyNhjrWbZObQVpVN3epdxhEflT9Gr1z2VopQ6oCF4C3QA043/dcN2IGGI3ei6HVMcVMTHBQfaout8++3wZqWV2KWj00OodTF9TXalJPBPHkEAangns84lfqGzVlSUeCdDbikrqoPhvC4HlsUI74XGgdzpIeqSvZs1MvB3FvLwN1d3AuZXKb1E/qw3Zih9pSG7nJauoX9W4fg3vdbpx6Q/2pTlSAaX7fpv3qGWAZGAEOAC3gKL0xDfwAZtUXwDdgG1AHEnAItarOqZ/diJb6RN3XZ4M96gP1e653Ub2qVlOGXAZ2AluAVeBdSmklt3oTIKVUz+VHYvIa8DGl9KHP1r3R7RYNQmkw5e/Q8z1QTwPbc+n8e9DGUkrpfiHn+COHxctC4v8UfgH+YI1qigrwsQAAAABJRU5ErkJggg==",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "additionalProperties": true,
     "properties": {
@@ -123,7 +135,8 @@
       },
       "owner": {
         "description": "Repository owner. Required when level is 'repository'.",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "page": {
         "anyOf": [
@@ -166,7 +179,8 @@
       },
       "repo": {
         "description": "Repository name. Required when level is 'repository'.",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       },
       "repository_name": {
         "anyOf": [
