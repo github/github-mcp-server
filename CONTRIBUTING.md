@@ -29,6 +29,17 @@ These are one time installations required to be able to test your changes locall
 1. Install Go 1.26.8 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
 2. [Install golangci-lint v2.14.0](https://golangci-lint.run/welcome/install/#local-installation), or let `script/lint` install the repository-pinned version. The pinned version supports both Go 1.26 and Go 1.27.
 
+### UI development
+
+Use Node.js 26.x for the UI in `ui/`. This matches the Docker UI build stage
+and `@types/node`; GitHub Actions reads the Node version from `ui/package.json`.
+Node 26 is a supported Current release, with LTS scheduled for October 2026.
+
+From `ui/`, run `npm ci`, `npm run typecheck`, and `npm run build`.
+Type checking uses the native TypeScript 7 compiler through `tsc`; Vite handles
+transpilation and bundling separately. No TypeScript compiler API integration,
+typescript-eslint, or ts-node is required.
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository
