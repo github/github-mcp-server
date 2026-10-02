@@ -163,12 +163,13 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		},
 	}
 
-	return NewTool(
+	return NewTool[map[string]any, *AssignCopilotToIssueOutput](
 		ToolsetMetadataCopilot,
 		mcp.Tool{
-			Name:        "assign_copilot_to_issue",
-			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
-			Icons:       octicons.Icons("copilot"),
+			Name:         "assign_copilot_to_issue",
+			OutputSchema: assignCopilotToIssueOutputSchema(),
+			Description:  t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
+			Icons:        octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
 				ReadOnlyHint:   false,
@@ -202,7 +203,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *AssignCopilotToIssueOutput, error) {
 			var params struct {
 				Owner              string `mapstructure:"owner"`
 				Repo               string `mapstructure:"repo"`
@@ -445,8 +446,26 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), result, nil
-		})
+			output := &AssignCopilotToIssueOutput{
+				IssueNumber: int(updateIssueMutation.UpdateIssue.Issue.Number),
+				IssueURL:    string(updateIssueMutation.UpdateIssue.Issue.URL),
+				Message:     result["message"].(string),
+				Owner:       params.Owner,
+				Repo:        params.Repo,
+			}
+			if note, ok := result["note"].(string); ok {
+				output.Note = note
+			}
+			if linkedPR != nil {
+				output.PullRequest = &CopilotPullRequestOutput{
+					Number: linkedPR.Number,
+					State:  linkedPR.State,
+					Title:  linkedPR.Title,
+					URL:    linkedPR.URL,
+				}
+			}
+			return utils.NewToolResultText(string(r)), output, nil
+		}, normalizeAssignCopilotToIssueArguments)
 }
 
 // copilotBotAssignee is the minimal shape needed for the copilot-swe-agent bot
@@ -525,12 +544,13 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 		},
 	}
 
-	return NewTool(
+	return NewTool[map[string]any, *AssignCopilotToIssueWithIntentOutput](
 		ToolsetMetadataCopilotIssueIntents,
 		mcp.Tool{
-			Name:        "assign_copilot_to_issue_with_intent",
-			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_WITH_INTENT_DESCRIPTION", description.String()),
-			Icons:       octicons.Icons("copilot"),
+			Name:         "assign_copilot_to_issue_with_intent",
+			OutputSchema: assignCopilotToIssueWithIntentOutputSchema(),
+			Description:  t("TOOL_ASSIGN_COPILOT_TO_ISSUE_WITH_INTENT_DESCRIPTION", description.String()),
+			Icons:        octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_WITH_INTENT_USER_TITLE", "Assign Copilot to issue with intent"),
 				ReadOnlyHint:   false,
@@ -579,12 +599,18 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *AssignCopilotToIssueWithIntentOutput, error) {
 			// Presence-check is_suggestion before decoding: mapstructure defaults a
 			// missing bool to false, which would silently launch Copilot instead of
 			// recording a suggestion. Require callers to make the choice explicit.
 			if _, ok := args["is_suggestion"]; !ok {
 				return utils.NewToolResultError("is_suggestion is required"), nil, nil
+			}
+			if rationale, ok := args["_compat_rationale"].(string); ok {
+				args["rationale"] = rationale
+			}
+			if confidence, ok := args["_compat_confidence"].(string); ok {
+				args["confidence"] = confidence
 			}
 
 			var params struct {
@@ -755,7 +781,14 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
 				}
-				return utils.NewToolResultText(string(r)), result, nil
+				return utils.NewToolResultText(string(r)), &AssignCopilotToIssueWithIntentOutput{
+					IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
+					IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
+					IsSuggestion: params.IsSuggestion,
+					Message:      result["message"].(string),
+					Owner:        params.Owner,
+					Repo:         params.Repo,
+				}, nil
 			}
 
 			// Direct-assignment path: poll for a linked PR created by Copilot after the assignment.
@@ -810,8 +843,27 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), result, nil
-		})
+			output := &AssignCopilotToIssueWithIntentOutput{
+				IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
+				IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
+				IsSuggestion: params.IsSuggestion,
+				Message:      result["message"].(string),
+				Owner:        params.Owner,
+				Repo:         params.Repo,
+			}
+			if note, ok := result["note"].(string); ok {
+				output.Note = note
+			}
+			if linkedPR != nil {
+				output.PullRequest = &CopilotPullRequestOutput{
+					Number: linkedPR.Number,
+					State:  linkedPR.State,
+					Title:  linkedPR.Title,
+					URL:    linkedPR.URL,
+				}
+			}
+			return utils.NewToolResultText(string(r)), output, nil
+		}, normalizeAssignCopilotToIssueWithIntentArguments)
 }
 
 type ReplaceActorsForAssignableInput struct {
@@ -881,12 +933,13 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewTool[map[string]any, CopilotReviewOutput](
 		ToolsetMetadataCopilot,
 		mcp.Tool{
-			Name:        "request_copilot_review",
-			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
-			Icons:       octicons.Icons("copilot"),
+			Name:         "request_copilot_review",
+			OutputSchema: &jsonschema.Schema{Type: "null"},
+			Description:  t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
+			Icons:        octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
 				ReadOnlyHint: false,
@@ -894,25 +947,25 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, CopilotReviewOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CopilotReviewOutput{}, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CopilotReviewOutput{}, nil
 			}
 
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CopilotReviewOutput{}, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), CopilotReviewOutput{}, nil
 			}
 
 			_, resp, err := client.PullRequests.RequestReviewers(
@@ -930,21 +983,21 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 					copilotReviewErrMsg(ctx, client, "failed to request copilot review", owner, repo, pullNumber, resp, err),
 					resp,
 					err,
-				), nil, nil
+				), CopilotReviewOutput{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), CopilotReviewOutput{}, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), CopilotReviewOutput{}, nil
 			}
 
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), nil, nil
-		})
+			return utils.NewToolResultText(""), CopilotReviewOutput{}, nil
+		}, normalizeRequestCopilotReviewArguments)
 }
 
 // copilotReviewErrMsg disambiguates the bare 404 this endpoint returns when the

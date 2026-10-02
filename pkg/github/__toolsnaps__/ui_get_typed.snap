@@ -1,0 +1,408 @@
+{
+  "_meta": {
+    "ui": {
+      "visibility": [
+        "app"
+      ]
+    }
+  },
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get UI data"
+  },
+  "description": "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers).",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "The type of data to fetch",
+        "enum": [
+          "labels",
+          "assignees",
+          "milestones",
+          "issue_types",
+          "branches",
+          "issue_fields",
+          "reviewers"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (required for all methods)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "ui_get",
+  "outputSchema": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "labels": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "color",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "totalCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "labels",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assignees": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "login": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login",
+                "avatar_url"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "totalCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assignees",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "milestones": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "due_on": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "open_issues": {
+                  "type": "integer"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "title",
+                "description",
+                "state",
+                "open_issues",
+                "due_on"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "totalCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "milestones",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "id": {
+              "type": "integer"
+            },
+            "is_enabled": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "branches": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "protected": {
+                  "type": "boolean"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "sha",
+                "protected"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "totalCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "branches",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data_type": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "options": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description",
+                      "color"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "data_type",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "totalCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fields",
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "teams": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "org": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "org"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "totalCount": {
+            "type": "integer"
+          },
+          "users": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "login": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login",
+                "avatar_url"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "users",
+          "teams",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      }
+    ]
+  }
+}
