@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,6 +78,164 @@ func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Equal(t, 1, handlerCalls, "SDK validation must reject invalid arguments before calling the handler")
+}
+
+func TestTypedToolInputSchemasPreserveObjectOptionality(t *testing.T) {
+	type optionalPointerInput struct {
+		Owner  string  `json:"owner"`
+		Filter *string `json:"filter,omitempty"`
+		Limit  int     `json:"limit,omitempty"`
+	}
+
+	const emptyInputSchema = `{"type":"object"}`
+	const optionalPointerInputSchema = `{
+		"type":"object",
+		"properties":{
+			"owner":{"type":"string"},
+			"filter":{"type":"string"},
+			"limit":{"type":"integer"}
+		},
+		"required":["owner"]
+	}`
+
+	legacyEmptyTool := NewServerTool(
+		mcp.Tool{Name: "legacy_empty_input", InputSchema: json.RawMessage(emptyInputSchema)},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
+		},
+	)
+	typedEmptyTool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_empty_input"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, struct{}, error) {
+			return nil, struct{}{}, nil
+		},
+	)
+	legacyOptionalTool := NewServerTool(
+		mcp.Tool{Name: "legacy_optional_input", InputSchema: json.RawMessage(optionalPointerInputSchema)},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
+		},
+	)
+	typedOptionalTool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_optional_input"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, optionalPointerInput) (*mcp.CallToolResult, struct{}, error) {
+			return nil, struct{}{}, nil
+		},
+	)
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	legacyEmptyTool.RegisterFunc(server, nil)
+	typedEmptyTool.RegisterFunc(server, nil)
+	legacyOptionalTool.RegisterFunc(server, nil)
+	typedOptionalTool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+
+	schemasByName := make(map[string]any, len(list.Tools))
+	for _, tool := range list.Tools {
+		schemasByName[tool.Name] = tool.InputSchema
+	}
+
+	for _, tc := range []struct {
+		legacyName     string
+		typedName      string
+		wantSchema     string
+		wantProperties []string
+		wantRequired   []string
+	}{
+		{legacyName: "legacy_empty_input", typedName: "typed_empty_input", wantSchema: emptyInputSchema},
+		{
+			legacyName:     "legacy_optional_input",
+			typedName:      "typed_optional_input",
+			wantSchema:     optionalPointerInputSchema,
+			wantProperties: []string{"filter", "limit", "owner"},
+			wantRequired:   []string{"owner"},
+		},
+	} {
+		t.Run(tc.typedName, func(t *testing.T) {
+			legacySchema, ok := schemasByName[tc.legacyName]
+			require.True(t, ok)
+			typedSchema, ok := schemasByName[tc.typedName]
+			require.True(t, ok)
+
+			legacyJSON := mustMarshalJSON(t, legacySchema)
+			typedJSON := mustMarshalJSON(t, typedSchema)
+
+			legacyShape := readInputSchemaShape(t, legacyJSON)
+			typedShape := readInputSchemaShape(t, typedJSON)
+			expectedShape := readInputSchemaShape(t, tc.wantSchema)
+			assert.Equal(t, expectedShape, legacyShape, "fixture must represent the pre-migration input contract")
+			assert.Equal(t, legacyShape, typedShape, "typed registration must preserve the pre-migration input contract")
+
+			assert.Equal(t, []string{"object"}, typedShape.rootTypes, "typed input roots must remain objects")
+			assert.False(t, typedShape.hasAnyOf, "input roots must not become nullable or optional unions")
+			assert.Equal(t, tc.wantProperties, typedShape.properties, "typed registration must preserve the input properties")
+			assert.ElementsMatch(t, tc.wantRequired, typedShape.required, "typed registration must preserve required properties")
+		})
+	}
+}
+
+type inputSchemaShape struct {
+	rootTypes  []string
+	properties []string
+	required   []string
+	hasAnyOf   bool
+}
+
+func readInputSchemaShape(t *testing.T, schemaJSON string) inputSchemaShape {
+	t.Helper()
+	var root map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(schemaJSON), &root))
+	var schemaValue any
+	require.NoError(t, json.Unmarshal([]byte(schemaJSON), &schemaValue))
+
+	shape := inputSchemaShape{}
+	rawType, ok := root["type"]
+	require.True(t, ok, "schema must declare a root type")
+	if len(rawType) > 0 && rawType[0] == '[' {
+		require.NoError(t, json.Unmarshal(rawType, &shape.rootTypes))
+	} else {
+		var rootType string
+		require.NoError(t, json.Unmarshal(rawType, &rootType))
+		shape.rootTypes = []string{rootType}
+	}
+	shape.hasAnyOf = schemaContainsAnyOf(schemaValue)
+
+	var properties map[string]json.RawMessage
+	if rawProperties, ok := root["properties"]; ok {
+		require.NoError(t, json.Unmarshal(rawProperties, &properties))
+		for name := range properties {
+			shape.properties = append(shape.properties, name)
+		}
+	}
+	slices.Sort(shape.properties)
+
+	if rawRequired, ok := root["required"]; ok {
+		require.NoError(t, json.Unmarshal(rawRequired, &shape.required))
+	}
+	return shape
+}
+
+func schemaContainsAnyOf(value any) bool {
+	switch value := value.(type) {
+	case map[string]any:
+		if _, ok := value["anyOf"]; ok {
+			return true
+		}
+		for _, child := range value {
+			if schemaContainsAnyOf(child) {
+				return true
+			}
+		}
+	case []any:
+		return slices.ContainsFunc(value, schemaContainsAnyOf)
+	}
+	return false
 }
 
 func TestTypedToolRegistrationAppliesExplicitSchemas(t *testing.T) {
