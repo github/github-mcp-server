@@ -40,8 +40,9 @@ Possible options:
  7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+ 10. get_timeline - Get pull request timeline events, including review request and review request removal timestamps. Use with pagination parameters and optional event_types filtering.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs", "get_timeline"},
 			},
 			"owner": {
 				Type:        "string",
@@ -54,6 +55,11 @@ Possible options:
 			"pullNumber": {
 				Type:        "number",
 				Description: "Pull request number",
+			},
+			"event_types": {
+				Type:        "array",
+				Description: "Optional timeline event types to include, such as review_requested or review_request_removed. Used only by get_timeline.",
+				Items:       &jsonschema.Schema{Type: "string"},
 			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
@@ -152,6 +158,13 @@ Possible options:
 				return attachIFC(result), nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				return attachIFC(result), nil, err
+			case "get_timeline":
+				eventTypes, err := OptionalStringArrayParam(args, "event_types")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetIssueTimeline(ctx, client, owner, repo, pullNumber, pagination, eventTypes)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil

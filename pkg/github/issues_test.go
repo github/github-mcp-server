@@ -5483,6 +5483,93 @@ func Test_GetIssueComments(t *testing.T) {
 	}
 }
 
+func Test_GetIssueTimeline(t *testing.T) {
+	createdAt := &github.Timestamp{Time: time.Date(2026, time.October, 1, 23, 14, 19, 0, time.UTC)}
+	mockEvents := []*github.Timeline{
+		{
+			ID:        github.Ptr(int64(1)),
+			Event:     github.Ptr("review_requested"),
+			CreatedAt: createdAt,
+			Actor:     &github.User{Login: github.Ptr("author")},
+			Reviewer:  &github.User{Login: github.Ptr("reviewer")},
+			Requester: &github.User{Login: github.Ptr("author")},
+			RequestedTeam: &github.Team{
+				ID:   github.Ptr(int64(7)),
+				Name: github.Ptr("Core Reviewers"),
+				Slug: github.Ptr("core-reviewers"),
+			},
+		},
+		{
+			ID:        github.Ptr(int64(2)),
+			Event:     github.Ptr("labeled"),
+			CreatedAt: createdAt,
+			Actor:     &github.User{Login: github.Ptr("triager")},
+		},
+	}
+
+	mockClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesTimelineByOwnerByRepoByIssueNumber: expectQueryParams(t, map[string]string{
+			"page":     "2",
+			"per_page": "10",
+		}).andThen(mockResponse(t, http.StatusOK, mockEvents)),
+	})
+
+	t.Run("issue_read returns filtered review request timeline events", func(t *testing.T) {
+		client := mustNewGHClient(t, mockClient)
+		deps := BaseDeps{Client: client, GQLClient: defaultGQLClient}
+		serverTool := IssueRead(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":       "get_timeline",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(42),
+			"page":         float64(2),
+			"perPage":      float64(10),
+			"event_types":  []any{"review_requested"},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		var events []MinimalTimelineEvent
+		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &events))
+		require.Len(t, events, 1)
+		assert.Equal(t, "review_requested", events[0].Event)
+		assert.Equal(t, "2026-10-01T23:14:19Z", events[0].CreatedAt)
+		require.NotNil(t, events[0].RequestedReviewer)
+		assert.Equal(t, "reviewer", events[0].RequestedReviewer.Login)
+		require.NotNil(t, events[0].ReviewRequester)
+		assert.Equal(t, "author", events[0].ReviewRequester.Login)
+		require.NotNil(t, events[0].RequestedTeam)
+		assert.Equal(t, "core-reviewers", events[0].RequestedTeam.Slug)
+	})
+
+	t.Run("pull_request_read exposes the same timeline endpoint", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposIssuesTimelineByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockEvents[:1]),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := PullRequestRead(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":     "get_timeline",
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		var events []MinimalTimelineEvent
+		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &events))
+		require.Len(t, events, 1)
+		assert.Equal(t, "review_requested", events[0].Event)
+	})
+}
+
 func Test_GetIssueLabels(t *testing.T) {
 	t.Parallel()
 

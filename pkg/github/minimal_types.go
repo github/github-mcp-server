@@ -679,6 +679,53 @@ type MinimalIssueComment struct {
 	UpdatedAt         string            `json:"updated_at,omitempty"`
 }
 
+// MinimalTimelineTeam identifies a team involved in a pull request review request.
+type MinimalTimelineTeam struct {
+	ID   int64  `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Slug string `json:"slug,omitempty"`
+}
+
+// MinimalTimelineEvent is a compact, body-free representation of an issue or pull
+// request timeline event. User-authored comment/review bodies are intentionally
+// omitted; callers can use the dedicated comment/review methods when they need them.
+type MinimalTimelineEvent struct {
+	ID                int64                `json:"id,omitempty"`
+	Event             string               `json:"event"`
+	CreatedAt         string               `json:"created_at,omitempty"`
+	Actor             *MinimalUser         `json:"actor,omitempty"`
+	CommitID          string               `json:"commit_id,omitempty"`
+	SHA               string               `json:"sha,omitempty"`
+	State             string               `json:"state,omitempty"`
+	RequestedReviewer *MinimalUser         `json:"requested_reviewer,omitempty"`
+	RequestedTeam     *MinimalTimelineTeam `json:"requested_team,omitempty"`
+	ReviewRequester   *MinimalUser         `json:"review_requester,omitempty"`
+	SubmittedAt       string               `json:"submitted_at,omitempty"`
+}
+
+func convertToMinimalTimelineEvent(event *github.Timeline) MinimalTimelineEvent {
+	m := MinimalTimelineEvent{
+		ID:                event.GetID(),
+		Event:             event.GetEvent(),
+		CreatedAt:         formatMinimalTimestamp(event.CreatedAt),
+		Actor:             convertToMinimalUser(event.Actor),
+		CommitID:          event.GetCommitID(),
+		SHA:               event.GetSHA(),
+		State:             event.GetState(),
+		RequestedReviewer: convertToMinimalUser(event.Reviewer),
+		ReviewRequester:   convertToMinimalUser(event.Requester),
+		SubmittedAt:       formatMinimalTimestamp(event.SubmittedAt),
+	}
+	if event.RequestedTeam != nil {
+		m.RequestedTeam = &MinimalTimelineTeam{
+			ID:   event.RequestedTeam.GetID(),
+			Name: sanitize.PlainText(event.RequestedTeam.GetName()),
+			Slug: event.RequestedTeam.GetSlug(),
+		}
+	}
+	return m
+}
+
 // MinimalSearchCommitsResult is the trimmed output type for commit search results.
 type MinimalSearchCommitsResult struct {
 	TotalCount        int                       `json:"total_count"`
