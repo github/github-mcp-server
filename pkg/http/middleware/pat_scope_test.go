@@ -55,7 +55,7 @@ func TestWithPATScopes(t *testing.T) {
 		},
 		{
 			name: "fine-grained PAT skips scope fetching",
-			tokenInfo: &ghcontext.TokenInfo{
+			tokenInfo: &ghcontext.TokenInfo{ //nolint:gosec // G101: Synthetic fine-grained PAT fixture verifies scope fetching is skipped; it cannot authenticate.
 				Token:     "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 				TokenType: utils.TokenTypeFineGrainedPersonalAccessToken,
 			},

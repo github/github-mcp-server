@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -39,7 +39,7 @@ func (d *mvpDescription) String() string {
 		sb.WriteString("\n\n")
 		sb.WriteString("This tool can help with the following outcomes:\n")
 		for _, outcome := range d.outcomes {
-			sb.WriteString(fmt.Sprintf("- %s\n", outcome))
+			fmt.Fprintf(&sb, "- %s\n", outcome)
 		}
 	}
 
@@ -47,7 +47,7 @@ func (d *mvpDescription) String() string {
 		sb.WriteString("\n\n")
 		sb.WriteString("More information can be found at:\n")
 		for _, link := range d.referenceLinks {
-			sb.WriteString(fmt.Sprintf("- %s\n", link))
+			fmt.Fprintf(&sb, "- %s\n", link)
 		}
 	}
 

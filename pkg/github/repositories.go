@@ -20,7 +20,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -496,9 +496,9 @@ SHA MUST be provided for existing file updates.
 
 			// Create the file options
 			opts := &github.RepositoryContentFileOptions{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Content: contentBytes,
-				Branch:  github.Ptr(branch),
+				Branch:  new(branch),
 			}
 
 			// If SHA is provided, set it (for updates)
@@ -507,7 +507,7 @@ SHA MUST be provided for existing file updates.
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			if sha != "" {
-				opts.SHA = github.Ptr(sha)
+				opts.SHA = new(sha)
 			}
 
 			allowSymlinkWrite, err := OptionalParam[bool](args, "allow_symlink_write")
@@ -699,10 +699,10 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			repo := &github.Repository{
-				Name:        github.Ptr(name),
-				Description: github.Ptr(description),
-				Private:     github.Ptr(private),
-				AutoInit:    github.Ptr(autoInit),
+				Name:        new(name),
+				Description: new(description),
+				Private:     new(private),
+				AutoInit:    new(autoInit),
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -768,7 +768,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
 				ReadOnlyHint:    false,
-				DestructiveHint: github.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1310,7 +1310,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
 				ReadOnlyHint:    false,
-				DestructiveHint: github.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1400,9 +1400,9 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Create a tree entry for the file deletion by setting SHA to nil
 			treeEntries := []*github.TreeEntry{
 				{
-					Path: github.Ptr(path),
-					Mode: github.Ptr("100644"), // Regular file mode
-					Type: github.Ptr("blob"),
+					Path: new(path),
+					Mode: new("100644"), // Regular file mode
+					Type: new("blob"),
 					SHA:  nil, // Setting SHA to nil deletes the file
 				},
 			}
@@ -1428,7 +1428,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Create a new commit with the new tree
 			commit := github.Commit{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
@@ -1454,7 +1454,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			ref.Object.SHA = newCommit.SHA
 			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
+				Force: new(false),
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1708,10 +1708,10 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 
 				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(filePath),
-					Mode:    github.Ptr("100644"),
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
+					Path:    new(filePath),
+					Mode:    new("100644"),
+					Type:    new("blob"),
+					Content: new(content),
 				})
 			}
 
@@ -1803,7 +1803,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Create a new commit (baseCommit always has a value now)
 			commit := github.Commit{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
@@ -1823,7 +1823,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			ref.Object.SHA = newCommit.SHA
 			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
+				Force: new(false),
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -2345,10 +2345,10 @@ func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
 		return
 	}
 	if release.Name != nil {
-		release.Name = github.Ptr(sanitize.PlainText(*release.Name))
+		release.Name = new(sanitize.PlainText(*release.Name))
 	}
 	if release.Body != nil {
-		release.Body = github.Ptr(sanitize.Content(*release.Body))
+		release.Body = new(sanitize.Content(*release.Body))
 	}
 }
 
