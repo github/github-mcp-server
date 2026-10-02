@@ -116,34 +116,34 @@ func Test_UIGet(t *testing.T) {
 
 	// Setup mock data
 	mockAssignees := []*github.User{
-		{Login: github.Ptr("user1"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1")},
-		{Login: github.Ptr("user2"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/2")},
+		{Login: new("user1"), AvatarURL: new("https://avatars.githubusercontent.com/u/1")},
+		{Login: new("user2"), AvatarURL: new("https://avatars.githubusercontent.com/u/2")},
 	}
 
 	mockBranches := []*github.Branch{
-		{Name: github.Ptr("main"), Protected: github.Ptr(true)},
-		{Name: github.Ptr("feature"), Protected: github.Ptr(false)},
+		{Name: new("main"), Protected: new(true)},
+		{Name: new("feature"), Protected: new(false)},
 	}
 
 	dueDate := time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)
 	mockMilestones := []*github.Milestone{
-		{Number: github.Ptr(1), Title: github.Ptr("with due date"), DueOn: &github.Timestamp{Time: dueDate}},
-		{Number: github.Ptr(2), Title: github.Ptr("no due date")},
+		{Number: new(1), Title: new("with due date"), DueOn: &github.Timestamp{Time: dueDate}},
+		{Number: new(2), Title: new("no due date")},
 	}
 
 	mockIssueTypes := []*github.IssueType{
-		{Name: github.Ptr("Bug")},
-		{Name: github.Ptr("Feature")},
+		{Name: new("Bug")},
+		{Name: new("Feature")},
 	}
 
 	mockReviewers := []*github.User{
-		{Login: github.Ptr("octocat"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/583231")},
-		{Login: github.Ptr("dependabot[bot]"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/in/29110")},
-		{Login: github.Ptr("github-actions"), Type: github.Ptr("Bot")},
+		{Login: new("octocat"), AvatarURL: new("https://avatars.githubusercontent.com/u/583231")},
+		{Login: new("dependabot[bot]"), AvatarURL: new("https://avatars.githubusercontent.com/in/29110")},
+		{Login: new("github-actions"), Type: new("Bot")},
 	}
 
 	mockReviewerTeams := []*github.Team{
-		{Slug: github.Ptr("docs"), Name: github.Ptr("Docs")},
+		{Slug: new("docs"), Name: new("Docs")},
 	}
 
 	tests := []struct {
@@ -385,7 +385,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name: "branches pagination stops at the page cap",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/branches": alwaysNextPageHandler(t, []*github.Branch{{Name: github.Ptr("feature")}}),
+				"GET /repos/owner/repo/branches": alwaysNextPageHandler(t, []*github.Branch{{Name: new("feature")}}),
 			}),
 			requestArgs: map[string]any{
 				"method": "branches",
@@ -427,7 +427,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name: "reviewers pagination stops at the page cap",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/collaborators": alwaysNextPageHandler(t, []*github.User{{Login: github.Ptr("octocat")}}),
+				"GET /repos/owner/repo/collaborators": alwaysNextPageHandler(t, []*github.User{{Login: new("octocat")}}),
 				"GET /repos/owner/repo/teams":         mockResponse(t, http.StatusOK, mockReviewerTeams),
 			}),
 			requestArgs: map[string]any{

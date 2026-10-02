@@ -32,9 +32,9 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 
 	// Setup mock alert for success case
 	mockAlert := &github.SecretScanningAlert{
-		Number:  github.Ptr(42),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/42"),
+		Number:  new(42),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/private-repo/security/secret-scanning/42"),
 	}
 
 	tests := []struct {
@@ -139,18 +139,18 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 
 	// Setup mock alerts for success case
 	resolvedAlert := github.SecretScanningAlert{
-		Number:     github.Ptr(2),
-		HTMLURL:    github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/2"),
-		State:      github.Ptr("resolved"),
-		Resolution: github.Ptr("false_positive"),
-		SecretType: github.Ptr("adafruit_io_key"),
+		Number:     new(2),
+		HTMLURL:    new("https://github.com/owner/private-repo/security/secret-scanning/2"),
+		State:      new("resolved"),
+		Resolution: new("false_positive"),
+		SecretType: new("adafruit_io_key"),
 	}
 	openAlert := github.SecretScanningAlert{
-		Number:     github.Ptr(2),
-		HTMLURL:    github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/3"),
-		State:      github.Ptr("open"),
-		Resolution: github.Ptr("false_positive"),
-		SecretType: github.Ptr("adafruit_io_key"),
+		Number:     new(2),
+		HTMLURL:    new("https://github.com/owner/private-repo/security/secret-scanning/3"),
+		State:      new("open"),
+		Resolution: new("false_positive"),
+		SecretType: new("adafruit_io_key"),
 	}
 
 	tests := []struct {

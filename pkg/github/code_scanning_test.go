@@ -32,10 +32,10 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 
 	// Setup mock alert for success case
 	mockAlert := &github.Alert{
-		Number:  github.Ptr(42),
-		State:   github.Ptr("open"),
-		Rule:    &github.Rule{ID: github.Ptr("test-rule"), Description: github.Ptr("Test Rule Description")},
-		HTMLURL: github.Ptr("https://github.com/owner/repo/security/code-scanning/42"),
+		Number:  new(42),
+		State:   new("open"),
+		Rule:    &github.Rule{ID: new("test-rule"), Description: new("Test Rule Description")},
+		HTMLURL: new("https://github.com/owner/repo/security/code-scanning/42"),
 	}
 
 	tests := []struct {
@@ -144,16 +144,16 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	// Setup mock alerts for success case
 	mockAlerts := []*github.Alert{
 		{
-			Number:  github.Ptr(42),
-			State:   github.Ptr("open"),
-			Rule:    &github.Rule{ID: github.Ptr("test-rule-1"), Description: github.Ptr("Test Rule 1")},
-			HTMLURL: github.Ptr("https://github.com/owner/repo/security/code-scanning/42"),
+			Number:  new(42),
+			State:   new("open"),
+			Rule:    &github.Rule{ID: new("test-rule-1"), Description: new("Test Rule 1")},
+			HTMLURL: new("https://github.com/owner/repo/security/code-scanning/42"),
 		},
 		{
-			Number:  github.Ptr(43),
-			State:   github.Ptr("fixed"),
-			Rule:    &github.Rule{ID: github.Ptr("test-rule-2"), Description: github.Ptr("Test Rule 2")},
-			HTMLURL: github.Ptr("https://github.com/owner/repo/security/code-scanning/43"),
+			Number:  new(43),
+			State:   new("fixed"),
+			Rule:    &github.Rule{ID: new("test-rule-2"), Description: new("Test Rule 2")},
+			HTMLURL: new("https://github.com/owner/repo/security/code-scanning/43"),
 		},
 	}
 

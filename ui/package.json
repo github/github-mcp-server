@@ -15,13 +15,15 @@
   },
   "dependencies": {
     "@github/markdown-toolbar-element": "^2.2.3",
-    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.3",
     "@primer/octicons-react": "^19.38.0",
     "@primer/react": "^36.27.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

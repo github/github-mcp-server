@@ -17,9 +17,9 @@ func Test_MergePullRequestSHAPinning(t *testing.T) {
 	const pinnedSHA = "0123456789abcdef0123456789abcdef01234567"
 
 	mockMergeResult := &github.PullRequestMergeResult{
-		SHA:     github.Ptr("merge-result-sha"),
-		Merged:  github.Ptr(true),
-		Message: github.Ptr("Pull Request successfully merged"),
+		SHA:     new("merge-result-sha"),
+		Merged:  new(true),
+		Message: new("Pull Request successfully merged"),
 	}
 
 	t.Run("expected head SHA is sent as REST sha", func(t *testing.T) {

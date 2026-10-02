@@ -96,7 +96,7 @@ func Test_CustomPropertiesRead(t *testing.T) {
 	})
 
 	t.Run("enterprise level: returns property definitions", func(t *testing.T) {
-		mockProps := []*github.CustomProperty{{PropertyName: github.Ptr("compliance"), ValueType: "true_false"}}
+		mockProps := []*github.CustomProperty{{PropertyName: new("compliance"), ValueType: "true_false"}}
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"GET /enterprises/{enterprise}/properties/schema": mockResponse(t, http.StatusOK, mockProps),
 		}))

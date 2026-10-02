@@ -123,7 +123,7 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 			}
 		}
 		resp := gogithub.RepositoryPermissionLevel{
-			Permission: gogithub.Ptr(perm),
+			Permission: new(perm),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)

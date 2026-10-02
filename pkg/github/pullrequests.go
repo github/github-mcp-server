@@ -777,17 +777,17 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 
 			newPR := &github.CreatePullRequest{
-				Title: github.Ptr(title),
+				Title: new(title),
 				Head:  head,
 				Base:  base,
 			}
 
 			if body != "" {
-				newPR.Body = github.Ptr(body)
+				newPR.Body = new(body)
 			}
 
-			newPR.Draft = github.Ptr(draft)
-			newPR.MaintainerCanModify = github.Ptr(maintainerCanModify)
+			newPR.Draft = new(draft)
+			newPR.MaintainerCanModify = new(maintainerCanModify)
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -969,35 +969,35 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if title, ok, err := OptionalParamOK[string](args, "title"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
-				update.Title = github.Ptr(title)
+				update.Title = new(title)
 				restUpdateNeeded = true
 			}
 
 			if body, ok, err := OptionalParamOK[string](args, "body"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
-				update.Body = github.Ptr(body)
+				update.Body = new(body)
 				restUpdateNeeded = true
 			}
 
 			if state, ok, err := OptionalParamOK[string](args, "state"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
-				update.State = github.Ptr(state)
+				update.State = new(state)
 				restUpdateNeeded = true
 			}
 
 			if base, ok, err := OptionalParamOK[string](args, "base"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
-				update.Base = &github.PullRequestBranch{Ref: github.Ptr(base)}
+				update.Base = &github.PullRequestBranch{Ref: new(base)}
 				restUpdateNeeded = true
 			}
 
 			if maintainerCanModify, ok, err := OptionalParamOK[bool](args, "maintainer_can_modify"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
-				update.MaintainerCanModify = github.Ptr(maintainerCanModify)
+				update.MaintainerCanModify = new(maintainerCanModify)
 				restUpdateNeeded = true
 			}
 
@@ -1732,7 +1732,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			}
 			opts := &github.PullRequestBranchUpdateOptions{}
 			if expectedHeadSHA != "" {
-				opts.ExpectedHeadSHA = github.Ptr(expectedHeadSHA)
+				opts.ExpectedHeadSHA = new(expectedHeadSHA)
 			}
 
 			client, err := deps.GetClient(ctx)

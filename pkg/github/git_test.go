@@ -35,27 +35,27 @@ func Test_GetRepositoryTree(t *testing.T) {
 
 	// Setup mock data
 	mockRepo := &github.Repository{
-		DefaultBranch: github.Ptr("main"),
+		DefaultBranch: new("main"),
 	}
 	mockTree := &github.Tree{
-		SHA:       github.Ptr("abc123"),
-		Truncated: github.Ptr(false),
+		SHA:       new("abc123"),
+		Truncated: new(false),
 		Entries: []*github.TreeEntry{
 			{
-				Path: github.Ptr("README.md"),
-				Mode: github.Ptr("100644"),
-				Type: github.Ptr("blob"),
-				SHA:  github.Ptr("file1sha"),
-				Size: github.Ptr(123),
-				URL:  github.Ptr("https://api.github.com/repos/owner/repo/git/blobs/file1sha"),
+				Path: new("README.md"),
+				Mode: new("100644"),
+				Type: new("blob"),
+				SHA:  new("file1sha"),
+				Size: new(123),
+				URL:  new("https://api.github.com/repos/owner/repo/git/blobs/file1sha"),
 			},
 			{
-				Path: github.Ptr("src/main.go"),
-				Mode: github.Ptr("100644"),
-				Type: github.Ptr("blob"),
-				SHA:  github.Ptr("file2sha"),
-				Size: github.Ptr(456),
-				URL:  github.Ptr("https://api.github.com/repos/owner/repo/git/blobs/file2sha"),
+				Path: new("src/main.go"),
+				Mode: new("100644"),
+				Type: new("blob"),
+				SHA:  new("file2sha"),
+				Size: new(456),
+				URL:  new("https://api.github.com/repos/owner/repo/git/blobs/file2sha"),
 			},
 		},
 	}
