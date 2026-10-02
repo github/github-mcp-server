@@ -788,6 +788,60 @@ func Test_GetTeamMembers(t *testing.T) {
 	}
 }
 
+func Test_GetTeamMembers_RequiredIdentifiersForDirectHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		args          map[string]any
+		expectedError string
+	}{
+		{
+			name:          "missing organization",
+			args:          map[string]any{"team_slug": "testteam"},
+			expectedError: "missing required parameter: org",
+		},
+		{
+			name:          "empty organization",
+			args:          map[string]any{"org": "", "team_slug": "testteam"},
+			expectedError: "missing required parameter: org",
+		},
+		{
+			name:          "missing team slug",
+			args:          map[string]any{"org": "testorg"},
+			expectedError: "missing required parameter: team_slug",
+		},
+		{
+			name:          "empty team slug",
+			args:          map[string]any{"org": "testorg", "team_slug": ""},
+			expectedError: "missing required parameter: team_slug",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClientCalls := 0
+			deps := stubDeps{
+				gqlClientFn: func(context.Context) (*githubv4.Client, error) {
+					gqlClientCalls++
+					return nil, nil
+				},
+				obsv: stubExporters(),
+			}
+			serverTool := GetTeamMembers(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getErrorResult(t, result).Text, tc.expectedError)
+			assert.Zero(t, gqlClientCalls, "invalid identifiers must fail before acquiring the GraphQL client")
+		})
+	}
+}
+
 func testContextToolSnapshot[In, Out any](t *testing.T, tool mcp.Tool) {
 	t.Helper()
 
