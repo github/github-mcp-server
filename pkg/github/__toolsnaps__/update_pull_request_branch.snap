@@ -31,5 +31,26 @@
     ],
     "type": "object"
   },
-  "name": "update_pull_request_branch"
+  "name": "update_pull_request_branch",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "url": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "object",
+      "null"
+    ]
+  }
 }
