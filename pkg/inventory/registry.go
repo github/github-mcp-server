@@ -248,6 +248,12 @@ func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, 
 	addToolAvailabilityMiddleware(s, tools)
 	schemas := make(map[string]listedToolSchemas, len(tools))
 	for _, tool := range tools {
+		if tool.registerTyped != nil || tool.Tool.OutputSchema != nil {
+			s.AddReceivingMiddleware(typedOutputMiddleware())
+			break
+		}
+	}
+	for _, tool := range tools {
 		registered := tool.register(s, deps, middleware...)
 		schemas[registered.Name] = listedToolSchemas{
 			source:     tool.Tool.InputSchema,

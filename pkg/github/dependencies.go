@@ -214,6 +214,12 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
 // This avoids creating closures at registration time, which is important for performance
 // in servers that create a new server instance per request (like the remote server).
 //
+// Use concrete input and output structs for migrated tools; registration then
+// delegates schema inference and validation to mcp.AddTool. For example, define
+// `type SearchInput struct { Query string `json:"query"` }` and a concrete
+// `SearchOutput`, then use `NewTool[SearchInput, SearchOutput](...)`. Keep Out
+// as any for tools that must retain the raw registration path.
+//
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
