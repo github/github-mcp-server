@@ -10,11 +10,21 @@ interface AppProviderProps {
 }
 
 function createDeviceId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
+  // Prefer crypto.randomUUID if available (modern browsers)
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID) {
+    try {
+      return globalThis.crypto.randomUUID();
+    } catch {
+      // Fall through to fallback
+    }
   }
 
-  return `mcp-app-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  // Fallback: generate a UUID v4-like string
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function AppProvider({ children, hostContext }: AppProviderProps) {
