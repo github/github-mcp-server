@@ -1,0 +1,406 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Search commits"
+  },
+  "description": "Search for commits across GitHub repositories using GitHub's commit search syntax. Useful for finding specific changes, authors, or messages across one or many repositories. Searches the default branch only.",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABTklEQVRIie2UPUvDUBSGn5PW2qnYwUXExWhNpY2CUKT+BB10E3R0dnbrppuKLgouHbr5X5qlKRIFB+cuguBHj4O05KYfNsVJ+m7n3Hue54ZcrhDKQqGQTX1YVwg7QIbx0gh8b7VTJMMrqS+5RtgD7oDX2GhhC6UcbhkCVLZVuX1sesex4YCdX6uAGgIrsicjlrTGgQ9KVPDnmQgmgongPwgkXNiOq8ADMAtkx4UGvtflJvus20ANeIlN/vW5/kkt8L3D2HD6P9dRgSI8dQcc9w1IR3acBE3vbFSp8ZMVnoFSqJ/unZDe3pAYXyDIJarn9opbDZrewaAh2y7Oy5S1r6h5QG2Xxbw3piDw6xe244oKyxFmC5ihc+tS1qaqngKJyAEBGmZvSGzHVYT790T7aPozsaFoFZGboFGvDJsbOYuOuxuuc7n1uaV8sRSH8Q1DUVLnYLty3gAAAABJRU5ErkJggg==",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAA+ElEQVRIie2WLU5DQRRGzwUEirQCQ9BsoSGtZQHgSFgIsg4JXQCGP8V2QCBIEATZkJDgOJi+MJnMo30TFHmfmzvzfeeKyZ2BROpQvVHfrddDmhkZ4BY4Ai6BD7prAowjIoq7i85nFcGNf6qa1tayM1vAvBZQUg74c/WAHtAD/gMgn6YCT8A2MKwOTaZpCfAF3AGvFdlLx7XqdUVw4186rgWeE8Nn4cU67QLNAS/ASG3qmwVPqdaqjWw9A86BK+CkzaTuAseFBse/AiLiQg1gLzs3Bwb8XIp94AxYL/Af2xordap6v/htHKhv6nTlgBUAh9l6Rx11yfgG8ne/zwh2OysAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
+  "inputSchema": {
+    "properties": {
+      "order": {
+        "description": "Sort order",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "query": {
+        "description": "Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `\u003e`, `\u003c`, `\u003e=`, `\u003c=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:\u003e=2024-01-01`; `\"refactor cache\" repo:o/r`; `hash:abc1234 repo:o/r`.",
+        "type": "string"
+      },
+      "sort": {
+        "description": "Sort by author or committer date (defaults to best match)",
+        "enum": [
+          "author-date",
+          "committer-date"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_commits",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "author": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "details": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bio": {
+                      "type": "string"
+                    },
+                    "blog": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "followers": {
+                      "type": "integer"
+                    },
+                    "following": {
+                      "type": "integer"
+                    },
+                    "hireable": {
+                      "type": "boolean"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "owned_private_repos": {
+                      "type": "integer"
+                    },
+                    "private_gists": {
+                      "type": "integer"
+                    },
+                    "public_gists": {
+                      "type": "integer"
+                    },
+                    "public_repos": {
+                      "type": "integer"
+                    },
+                    "total_private_repos": {
+                      "type": "integer"
+                    },
+                    "twitter_username": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "public_repos",
+                    "public_gists",
+                    "followers",
+                    "following",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "profile_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "commit": {
+              "additionalProperties": false,
+              "properties": {
+                "author": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "committer": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "committer": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "details": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bio": {
+                      "type": "string"
+                    },
+                    "blog": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "followers": {
+                      "type": "integer"
+                    },
+                    "following": {
+                      "type": "integer"
+                    },
+                    "hireable": {
+                      "type": "boolean"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "owned_private_repos": {
+                      "type": "integer"
+                    },
+                    "private_gists": {
+                      "type": "integer"
+                    },
+                    "public_gists": {
+                      "type": "integer"
+                    },
+                    "public_repos": {
+                      "type": "integer"
+                    },
+                    "total_private_repos": {
+                      "type": "integer"
+                    },
+                    "twitter_username": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "public_repos",
+                    "public_gists",
+                    "followers",
+                    "following",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "profile_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "files": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "additions": {
+                    "type": "integer"
+                  },
+                  "changes": {
+                    "type": "integer"
+                  },
+                  "deletions": {
+                    "type": "integer"
+                  },
+                  "filename": {
+                    "type": "string"
+                  },
+                  "patch": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "filename"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "html_url": {
+              "type": "string"
+            },
+            "repository": {
+              "additionalProperties": false,
+              "properties": {
+                "full_name": {
+                  "type": "string"
+                },
+                "html_url": {
+                  "type": "string"
+                },
+                "private": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "full_name"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "sha": {
+              "type": "string"
+            },
+            "stats": {
+              "additionalProperties": false,
+              "properties": {
+                "additions": {
+                  "type": "integer"
+                },
+                "deletions": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "required": [
+            "sha",
+            "html_url"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": "object"
+  }
+}
