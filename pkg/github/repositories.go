@@ -136,7 +136,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelCommitContents)
 			return result, minimalCommit, nil
 		},
-		normalizeTypedReadArgumentsPreservingZero(nil),
+		normalizeTypedReadArguments(nil, false),
 	)
 }
 
@@ -307,7 +307,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, minimalCommits, nil
 		},
-		normalizeTypedReadArgumentsPreservingZero(nil),
+		normalizeTypedReadArguments(nil, false),
 	)
 }
 
