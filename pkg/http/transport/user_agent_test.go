@@ -14,7 +14,7 @@ import (
 func TestUserAgentTransportRequestIsolation(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		_, _ = io.WriteString(w, req.UserAgent())
+		_, _ = io.WriteString(w, req.UserAgent()) //nolint:gosec // G705: Test server echoes the test client's user agent to verify transport isolation; no browser consumes the response.
 	}))
 	t.Cleanup(server.Close)
 	transport := &UserAgentTransport{

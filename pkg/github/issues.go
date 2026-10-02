@@ -20,7 +20,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -1507,8 +1507,8 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			var commentResponse *MinimalResponse
 			if hasBody {
-				comment := &github.IssueComment{
-					Body: github.Ptr(body),
+				comment := github.IssueCommentRequest{
+					Body: body,
 				}
 				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 				if err != nil {
@@ -1621,8 +1621,8 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			updatedComment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{
-				Body: github.Ptr(body),
+			updatedComment, resp, err := client.Issues.UpdateComment(ctx, owner, repo, commentID, github.IssueCommentRequest{
+				Body: body,
 			})
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()

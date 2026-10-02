@@ -27,9 +27,18 @@ Thanks for contributing and for helping us build toolsets that are truly valuabl
 These are one time installations required to be able to test your changes locally as part of the pull request (PR) submission process.
 
 1. Install Go 1.26.8 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
-2. [Install golangci-lint v2](https://golangci-lint.run/welcome/install/#local-installation)
+2. [Install golangci-lint v2.14.0](https://golangci-lint.run/welcome/install/#local-installation), or let `script/lint` install the repository-pinned version. The pinned version supports both Go 1.26 and Go 1.27.
 
-The repository-pinned golangci-lint v2.9.0 supports Go 1.26, but cannot read Go 1.27 export data. When using a newer Go installation, run lint with `GOTOOLCHAIN=go1.26.8 script/lint`.
+### UI development
+
+Use Node.js 26.x for the UI in `ui/`. This matches the Docker UI build stage
+and `@types/node`; GitHub Actions reads the Node version from `ui/package.json`.
+Node 26 is a supported Current release, with LTS scheduled for October 2026.
+
+From `ui/`, run `npm ci`, `npm run typecheck`, and `npm run build`.
+Type checking uses the native TypeScript 7 compiler through `tsc`; Vite handles
+transpilation and bundling separately. No TypeScript compiler API integration,
+typescript-eslint, or ts-node is required.
 
 ## Submitting a pull request
 
