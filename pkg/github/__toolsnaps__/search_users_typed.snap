@@ -1,0 +1,173 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Search users"
+  },
+  "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAADWklEQVRIidWTT2hcVRTGf+e+mUn9Q3WMqbbWgJ1JnMw4meiAUkoxIRG1IKK4ELqoVkQXUsVuXbropoq4EWykuBDURV2I0r9GrC0VopnXTGaefYkhDahBOg4SnSTv3eMiTphMJ6Spq57dPd+933e/794DN3rJWkA+n49W54MB4AE1aoyawqVS1xn4PPzfAsnUg48iOgyaaIJ8I7r/5wn3u2sVMM2N7nTvbsQeB42J6nOOrW12bG2zIs8ohFblZHe6d/d1Oejv74/MzlU8lGibCfqKxeKVRrwzm43HAlMAatvviqdHRkaC9QScxkVk021DwAFRfalcGv+xeXN1bq52x5ats8Crf80vnL3yx29TiZ7e59s7tg7Ft3TEc5n09PT0tG08syoiEckBGF04seaVFtuOA1ixuf9OvQP6rqj5avb3SmlHKptdU0BhaT3L1gbLsVpRgMlSYdvNUb1VlKeAqBFzsjObjbcWMNYFCMxNg2sJmE3B4wCOmEK957ru/KVy4UtxnCeBO2OheaOONX9Tk+zJlRXsUsTunLl4sdIIplKp9oC2MYR//FJ3T6uZSKZzZ7Es+OXCIECkOQFVeUFET8UCU0im+w7WMydWeyKwHEboUCuDaw2cKGpFVx76qjmYLI+dRzkE3IvqZ0RrVaK1KsqnCNsROTTpjX3fijyReSip8LCo+aFlRN3d2ZR15COQnUAFOIVwedmbdCI6CMSBc47V/Z7neivkqWxexHwC2h4lmi2VRn9dJZC4Pzcghi9Qaoq8dfstztHR0dFVvyqfz0f/nA9fFNG3gRhqnvbLP30LkOzJfQP0Kzw7WSocW+Vg+ebmAjCjTrhncnz8cqsI6rUjk+80NvgauMex+ojnuV4ynTuMcgD4G/RNv+QO199ArGOGUWrXQg4wVRydCTF7gCVr5Agg/kThIE6YQjkH8mEi1bcPQLp6+h5T9AToy37JPbIeeWN1pXOvqPKBFR2amnBPA2QymdiidY4pMmhCEgbsXqDSZsKPN0IOoIvzR4GqsbK33isWi4vG8hogoaOvG0V2oXK6WCwublTA9/0FgTMIuxr7nuf+AowIDBjgboz6GyVfcSF4wLarAGEcuC8iyj4JuXC9Ak5o3g8j4fnmvpXIe44NWg7kjVX/Ap7dYx0LcmfJAAAAAElFTkSuQmCC",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAB20lEQVRIidXUvUuVcRQH8PPc1JYUrKWUDCmwoKa2QsTKoKEwxWhr6G1tqDVqaAn8F6I5oS0ipBp6WZqiAi1bEgIrIpcorD4NHvFye+7Vrkv94Dc853zP93venl/E/36Keg60RsRgROyOiEpEPI+IB0VR/FyzKgYw48/zBv1rJe/HN7zDKNrzDmMqfc2JoAVvk3xjib8zfa/R0ozA4WzFaAPMWGKG8vskLuDIiqK4lMHtDTAdibmY3+9rZrSnGl+piV9YqcpY3jwREUVRdEXEhog4GhGtETGJznrZHchMhhtUcCIxh0p8u/ADV+sFV3KAU2VZYBNmE7OuDsdj3K+XYGAfvua2jGXPOzLz2VzT/Q3iH2GykUCByyU/2dK50iB2B77jWj3ATjxNos+4hfG8E2mDJ+irid2LaXzCljLyQcxjDmctvkW1mFacwwd8wUCV72GKH6+X+TxeYGvd/i3je/AqRfrSNo6F5DldDS6y5LnVkFfFbcPHHGqRtu24i184tQQcytLOrJa8SuR8xh6ssrXhTm5bd+BmDq+tCYH12aYbNfbe3KbrYfH9mPhb8iqy25gusd/Ds0pEbI6ImWYFImI6IrpK7C8jojcwgu5m2dGFYyX2How0y/vvnN8dpHfeBcHNQgAAAABJRU5ErkJggg==",
+      "theme": "dark"
+    }
+  ],
+  "inputSchema": {
+    "properties": {
+      "order": {
+        "description": "Sort order",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "query": {
+        "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user.",
+        "type": "string"
+      },
+      "sort": {
+        "description": "Sort users by number of followers or repositories, or when the person joined GitHub.",
+        "enum": [
+          "followers",
+          "repositories",
+          "joined"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_users",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "bio": {
+                  "type": "string"
+                },
+                "blog": {
+                  "type": "string"
+                },
+                "company": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "followers": {
+                  "type": "integer"
+                },
+                "following": {
+                  "type": "integer"
+                },
+                "hireable": {
+                  "type": "boolean"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "owned_private_repos": {
+                  "type": "integer"
+                },
+                "private_gists": {
+                  "type": "integer"
+                },
+                "public_gists": {
+                  "type": "integer"
+                },
+                "public_repos": {
+                  "type": "integer"
+                },
+                "total_private_repos": {
+                  "type": "integer"
+                },
+                "twitter_username": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "public_repos",
+                "public_gists",
+                "followers",
+                "following",
+                "created_at",
+                "updated_at"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "id": {
+              "type": "integer"
+            },
+            "login": {
+              "type": "string"
+            },
+            "profile_url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "login"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": "object"
+  }
+}
