@@ -218,7 +218,9 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
 // delegates schema inference and validation to mcp.AddTool. For example, define
 // `type SearchInput struct { Query string `json:"query"` }` and a concrete
 // `SearchOutput`, then use `NewTool[SearchInput, SearchOutput](...)`. Keep Out
-// as any for tools that must retain the raw registration path.
+// as any for tools that must retain the raw registration path. A final optional
+// inventory.InputNormalizer argument can canonicalize legacy wire values
+// (such as case-insensitive enums) before strict SDK schema validation.
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
@@ -229,11 +231,12 @@ func NewTool[In, Out any](
 	tool mcp.Tool,
 	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
 ) inventory.ServerTool {
 	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
-	})
+	}, inputNormalizers...)
 	st.ScopeAccess = scopeAccess
 	return st
 }

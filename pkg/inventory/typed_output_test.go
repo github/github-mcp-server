@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -140,6 +142,176 @@ func TestTypedToolRegistrationAppliesExplicitSchemas(t *testing.T) {
 		Arguments: map[string]any{"mode": "narrow"},
 	})
 	require.ErrorContains(t, err, "validating tool output")
+}
+
+func TestTypedInputNormalizerPreservesStrictSchemaAndLegacyValues(t *testing.T) {
+	type listIssuesInput struct {
+		Owner       string `json:"owner"`
+		Repo        string `json:"repo"`
+		State       string `json:"state"`
+		IssueNumber int64  `json:"issue_number"`
+	}
+	type listIssuesOutput struct {
+		State       string `json:"state"`
+		IssueNumber int64  `json:"issue_number"`
+	}
+
+	handlerCalls := 0
+	var got listIssuesInput
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{
+			Name: "list_issues",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"properties":{
+					"owner":{"type":"string","minLength":1},
+					"repo":{"type":"string","minLength":1},
+					"state":{"type":"string","enum":["OPEN","CLOSED"]},
+					"issue_number":{"type":"integer"}
+				},
+				"required":["owner","repo"]
+			}`),
+		},
+		testToolsetMetadata("issues"),
+		func(_ context.Context, _ *mcp.CallToolRequest, input listIssuesInput) (*mcp.CallToolResult, listIssuesOutput, error) {
+			handlerCalls++
+			got = input
+			return nil, listIssuesOutput{State: input.State, IssueNumber: input.IssueNumber}, nil
+		},
+		normalizeListIssuesWireInput,
+	)
+	directResult, err := tool.Handler(nil)(context.Background(), &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Name:      "list_issues",
+			Arguments: json.RawMessage(`{"owner":"octo","repo":"hello","state":"open","issue_number":"42"}`),
+		},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, directResult)
+	assert.Equal(t, "OPEN", got.State)
+	assert.Equal(t, int64(42), got.IssueNumber)
+	handlerCalls = 0
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	var inputSchema map[string]any
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, list.Tools[0].InputSchema)), &inputSchema))
+	properties := inputSchema["properties"].(map[string]any)
+	assert.Equal(t, "integer", properties["issue_number"].(map[string]any)["type"])
+	assert.Equal(t, []any{"OPEN", "CLOSED"}, properties["state"].(map[string]any)["enum"])
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "list_issues",
+		Arguments: map[string]any{
+			"owner":        "octo",
+			"repo":         "hello",
+			"state":        "open",
+			"issue_number": "42",
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, 1, handlerCalls)
+	assert.Equal(t, "OPEN", got.State)
+	assert.Equal(t, int64(42), got.IssueNumber)
+	assert.JSONEq(t, `{"state":"OPEN","issue_number":42}`, mustMarshalJSON(t, result.StructuredContent))
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_issues",
+		Arguments: map[string]any{"owner": "octo", "repo": "hello", "state": "unsupported"},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError, "normalization must not bypass SDK enum validation")
+	assert.Equal(t, 1, handlerCalls)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_issues",
+		Arguments: map[string]any{"owner": "octo", "repo": "hello", "issue_number": "not-a-number"},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Equal(t, 1, handlerCalls)
+}
+
+func normalizeListIssuesWireInput(arguments json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &fields); err != nil {
+		return nil, err
+	}
+	if rawState, ok := fields["state"]; ok {
+		var state string
+		if err := json.Unmarshal(rawState, &state); err != nil {
+			return nil, err
+		}
+		normalizedState, err := json.Marshal(strings.ToUpper(state))
+		if err != nil {
+			return nil, err
+		}
+		fields["state"] = normalizedState
+	}
+	if rawID, ok := fields["issue_number"]; ok && len(rawID) > 0 && rawID[0] == '"' {
+		var id string
+		if err := json.Unmarshal(rawID, &id); err != nil {
+			return nil, err
+		}
+		parsedID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		fields["issue_number"] = json.RawMessage(strconv.FormatInt(parsedID, 10))
+	}
+	return json.Marshal(fields)
+}
+
+func TestTypedInputNormalizerUsesLastRegisteredDefinition(t *testing.T) {
+	type input struct {
+		State string `json:"state"`
+	}
+	type output struct {
+		State string `json:"state"`
+	}
+
+	first := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "duplicate_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args input) (*mcp.CallToolResult, output, error) {
+			return nil, output{State: "first:" + args.State}, nil
+		},
+		func(_ json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"state":"OPEN"}`), nil
+		},
+	)
+	last := NewServerToolWithContextHandler(
+		mcp.Tool{
+			Name: "duplicate_tool",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"properties":{"state":{"type":"string","enum":["open"]}},
+				"required":["state"]
+			}`),
+		},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args input) (*mcp.CallToolResult, output, error) {
+			return nil, output{State: "last:" + args.State}, nil
+		},
+	)
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	first.RegisterFunc(server, nil)
+	last.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "duplicate_tool",
+		Arguments: map[string]any{"state": "open"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `{"state":"last:open"}`, mustMarshalJSON(t, result.StructuredContent))
 }
 
 func TestTypedToolMiddlewareShortCircuitAndHandlerErrors(t *testing.T) {
@@ -359,7 +531,7 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 			return nil, nil
 		}
 	}
-	wrapped := typedOutputMiddleware()(next)
+	wrapped := typedOutputMiddleware(nil)(next)
 
 	for _, tc := range []struct {
 		name            string
@@ -412,7 +584,7 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 		StructuredContent: map[string]any{"awaiting": true},
 		InputRequests:     mcp.InputRequestMap{"input": &mcp.ElicitParams{Mode: "form"}},
 	}
-	rawMiddleware := typedOutputMiddleware()(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+	rawMiddleware := typedOutputMiddleware(nil)(func(context.Context, string, mcp.Request) (mcp.Result, error) {
 		return inputRequired, nil
 	})
 	result, err := rawMiddleware(context.Background(), MCPMethodToolsCall, &mcp.CallToolRequest{
