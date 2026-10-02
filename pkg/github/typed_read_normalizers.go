@@ -11,6 +11,14 @@ import (
 )
 
 func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool) inventory.InputNormalizer {
+	return normalizeTypedArguments(uppercaseFields, preserveZeroPage, false)
+}
+
+func normalizeTypedReadArgumentsPreservingZero(uppercaseFields []string) inventory.InputNormalizer {
+	return normalizeTypedArguments(uppercaseFields, true, true)
+}
+
+func normalizeTypedArguments(uppercaseFields []string, preserveZeroPage, preserveZeroPerPage bool) inventory.InputNormalizer {
 	return func(raw json.RawMessage) (json.RawMessage, error) {
 		var args map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &args); err != nil {
@@ -36,9 +44,6 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 			if !exists {
 				continue
 			}
-			if field == "page" && preserveZeroPage {
-				continue
-			}
 			var number any
 			if err := json.Unmarshal(value, &number); err != nil {
 				return nil, err
@@ -60,7 +65,7 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 					continue
 				}
 			}
-			if field == "perPage" {
+			if field == "perPage" && !preserveZeroPerPage {
 				if parsed, ok := number.(float64); ok && parsed == 0 {
 					delete(args, field)
 					continue
