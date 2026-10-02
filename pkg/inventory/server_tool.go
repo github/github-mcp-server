@@ -8,6 +8,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"sync"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -130,6 +131,13 @@ type ServerTool struct {
 	registerTyped              func(*mcp.Server, *mcp.Tool, ...ToolHandlerMiddleware)
 	handlerMiddlewareProviders []ToolHandlerMiddlewareProvider
 	inputNormalizer            InputNormalizer
+	inferredInputSchema        *inferredInputSchemaCache
+}
+
+type inferredInputSchemaCache struct {
+	once   sync.Once
+	schema *jsonschema.Schema
+	err    error
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -280,10 +288,15 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 // Dependencies should be injected into context before calling tool handlers.
 func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out], inputNormalizers ...InputNormalizer) ServerTool {
 	inputNormalizer := combineInputNormalizers(inputNormalizers)
+	var inferredInputSchema *inferredInputSchemaCache
+	if tool.InputSchema == nil && reflect.TypeFor[In]() != reflect.TypeFor[any]() {
+		inferredInputSchema = &inferredInputSchemaCache{}
+	}
 	serverTool := ServerTool{
-		Tool:            tool,
-		Toolset:         toolset,
-		inputNormalizer: inputNormalizer,
+		Tool:                tool,
+		Toolset:             toolset,
+		inputNormalizer:     inputNormalizer,
+		inferredInputSchema: inferredInputSchema,
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -314,13 +327,19 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 	}
 	if reflect.TypeFor[Out]() != reflect.TypeFor[any]() {
 		serverTool.registerTyped = func(server *mcp.Server, tool *mcp.Tool, middleware ...ToolHandlerMiddleware) {
-			if reflect.TypeFor[In]() != reflect.TypeFor[any]() && tool.InputSchema == nil {
-				inputSchema, err := jsonschema.For[In](nil)
-				if err != nil {
-					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
+			if inferredInputSchema != nil && tool.InputSchema == nil {
+				inferredInputSchema.once.Do(func() {
+					inferredInputSchema.schema, inferredInputSchema.err = jsonschema.For[In](nil)
+					if inferredInputSchema.err == nil {
+						schemaTool := mcp.Tool{InputSchema: inferredInputSchema.schema}
+						AnnotateHeaderParams(&schemaTool)
+						inferredInputSchema.schema = schemaTool.InputSchema.(*jsonschema.Schema)
+					}
+				})
+				if inferredInputSchema.err != nil {
+					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, inferredInputSchema.err))
 				}
-				tool.InputSchema = inputSchema
-				AnnotateHeaderParams(tool)
+				tool.InputSchema = inferredInputSchema.schema
 			}
 			tool.Meta = maps.Clone(tool.Meta)
 			if tool.Meta == nil {

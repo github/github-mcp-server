@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"reflect"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,9 +16,8 @@ const typedOutputMetaKey = "github.com/github/github-mcp-server/typed-output"
 type inputNormalizationContextKey struct{}
 
 type typedOutputMetadata struct {
-	hasOutput   bool
-	arrayOutput bool
-	contentSet  bool
+	hasOutput  bool
+	contentSet bool
 }
 
 func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, Out] {
@@ -51,17 +49,11 @@ func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middlewa
 			result.Meta = make(mcp.Meta)
 		}
 		result.Meta[typedOutputMetaKey] = typedOutputMetadata{
-			hasOutput:   handlerCalled && !result.IsError,
-			arrayOutput: isArrayOutput[Out](),
-			contentSet:  result.Content != nil,
+			hasOutput:  handlerCalled && !result.IsError,
+			contentSet: result.Content != nil,
 		}
 		return result, output, nil
 	}
-}
-
-func isArrayOutput[Out any]() bool {
-	kind := reflect.TypeFor[Out]().Kind()
-	return kind == reflect.Array || kind == reflect.Slice
 }
 
 // typedOutputMiddleware runs after SDK serialization so negotiated protocol
@@ -160,7 +152,7 @@ func removeTypedOutputFallback(result *mcp.CallToolResult, metadata typedOutputM
 		return fmt.Errorf("marshal typed tool output while removing fallback content: %w", err)
 	}
 	if metadata.hasOutput {
-		if metadata.arrayOutput && metadata.contentSet {
+		if metadata.contentSet {
 			removeMatchingLastTextContent(result, encoded)
 		}
 		return nil
@@ -169,9 +161,7 @@ func removeTypedOutputFallback(result *mcp.CallToolResult, metadata typedOutputM
 		result.Content = nil
 		return nil
 	}
-	if metadata.arrayOutput {
-		removeMatchingLastTextContent(result, encoded)
-	}
+	removeMatchingLastTextContent(result, encoded)
 	return nil
 }
 
