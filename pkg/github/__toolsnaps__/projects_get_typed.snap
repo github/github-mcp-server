@@ -5,6 +5,18 @@
     "title": "Get details of GitHub Projects resources"
   },
   "description": "Get details about specific GitHub Projects resources.\nUse this tool to get details about individual projects, project fields, project items, and project views by their unique IDs.\n",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABB0lEQVRIid2VMW7CQBBF/1iuUe7AIrwIbFcU6VJwh3CBNLQ+AH1qaDgAR6DMFcCWsKM4hzANnX8aLJmQRaAFAfnV7nzpP2lmVgs8uqQ6NL3wTYTvABqWmRtSou9sOdsDKB0UADIAH5aAFwDtPF09AYBbMxoQWeTr5dgmXXXCMch+dXdswk6REdDy/KHSQVyvKR1OlfYn+7UgaWr/1ZTjmgw6Thtk71dV18ZWqSvieKac27XoYQDGGfwtrq8KyNN4dC7gdjOQsvwUSGzyT5WxRV9ZPAcwtwVcokUJWWYm88wtOlServxj/v96aBuQA6WDrVUiOQBQHABIiXZf5rMVACgARpYZd6Qfp6RDgj1llLkAAAAASUVORK5CYII=",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAzklEQVRIid2VuQ3CQBBF/yAKoAuDxFEDgXuAHJPQhJuAFiiDHmwJQRc2CeEjQJbQ+kDWYhn42c6s/pvd2UP6GwFbIMdfORAVvvYCyCVdJJ08a11KCsxs5K4AIPY0FxADFOOBr+E71QKANZA4sQOwd2IpsKrzGTbAA0kzJzapmDeVNK4z6W+LfgbQ1IMqnTsFmNmuLaDXHlwlJQ15P4CZHc1s0RmghVI9H8lKtT1FJZnZvCn/XxftJikE7p6eoaS8FAUiIPvAl5kBG88iv0gPgTHUJC6qAYQAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "properties": {
       "field_id": {
@@ -82,7 +94,8 @@
       },
       "owner": {
         "description": "The owner (user or organization login). The name is not case sensitive.",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "owner_type": {
         "anyOf": [
