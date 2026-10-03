@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -99,16 +99,16 @@ type WithCategoryNoOrder struct {
 
 func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
 	return &github.Discussion{
-		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.PlainText(string(fragment.Title))),
-		HTMLURL:   github.Ptr(string(fragment.URL)),
+		Number:    new(int(fragment.Number)),
+		Title:     new(sanitize.PlainText(string(fragment.Title))),
+		HTMLURL:   new(string(fragment.URL)),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
 		User: &github.User{
-			Login: github.Ptr(string(fragment.Author.Login)),
+			Login: new(string(fragment.Author.Login)),
 		},
 		DiscussionCategory: &github.DiscussionCategory{
-			Name: github.Ptr(string(fragment.Category.Name)),
+			Name: new(string(fragment.Category.Name)),
 		},
 	}
 }

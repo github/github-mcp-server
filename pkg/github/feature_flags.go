@@ -6,9 +6,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 )
 
-// MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
-const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
-
 // MCPAppsDisableFormDeferralFeatureFlag disables handing write-tool calls off
 // to MCP App forms while preserving MCP Apps UI metadata and result views.
 const MCPAppsDisableFormDeferralFeatureFlag = "mcp_apps_disable_form_deferral"
@@ -47,7 +44,6 @@ const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 // Only flags in this list are accepted; unknown flags are silently ignored.
 // This is the single source of truth for which flags are user-controllable.
 var AllowedFeatureFlags = []string{
-	MCPAppsFeatureFlag,
 	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
@@ -64,7 +60,6 @@ var AllowedFeatureFlags = []string{
 // This is the single source of truth for what "insiders" means in terms of
 // feature flag expansion.
 var InsidersFeatureFlags = []string{
-	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,

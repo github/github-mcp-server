@@ -17,7 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -123,7 +123,7 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 			}
 		}
 		resp := gogithub.RepositoryPermissionLevel{
-			Permission: gogithub.Ptr(perm),
+			Permission: new(perm),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)

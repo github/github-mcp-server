@@ -100,26 +100,13 @@ func Test_shouldDeferToForm_featureFlags(t *testing.T) {
 		want         bool
 	}{
 		{
-			name:         "MCP Apps enabled defers to form",
-			enabledFlags: []inventory.FeatureFlag{MCPAppsFeatureFlag},
-			want:         true,
+			name: "defers to form by default",
+			want: true,
 		},
 		{
-			name: "form deferral disabled executes directly",
-			enabledFlags: []inventory.FeatureFlag{
-				MCPAppsFeatureFlag,
-				MCPAppsDisableFormDeferralFeatureFlag,
-			},
-			want: false,
-		},
-		{
-			name:         "form deferral opt-out does not enable MCP Apps",
+			name:         "form deferral disabled executes directly",
 			enabledFlags: []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
 			want:         false,
-		},
-		{
-			name: "MCP Apps disabled executes directly",
-			want: false,
 		},
 	}
 

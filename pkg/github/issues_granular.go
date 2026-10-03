@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -1900,4 +1900,14 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
+}
+
+// GranularHideIssueComment hides (minimizes) an issue or pull request conversation comment.
+func GranularHideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, true)
+}
+
+// GranularUnhideIssueComment unhides (unminimizes) an issue or pull request conversation comment.
+func GranularUnhideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, false)
 }

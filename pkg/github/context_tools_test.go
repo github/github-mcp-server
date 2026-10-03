@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -30,19 +30,19 @@ func Test_GetMe(t *testing.T) {
 
 	// Setup mock user response
 	mockUser := &github.User{
-		Login:           github.Ptr("testuser"),
-		Name:            github.Ptr("Test User"),
-		Email:           github.Ptr("test@example.com"),
-		Bio:             github.Ptr("GitHub user for testing"),
-		Company:         github.Ptr("Test Company"),
-		Location:        github.Ptr("Test Location"),
-		HTMLURL:         github.Ptr("https://github.com/testuser"),
+		Login:           new("testuser"),
+		Name:            new("Test User"),
+		Email:           new("test@example.com"),
+		Bio:             new("GitHub user for testing"),
+		Company:         new("Test Company"),
+		Location:        new("Test Location"),
+		HTMLURL:         new("https://github.com/testuser"),
 		CreatedAt:       &github.Timestamp{Time: time.Now().Add(-365 * 24 * time.Hour)},
-		Type:            github.Ptr("User"),
-		Hireable:        github.Ptr(true),
-		TwitterUsername: github.Ptr("testuser_twitter"),
+		Type:            new("User"),
+		Hireable:        new(true),
+		TwitterUsername: new("testuser_twitter"),
 		Plan: &github.Plan{
-			Name: github.Ptr("pro"),
+			Name: new("pro"),
 		},
 	}
 
@@ -144,8 +144,8 @@ func Test_GetMe_OmittedArguments(t *testing.T) {
 	t.Parallel()
 
 	mockUser := &github.User{
-		Login:     github.Ptr("testuser"),
-		HTMLURL:   github.Ptr("https://github.com/testuser"),
+		Login:     new("testuser"),
+		HTMLURL:   new("https://github.com/testuser"),
 		CreatedAt: &github.Timestamp{Time: time.Now()},
 	}
 	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -175,8 +175,8 @@ func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 	serverTool := GetMe(translations.NullTranslationHelper)
 
 	mockUser := &github.User{
-		Login:     github.Ptr("testuser"),
-		HTMLURL:   github.Ptr("https://github.com/testuser"),
+		Login:     new("testuser"),
+		HTMLURL:   new("https://github.com/testuser"),
 		CreatedAt: &github.Timestamp{Time: time.Now()},
 	}
 	mockedHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -246,19 +246,19 @@ func Test_GetTeams(t *testing.T) {
 	assert.True(t, tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
 
 	mockUser := &github.User{
-		Login:           github.Ptr("testuser"),
-		Name:            github.Ptr("Test User"),
-		Email:           github.Ptr("test@example.com"),
-		Bio:             github.Ptr("GitHub user for testing"),
-		Company:         github.Ptr("Test Company"),
-		Location:        github.Ptr("Test Location"),
-		HTMLURL:         github.Ptr("https://github.com/testuser"),
+		Login:           new("testuser"),
+		Name:            new("Test User"),
+		Email:           new("test@example.com"),
+		Bio:             new("GitHub user for testing"),
+		Company:         new("Test Company"),
+		Location:        new("Test Location"),
+		HTMLURL:         new("https://github.com/testuser"),
 		CreatedAt:       &github.Timestamp{Time: time.Now().Add(-365 * 24 * time.Hour)},
-		Type:            github.Ptr("User"),
-		Hireable:        github.Ptr(true),
-		TwitterUsername: github.Ptr("testuser_twitter"),
+		Type:            new("User"),
+		Hireable:        new(true),
+		TwitterUsername: new("testuser_twitter"),
 		Plan: &github.Plan{
-			Name: github.Ptr("pro"),
+			Name: new("pro"),
 		},
 	}
 
