@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
@@ -81,6 +82,7 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 		Commit:  &github.Commit{Message: new("A commit")},
 	}
 	handlers := map[string]http.HandlerFunc{
+		GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{Private: new(false)}),
 		GetReposCommitsByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2", r.URL.Query().Get("page"))
 			assert.Equal(t, "7", r.URL.Query().Get("per_page"))
@@ -89,6 +91,10 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 		GetReposCommitsByOwnerByRepo: func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "4", r.URL.Query().Get("page"))
 			assert.Equal(t, "9", r.URL.Query().Get("per_page"))
+			if r.URL.Query().Get("sha") == "null" {
+				mockResponse(t, http.StatusOK, nil)(w, r)
+				return
+			}
 			if r.URL.Query().Get("sha") == "empty" {
 				mockResponse(t, http.StatusOK, []*github.RepositoryCommit{})(w, r)
 				return
@@ -96,7 +102,10 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 			mockResponse(t, http.StatusOK, []*github.RepositoryCommit{commit})(w, r)
 		},
 	}
-	deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(handlers))}
+	deps := BaseDeps{
+		Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)),
+		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+	}
 	tools := []inventory.ServerTool{
 		GetCommit(translations.NullTranslationHelper),
 		ListCommits(translations.NullTranslationHelper),
@@ -123,6 +132,7 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 					assert.Nil(t, tool.OutputSchema, "%s must not expose outputSchema to legacy clients", tool.Name)
 				} else {
 					require.NotNil(t, tool.OutputSchema, "%s must expose its typed output schema", tool.Name)
+					require.NoError(t, toolsnaps.Test(tool.Name, tool))
 				}
 			}
 
@@ -161,12 +171,18 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "sha": "empty", "fields": []any{"sha", "commit"}},
 					text: `[]`,
 				},
+				{
+					name: "list_commits",
+					args: map[string]any{"owner": "owner", "repo": "repo", "page": "4", "perPage": "9", "sha": "null"},
+					text: `[]`,
+				},
 			}
 			for _, call := range calls {
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: call.name, Arguments: call.args})
 				require.NoError(t, err, call.name)
 				require.False(t, result.IsError, "%s: %s", call.name, result)
 				require.Len(t, result.Content, 1, "%s must preserve one legacy text result", call.name)
+				assert.NotNil(t, result.Meta["ifc"], "typed and legacy outputs retain IFC labeling")
 				assert.Equal(t, call.text, getTextResult(t, result).Text, "%s legacy text is byte-exact", call.name)
 				if protocolVersion == "2025-11-25" {
 					assert.Nil(t, result.StructuredContent)
@@ -185,23 +201,16 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(structuredJSON), &output))
 				require.NoError(t, resolved.Validate(output), "%s output must conform to its schema", call.name)
 			}
-
-			filtered, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-				Name: "list_commits",
-				Arguments: map[string]any{
-					"owner": "owner", "repo": "repo", "page": "4", "perPage": "9",
-					"fields": []any{"sha"},
-				},
-			})
-			require.NoError(t, err)
-			require.False(t, filtered.IsError, filtered)
-			assert.Equal(t, `[{"sha":"abc123"}]`, getTextResult(t, filtered).Text)
-			if protocolVersion == "2025-11-25" {
-				assert.Nil(t, filtered.StructuredContent)
-			} else {
-				require.NotNil(t, filtered.StructuredContent)
-				assert.JSONEq(t, `[{"sha":"abc123"}]`, mustMarshalJSON(t, filtered.StructuredContent))
+			for _, call := range []mcp.CallToolParams{
+				{Name: "get_commit", Arguments: map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123", "detail": "invalid"}},
+				{Name: "list_commits", Arguments: map[string]any{"owner": "owner", "repo": "repo", "since": "invalid"}},
+			} {
+				result, err := session.CallTool(context.Background(), &call)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Nil(t, result.StructuredContent, "errors must not expose a success DTO")
 			}
+
 		})
 	}
 }
