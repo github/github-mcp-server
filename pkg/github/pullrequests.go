@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v92/github"
@@ -1325,6 +1326,134 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 }
 
 // ListPullRequests creates a tool to list pull requests in a GitHub repository.
+type ListPullRequestsInput struct {
+	Owner     string   `json:"owner"`
+	Repo      string   `json:"repo"`
+	State     string   `json:"state,omitempty"`
+	Head      string   `json:"head,omitempty"`
+	Base      string   `json:"base,omitempty"`
+	Sort      string   `json:"sort,omitempty"`
+	Direction string   `json:"direction,omitempty"`
+	Fields    []string `json:"fields,omitempty"`
+	Page      *int     `json:"page,omitempty"`
+	PerPage   *int     `json:"perPage,omitempty"`
+}
+
+type ListPullRequestOutput struct {
+	Number             *int             `json:"number,omitempty"`
+	Title              *string          `json:"title,omitempty"`
+	Body               *string          `json:"body,omitempty"`
+	State              *string          `json:"state,omitempty" jsonschema:"Pull request state: open or closed."`
+	Draft              *bool            `json:"draft,omitempty"`
+	Merged             *bool            `json:"merged,omitempty"`
+	MergeableState     *string          `json:"mergeable_state,omitempty"`
+	HTMLURL            *string          `json:"html_url,omitempty"`
+	User               *MinimalUser     `json:"user,omitempty"`
+	Labels             *[]string        `json:"labels,omitempty"`
+	Assignees          *[]string        `json:"assignees,omitempty"`
+	RequestedReviewers *[]string        `json:"requested_reviewers,omitempty"`
+	MergedBy           *string          `json:"merged_by,omitempty"`
+	Head               *MinimalPRBranch `json:"head,omitempty"`
+	Base               *MinimalPRBranch `json:"base,omitempty"`
+	Additions          *int             `json:"additions,omitempty" jsonschema:"Number of lines added."`
+	Deletions          *int             `json:"deletions,omitempty" jsonschema:"Number of lines removed."`
+	ChangedFiles       *int             `json:"changed_files,omitempty" jsonschema:"Number of files changed."`
+	Commits            *int             `json:"commits,omitempty" jsonschema:"Number of commits in the pull request."`
+	Comments           *int             `json:"comments,omitempty" jsonschema:"Number of comments on the pull request."`
+	CreatedAt          *string          `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt          *string          `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
+	ClosedAt           *string          `json:"closed_at,omitempty" jsonschema:"Closing time in RFC 3339 format."`
+	MergedAt           *string          `json:"merged_at,omitempty" jsonschema:"Merge time in RFC 3339 format."`
+	Milestone          *string          `json:"milestone,omitempty"`
+}
+
+func structuredListPullRequestsOutput(pullRequests []MinimalPullRequest, fields []string) []ListPullRequestOutput {
+	output := make([]ListPullRequestOutput, 0, len(pullRequests))
+	selected := func(field string) bool {
+		return len(fields) == 0 || slices.Contains(fields, field)
+	}
+	for _, pr := range pullRequests {
+		item := ListPullRequestOutput{}
+		if selected("number") {
+			item.Number = new(pr.Number)
+		}
+		if selected("title") {
+			item.Title = new(pr.Title)
+		}
+		if selected("body") && pr.Body != "" {
+			item.Body = new(pr.Body)
+		}
+		if selected("state") {
+			item.State = new(pr.State)
+		}
+		if selected("draft") {
+			item.Draft = new(pr.Draft)
+		}
+		if selected("merged") {
+			item.Merged = new(pr.Merged)
+		}
+		if selected("mergeable_state") && pr.MergeableState != "" {
+			item.MergeableState = new(pr.MergeableState)
+		}
+		if selected("html_url") {
+			item.HTMLURL = new(pr.HTMLURL)
+		}
+		if selected("user") && pr.User != nil {
+			item.User = pr.User
+		}
+		if selected("labels") && len(pr.Labels) > 0 {
+			item.Labels = &pr.Labels
+		}
+		if selected("assignees") && len(pr.Assignees) > 0 {
+			item.Assignees = &pr.Assignees
+		}
+		if selected("requested_reviewers") && len(pr.RequestedReviewers) > 0 {
+			item.RequestedReviewers = &pr.RequestedReviewers
+		}
+		if selected("merged_by") && pr.MergedBy != "" {
+			item.MergedBy = new(pr.MergedBy)
+		}
+		if selected("head") && pr.Head != nil {
+			item.Head = pr.Head
+		}
+		if selected("base") && pr.Base != nil {
+			item.Base = pr.Base
+		}
+		if selected("additions") && pr.Additions != 0 {
+			item.Additions = new(pr.Additions)
+		}
+		if selected("deletions") && pr.Deletions != 0 {
+			item.Deletions = new(pr.Deletions)
+		}
+		if selected("changed_files") && pr.ChangedFiles != 0 {
+			item.ChangedFiles = new(pr.ChangedFiles)
+		}
+		if selected("commits") && pr.Commits != 0 {
+			item.Commits = new(pr.Commits)
+		}
+		if selected("comments") && pr.Comments != 0 {
+			item.Comments = new(pr.Comments)
+		}
+		if selected("created_at") && pr.CreatedAt != "" {
+			item.CreatedAt = new(pr.CreatedAt)
+		}
+		if selected("updated_at") && pr.UpdatedAt != "" {
+			item.UpdatedAt = new(pr.UpdatedAt)
+		}
+		if selected("closed_at") && pr.ClosedAt != "" {
+			item.ClosedAt = new(pr.ClosedAt)
+		}
+		if selected("merged_at") && pr.MergedAt != "" {
+			item.MergedAt = new(pr.MergedAt)
+		}
+		if selected("milestone") && pr.Milestone != "" {
+			item.Milestone = new(pr.Milestone)
+		}
+		output = append(output, item)
+	}
+	return output
+}
+
 func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1369,7 +1498,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[ListPullRequestsInput, []ListPullRequestOutput](
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
@@ -1381,50 +1510,27 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListPullRequestsInput) (*mcp.CallToolResult, []ListPullRequestOutput, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{Page: 1, PerPage: 30}
+			if input.Page != nil {
+				pagination.Page = *input.Page
 			}
-			head, err := OptionalParam[string](args, "head")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			base, err := OptionalParam[string](args, "base")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sort, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 
 			opts := &github.PullRequestListOptions{
-				State:     state,
-				Head:      head,
-				Base:      base,
-				Sort:      sort,
-				Direction: direction,
+				State:     input.State,
+				Head:      input.Head,
+				Base:      input.Base,
+				Sort:      input.Sort,
+				Direction: input.Direction,
 				ListOptions: github.ListOptions{
 					PerPage: pagination.PerPage,
 					Page:    pagination.Page,
@@ -1435,7 +1541,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
+			prs, resp, err := client.PullRequests.List(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list pull requests",
@@ -1462,8 +1568,8 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			filtered := false
 			var payload any = minimalPRs
-			if len(fields) > 0 {
-				filteredPRs, err := filterEachField(minimalPRs, fields)
+			if len(input.Fields) > 0 {
+				filteredPRs, err := filterEachField(minimalPRs, input.Fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
 				}
@@ -1481,9 +1587,11 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			result := utils.NewToolResultText(string(r))
 			// Pull request titles/bodies are user-authored (untrusted);
 			// confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
-		})
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelRepoUserContent)
+			return result, structuredListPullRequestsOutput(minimalPRs, input.Fields), nil
+		},
+		normalizeTypedReadArguments(nil, false),
+	)
 }
 
 // MergePullRequest creates a tool to merge a pull request.
@@ -1652,7 +1760,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 	)
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchIssuesInput, SearchIssuesOutput](
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "search_pull_requests",
@@ -1664,16 +1772,14 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchIssuesInput) (*mcp.CallToolResult, SearchIssuesOutput, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
-			return result, nil, err
-		})
+			options = append(options, withFieldsFiltering(deps, "search_pull_requests", input.Fields))
+			result, response, err := searchHandler(ctx, deps.GetClient, input, "pr", "failed to search pull requests", options...)
+			return result, structuredSearchIssuesOutput(response, input.Fields), err
+		},
+		normalizeTypedReadArguments(nil, false),
+	)
 }
 
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
