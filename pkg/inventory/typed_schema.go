@@ -122,7 +122,7 @@ func CloneSchemaWithoutDefaults(schema *jsonschema.Schema) *jsonschema.Schema {
 	return clonedSchema
 }
 
-// CloneSchema deep-copies schema nodes and mutable metadata collections.
+// CloneSchema deep-copies schema nodes, numeric bounds, and mutable metadata.
 func CloneSchema(schema *jsonschema.Schema) *jsonschema.Schema {
 	clonedSchema := schema.CloneSchemas()
 	cloneSchemaMetadata(clonedSchema)
@@ -138,6 +138,19 @@ func cloneSchemaMetadata(schema *jsonschema.Schema) {
 	if schema == nil {
 		return
 	}
+	schema.MultipleOf = cloneSchemaPointer(schema.MultipleOf)
+	schema.Minimum = cloneSchemaPointer(schema.Minimum)
+	schema.Maximum = cloneSchemaPointer(schema.Maximum)
+	schema.ExclusiveMinimum = cloneSchemaPointer(schema.ExclusiveMinimum)
+	schema.ExclusiveMaximum = cloneSchemaPointer(schema.ExclusiveMaximum)
+	schema.MinLength = cloneSchemaPointer(schema.MinLength)
+	schema.MaxLength = cloneSchemaPointer(schema.MaxLength)
+	schema.MinItems = cloneSchemaPointer(schema.MinItems)
+	schema.MaxItems = cloneSchemaPointer(schema.MaxItems)
+	schema.MinContains = cloneSchemaPointer(schema.MinContains)
+	schema.MaxContains = cloneSchemaPointer(schema.MaxContains)
+	schema.MinProperties = cloneSchemaPointer(schema.MinProperties)
+	schema.MaxProperties = cloneSchemaPointer(schema.MaxProperties)
 	schema.Types = slices.Clone(schema.Types)
 	schema.Enum = cloneSchemaValue(reflect.ValueOf(schema.Enum), make(map[schemaValueVisit]reflect.Value)).Interface().([]any)
 	schema.Default = slices.Clone(schema.Default)
@@ -174,6 +187,14 @@ func cloneSchemaMetadata(schema *jsonschema.Schema) {
 	for _, child := range schemaChildren(schema) {
 		cloneSchemaMetadata(child)
 	}
+}
+
+func cloneSchemaPointer[T int | float64](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 // cloneSchemaValue preserves the concrete metadata types while detaching
@@ -284,34 +305,6 @@ func removeSchemaDefaults(schema *jsonschema.Schema) {
 		return
 	}
 	schema.Default = nil
-	for _, children := range []map[string]*jsonschema.Schema{
-		schema.Defs,
-		schema.Definitions,
-		schema.Properties,
-		schema.PatternProperties,
-		schema.DependentSchemas,
-		schema.DependencySchemas,
-	} {
-		for _, child := range children {
-			removeSchemaDefaults(child)
-		}
-	}
-	for _, child := range []*jsonschema.Schema{
-		schema.Items,
-		schema.AdditionalItems,
-		schema.Contains,
-		schema.UnevaluatedItems,
-		schema.AdditionalProperties,
-		schema.PropertyNames,
-		schema.UnevaluatedProperties,
-		schema.Not,
-		schema.If,
-		schema.Then,
-		schema.Else,
-		schema.ContentSchema,
-	} {
-		removeSchemaDefaults(child)
-	}
 	for _, child := range schemaChildren(schema) {
 		removeSchemaDefaults(child)
 	}
