@@ -27,5 +27,62 @@
     ],
     "type": "object"
   },
-  "name": "get_discussion"
+  "name": "get_discussion",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "answerChosenAt": {
+        "description": "Answer selection time (RFC3339), when selected.",
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "body": {
+        "type": "string"
+      },
+      "category": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "closed": {
+        "type": "boolean"
+      },
+      "createdAt": {
+        "description": "Creation time (RFC3339).",
+        "type": "string"
+      },
+      "html_url": {
+        "type": "string"
+      },
+      "isAnswered": {
+        "type": "boolean"
+      },
+      "number": {
+        "type": "integer"
+      },
+      "title": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "number",
+      "title",
+      "body",
+      "html_url",
+      "closed",
+      "isAnswered",
+      "createdAt",
+      "category"
+    ],
+    "type": "object"
+  }
 }

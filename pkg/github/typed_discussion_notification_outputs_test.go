@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
@@ -112,8 +114,10 @@ func typedDiscussionNotificationDeps(t *testing.T) BaseDeps {
 		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"data": data}))
 	})}}
 	return BaseDeps{
-		GQLClient: githubv4.NewClient(gql),
+		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		GQLClient:      githubv4.NewClient(gql),
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposByOwnerByRepo:                            mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
 			GetNotifications:                                 mockResponse(t, http.StatusOK, []*github.Notification{notification}),
 			GetReposNotificationsByOwnerByRepo:               mockResponse(t, http.StatusOK, []*github.Notification{notification}),
 			GetNotificationsThreadsByThreadID:                mockResponse(t, http.StatusOK, notification),
@@ -206,6 +210,13 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 					assert.Nil(t, tool.OutputSchema, tool.Name)
 				} else {
 					require.NotNil(t, tool.OutputSchema, tool.Name)
+					canonical := tool.OutputSchema
+					for _, definition := range discussionNotificationTools() {
+						if definition.Tool.Name == tool.Name {
+							assert.JSONEq(t, mustMarshalJSON(t, definition.Tool.OutputSchema), mustMarshalJSON(t, canonical))
+							require.NoError(t, toolsnaps.Test(definition.Tool.Name, definition.Tool))
+						}
+					}
 				}
 			}
 			for i, tc := range tests {
@@ -215,6 +226,14 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 					require.False(t, result.IsError, "%s", result)
 					require.Len(t, result.Content, 1, "SDK fallback must not duplicate legacy text")
 					assert.Equal(t, tc.text, getTextResult(t, result).Text, "legacy text must remain byte-equivalent")
+					switch tc.name {
+					case "get_notification_details":
+						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelNotificationDetails()), mustMarshalJSON(t, result.Meta["ifc"]))
+					case "list_discussions", "get_discussion", "get_discussion_comments":
+						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoUserContent(true)), mustMarshalJSON(t, result.Meta["ifc"]))
+					case "list_discussion_categories":
+						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(true)), mustMarshalJSON(t, result.Meta["ifc"]))
+					}
 					if protocol == "2025-11-25" {
 						assert.Nil(t, result.StructuredContent)
 						return
@@ -228,6 +247,10 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 					require.NoError(t, resolved.Validate(output), tc.name)
 					assert.NotContains(t, mustMarshalJSON(t, output), "legacy-only repository detail")
+					if tc.name == "get_discussion" {
+						assert.Contains(t, mustMarshalJSON(t, output), `"html_url"`)
+						assert.NotContains(t, mustMarshalJSON(t, output), `"url"`)
+					}
 				})
 			}
 			for _, tc := range []struct {
