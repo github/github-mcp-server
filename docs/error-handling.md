@@ -74,6 +74,12 @@ mean the issue was created or updated. The output schema includes a strict
 status variant alongside the mutation's `id`/`url` variant. Multi-round-trip
 `InputRequests` continue to pass through unchanged.
 
+The consolidated issue tools use method-discriminated object outputs for modern
+successes. Issue and comment data are projected from the API responses into
+compact DTOs, excluding API, node, and hypermedia URLs while retaining human
+links. Legacy text is marshalled separately and keeps its original format and
+fields.
+
 ### Context Management
 
 The error handling system uses context to store errors for later inspection:

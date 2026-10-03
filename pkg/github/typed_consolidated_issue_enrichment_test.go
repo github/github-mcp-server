@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTypedIssueReadEnrichmentAndLockdown(t *testing.T) {
@@ -56,9 +57,12 @@ func TestTypedIssueReadEnrichmentAndLockdown(t *testing.T) {
 					text += `{"number":8,"title":"Closing","state":"OPEN","url":"closing","repository":"owner/repo"}`
 				}
 				text += `]}}`
-				assertConsolidatedResult(t, session, schemas, "issue_read", map[string]any{
+				result := assertConsolidatedResult(t, session, schemas, "issue_read", map[string]any{
 					"method": "get", "owner": "owner", "repo": "repo", "issue_number": 1,
 				}, text)
+				if protocol == inventory.ProtocolVersionMultiRoundTrip {
+					assert.JSONEq(t, `{"method":"get","issue":`+text+`}`, mustMarshalJSON(t, result.StructuredContent))
+				}
 			})
 		}
 	}
