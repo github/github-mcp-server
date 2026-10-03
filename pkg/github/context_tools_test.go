@@ -963,6 +963,162 @@ func TestNormalizeGetTeamsInput(t *testing.T) {
 	}
 }
 
+func TestContextToolsExactRoutingKeys(t *testing.T) {
+	for _, mode := range []string{"direct", "legacy", "modern", "unknown"} {
+		t.Run(mode, func(t *testing.T) {
+			var clientCalls, gqlCalls int
+			deps := stubDeps{
+				clientFn: func(ctx context.Context) (*github.Client, error) {
+					clientCalls++
+					return stubClientFnFromHTTP(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+						GetUser: mockResponse(t, http.StatusOK, &github.User{Login: new("authenticated")}),
+					}))(ctx)
+				},
+				gqlClientFn: func(context.Context) (*githubv4.Client, error) {
+					gqlCalls++
+					return githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+						githubv4mock.NewQueryMatcher(
+							"query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}",
+							map[string]any{"login": "authenticated"},
+							githubv4mock.DataResponse(map[string]any{
+								"user": map[string]any{"organizations": map[string]any{"nodes": []any{}}},
+							}),
+						),
+						githubv4mock.NewQueryMatcher(
+							"query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}",
+							map[string]any{"org": "testorg", "teamSlug": "testteam"},
+							githubv4mock.DataResponse(map[string]any{
+								"organization": map[string]any{"team": map[string]any{"members": map[string]any{"nodes": []any{}}}},
+							}),
+						),
+					)), nil
+				},
+				obsv: stubExporters(),
+			}
+			tools := []inventory.ServerTool{
+				GetTeams(translations.NullTranslationHelper),
+				GetTeamMembers(translations.NullTranslationHelper),
+			}
+			call := func(name string, args map[string]any) *mcp.CallToolResult {
+				for _, tool := range tools {
+					if tool.Tool.Name == name {
+						request := createMCPRequest(args)
+						if mode == "unknown" {
+							request.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: "2099-01-01"}
+						}
+						result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+						require.NoError(t, err)
+						return result
+					}
+				}
+				t.Fatalf("unknown tool %s", name)
+				return nil
+			}
+			if mode == "legacy" || mode == "modern" {
+				server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).Build()
+				require.NoError(t, err)
+				inv.RegisterTools(context.Background(), server, deps)
+				serverTransport, clientTransport := mcp.NewInMemoryTransports()
+				serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = serverSession.Close() })
+				client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+				version := "2025-03-26"
+				if mode == "modern" {
+					version = inventory.ProtocolVersionMultiRoundTrip
+				}
+				session, err := client.Connect(context.Background(), clientTransport, &mcp.ClientSessionOptions{ProtocolVersion: version})
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = session.Close() })
+				meta := mcp.Meta{}
+				if mode == "modern" {
+					meta[mcp.MetaKeyProtocolVersion] = inventory.ProtocolVersionMultiRoundTrip
+				}
+				call = func(name string, args map[string]any) *mcp.CallToolResult {
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: name, Arguments: args, Meta: meta,
+					})
+					require.NoError(t, err)
+					return result
+				}
+			}
+			for _, args := range []map[string]any{
+				{"USER": "wrong-user", "unrelated": true},
+				{"UsEr": nil},
+				{"user": "", "USER": 42},
+				{"user": "authenticated", "USER": "wrong-user"},
+			} {
+				beforeREST := clientCalls
+				beforeGQL := gqlCalls
+				result := call("get_teams", args)
+				require.False(t, result.IsError)
+				assert.Equal(t, beforeGQL+1, gqlCalls)
+				if args["user"] == "authenticated" {
+					assert.Equal(t, beforeREST, clientCalls)
+				} else {
+					assert.Equal(t, beforeREST+1, clientCalls)
+				}
+				if mode == "modern" {
+					assert.Equal(t, "[]", getTextResult(t, result).Text)
+					assert.NotNil(t, result.StructuredContent)
+				} else {
+					assert.Equal(t, "null", getTextResult(t, result).Text)
+					assert.Nil(t, result.StructuredContent)
+				}
+			}
+			beforeREST, beforeGQL := clientCalls, gqlCalls
+			result := call("get_teams", map[string]any{"user": nil, "USER": "authenticated"})
+			require.True(t, result.IsError)
+			assert.Equal(t, "parameter user is not of type string, is <nil>", getErrorResult(t, result).Text)
+			assert.Equal(t, beforeREST, clientCalls)
+			assert.Equal(t, beforeGQL, gqlCalls)
+			for _, args := range []map[string]any{
+				{"ORG": "testorg", "team_slug": "testteam"},
+				{"org": "testorg", "TEAM_SLUG": "testteam"},
+				{"ORG": "testorg", "TEAM_SLUG": "testteam"},
+			} {
+				result := call("get_team_members", args)
+				require.True(t, result.IsError)
+				assert.Nil(t, result.StructuredContent)
+				assert.Equal(t, beforeGQL, gqlCalls)
+			}
+			result = call("get_team_members", map[string]any{
+				"org": "testorg", "team_slug": "testteam", "ORG": 42, "TEAM_SLUG": nil, "unrelated": true,
+			})
+			require.False(t, result.IsError)
+			assert.Equal(t, beforeGQL+1, gqlCalls)
+			if mode == "modern" {
+				assert.Equal(t, "[]", getTextResult(t, result).Text)
+			} else {
+				assert.Equal(t, "null", getTextResult(t, result).Text)
+			}
+		})
+	}
+}
+
+func TestNormalizeContextRoutingKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		normalize inventory.InputNormalizer
+		args      string
+		want      string
+	}{
+		{"teams", normalizeGetTeamsInput, `{"user":"exact","USER":42,"UsEr":null,"unknown":{"USER":"retained"}}`, `{"user":"exact","unknown":{"USER":"retained"}}`},
+		{"members", normalizeGetTeamMembersInput, `{"org":"exact","ORG":false,"team_slug":"slug","Team_Slug":null,"unknown":true}`, `{"org":"exact","team_slug":"slug","unknown":true}`},
+		{"canonical null retained", normalizeGetTeamMembersInput, `{"org":null,"team_slug":null,"ORG":"ignored"}`, `{"org":null,"team_slug":null}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := tc.normalize(json.RawMessage(tc.args))
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.want, string(result))
+		})
+	}
+}
+
 func Test_GetTeamMembers_RequiredIdentifiersForDirectHandler(t *testing.T) {
 	t.Parallel()
 
