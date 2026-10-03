@@ -10,12 +10,10 @@
     "properties": {
       "org": {
         "description": "Organization login (owner) that contains the team.",
-        "minLength": 1,
         "type": "string"
       },
       "team_slug": {
         "description": "Team slug",
-        "minLength": 1,
         "type": "string"
       }
     },
