@@ -4,169 +4,318 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"maps"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const typedOutputMetaKey = "github.com/github/github-mcp-server/typed-output"
-
 type inputNormalizationContextKey struct{}
+type preflightCompleteKey struct{}
+type typedCallStateKey struct{}
+type typedRegistrationSetContextKey struct{}
 
-type typedOutputMetadata struct {
-	hasOutput  bool
-	contentSet bool
+type typedToolRegistrationSet struct {
+	byName map[string]*typedToolRegistration
 }
 
-func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, Out] {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input In) (*mcp.CallToolResult, Out, error) {
-		var output Out
+type typedCallState struct {
+	toolName               string
+	handlerCalled          bool
+	hasOutput              bool
+	contentLengthBeforeSDK int
+	preserveContent        bool
+}
+
+type typedToolRegistration struct {
+	name              string
+	modernTool        *mcp.Tool
+	legacyTool        *mcp.Tool
+	modernRuntimeTool *mcp.Tool
+	legacyRuntimeTool *mcp.Tool
+	hasTypedOutput    bool
+	inputNormalizer   InputNormalizer
+	preflight         ToolCallPreflight
+	fixedEra          ProtocolEra
+	preserveContent   bool
+}
+
+func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input In) (*mcp.CallToolResult, any, error) {
+		var output any
 		handlerCalled := false
 		next := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			handlerCalled = true
 			result, typedOutput, err := handler(ctx, req, input)
-			output = typedOutput
+			if err == nil && (result == nil || (!result.IsError && result.InputRequests == nil)) {
+				output = typedOutput
+			}
 			return result, err
 		}
 		next = applyToolHandlerMiddleware(next, middleware...)
 
 		result, err := next(ctx, req)
 		if err != nil {
-			var zero Out
-			return nil, zero, err
+			if rpcErr, ok := errors.AsType[*jsonrpc.Error](err); ok {
+				return nil, output, rpcErr
+			}
+			return nil, output, err
 		}
 		if result == nil {
 			result = &mcp.CallToolResult{}
 		}
-		if result.InputRequests != nil {
-			return result, output, nil
+		if state, ok := ctx.Value(typedCallStateKey{}).(*typedCallState); ok {
+			state.handlerCalled = handlerCalled
+			state.hasOutput = handlerCalled && !result.IsError && result.InputRequests == nil
+			state.contentLengthBeforeSDK = len(result.Content)
 		}
-
-		result.Meta = maps.Clone(result.Meta)
-		if result.Meta == nil {
-			result.Meta = make(mcp.Meta)
-		}
-		result.Meta[typedOutputMetaKey] = typedOutputMetadata{
-			hasOutput:  handlerCalled && !result.IsError,
-			contentSet: result.Content != nil,
+		if result.IsError || result.InputRequests != nil || !handlerCalled {
+			output = nil
 		}
 		return result, output, nil
 	}
 }
 
-// typedOutputMiddleware runs after SDK serialization so negotiated protocol
-// gating can cover both inferred tool schemas and generated structured output.
-func typedOutputMiddleware(normalizerByName map[string]InputNormalizer) mcp.Middleware {
+// typedOutputMiddleware selects immutable advertised schema variants and
+// handles request-era compatibility without mutating registered tools.
+func typedOutputMiddleware(registrationSet *typedToolRegistrationSet) mcp.Middleware {
+	if registrationSet == nil {
+		registrationSet = &typedToolRegistrationSet{byName: map[string]*typedToolRegistration{}}
+	}
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
-			call, isCall := request.(*mcp.CallToolRequest)
-			if isCall && call.Params != nil {
-				if normalizedName, ok := ctx.Value(inputNormalizationContextKey{}).(string); !ok || normalizedName != call.Params.Name {
-					if normalizer, registered := normalizerByName[call.Params.Name]; registered {
-						if normalizer != nil {
-							arguments := call.Params.Arguments
-							if len(arguments) == 0 {
-								arguments = json.RawMessage(`{}`)
-							}
-							normalized, normalizeErr := normalizer(arguments)
-							if normalizeErr != nil {
-								return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", normalizeErr)), nil
-							}
-							callCopy := *call
-							paramsCopy := *call.Params
-							paramsCopy.Arguments = normalized
-							callCopy.Params = &paramsCopy
-							request = &callCopy
-						}
-						ctx = context.WithValue(ctx, inputNormalizationContextKey{}, call.Params.Name)
-					}
-				}
-			}
-
-			result, err := next(ctx, method, request)
-			if err != nil {
-				return nil, err
-			}
-
 			switch req := request.(type) {
 			case *mcp.ListToolsRequest:
+				result, err := next(ctx, method, request)
+				if err != nil {
+					return nil, err
+				}
 				list, ok := result.(*mcp.ListToolsResult)
 				if !ok {
 					return result, nil
 				}
-				protocolVersion := requestProtocolVersion(ctx, req.ProtocolVersion())
-				tools := make([]*mcp.Tool, len(list.Tools))
+				var requestVersion string
+				if req.Params != nil {
+					requestVersion = requestMetaProtocolVersion(req.Params.Meta)
+				}
+				era := requestEra(ctx, requestVersion)
 				for i, tool := range list.Tools {
-					_, typed := tool.Meta[typedOutputMetaKey]
-					if !typed && tool.OutputSchema == nil {
-						tools[i] = tool
+					registration := registrationSet.byName[tool.Name]
+					if registration == nil {
 						continue
 					}
-					toolCopy := *tool
-					if typed {
-						toolCopy.Meta = maps.Clone(tool.Meta)
-						delete(toolCopy.Meta, typedOutputMetaKey)
+					selectedEra := era
+					if registration.fixedEra != ProtocolEraDynamic {
+						selectedEra = registration.fixedEra
 					}
-					if !protocolVersionAllowed(protocolVersion, ProtocolVersionMultiRoundTrip) {
-						toolCopy.OutputSchema = nil
+					if selectedEra == ProtocolEraModern {
+						list.Tools[i] = registration.modernTool
+					} else {
+						list.Tools[i] = registration.legacyTool
 					}
-					tools[i] = &toolCopy
 				}
-				listCopy := *list
-				listCopy.Tools = tools
-				return &listCopy, nil
+				return list, nil
 			case *mcp.CallToolRequest:
+				if req.Params == nil {
+					return next(ctx, method, request)
+				}
+				registration := registrationSet.byName[req.Params.Name]
+				if registration == nil {
+					return next(ctx, method, request)
+				}
+				ctx, ownsRequest := claimTypedRegistrationSet(ctx, registrationSet)
+				if !ownsRequest {
+					return next(ctx, method, request)
+				}
+				state := &typedCallState{toolName: req.Params.Name}
+				ctx = context.WithValue(ctx, typedCallStateKey{}, state)
+				requestVersion := requestMetaProtocolVersion(req.Params.Meta)
+
+				if registration != nil && registration.preflight != nil {
+					preflightContext, preflightResult, preflightErr := registration.preflight(ctx, req)
+					if preflightErr != nil || preflightResult != nil {
+						if preflightErr != nil {
+							if rpcErr, ok := errors.AsType[*jsonrpc.Error](preflightErr); ok {
+								return nil, rpcErr
+							}
+							if preflightResult == nil {
+								preflightResult = &mcp.CallToolResult{}
+							}
+							preflightResult.SetError(preflightErr)
+						}
+						era := requestEra(ctx, requestVersion)
+						if registration.fixedEra != ProtocolEraDynamic {
+							era = registration.fixedEra
+						}
+						if era == ProtocolEraModern {
+							if err := validateExplicitStructuredOutput(outputSchema(registration), preflightResult); err != nil {
+								return nil, err
+							}
+							if !registration.preserveContent {
+								if err := applyModernStructuredText(preflightResult); err != nil {
+									return nil, err
+								}
+							}
+						}
+						return preflightResult, preflightErr
+					}
+					if preflightContext != nil {
+						ctx = preflightContext
+					}
+					ctx = context.WithValue(ctx, typedCallStateKey{}, state)
+					ctx = context.WithValue(ctx, preflightCompleteKey{}, req.Params.Name)
+				}
+
+				era := requestEra(ctx, requestVersion)
+				if registration != nil && registration.fixedEra != ProtocolEraDynamic {
+					era = registration.fixedEra
+				}
+				if registration != nil && registration.inputNormalizer != nil && !inputAlreadyNormalized(ctx, req.Params.Name) {
+					arguments := req.Params.Arguments
+					if len(arguments) == 0 {
+						arguments = json.RawMessage(`{}`)
+					}
+					var normalized json.RawMessage
+					if methodInfo, ok := ghcontext.MCPMethod(ctx); ok &&
+						methodInfo.ArgumentsNormalized && methodInfo.ItemName == req.Params.Name {
+						normalized = methodInfo.NormalizedArguments
+					} else {
+						var normalizeErr error
+						normalized, normalizeErr = registration.inputNormalizer(arguments)
+						if normalizeErr != nil {
+							return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", normalizeErr)), nil
+						}
+					}
+					requestCopy := *req
+					paramsCopy := *req.Params
+					paramsCopy.Arguments = normalized
+					requestCopy.Params = &paramsCopy
+					request = &requestCopy
+					ctx = context.WithValue(ctx, inputNormalizationContextKey{}, req.Params.Name)
+				}
+
+				result, err := next(ctx, method, request)
+				if err != nil {
+					return nil, err
+				}
 				callResult, ok := result.(*mcp.CallToolResult)
 				if !ok {
 					return result, nil
 				}
-				metadata, typed := callResult.Meta[typedOutputMetaKey].(typedOutputMetadata)
-				if !typed {
-					return result, nil
+				if registration != nil && registration.hasTypedOutput && state.hasOutput {
+					resultCopy := *callResult
+					if err := removeSDKOutputFallback(&resultCopy, state); err != nil {
+						return nil, err
+					}
+					callResult = &resultCopy
+					if era != ProtocolEraModern {
+						legacyResult := *callResult
+						legacyResult.StructuredContent = nil
+						callResult = &legacyResult
+					} else if !registration.preserveContent && !state.preserveContent {
+						if err := applyModernStructuredText(callResult); err != nil {
+							return nil, err
+						}
+					}
+				} else if registration != nil && registration.hasTypedOutput && !state.handlerCalled && era == ProtocolEraModern {
+					if err := validateExplicitStructuredOutput(outputSchema(registration), callResult); err != nil {
+						return nil, err
+					}
 				}
-				resultCopy := *callResult
-				resultCopy.Meta = maps.Clone(callResult.Meta)
-				delete(resultCopy.Meta, typedOutputMetaKey)
-				if err := removeTypedOutputFallback(&resultCopy, metadata); err != nil {
-					return nil, err
+				if registration.hasTypedOutput && era != ProtocolEraModern && callResult.StructuredContent != nil {
+					legacyResult := *callResult
+					legacyResult.StructuredContent = nil
+					callResult = &legacyResult
 				}
-				if !metadata.hasOutput || !protocolVersionAllowed(requestProtocolVersion(ctx, req.ProtocolVersion()), ProtocolVersionMultiRoundTrip) {
-					resultCopy.StructuredContent = nil
-				}
-				return &resultCopy, nil
+				return callResult, nil
 			default:
-				return result, nil
+				return next(ctx, method, request)
 			}
 		}
 	}
 }
 
-func removeTypedOutputFallback(result *mcp.CallToolResult, metadata typedOutputMetadata) error {
-	if result.StructuredContent == nil {
+func claimTypedRegistrationSet(ctx context.Context, registrationSet *typedToolRegistrationSet) (context.Context, bool) {
+	if active, ok := ctx.Value(typedRegistrationSetContextKey{}).(*typedToolRegistrationSet); ok {
+		return ctx, active == registrationSet
+	}
+	return context.WithValue(ctx, typedRegistrationSetContextKey{}, registrationSet), true
+}
+
+func outputSchema(registration *typedToolRegistration) *jsonschema.Schema {
+	if registration == nil || registration.modernTool == nil {
+		return nil
+	}
+	if schema, ok := registration.modernTool.OutputSchema.(*jsonschema.Schema); ok {
+		return schema
+	}
+	if raw, ok := registration.modernTool.OutputSchema.(json.RawMessage); ok {
+		var schema jsonschema.Schema
+		if json.Unmarshal(raw, &schema) == nil {
+			return &schema
+		}
+	}
+	return nil
+}
+
+func validateExplicitStructuredOutput(schema *jsonschema.Schema, result *mcp.CallToolResult) error {
+	if schema == nil || result == nil || result.IsError || result.InputRequests != nil || result.StructuredContent == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		return fmt.Errorf("marshal explicit structured tool output: %w", err)
+	}
+	var value any
+	if err := json.Unmarshal(encoded, &value); err != nil {
+		return fmt.Errorf("decode explicit structured tool output: %w", err)
+	}
+	resolved, err := schema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
+	if err != nil {
+		return fmt.Errorf("resolve tool output schema: %w", err)
+	}
+	if err := resolved.Validate(value); err != nil {
+		return fmt.Errorf("validating tool output: %w", err)
+	}
+	return nil
+}
+
+func applyModernStructuredText(result *mcp.CallToolResult) error {
+	if result == nil || result.IsError || result.InputRequests != nil || result.StructuredContent == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		return fmt.Errorf("marshal structured tool output for text content: %w", err)
+	}
+	if len(result.Content) > 0 {
+		for _, content := range result.Content {
+			if _, ok := content.(*mcp.TextContent); !ok {
+				return nil
+			}
+		}
+	}
+	result.Content = []mcp.Content{&mcp.TextContent{Text: string(encoded)}}
+	return nil
+}
+
+func removeSDKOutputFallback(result *mcp.CallToolResult, state *typedCallState) error {
+	if result.StructuredContent == nil || len(result.Content) <= state.contentLengthBeforeSDK {
 		return nil
 	}
 	encoded, err := json.Marshal(result.StructuredContent)
 	if err != nil {
 		return fmt.Errorf("marshal typed tool output while removing fallback content: %w", err)
 	}
-	if metadata.hasOutput {
-		if metadata.contentSet {
-			removeMatchingLastTextContent(result, encoded)
-		}
-		return nil
-	}
-	if !metadata.contentSet {
-		result.Content = nil
-		return nil
-	}
 	removeMatchingLastTextContent(result, encoded)
 	return nil
 }
 
 func removeMatchingLastTextContent(result *mcp.CallToolResult, encoded []byte) {
-	if len(result.Content) < 2 {
+	if len(result.Content) == 0 {
 		return
 	}
 	last, ok := result.Content[len(result.Content)-1].(*mcp.TextContent)
@@ -176,12 +325,39 @@ func removeMatchingLastTextContent(result *mcp.CallToolResult, encoded []byte) {
 	result.Content = result.Content[:len(result.Content)-1]
 }
 
-func requestProtocolVersion(ctx context.Context, requestVersion string) string {
+func requestEra(ctx context.Context, requestVersion string) ProtocolEra {
 	if requestVersion != "" {
-		return requestVersion
+		return ProtocolEraForVersion(requestVersion)
 	}
 	if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil {
-		return info.ProtocolVersion
+		return ProtocolEraForVersion(info.ProtocolVersion)
 	}
-	return ""
+	return ProtocolEraLegacy
+}
+
+func requestMetaProtocolVersion(meta mcp.Meta) string {
+	version, _ := meta[mcp.MetaKeyProtocolVersion].(string)
+	return version
+}
+
+func preflightAlreadyRun(ctx context.Context, toolName string) bool {
+	name, ok := ctx.Value(preflightCompleteKey{}).(string)
+	return ok && name == toolName
+}
+
+func markPreflightRun(ctx context.Context, toolName string) context.Context {
+	return context.WithValue(ctx, preflightCompleteKey{}, toolName)
+}
+
+func inputAlreadyNormalized(ctx context.Context, toolName string) bool {
+	name, ok := ctx.Value(inputNormalizationContextKey{}).(string)
+	return ok && name == toolName
+}
+
+// PreserveToolHandlerContent marks a typed call's handler content as
+// intentionally non-JSON (for example CSV or resource blocks).
+func PreserveToolHandlerContent(ctx context.Context) {
+	if state, ok := ctx.Value(typedCallStateKey{}).(*typedCallState); ok {
+		state.preserveContent = true
+	}
 }

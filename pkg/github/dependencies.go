@@ -233,10 +233,31 @@ func NewTool[In, Out any](
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
 	inputNormalizers ...inventory.InputNormalizer,
 ) inventory.ServerTool {
-	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+	return NewToolWithSchemaOptions(
+		toolset,
+		tool,
+		scopeAccess,
+		inventory.TypedSchemaOptions{},
+		handler,
+		inputNormalizers...,
+	)
+}
+
+// NewToolWithSchemaOptions is like NewTool, with options for schema inference,
+// runtime-only input validation schemas, and pre-decode compatibility checks.
+// The original tool schema remains the schema advertised to clients.
+func NewToolWithSchemaOptions[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	scopeAccess inventory.ScopeAccess,
+	schemaOptions inventory.TypedSchemaOptions,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandlerAndSchemaOptions(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
-	}, inputNormalizers...)
+	}, schemaOptions, inputNormalizers...)
 	st.ScopeAccess = scopeAccess
 	return st
 }

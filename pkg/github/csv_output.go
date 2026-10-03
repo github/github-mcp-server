@@ -77,6 +77,7 @@ func csvOutputMiddleware(deps any) inventory.ToolHandlerMiddleware {
 			if csvDeps == nil || !csvDeps.IsFeatureEnabled(ctx, FeatureFlagCSVOutput) {
 				return result, err
 			}
+			inventory.PreserveToolHandlerContent(ctx)
 			return convertJSONTextResultToCSV(result), nil
 		}
 	}

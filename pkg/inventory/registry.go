@@ -244,20 +244,42 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 // Schema definitions must remain immutable and be reused across registrations.
 // Their encodings are retained process-wide, keyed by source schema identity.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, ProtocolEraDynamic, middleware...)
+}
+
+// RegisterToolsForProtocolEra registers a preselected protocol-compatible
+// variant. Remote stateless servers should use this to select schemas before
+// registering their request-scoped server.
+func (r *Inventory) RegisterToolsForProtocolEra(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, era, middleware...)
+}
+
+func (r *Inventory) registerTools(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
 	schemas := make(map[string]listedToolSchemas, len(tools))
-	if len(tools) > 0 {
-		inputNormalizers := make(map[string]InputNormalizer, len(tools))
-		for _, tool := range tools {
-			inputNormalizers[tool.Tool.Name] = tool.inputNormalizer
+	registrations := make(map[string]*typedToolRegistration, len(tools))
+	for _, tool := range tools {
+		toolCopy := tool.Tool
+		if len(toolCopy.Icons) == 0 {
+			toolCopy.Icons = tool.Toolset.Icons()
 		}
-		s.AddReceivingMiddleware(typedOutputMiddleware(inputNormalizers))
+		AnnotateHeaderParams(&toolCopy)
+		registration := tool.typedRegistration(&toolCopy)
+		registration.fixedEra = era
+		registrations[tool.Tool.Name] = registration
+	}
+	if len(tools) > 0 {
+		s.AddReceivingMiddleware(typedOutputMiddleware(&typedToolRegistrationSet{byName: registrations}))
 	}
 	for _, tool := range tools {
-		registered := tool.register(s, deps, middleware...)
+		registered := tool.register(s, deps, era, registrations[tool.Tool.Name], middleware...)
+		sourceSchema := tool.Tool.InputSchema
+		if sourceSchema == nil {
+			sourceSchema = registered.InputSchema
+		}
 		schemas[registered.Name] = listedToolSchemas{
-			source:     tool.Tool.InputSchema,
+			source:     sourceSchema,
 			registered: registered,
 		}
 	}
