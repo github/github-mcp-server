@@ -249,6 +249,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 			}
 
 			message := fmt.Sprintf("Notification marked as %s", state)
+			inventory.PreserveToolHandlerContent(ctx)
 			return utils.NewToolResultText(message), &NotificationStatusOutput{Message: message}, nil
 		},
 	)
@@ -346,6 +347,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to mark all notifications as read", resp, body), nil, nil
 			}
 
+			inventory.PreserveToolHandlerContent(ctx)
 			return utils.NewToolResultText("All notifications marked as read"), &NotificationStatusOutput{Message: "All notifications marked as read"}, nil
 		},
 	)
@@ -515,6 +517,7 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 
 			if action == NotificationActionDelete {
 				// Special case for delete as there is no response body
+				inventory.PreserveToolHandlerContent(ctx)
 				return utils.NewToolResultText("Notification subscription deleted"), &NotificationSubscriptionResult{Message: "Notification subscription deleted"}, nil
 			}
 
@@ -628,6 +631,7 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 
 			if action == RepositorySubscriptionActionDelete {
 				// Special case for delete as there is no response body
+				inventory.PreserveToolHandlerContent(ctx)
 				return utils.NewToolResultText("Repository subscription deleted"), &NotificationSubscriptionResult{Message: "Repository subscription deleted"}, nil
 			}
 
