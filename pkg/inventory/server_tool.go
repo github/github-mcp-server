@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
 	"slices"
-	"sync"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -47,6 +47,18 @@ type ScopeAccess struct {
 	// Dynamic reports whether Challenge depends on tool arguments. Dynamic
 	// policies must declare their exhaustive upper bound in Scopes.
 	Dynamic bool
+
+	// ArgumentNormalizer canonicalizes raw arguments before evaluating a
+	// dynamic scope challenge. Inventory populates this from the tool's
+	// InputNormalizer when building the HTTP scope map.
+	ArgumentNormalizer InputNormalizer
+}
+
+func (r *typedToolRegistration) runtimeTool(era ProtocolEra) *mcp.Tool {
+	if era == ProtocolEraLegacy {
+		return r.legacyRuntimeTool
+	}
+	return r.modernRuntimeTool
 }
 
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
@@ -61,6 +73,28 @@ type ToolHandlerMiddlewareProvider func(deps any) ToolHandlerMiddleware
 // decodes them. Use it only for compatibility normalization; the registered
 // input schema remains the contract clients see and the SDK validates.
 type InputNormalizer func(json.RawMessage) (json.RawMessage, error)
+
+// ToolCallPreflight inspects raw call arguments before SDK schema validation.
+// Return nil, nil to continue; a result or error short-circuits the call.
+// Returning a non-nil context passes request-scoped preparation to the handler.
+type ToolCallPreflight func(context.Context, *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error)
+
+// TypedSchemaOptions customizes schemas inferred for a typed tool.
+//
+// Input and Output are passed to jsonschema.For when the corresponding schema
+// is not provided on the tool. ValidationInputSchema, when set, is used by the
+// SDK to validate calls while the tool's declared InputSchema remains visible
+// to clients. InputEnums and OutputEnums are applied to inferred schemas at
+// registration time.
+type TypedSchemaOptions struct {
+	Input                  *jsonschema.ForOptions
+	Output                 *jsonschema.ForOptions
+	ValidationInputSchema  *jsonschema.Schema
+	InputEnums             []SchemaEnum
+	OutputEnums            []SchemaEnum
+	Preflight              ToolCallPreflight
+	PreserveHandlerContent bool
+}
 
 // ToolsetID is a unique identifier for a toolset.
 // Using a distinct type provides compile-time type safety.
@@ -128,16 +162,11 @@ type ServerTool struct {
 	// ScopeAccess controls fixed-token visibility and per-call OAuth challenges.
 	ScopeAccess ScopeAccess
 
-	registerTyped              func(*mcp.Server, *mcp.Tool, ...ToolHandlerMiddleware)
+	registerTyped              func(*mcp.Server, *typedToolRegistration, ProtocolEra, ...ToolHandlerMiddleware)
+	prepareTyped               func(*mcp.Tool) *typedToolRegistration
 	handlerMiddlewareProviders []ToolHandlerMiddlewareProvider
 	inputNormalizer            InputNormalizer
-	inferredInputSchema        *inferredInputSchemaCache
-}
-
-type inferredInputSchemaCache struct {
-	once   sync.Once
-	schema *jsonschema.Schema
-	err    error
+	schemaOptions              TypedSchemaOptions
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -148,6 +177,12 @@ func (st *ServerTool) IsReadOnly() bool {
 // HasHandler returns true if this tool has a handler function.
 func (st *ServerTool) HasHandler() bool {
 	return st.HandlerFunc != nil
+}
+
+// GetInputNormalizer returns the compatibility normalizer configured for this
+// tool, if any.
+func (st *ServerTool) GetInputNormalizer() InputNormalizer {
+	return st.inputNormalizer
 }
 
 // Handler returns a tool handler by calling HandlerFunc with the given dependencies.
@@ -180,26 +215,34 @@ func (st *ServerTool) handlerMiddlewares(deps any) []ToolHandlerMiddleware {
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
-	st.registerFunc(s, deps, true, middleware...)
+	st.RegisterFuncForProtocolEra(s, deps, ProtocolEraDynamic, middleware...)
 }
 
-func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddleware bool, middleware ...ToolHandlerMiddleware) {
+// RegisterFuncForProtocolEra registers a preselected legacy or modern tool
+// variant. Use this when the protocol era is known before server construction.
+func (st *ServerTool) RegisterFuncForProtocolEra(s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
+	st.registerFunc(s, deps, true, era, nil, middleware...)
+}
+
+func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddleware bool, era ProtocolEra, registration *typedToolRegistration, middleware ...ToolHandlerMiddleware) {
 	if st.HandlerFunc == nil {
 		panic("HandlerFunc is nil for tool: " + st.Tool.Name)
 	}
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
-	// Apply icons from toolset metadata if tool doesn't have icons set
-	if len(toolCopy.Icons) == 0 {
-		toolCopy.Icons = st.Toolset.Icons()
+	if registration == nil {
+		// Apply icons from toolset metadata if tool doesn't have icons set
+		if len(toolCopy.Icons) == 0 {
+			toolCopy.Icons = st.Toolset.Icons()
+		}
+		// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243).
+		AnnotateHeaderParams(&toolCopy)
+		registration = st.typedRegistration(&toolCopy)
 	}
-	// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
-	// No-op for tools without these params.
-	AnnotateHeaderParams(&toolCopy)
+	registration.fixedEra = era
 	if addTypedOutputMiddleware {
-		s.AddReceivingMiddleware(typedOutputMiddleware(map[string]InputNormalizer{
-			st.Tool.Name: st.inputNormalizer,
+		s.AddReceivingMiddleware(typedOutputMiddleware(&typedToolRegistrationSet{
+			byName: map[string]*typedToolRegistration{st.Tool.Name: registration},
 		}))
 	}
 	allMiddleware := make([]ToolHandlerMiddleware, 0, len(middleware)+len(st.handlerMiddlewareProviders)+1)
@@ -209,12 +252,12 @@ func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddle
 	allMiddleware = append(allMiddleware, middleware...)
 	allMiddleware = append(allMiddleware, st.handlerMiddlewares(deps)...)
 	if st.registerTyped != nil {
-		st.registerTyped(s, &toolCopy, allMiddleware...)
+		st.registerTyped(s, registration, era, allMiddleware...)
 		return
 	}
 
 	handler := applyToolHandlerMiddleware(st.HandlerFunc(deps), allMiddleware...)
-	s.AddTool(&toolCopy, handler)
+	s.AddTool(registration.runtimeTool(era), handler)
 }
 
 func applyToolHandlerMiddleware(handler mcp.ToolHandler, middleware ...ToolHandlerMiddleware) mcp.ToolHandler {
@@ -287,24 +330,50 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
 func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out], inputNormalizers ...InputNormalizer) ServerTool {
+	return NewServerToolWithContextHandlerAndSchemaOptions(
+		tool,
+		toolset,
+		handler,
+		TypedSchemaOptions{},
+		inputNormalizers...,
+	)
+}
+
+// NewServerToolWithContextHandlerAndSchemaOptions is like
+// NewServerToolWithContextHandler, with additional schema inference options.
+// Inferred input and output schemas are cached per ServerTool.
+func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
+	tool mcp.Tool,
+	toolset ToolsetMetadata,
+	handler mcp.ToolHandlerFor[In, Out],
+	schemaOptions TypedSchemaOptions,
+	inputNormalizers ...InputNormalizer,
+) ServerTool {
+	schemaOptions = cloneTypedSchemaOptions(schemaOptions)
 	inputNormalizer := combineInputNormalizers(inputNormalizers)
-	var inferredInputSchema *inferredInputSchemaCache
-	if tool.InputSchema == nil && reflect.TypeFor[In]() != reflect.TypeFor[any]() {
-		inferredInputSchema = &inferredInputSchemaCache{}
-	}
 	serverTool := ServerTool{
-		Tool:                tool,
-		Toolset:             toolset,
-		inputNormalizer:     inputNormalizer,
-		inferredInputSchema: inferredInputSchema,
+		Tool:            tool,
+		Toolset:         toolset,
+		inputNormalizer: inputNormalizer,
+		schemaOptions:   schemaOptions,
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				if schemaOptions.Preflight != nil && !preflightAlreadyRun(ctx, req.Params.Name) {
+					preflightContext, result, err := schemaOptions.Preflight(ctx, req)
+					if result != nil || err != nil {
+						return result, err
+					}
+					if preflightContext != nil {
+						ctx = preflightContext
+					}
+					ctx = markPreflightRun(ctx, req.Params.Name)
+				}
 				rawArguments := req.Params.Arguments
 				if len(rawArguments) == 0 {
 					rawArguments = json.RawMessage(`{}`)
 				}
-				if inputNormalizer != nil {
+				if inputNormalizer != nil && !inputAlreadyNormalized(ctx, req.Params.Name) {
 					normalized, err := inputNormalizer(rawArguments)
 					if err != nil {
 						return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", err)), nil
@@ -326,30 +395,126 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		},
 	}
 	if reflect.TypeFor[Out]() != reflect.TypeFor[any]() {
-		serverTool.registerTyped = func(server *mcp.Server, tool *mcp.Tool, middleware ...ToolHandlerMiddleware) {
-			if inferredInputSchema != nil && tool.InputSchema == nil {
-				inferredInputSchema.once.Do(func() {
-					inferredInputSchema.schema, inferredInputSchema.err = jsonschema.For[In](nil)
-					if inferredInputSchema.err == nil {
-						schemaTool := mcp.Tool{InputSchema: inferredInputSchema.schema}
-						AnnotateHeaderParams(&schemaTool)
-						inferredInputSchema.schema = schemaTool.InputSchema.(*jsonschema.Schema)
-					}
-				})
-				if inferredInputSchema.err != nil {
-					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, inferredInputSchema.err))
+		serverTool.prepareTyped = func(tool *mcp.Tool) *typedToolRegistration {
+			modernTool := *tool
+			cacheExplicitToolSchemas(&modernTool)
+			if modernTool.InputSchema == nil && reflect.TypeFor[In]() != reflect.TypeFor[any]() {
+				inferred, err := CachedInputSchemaFor[In](schemaOptions.Input, schemaOptions.InputEnums...)
+				if err != nil {
+					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
 				}
-				tool.InputSchema = inferredInputSchema.schema
+				modernTool.InputSchema = inferred
 			}
-			tool.Meta = maps.Clone(tool.Meta)
-			if tool.Meta == nil {
-				tool.Meta = make(mcp.Meta)
+			if modernTool.OutputSchema == nil {
+				inferred, err := CachedSchemaFor[Out](schemaOptions.Output, schemaOptions.OutputEnums...)
+				if err != nil {
+					panic(fmt.Sprintf("failed to generate output schema for tool %q: %v", tool.Name, err))
+				}
+				modernTool.OutputSchema = inferred
 			}
-			tool.Meta[typedOutputMetaKey] = true
-			mcp.AddTool(server, tool, wrapTypedHandler(handler, middleware...))
+			legacyTool := modernTool
+			legacyTool.OutputSchema = nil
+			modernRuntimeTool := modernTool
+			legacyRuntimeTool := legacyTool
+			if schemaOptions.ValidationInputSchema != nil {
+				modernRuntimeTool.InputSchema = schemaOptions.ValidationInputSchema
+				legacyRuntimeTool.InputSchema = schemaOptions.ValidationInputSchema
+			}
+			return &typedToolRegistration{
+				name:              tool.Name,
+				modernTool:        &modernTool,
+				legacyTool:        &legacyTool,
+				modernRuntimeTool: &modernRuntimeTool,
+				legacyRuntimeTool: &legacyRuntimeTool,
+				hasTypedOutput:    true,
+				inputNormalizer:   inputNormalizer,
+				preflight:         schemaOptions.Preflight,
+				preserveContent:   schemaOptions.PreserveHandlerContent,
+			}
+		}
+		serverTool.registerTyped = func(server *mcp.Server, registration *typedToolRegistration, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
+			switch era {
+			case ProtocolEraLegacy:
+				mcp.AddTool[In, any](server, registration.legacyRuntimeTool, wrapTypedHandler(handler, middleware...))
+			default:
+				mcp.AddTool[In, any](server, registration.modernRuntimeTool, wrapTypedHandler(handler, middleware...))
+			}
 		}
 	}
 	return serverTool
+}
+
+func (st *ServerTool) typedRegistration(tool *mcp.Tool) *typedToolRegistration {
+	if st.prepareTyped != nil {
+		return st.prepareTyped(tool)
+	}
+	modernTool := *tool
+	cacheExplicitToolSchemas(&modernTool)
+	legacyTool := modernTool
+	return &typedToolRegistration{
+		name:              tool.Name,
+		modernTool:        &modernTool,
+		legacyTool:        &legacyTool,
+		modernRuntimeTool: &modernTool,
+		legacyRuntimeTool: &legacyTool,
+		inputNormalizer:   st.inputNormalizer,
+	}
+}
+
+func cacheExplicitToolSchemas(tool *mcp.Tool) {
+	if schema, ok := tool.InputSchema.(*jsonschema.Schema); ok {
+		cached, err := CachedSchema(schema)
+		if err != nil {
+			panic(fmt.Sprintf("failed to cache input schema for tool %q: %v", tool.Name, err))
+		}
+		tool.InputSchema = cached
+	}
+	if schema, ok := tool.OutputSchema.(*jsonschema.Schema); ok {
+		cached, err := CachedSchema(schema)
+		if err != nil {
+			panic(fmt.Sprintf("failed to cache output schema for tool %q: %v", tool.Name, err))
+		}
+		tool.OutputSchema = cached
+	}
+}
+
+func cloneTypedSchemaOptions(options TypedSchemaOptions) TypedSchemaOptions {
+	options.Input = cloneJSONSchemaForOptions(options.Input)
+	options.Output = cloneJSONSchemaForOptions(options.Output)
+	if options.ValidationInputSchema != nil {
+		cached, err := CachedSchema(options.ValidationInputSchema)
+		if err != nil {
+			panic(fmt.Sprintf("failed to cache validation input schema: %v", err))
+		}
+		options.ValidationInputSchema = cached
+	}
+	options.InputEnums = slices.Clone(options.InputEnums)
+	for i := range options.InputEnums {
+		options.InputEnums[i].Values = slices.Clone(options.InputEnums[i].Values)
+	}
+	options.OutputEnums = slices.Clone(options.OutputEnums)
+	for i := range options.OutputEnums {
+		options.OutputEnums[i].Values = slices.Clone(options.OutputEnums[i].Values)
+	}
+	return options
+}
+
+func cloneJSONSchemaForOptions(options *jsonschema.ForOptions) *jsonschema.ForOptions {
+	if options == nil {
+		return nil
+	}
+	optionsCopy := *options
+	if options.TypeSchemas != nil {
+		optionsCopy.TypeSchemas = make(map[reflect.Type]*jsonschema.Schema, len(options.TypeSchemas))
+		for typ, schema := range options.TypeSchemas {
+			if schema != nil {
+				optionsCopy.TypeSchemas[typ] = schema.CloneSchemas()
+			} else {
+				optionsCopy.TypeSchemas[typ] = nil
+			}
+		}
+	}
+	return &optionsCopy
 }
 
 func combineInputNormalizers(normalizers []InputNormalizer) InputNormalizer {
@@ -379,6 +544,14 @@ func combineInputNormalizers(normalizers []InputNormalizer) InputNormalizer {
 }
 
 func invalidArgumentsResult(err error) *mcp.CallToolResult {
+	if inputError, ok := errors.AsType[*ToolInputError](err); ok {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: inputError.Message},
+			},
+			IsError: true,
+		}
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},

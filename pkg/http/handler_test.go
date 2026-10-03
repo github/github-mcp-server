@@ -1265,21 +1265,22 @@ func TestHTTPStatelessTypedOutputProtocolHeaders(t *testing.T) {
 	)
 
 	for _, tc := range []struct {
-		name            string
-		protocolVersion string
-		wantModern      bool
+		name          string
+		headerVersion string
+		metaVersion   string
+		wantModern    bool
 	}{
-		{name: "modern header", protocolVersion: inventory.ProtocolVersionMultiRoundTrip, wantModern: true},
-		{name: "legacy header", protocolVersion: "2025-11-25"},
-		{name: "absent header"},
+		{name: "modern header and metadata", headerVersion: inventory.ProtocolVersionMultiRoundTrip, metaVersion: inventory.ProtocolVersionMultiRoundTrip, wantModern: true},
+		{name: "legacy header and metadata", headerVersion: "2025-11-25", metaVersion: "2025-11-25"},
+		{name: "absent protocol version"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			post := func(method string, id int) map[string]json.RawMessage {
 				t.Helper()
 				params := map[string]any{"name": "typed_http_tool", "arguments": map[string]any{}}
-				if tc.protocolVersion != "" {
+				if tc.metaVersion != "" {
 					params["_meta"] = map[string]any{
-						mcp.MetaKeyProtocolVersion:    tc.protocolVersion,
+						mcp.MetaKeyProtocolVersion:    tc.metaVersion,
 						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "1.0.0"},
 						mcp.MetaKeyClientCapabilities: map[string]any{},
 					}
@@ -1298,8 +1299,8 @@ func TestHTTPStatelessTypedOutputProtocolHeaders(t *testing.T) {
 				if method == "tools/call" {
 					req.Header.Set(headers.MCPNameHeader, "typed_http_tool")
 				}
-				if tc.protocolVersion != "" {
-					req.Header.Set("MCP-Protocol-Version", tc.protocolVersion)
+				if tc.headerVersion != "" {
+					req.Header.Set(headers.MCPProtocolVersionHeader, tc.headerVersion)
 				}
 
 				recorder := httptest.NewRecorder()
@@ -1352,10 +1353,11 @@ func TestHTTPStatelessTypedOutputProtocolHeaders(t *testing.T) {
 			require.NoError(t, json.Unmarshal(callResultJSON, &called))
 			require.Len(t, called.Content, 1, "SDK fallback serialization must not duplicate the existing text")
 			assert.Equal(t, "text", called.Content[0].Type)
-			assert.Equal(t, "legacy text", called.Content[0].Text)
 			if tc.wantModern {
 				assert.JSONEq(t, `{"values":["one","two"]}`, string(called.StructuredContent))
+				assert.Equal(t, `{"values":["one","two"]}`, called.Content[0].Text)
 			} else {
+				assert.Equal(t, "legacy text", called.Content[0].Text)
 				assert.Empty(t, called.StructuredContent, "legacy and unknown protocol versions must not expose structured content")
 			}
 		})

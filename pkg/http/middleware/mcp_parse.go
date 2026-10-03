@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -86,6 +87,9 @@ func WithMCPParse() func(http.Handler) http.Handler {
 			if methodInfo == nil {
 				next.ServeHTTP(w, r)
 				return
+			}
+			if methodInfo.ProtocolVersion == "" {
+				methodInfo.ProtocolVersion = r.Header.Get(headers.MCPProtocolVersionHeader)
 			}
 
 			// Store the parsed info in context
