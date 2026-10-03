@@ -10,7 +10,10 @@ package github
 //	"get_issue": "issue_read",
 //	"create_pr": "pull_request_create",
 var DeprecatedToolAliases = map[string]string{
-	// Add entries as tools are renamed
+	// Issues tools consolidated (#1211)
+	"get_issue":    "issue_read",
+	"update_issue": "issue_write",
+
 	// Actions tools consolidated
 	"list_workflows":                 "actions_list",
 	"list_workflow_runs":             "actions_list",
