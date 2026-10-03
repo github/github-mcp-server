@@ -224,8 +224,7 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 					result, err := client.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
 					require.NoError(t, err)
 					require.False(t, result.IsError, "%s", result)
-					require.Len(t, result.Content, 1, "SDK fallback must not duplicate legacy text")
-					assert.Equal(t, tc.text, getTextResult(t, result).Text, "legacy text must remain byte-equivalent")
+					require.Len(t, result.Content, 1, "text must not duplicate structured content")
 					switch tc.name {
 					case "get_notification_details":
 						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelNotificationDetails()), mustMarshalJSON(t, result.Meta["ifc"]))
@@ -235,10 +234,17 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(true)), mustMarshalJSON(t, result.Meta["ifc"]))
 					}
 					if protocol == "2025-11-25" {
+						assert.Equal(t, tc.text, getTextResult(t, result).Text, "legacy text must remain byte-equivalent")
 						assert.Nil(t, result.StructuredContent)
 						return
 					}
 					require.NotNil(t, result.StructuredContent)
+					if json.Valid([]byte(tc.text)) {
+						assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text,
+							"modern JSON text must serialize the same compact DTO as structuredContent")
+					} else {
+						assert.Equal(t, tc.text, getTextResult(t, result).Text, "plain status and deletion messages remain unchanged")
+					}
 					var schema jsonschema.Schema
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, byName[tc.name].OutputSchema)), &schema))
 					resolved, err := schema.Resolve(nil)
