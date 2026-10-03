@@ -205,6 +205,54 @@ func TestProtocolEraForSupportedVersions(t *testing.T) {
 	}
 }
 
+func TestTypedPointerInputUsesObjectSchemaInBothEras(t *testing.T) {
+	type input struct {
+		Query string `json:"query"`
+	}
+	valueSchema, err := CachedInputSchemaFor[input](nil)
+	require.NoError(t, err)
+	pointerSchema, err := CachedInputSchemaFor[*input](nil)
+	require.NoError(t, err)
+	assert.Same(t, valueSchema, pointerSchema, "SDK inference unwraps one input pointer before caching")
+	assert.Equal(t, "object", pointerSchema.Type)
+	assert.Empty(t, pointerSchema.Types)
+
+	outputSchema, err := CachedSchemaFor[*input](nil)
+	require.NoError(t, err)
+	assert.Contains(t, outputSchema.Types, "null", "output pointers must retain nullability")
+
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "pointer_input"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args *input) (*mcp.CallToolResult, typedTestOutput, error) {
+			require.NotNil(t, args)
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: args.Query}}},
+				typedTestOutput{Query: args.Query}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	require.NotPanics(t, func() { tool.RegisterFunc(server, nil) })
+	for _, version := range []string{"", "2025-11-25"} {
+		session := connectTypedTestClient(t, server, version)
+		list, err := session.ListTools(context.Background(), nil)
+		require.NoError(t, err)
+		require.Len(t, list.Tools, 1)
+		assert.Contains(t, mustMarshalJSON(t, list.Tools[0].InputSchema), `"type":"object"`)
+		result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+			Name: tool.Tool.Name, Arguments: map[string]any{"query": "pointer input decoded"},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		if version == "" {
+			assert.JSONEq(t, `{"query":"pointer input decoded"}`, mustMarshalJSON(t, result.StructuredContent))
+		} else {
+			assert.Nil(t, result.StructuredContent)
+			require.Len(t, result.Content, 1)
+			assert.Equal(t, "pointer input decoded", result.Content[0].(*mcp.TextContent).Text)
+		}
+	}
+}
+
 func TestCachedSchemaDeepCopiesMutableMetadata(t *testing.T) {
 	constant := any(map[string]any{"nested": []string{"const"}})
 	nullConstant := any(nil)
