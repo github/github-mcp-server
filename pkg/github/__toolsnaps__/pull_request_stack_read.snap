@@ -1,0 +1,56 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Read pull request stacks"
+  },
+  "description": "Read native GitHub pull request stacks. Use `get` for a stack number or `list` to enumerate stacks and optionally resolve the stack containing a pull request.",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "The read operation: `get` retrieves one stack by stackNumber; `list` lists repository stacks and can filter by pullNumber.",
+        "enum": [
+          "get",
+          "list"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "pullNumber": {
+        "description": "Filter listed stacks to the stack containing this repository pull request number. Used only when method is `list`.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "stackNumber": {
+        "description": "Stack number. Required when method is `get`.",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "pull_request_stack_read"
+}
