@@ -140,8 +140,6 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListCommits creates a tool to get the list of commits of a branch in a GitHub
-// repository.
 type ListCommitsInput struct {
 	Owner   string   `json:"owner"`
 	Repo    string   `json:"repo"`
@@ -190,6 +188,8 @@ func structuredListCommitsOutput(commits []MinimalCommit, fields []string) []Lis
 	return output
 }
 
+// ListCommits creates a tool to get the list of commits of a branch in a GitHub
+// repository.
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
