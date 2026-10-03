@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -392,4 +393,70 @@ func TestBearerAuthTransport_RemovesAuthorizationFromDisallowedHost(t *testing.T
 
 	assert.Empty(t, rec.authByHost[req.URL.Host])
 	assert.NotEmpty(t, req.Header.Get(headers.AuthorizationHeader), "original request must not be mutated")
+}
+
+// TestBearerAuthTransport_RequestTokenProvider verifies that a request-scoped
+// provider sees the outbound request and takes precedence over the other two
+// token sources. GitHub App authentication across several installations relies
+// on this to pick the installation that owns the resource being addressed.
+func TestBearerAuthTransport_RequestTokenProvider(t *testing.T) {
+	t.Parallel()
+
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get(headers.AuthorizationHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	rt := &BearerAuthTransport{
+		Transport:     newIsolatedTransport(t),
+		Token:         "static-token",
+		TokenProvider: func() string { return "provider-token" },
+		RequestTokenProvider: func(req *http.Request) string {
+			return "token-for" + strings.ReplaceAll(req.URL.Path, "/", "-")
+		},
+	}
+
+	do := func(path string) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+path, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+	}
+
+	do("/repos/octo-org/repo")
+	assert.Equal(t, "Bearer token-for-repos-octo-org-repo", gotAuth)
+
+	do("/repos/other-org/repo")
+	assert.Equal(t, "Bearer token-for-repos-other-org-repo", gotAuth, "the token is resolved per request, not cached across them")
+}
+
+// TestBearerAuthTransport_RequestTokenProviderEmptyToken verifies that a
+// request the provider cannot resolve is sent unauthenticated rather than
+// falling back to another credential.
+func TestBearerAuthTransport_RequestTokenProviderEmptyToken(t *testing.T) {
+	t.Parallel()
+
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get(headers.AuthorizationHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	rt := &BearerAuthTransport{
+		Transport:            newIsolatedTransport(t),
+		Token:                "static-token",
+		RequestTokenProvider: func(*http.Request) string { return "" },
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, gotAuth)
 }
