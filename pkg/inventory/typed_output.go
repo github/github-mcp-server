@@ -28,6 +28,7 @@ type typedCallState struct {
 	hasOutput              bool
 	contentLengthBeforeSDK int
 	preserveContent        bool
+	structuredOutput       any
 }
 
 type typedToolRegistration struct {
@@ -41,6 +42,7 @@ type typedToolRegistration struct {
 	preflight         ToolCallPreflight
 	fixedEra          ProtocolEra
 	preserveContent   bool
+	handlerMiddleware []ToolHandlerMiddleware
 }
 
 func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, any] {
@@ -133,102 +135,129 @@ func typedOutputMiddleware(registrationSet *typedToolRegistrationSet) mcp.Middle
 				state := &typedCallState{toolName: req.Params.Name}
 				ctx = context.WithValue(ctx, typedCallStateKey{}, state)
 				requestVersion := requestMetaProtocolVersion(req.Params.Meta)
+				dispatch := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					request = req
 
-				if registration != nil && registration.preflight != nil {
-					preflightContext, preflightResult, preflightErr := registration.preflight(ctx, req)
-					if preflightErr != nil || preflightResult != nil {
-						if preflightErr != nil {
-							if rpcErr, ok := errors.AsType[*jsonrpc.Error](preflightErr); ok {
-								return nil, rpcErr
+					if registration != nil && registration.preflight != nil {
+						preflightContext, preflightResult, preflightErr := registration.preflight(ctx, req)
+						if preflightErr != nil || preflightResult != nil {
+							if preflightErr != nil {
+								if rpcErr, ok := errors.AsType[*jsonrpc.Error](preflightErr); ok {
+									return nil, rpcErr
+								}
+								if preflightResult == nil {
+									preflightResult = &mcp.CallToolResult{}
+								}
+								preflightResult.SetError(preflightErr)
 							}
-							if preflightResult == nil {
-								preflightResult = &mcp.CallToolResult{}
+							era := requestEra(ctx, requestVersion)
+							if registration.fixedEra != ProtocolEraDynamic {
+								era = registration.fixedEra
 							}
-							preflightResult.SetError(preflightErr)
-						}
-						era := requestEra(ctx, requestVersion)
-						if registration.fixedEra != ProtocolEraDynamic {
-							era = registration.fixedEra
-						}
-						if era == ProtocolEraModern {
-							if err := validateExplicitStructuredOutput(outputSchema(registration), preflightResult); err != nil {
-								return nil, err
-							}
-							if !registration.preserveContent {
-								if err := applyModernStructuredText(preflightResult); err != nil {
+							if era == ProtocolEraModern {
+								if err := validateExplicitStructuredOutput(outputSchema(registration), preflightResult); err != nil {
 									return nil, err
 								}
 							}
+							return preflightResult, nil
 						}
-						return preflightResult, preflightErr
-					}
-					if preflightContext != nil {
-						ctx = preflightContext
-					}
-					ctx = context.WithValue(ctx, typedCallStateKey{}, state)
-					ctx = context.WithValue(ctx, preflightCompleteKey{}, req.Params.Name)
-				}
-
-				era := requestEra(ctx, requestVersion)
-				if registration != nil && registration.fixedEra != ProtocolEraDynamic {
-					era = registration.fixedEra
-				}
-				if registration != nil && registration.inputNormalizer != nil && !inputAlreadyNormalized(ctx, req.Params.Name) {
-					arguments := req.Params.Arguments
-					if len(arguments) == 0 {
-						arguments = json.RawMessage(`{}`)
-					}
-					var normalized json.RawMessage
-					if methodInfo, ok := ghcontext.MCPMethod(ctx); ok &&
-						methodInfo.ArgumentsNormalized && methodInfo.ItemName == req.Params.Name {
-						normalized = methodInfo.NormalizedArguments
-					} else {
-						var normalizeErr error
-						normalized, normalizeErr = registration.inputNormalizer(arguments)
-						if normalizeErr != nil {
-							return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", normalizeErr)), nil
+						if preflightContext != nil {
+							ctx = preflightContext
 						}
+						ctx = context.WithValue(ctx, typedCallStateKey{}, state)
+						ctx = context.WithValue(ctx, preflightCompleteKey{}, req.Params.Name)
 					}
-					requestCopy := *req
-					paramsCopy := *req.Params
-					paramsCopy.Arguments = normalized
-					requestCopy.Params = &paramsCopy
-					request = &requestCopy
-					ctx = context.WithValue(ctx, inputNormalizationContextKey{}, req.Params.Name)
-				}
 
-				result, err := next(ctx, method, request)
-				if err != nil {
-					return nil, err
-				}
-				callResult, ok := result.(*mcp.CallToolResult)
-				if !ok {
-					return result, nil
-				}
-				if registration != nil && registration.hasTypedOutput && state.hasOutput {
-					resultCopy := *callResult
-					if err := removeSDKOutputFallback(&resultCopy, state); err != nil {
+					era := requestEra(ctx, requestVersion)
+					if registration != nil && registration.fixedEra != ProtocolEraDynamic {
+						era = registration.fixedEra
+					}
+					if registration != nil && registration.inputNormalizer != nil && !inputAlreadyNormalized(ctx, req.Params.Name) {
+						arguments := req.Params.Arguments
+						if len(arguments) == 0 {
+							arguments = json.RawMessage(`{}`)
+						}
+						var normalized json.RawMessage
+						if methodInfo, ok := ghcontext.MCPMethod(ctx); ok &&
+							methodInfo.ArgumentsNormalized && methodInfo.ItemName == req.Params.Name {
+							normalized = methodInfo.NormalizedArguments
+						} else {
+							var normalizeErr error
+							normalized, normalizeErr = registration.inputNormalizer(arguments)
+							if normalizeErr != nil {
+								return invalidArgumentsResult(fmt.Errorf("normalize tool arguments: %w", normalizeErr)), nil
+							}
+						}
+						requestCopy := *req
+						paramsCopy := *req.Params
+						paramsCopy.Arguments = normalized
+						requestCopy.Params = &paramsCopy
+						request = &requestCopy
+						ctx = context.WithValue(ctx, inputNormalizationContextKey{}, req.Params.Name)
+					}
+
+					result, err := next(ctx, method, request)
+					if err != nil {
 						return nil, err
 					}
-					callResult = &resultCopy
-					if era != ProtocolEraModern {
-						legacyResult := *callResult
-						legacyResult.StructuredContent = nil
-						callResult = &legacyResult
-					} else if !registration.preserveContent && !state.preserveContent {
-						if err := applyModernStructuredText(callResult); err != nil {
+					callResult, ok := result.(*mcp.CallToolResult)
+					if !ok {
+						return nil, fmt.Errorf("unexpected tools/call result type %T", result)
+					}
+					if registration != nil && registration.hasTypedOutput && state.hasOutput {
+						state.structuredOutput = callResult.StructuredContent
+						resultCopy := *callResult
+						if err := removeSDKOutputFallback(&resultCopy, state); err != nil {
+							return nil, err
+						}
+						callResult = &resultCopy
+						if era != ProtocolEraModern {
+							legacyResult := *callResult
+							legacyResult.StructuredContent = nil
+							callResult = &legacyResult
+						}
+					} else if registration != nil && registration.hasTypedOutput && !state.handlerCalled && era == ProtocolEraModern {
+						if err := validateExplicitStructuredOutput(outputSchema(registration), callResult); err != nil {
 							return nil, err
 						}
 					}
-				} else if registration != nil && registration.hasTypedOutput && !state.handlerCalled && era == ProtocolEraModern {
-					if err := validateExplicitStructuredOutput(outputSchema(registration), callResult); err != nil {
-						return nil, err
+					if registration.hasTypedOutput && era != ProtocolEraModern && callResult.StructuredContent != nil {
+						legacyResult := *callResult
+						legacyResult.StructuredContent = nil
+						callResult = &legacyResult
 					}
+					return callResult, nil
 				}
-				if registration.hasTypedOutput && era != ProtocolEraModern && callResult.StructuredContent != nil {
-					legacyResult := *callResult
-					legacyResult.StructuredContent = nil
-					callResult = &legacyResult
+				callResult, err := applyToolHandlerMiddleware(dispatch, registration.handlerMiddleware...)(ctx, req)
+				if err != nil {
+					return nil, err
+				}
+				era := requestEra(ctx, requestVersion)
+				if registration.fixedEra != ProtocolEraDynamic {
+					era = registration.fixedEra
+				}
+				if registration.hasTypedOutput && callResult != nil {
+					if era != ProtocolEraModern {
+						resultCopy := *callResult
+						resultCopy.StructuredContent = nil
+						callResult = &resultCopy
+					} else {
+						if state.hasOutput && state.preserveContent && !callResult.IsError {
+							resultCopy := *callResult
+							resultCopy.StructuredContent = state.structuredOutput
+							callResult = &resultCopy
+						}
+						if !state.handlerCalled {
+							if err := validateExplicitStructuredOutput(outputSchema(registration), callResult); err != nil {
+								return nil, err
+							}
+						}
+						if !registration.preserveContent && !state.preserveContent {
+							if err := applyModernStructuredText(callResult); err != nil {
+								return nil, err
+							}
+						}
+					}
 				}
 				return callResult, nil
 			default:

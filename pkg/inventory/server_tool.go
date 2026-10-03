@@ -256,7 +256,8 @@ func (st *ServerTool) registerFunc(s *mcp.Server, deps any, addTypedOutputMiddle
 	allMiddleware = append(allMiddleware, middleware...)
 	allMiddleware = append(allMiddleware, st.handlerMiddlewares(deps)...)
 	if st.registerTyped != nil {
-		st.registerTyped(s, registration, era, allMiddleware...)
+		registration.handlerMiddleware = allMiddleware
+		st.registerTyped(s, registration, era)
 		return registration.runtimeTool(era)
 	}
 
@@ -290,6 +291,26 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 	if !ok || schema == nil {
 		return
 	}
+	if _, owned := ownedSchemaPointers.Load(schema); owned {
+		entryValue, found := annotatedSchemaCache.Load(schema)
+		if !found {
+			entryValue, _ = annotatedSchemaCache.LoadOrStore(schema, &inferredSchemaEntry{})
+		}
+		entry := entryValue.(*inferredSchemaEntry)
+		entry.once.Do(func() {
+			annotatedTool := mcp.Tool{InputSchema: schema}
+			annotateHeaderParams(&annotatedTool)
+			entry.schema = annotatedTool.InputSchema.(*jsonschema.Schema)
+			ownedSchemaPointers.Store(entry.schema, struct{}{})
+		})
+		tool.InputSchema = entry.schema
+		return
+	}
+	annotateHeaderParams(tool)
+}
+
+func annotateHeaderParams(tool *mcp.Tool) {
+	schema := tool.InputSchema.(*jsonschema.Schema)
 
 	// Collect params that actually need an annotation, so a tool without
 	// owner/repo (or already annotated) is left untouched and unCloned.
@@ -355,6 +376,7 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 	inputNormalizers ...InputNormalizer,
 ) ServerTool {
 	schemaOptions = cloneTypedSchemaOptions(schemaOptions)
+	cacheExplicitToolSchemas(&tool)
 	inputNormalizer := combineInputNormalizers(inputNormalizers)
 	serverTool := ServerTool{
 		Tool:            tool,
@@ -573,6 +595,7 @@ func invalidArgumentsResult(err error) *mcp.CallToolResult {
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
 func NewServerTool(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
+	cacheExplicitToolSchemas(&tool)
 	return ServerTool{
 		Tool:    tool,
 		Toolset: toolset,
