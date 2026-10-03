@@ -241,6 +241,143 @@ func TestCachedSchemaDeepCopiesMutableMetadata(t *testing.T) {
 	workers.Wait()
 }
 
+func TestSchemaClonesDetachEveryNumericKeyword(t *testing.T) {
+	for name, clone := range map[string]func(*jsonschema.Schema) *jsonschema.Schema{
+		"direct": CloneSchema,
+		"cache": func(schema *jsonschema.Schema) *jsonschema.Schema {
+			cached, err := CachedSchema(schema)
+			require.NoError(t, err)
+			return cached
+		},
+		"inference options": func(schema *jsonschema.Schema) *jsonschema.Schema {
+			options := cloneJSONSchemaForOptions(&jsonschema.ForOptions{
+				TypeSchemas: map[reflect.Type]*jsonschema.Schema{reflect.TypeFor[int](): schema},
+			})
+			return options.TypeSchemas[reflect.TypeFor[int]()]
+		},
+		"without defaults": CloneSchemaWithoutDefaults,
+	} {
+		t.Run(name, func(t *testing.T) {
+			bounds := &jsonschema.Schema{}
+			fields := reflect.ValueOf(bounds).Elem()
+			var numericFields []int
+			for i := range fields.NumField() {
+				field := fields.Field(i)
+				if field.Type() != reflect.TypeFor[*int]() && field.Type() != reflect.TypeFor[*float64]() {
+					continue
+				}
+				value := reflect.New(field.Type().Elem())
+				if value.Elem().Kind() == reflect.Int {
+					value.Elem().SetInt(11)
+				} else {
+					value.Elem().SetFloat(11)
+				}
+				field.Set(value)
+				numericFields = append(numericFields, i)
+			}
+			require.NotEmpty(t, numericFields)
+			original := &jsonschema.Schema{
+				Type:       "object",
+				Comment:    "numeric keyword isolation " + name,
+				Properties: map[string]*jsonschema.Schema{"bounds": bounds},
+			}
+			cloned := clone(original)
+			clonedFields := reflect.ValueOf(cloned.Properties["bounds"]).Elem()
+			for _, i := range numericFields {
+				keyword := fields.Type().Field(i).Name
+				assert.NotEqual(t, fields.Field(i).Pointer(), clonedFields.Field(i).Pointer(), keyword)
+				assert.Equal(t, fields.Field(i).Elem().Interface(), clonedFields.Field(i).Elem().Interface(), keyword)
+			}
+
+			// Mutating caller-owned bounds must not race with cached-schema reads.
+			var workers sync.WaitGroup
+			workers.Add(2)
+			go func() {
+				defer workers.Done()
+				for range 100 {
+					for _, i := range numericFields {
+						value := fields.Field(i).Elem()
+						if value.Kind() == reflect.Int {
+							value.SetInt(22)
+						} else {
+							value.SetFloat(22)
+						}
+					}
+				}
+			}()
+			go func() {
+				defer workers.Done()
+				for range 100 {
+					if _, err := json.Marshal(cloned); err != nil {
+						t.Errorf("marshal detached schema: %v", err)
+						return
+					}
+				}
+			}()
+			workers.Wait()
+			for _, i := range numericFields {
+				value := clonedFields.Field(i).Elem()
+				if value.Kind() == reflect.Int {
+					assert.Equal(t, int64(11), value.Int())
+				} else {
+					assert.Equal(t, float64(11), value.Float())
+				}
+			}
+			assert.Nil(t, cloned.Minimum, "absent bounds must remain absent")
+		})
+	}
+}
+
+func TestCloneSchemaWithoutDefaultsTraversesAllChildKinds(t *testing.T) {
+	schemaType := reflect.TypeFor[jsonschema.Schema]()
+	for i := range schemaType.NumField() {
+		field := schemaType.Field(i)
+		if field.Type != reflect.TypeFor[*jsonschema.Schema]() &&
+			field.Type != reflect.TypeFor[[]*jsonschema.Schema]() &&
+			field.Type != reflect.TypeFor[map[string]*jsonschema.Schema]() {
+			continue
+		}
+		t.Run(field.Name, func(t *testing.T) {
+			original := &jsonschema.Schema{Default: json.RawMessage(`1`)}
+			// A single deep chain makes repeated per-level traversal exponential.
+			const depth = 48
+			for range depth {
+				parent := &jsonschema.Schema{Default: json.RawMessage(`1`)}
+				target := reflect.ValueOf(parent).Elem().Field(i)
+				switch field.Type {
+				case reflect.TypeFor[*jsonschema.Schema]():
+					target.Set(reflect.ValueOf(original))
+				case reflect.TypeFor[[]*jsonschema.Schema]():
+					target.Set(reflect.ValueOf([]*jsonschema.Schema{original}))
+				case reflect.TypeFor[map[string]*jsonschema.Schema]():
+					target.Set(reflect.ValueOf(map[string]*jsonschema.Schema{"child": original}))
+				}
+				original = parent
+			}
+			cloned := CloneSchemaWithoutDefaults(original)
+			for level := 0; level <= depth; level++ {
+				require.NotSame(t, original, cloned)
+				assert.Equal(t, json.RawMessage(`1`), original.Default)
+				assert.Nil(t, cloned.Default)
+				var originalChild, clonedChild *jsonschema.Schema
+				for _, child := range schemaChildren(original) {
+					if child != nil {
+						originalChild = child
+					}
+				}
+				for _, child := range schemaChildren(cloned) {
+					if child != nil {
+						clonedChild = child
+					}
+				}
+				original, cloned = originalChild, clonedChild
+			}
+			assert.Nil(t, original)
+			assert.Nil(t, cloned)
+		})
+	}
+}
+
 func TestSchemaInferenceOptionsDeepCopyOverrides(t *testing.T) {
 	type input struct {
 		State string `json:"state"`
