@@ -178,6 +178,6 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		})
-	st.FeatureFlagEnable = FeatureFlagDuplicateDetection
+	st.FeatureRule = featureEnabledRule(FeatureFlagDuplicateDetection)
 	return st
 }

@@ -3,6 +3,8 @@ package context
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type mcpMethodInfoCtx string
@@ -22,6 +24,10 @@ type MCPMethodInfo struct {
 	ItemName string
 	// RawArguments contains the unmaterialized tool arguments for tools/call requests.
 	RawArguments json.RawMessage
+	// ProtocolVersion and ClientCapabilities describe the requesting MCP client
+	// when stateless HTTP parsing makes them available before registration.
+	ProtocolVersion    string
+	ClientCapabilities *mcp.ClientCapabilities
 }
 
 // DecodeArguments materializes tool arguments when request middleware needs

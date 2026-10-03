@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Unhide Pull Request Review"
+  },
+  "description": "Unhide (unminimize) the previously hidden body of a submitted pull request review. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "review_id": {
+        "description": "The numeric ID of the pull request review",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "review_id"
+    ],
+    "type": "object"
+  },
+  "name": "unhide_pull_request_review"
+}

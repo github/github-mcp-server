@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Remove Reaction from Issue or Pull Request Comment"
+  },
+  "description": "Remove a reaction from an issue or pull request comment.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The issue or pull request comment ID",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "reaction_id": {
+        "description": "The reaction ID to remove",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "reaction_id"
+    ],
+    "type": "object"
+  },
+  "name": "remove_issue_comment_reaction"
+}

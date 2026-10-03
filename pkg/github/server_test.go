@@ -17,7 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -62,10 +62,12 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 func (s stubDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCache, error) {
 	return s.repoAccessCache, nil
 }
-func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
-func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
-func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
+func (s stubDeps) GetFlags(_ context.Context) FeatureFlags  { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool {
+	return false
+}
 func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 	return s.obsv.Logger()
 }
@@ -121,7 +123,7 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 			}
 		}
 		resp := gogithub.RepositoryPermissionLevel{
-			Permission: gogithub.Ptr(perm),
+			Permission: new(perm),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -190,6 +192,27 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
+}
+
+func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
+	var calls int
+	checker := func(_ context.Context, flag string) (bool, error) {
+		calls++
+		return flag == "enabled", nil
+	}
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithFeatureChecker(checker).
+		Build()
+	require.NoError(t, err)
+
+	next := func(ctx context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		return nil, nil
+	}
+	_, err = injectFeatureStateMiddleware(inv)(next)(context.Background(), "tools/call", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
 }
 
 // advertisedServerCapabilities connects an in-memory client to the given server

@@ -403,7 +403,13 @@ For a complete overview of all installation options, see our **[Installation Gui
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`.
+
+STDIO API requests identify the server as `github-mcp-server/<version>` and retain the upstream MCP client's name/version in parentheses when available. Control characters, quotes, backslashes and parentheses in client metadata are escaped so the HTTP header remains valid; ordinary names, versions, spaces and printable Unicode are preserved. Release builds keep their release version. Source and default Docker builds with revision metadata use `vcs-<full-commit-sha>`. The Docker publishing workflow preserves tag versions, including prereleases, and lets branch, pull-request and nightly builds use the linked source revision. The `-dirty` marker applies only when both the revision and modified state come from embedded VCS metadata, never to a valid, explicitly supplied `main.commit`. This is a VCS build identifier, not a release number.
+
+Build the complete package with `go build -o github-mcp-server ./cmd/github-mcp-server` from a Git checkout to embed its VCS revision. For builds without VCS metadata, supply the actual release with `-ldflags '-X main.version=<release>'` or the full source revision with `-ldflags '-X main.commit=<sha>'`. Valid metadata is selected in this order: explicit release, explicit source revision, embedded VCS revision, then installed main-module version. Valid explicit revisions remain authoritative even if build-context filtering changes embedded VCS metadata. Missing or malformed candidates fall through to the next usable source. If none is available, STDIO still starts with the development label `dev` and emits a warning on stderr, leaving stdout available for the MCP protocol. Supply real release or revision metadata when version-specific attribution is needed.
+
+For example:
 
 ```JSON
 {
@@ -586,6 +592,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
@@ -703,6 +710,7 @@ The following sets of tools are available:
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> Context</summary>
 
 - **get_me** - Get my user profile
+  - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
 - **get_team_members** - Get team members
@@ -713,6 +721,12 @@ The following sets of tools are available:
 - **get_teams** - Get teams
   - **OAuth Challenge Scopes**: `read:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
+- **ui_get** - Get UI data
+  - **OAuth Challenge Scopes**: `repo`, `read:org`
+  - `method`: The type of data to fetch (string, required)
+  - `owner`: Repository owner (required for all methods) (string, required)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
 
 </details>
 
@@ -872,6 +886,81 @@ The following sets of tools are available:
 
 <details>
 
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> Governance</summary>
+
+- **create_repository_ruleset** - Create repository ruleset
+  - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which the ruleset is configured:
+    - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
+    - 'organization': A ruleset covering repositories in an organization (requires 'org').
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
+  - `name`: The name of the ruleset (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
+  - `target`: The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. (string, optional)
+
+- **custom_properties_read** - Read custom properties
+  - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+
+- **custom_properties_write** - Set custom properties
+  - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `properties`: The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields). (object[], required)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+
+- **repository_ruleset_read** - Read repository rulesets
+  - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
+  - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. (string, optional)
+  - `branch`: Branch name. Required for the 'get_rules_for_branch' method. (string, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `evaluate_status`: Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. (string, optional)
+  - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. (boolean, optional)
+  - `level`: The level at which the ruleset is configured:
+    - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
+    - 'organization': A ruleset covering repositories in an organization (requires 'org').
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
+  - `method`: Operation to perform:
+    - 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.
+    - 'list': List all rulesets. Supported at every level.
+    - 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.
+    - 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.
+    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+  - `repository_name`: Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. (string, optional)
+  - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. (number, optional)
+  - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. (string, optional)
+  - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)
+  - `time_period`: The time period to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+
+</details>
+
+<details>
+
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue or pull request
@@ -907,6 +996,7 @@ The following sets of tools are available:
 
 - **issue_write** - Create or update issue/pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
@@ -980,6 +1070,13 @@ The following sets of tools are available:
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
+
+- **update_issue_comment** - Update issue comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: New comment content (string, required)
+  - `comment_id`: The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID. (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 </details>
 
@@ -1155,6 +1252,7 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -1233,6 +1331,7 @@ The following sets of tools are available:
 
 - **update_pull_request** - Edit pull request
   - **OAuth Challenge Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
   - `base`: New base branch name (string, optional)
   - `body`: New description (string, optional)
   - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)

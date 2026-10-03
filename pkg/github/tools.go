@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -72,6 +72,11 @@ var (
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
 		Icon:        "organization",
+	}
+	ToolsetMetadataGovernance = inventory.ToolsetMetadata{
+		ID:          "governance",
+		Description: "Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels",
+		Icon:        "law",
 	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
@@ -254,6 +259,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
+		UpdateIssueComment(t),
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
@@ -264,6 +270,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Organization tools
 		SearchOrgs(t),
+
+		// Governance tools
+		RepositoryRulesetRead(t),
+		CreateRepositoryRuleset(t),
+		CustomPropertiesRead(t),
+		CustomPropertiesWrite(t),
 
 		// Pull request tools
 		PullRequestRead(t),
@@ -361,7 +373,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
 		GranularAddIssueReaction(t),
+		GranularRemoveIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
+		GranularRemoveIssueCommentReaction(t),
+		GranularHideIssueComment(t),
+		GranularUnhideIssueComment(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -377,6 +393,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
+		GranularRemovePullRequestReviewCommentReaction(t),
+		GranularHidePullRequestReviewComment(t),
+		GranularUnhidePullRequestReviewComment(t),
+		GranularHidePullRequestReview(t),
+		GranularUnhidePullRequestReview(t),
 	})
 }
 

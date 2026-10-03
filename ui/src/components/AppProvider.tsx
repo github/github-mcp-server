@@ -1,4 +1,8 @@
-import { ThemeProvider, BaseStyles, Box } from "@primer/react";
+import { BaseStyles } from "@primer/react";
+import { ThemeProvider } from "@primer/react/next";
+import "@primer/primitives/dist/css/primitives.css";
+import "@primer/primitives/dist/css/functional/themes/light.css";
+import "@primer/primitives/dist/css/functional/themes/dark.css";
 import type { ReactNode, CSSProperties } from "react";
 import { useEffect, useMemo } from "react";
 import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps";
@@ -44,10 +48,10 @@ export function AppProvider({ children, hostContext }: AppProviderProps) {
   return (
     <ThemeProvider colorMode={colorMode}>
       <BaseStyles>
-        <Box p={3} style={styleVars}>
+        <div style={{ padding: 16, ...styleVars }}>
           {children}
           <FeedbackFooter />
-        </Box>
+        </div>
       </BaseStyles>
     </ThemeProvider>
   );

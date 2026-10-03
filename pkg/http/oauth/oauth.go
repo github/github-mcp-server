@@ -20,13 +20,12 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
-// protected-resource metadata advertises this full set so clients can step up
-// authorization for tools excluded from the default grant.
+// SupportedScopes lists every OAuth scope that an MCP tool may require.
 var SupportedScopes = scopes.SupportedOAuthScopes()
 
-// DefaultScopes are requested by stdio OAuth unless the operator explicitly
-// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
+// DefaultScopes are advertised in protected-resource metadata and requested by
+// stdio OAuth unless the operator explicitly supplies --oauth-scopes. Other
+// scopes require opt-in through a per-tool authorization challenge.
 var DefaultScopes = scopes.DefaultOAuthScopes()
 
 // Config holds the OAuth configuration for the MCP server.
@@ -128,7 +127,7 @@ func (h *AuthHandler) metadataHandler() http.Handler {
 			Resource:               resourceURL,
 			AuthorizationServers:   []string{authorizationServerURL},
 			ResourceName:           "GitHub MCP Server",
-			ScopesSupported:        SupportedScopes,
+			ScopesSupported:        DefaultScopes,
 			BearerMethodsSupported: []string{"header"},
 		}
 
