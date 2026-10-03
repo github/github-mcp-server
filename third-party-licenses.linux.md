@@ -22,7 +22,7 @@ The following packages are included for the 386 architectures.
  - [github.com/google/go-querystring/query](https://pkg.go.dev/github.com/google/go-querystring/query) ([BSD-3-Clause](https://github.com/google/go-querystring/blob/v1.2.0/LICENSE))
  - [github.com/google/jsonschema-go/jsonschema](https://pkg.go.dev/github.com/google/jsonschema-go/jsonschema) ([MIT](https://github.com/google/jsonschema-go/blob/v0.4.3/LICENSE))
  - [github.com/gorilla/css/scanner](https://pkg.go.dev/github.com/gorilla/css/scanner) ([BSD-3-Clause](https://github.com/gorilla/css/blob/v1.0.1/LICENSE))
- - [github.com/josephburnett/jd/v2](https://pkg.go.dev/github.com/josephburnett/jd/v2) ([MIT](https://github.com/josephburnett/jd/blob/v2.5.0/LICENSE))
+ - [github.com/josephburnett/jd/v2](https://pkg.go.dev/github.com/josephburnett/jd/v2) ([MIT](https://github.com/josephburnett/jd/blob/v2.5.0/v2/LICENSE))
  - [github.com/lithammer/fuzzysearch/fuzzy](https://pkg.go.dev/github.com/lithammer/fuzzysearch/fuzzy) ([MIT](https://github.com/lithammer/fuzzysearch/blob/v1.1.8/LICENSE))
  - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
  - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([Apache-2.0](https://github.com/modelcontextprotocol/go-sdk/blob/v1.8.0/LICENSE))
