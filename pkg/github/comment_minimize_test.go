@@ -282,6 +282,8 @@ func (c commentVisibilityProtocolConnection) Write(ctx context.Context, message 
 }
 
 func TestCommentVisibilityProtocols(t *testing.T) {
+	// Typed output requires a supported negotiated 2026-07-28+ version;
+	// unknown versions remain legacy even when their date is later.
 	for _, version := range []string{"2025-11-25", "2026-07-28"} {
 		for _, target := range []commentVisibilityTarget{issueCommentVisibilityTarget, pullRequestReviewCommentVisibilityTarget, pullRequestReviewVisibilityTarget} {
 			for _, hide := range []bool{true, false} {

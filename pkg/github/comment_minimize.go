@@ -159,7 +159,7 @@ func commentVisibilityTool(t translations.TranslationHelperFunc, target commentV
 		required = append(required, "classifier")
 	}
 
-	outputSchema, err := jsonschema.For[MinimizeCommentResult](nil)
+	outputSchema, err := inventory.CachedSchemaFor[MinimizeCommentResult](nil)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate comment visibility output schema: %v", err))
 	}
