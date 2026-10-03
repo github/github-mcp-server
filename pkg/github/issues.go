@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -1002,6 +1003,39 @@ func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repo
 	return safe
 }
 
+type issueCommentMinimized struct {
+	Reason string `json:"reason"`
+}
+
+type issueCommentResponse struct {
+	github.IssueComment
+	Minimized *issueCommentMinimized `json:"minimized,omitempty"`
+}
+
+func listIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) ([]issueCommentResponse, *github.Response, error) {
+	query := url.Values{}
+	if pagination.Page > 0 {
+		query.Set("page", strconv.Itoa(pagination.Page))
+	}
+	if pagination.PerPage > 0 {
+		query.Set("per_page", strconv.Itoa(pagination.PerPage))
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d/comments", owner, repo, issueNumber)
+	if encoded := query.Encode(); encoded != "" {
+		apiURL += "?" + encoded
+	}
+	req, err := client.NewRequest(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	var comments []issueCommentResponse
+	resp, err := client.Do(req, &comments)
+	return comments, resp, err
+}
+
 func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
@@ -1009,14 +1043,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 	}
 	flags := deps.GetFlags(ctx)
 
-	opts := &github.IssueListCommentsOptions{
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
-	}
-
-	comments, resp, err := client.Issues.ListComments(ctx, owner, repo, issueNumber, opts)
+	comments, resp, err := listIssueComments(ctx, client, owner, repo, issueNumber, pagination)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue comments: %w", err)
 	}
@@ -1033,7 +1060,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		filteredComments := make([]*github.IssueComment, 0, len(comments))
+		filteredComments := make([]issueCommentResponse, 0, len(comments))
 		for _, comment := range comments {
 			user := comment.User
 			if user == nil {
@@ -1056,7 +1083,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 
 	minimalComments := make([]MinimalIssueComment, 0, len(comments))
 	for _, comment := range comments {
-		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
+		minimalComments = append(minimalComments, convertToMinimalIssueCommentWithMinimized(&comment.IssueComment, comment.Minimized))
 	}
 
 	return MarshalledTextResult(minimalComments), nil
