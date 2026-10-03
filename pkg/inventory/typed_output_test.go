@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -170,6 +171,100 @@ func TestCachedExplicitSchemaWarmPathsPreserveOwnership(t *testing.T) {
 	assert.Zero(t, allocations, "cache-owned warm schemas must avoid canonical serialization and annotation cloning")
 }
 
+func TestCachedSchemaDeepCopiesMutableMetadata(t *testing.T) {
+	constant := any(map[string]any{"nested": []string{"const"}})
+	nullConstant := any(nil)
+	original := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"state": {
+				Type: "string",
+				Enum: []any{map[string]any{"values": []string{"open"}}},
+				Extra: map[string]any{
+					"nested": map[string]any{"values": []string{"property"}},
+				},
+			},
+		},
+		Enum:     []any{map[string]any{"values": []string{"root"}}},
+		Const:    &constant,
+		Examples: []any{map[string]any{"values": []string{"example"}}},
+		DependencyStrings: map[string][]string{
+			"state": {"repo"},
+		},
+		PropertyOrder: []string{"state"},
+		Extra: map[string]any{
+			"nested": map[string]any{"values": []string{"extra"}},
+		},
+	}
+	cached, err := CachedSchema(original)
+	require.NoError(t, err)
+
+	original.Enum[0].(map[string]any)["values"].([]string)[0] = "mutated-root"
+	original.Properties["state"].Enum[0].(map[string]any)["values"].([]string)[0] = "mutated-property"
+	original.Properties["state"].Extra["nested"].(map[string]any)["values"].([]string)[0] = "mutated-property-extra"
+	(*original.Const).(map[string]any)["nested"].([]string)[0] = "mutated-const"
+	original.Examples[0].(map[string]any)["values"].([]string)[0] = "mutated-example"
+	original.DependencyStrings["state"][0] = "mutated-dependency"
+	original.PropertyOrder[0] = "mutated-order"
+	original.Extra["nested"].(map[string]any)["values"].([]string)[0] = "mutated-extra"
+
+	assert.Equal(t, "root", cached.Enum[0].(map[string]any)["values"].([]string)[0])
+	assert.Equal(t, "open", cached.Properties["state"].Enum[0].(map[string]any)["values"].([]string)[0])
+	assert.Equal(t, "property", cached.Properties["state"].Extra["nested"].(map[string]any)["values"].([]string)[0])
+	assert.Equal(t, "const", (*cached.Const).(map[string]any)["nested"].([]string)[0])
+	assert.Equal(t, "example", cached.Examples[0].(map[string]any)["values"].([]string)[0])
+	assert.Equal(t, []string{"repo"}, cached.DependencyStrings["state"])
+	assert.Equal(t, []string{"state"}, cached.PropertyOrder)
+	assert.Equal(t, "extra", cached.Extra["nested"].(map[string]any)["values"].([]string)[0])
+	nullSchema, err := CachedSchema(&jsonschema.Schema{Const: &nullConstant})
+	require.NoError(t, err)
+	require.NotNil(t, nullSchema.Const)
+	assert.Nil(t, *nullSchema.Const)
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for range 100 {
+			original.Properties["state"].Extra["nested"].(map[string]any)["values"].([]string)[0] = "concurrent mutation"
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range 100 {
+			if _, err := json.Marshal(cached); err != nil {
+				t.Errorf("marshal cached schema: %v", err)
+				return
+			}
+		}
+	}()
+	workers.Wait()
+}
+
+func TestSchemaInferenceOptionsDeepCopyOverrides(t *testing.T) {
+	type input struct {
+		State string `json:"state"`
+	}
+	original := &jsonschema.Schema{
+		Type: "string",
+		Enum: []any{map[string]any{"values": []string{"open"}}},
+		Extra: map[string]any{
+			"nested": map[string]any{"values": []string{"option"}},
+		},
+	}
+	options := cloneJSONSchemaForOptions(&jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[input](): original,
+		},
+	})
+	original.Enum[0].(map[string]any)["values"].([]string)[0] = "mutated"
+	original.Extra["nested"].(map[string]any)["values"].([]string)[0] = "mutated"
+
+	cloned := options.TypeSchemas[reflect.TypeFor[input]()]
+	assert.Equal(t, "open", cloned.Enum[0].(map[string]any)["values"].([]string)[0])
+	assert.Equal(t, "option", cloned.Extra["nested"].(map[string]any)["values"].([]string)[0])
+}
+
 func TestRawExplicitSchemasReuseAnnotatedPointersAcrossRegistrations(t *testing.T) {
 	original := &jsonschema.Schema{
 		Type: "object",
@@ -199,6 +294,59 @@ func TestRawExplicitSchemasReuseAnnotatedPointersAcrossRegistrations(t *testing.
 	assert.Empty(t, original.Properties["owner"].Extra)
 	assert.Empty(t, tool.Tool.InputSchema.(*jsonschema.Schema).Properties["owner"].Extra,
 		"constructor caching must not change the public definition's schema metadata")
+}
+
+func TestTypedAnyInputPreservesSDKDefaultObjectSchemaInBothEras(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_any_input"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, input any) (*mcp.CallToolResult, typedTestOutput, error) {
+			values, ok := input.(map[string]any)
+			require.True(t, ok)
+			return nil, typedTestOutput{Query: values["query"].(string)}, nil
+		},
+	)
+	require.Nil(t, tool.Tool.InputSchema, "the caller-owned static definition remains untouched")
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	tool.RegisterFunc(server, nil)
+	modern := connectTypedTestClient(t, server, "")
+	legacy := connectTypedTestClient(t, server, "2025-11-25")
+
+	for _, session := range []*mcp.ClientSession{modern, legacy} {
+		list, err := session.ListTools(context.Background(), nil)
+		require.NoError(t, err)
+		require.Len(t, list.Tools, 1)
+		assert.JSONEq(t, `{"type":"object"}`, mustMarshalJSON(t, list.Tools[0].InputSchema))
+	}
+	list, err := modern.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	assert.NotNil(t, list.Tools[0].OutputSchema)
+	list, err = legacy.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+
+	for _, tc := range []struct {
+		name    string
+		session *mcp.ClientSession
+		modern  bool
+	}{
+		{name: "modern call", session: modern, modern: true},
+		{name: "legacy call", session: legacy},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := tc.session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name:      "typed_any_input",
+				Arguments: map[string]any{"query": "accepted"},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			if tc.modern {
+				assert.JSONEq(t, `{"query":"accepted"}`, mustMarshalJSON(t, result.StructuredContent))
+			} else {
+				assert.Nil(t, result.StructuredContent)
+			}
+		})
+	}
 }
 
 func TestTypedToolInputSchemasPreserveObjectOptionality(t *testing.T) {
