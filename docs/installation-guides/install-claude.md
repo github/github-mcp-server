@@ -4,8 +4,8 @@
 
 ### Prerequisites
 - Claude Code CLI installed
-- [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
-- For local setup: [Docker](https://www.docker.com/) installed and running
+- [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) (only for PAT-based setup)
+- For Docker-based local setup: [Docker](https://www.docker.com/) installed and running
 - Open Claude Code inside the directory for your project (recommended for best experience and clear scope of configuration)
 
 <details>
@@ -89,12 +89,20 @@ claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=$(grep GITHUB_PAT .env | c
 
 1. Download [release binary](https://github.com/github/github-mcp-server/releases)
 2. Add to your `PATH`
-3. Run:
+3. Configure OAuth login (no token required for github.com):
+```bash
+claude mcp add-json github '{"command": "github-mcp-server", "args": ["stdio"]}'
+```
+
+Official release binaries include the OAuth app credentials for github.com. On first use, the server opens a browser so you can authorize access; the resulting token is kept in memory only. For GitHub Enterprise or to use a Personal Access Token instead, see the alternatives below and the [Local Server OAuth Login](../oauth-login.md) guide.
+
+To use a Personal Access Token instead:
 ```bash
 claude mcp add-json github '{"command": "github-mcp-server", "args": ["stdio"], "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"}}'
 ```
-2. Restart Claude Code
-3. Run `claude mcp list` to see if the GitHub server is configured
+
+4. Restart Claude Code
+5. Run `claude mcp list` to see if the GitHub server is configured
 
 ### Verification
 ```bash
