@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -125,32 +126,30 @@ func issueFieldValue(value any) (*IssueFieldValue, error) {
 	}
 }
 
-// The read tool returns different top-level shapes, not an artificial envelope.
 type IssueReadOutput struct {
-	Issue     *IssueDetailsOutput
-	Comments  *[]MinimalIssueComment
-	SubIssues *[]*SubIssueOutput
-	Parent    *IssueParentOutput
-	Labels    *IssueLabelsOutput
+	Method     string                `json:"method"`
+	Issue      *IssueDetailsOutput   `json:"issue,omitempty"`
+	Comments   *[]IssueCommentOutput `json:"comments,omitempty"`
+	SubIssues  *[]*SubIssueOutput    `json:"sub_issues,omitempty"`
+	Parent     *IssueParentRef       `json:"parent,omitempty"`
+	Labels     *[]IssueLabelOutput   `json:"labels,omitempty"`
+	TotalCount *int                  `json:"totalCount,omitempty"`
 }
 
 func (out IssueReadOutput) MarshalJSON() ([]byte, error) {
-	switch {
-	case out.Issue != nil:
-		return json.Marshal(out.Issue)
-	case out.Comments != nil:
-		return json.Marshal(out.Comments)
-	case out.SubIssues != nil:
-		return json.Marshal(out.SubIssues)
-	case out.Parent != nil:
-		return json.Marshal(out.Parent)
-	case out.Labels != nil:
-		return json.Marshal(out.Labels)
-	default:
+	if out.Method == "" {
 		// SDK v1.8 validates this zero value even for errors before the
 		// protocol middleware removes it from the wire result.
-		return []byte("null"), nil
+		return []byte(`{"method":"get","issue":null}`), nil
 	}
+	if out.Method == "get_parent" {
+		return json.Marshal(struct {
+			Method string          `json:"method"`
+			Parent *IssueParentRef `json:"parent"`
+		}{out.Method, out.Parent})
+	}
+	type plain IssueReadOutput
+	return json.Marshal(plain(out))
 }
 
 // IssueDetailsOutput excludes REST issue_field_values: get always drops them
@@ -159,21 +158,21 @@ type IssueDetailsOutput struct {
 	Number               int                         `json:"number"`
 	Title                string                      `json:"title"`
 	Body                 string                      `json:"body,omitempty"`
-	State                string                      `json:"state"`
+	State                string                      `json:"state" jsonschema:"Issue state (lowercase REST value)."`
 	StateReason          string                      `json:"state_reason,omitempty"`
 	Draft                bool                        `json:"draft,omitempty"`
 	Locked               bool                        `json:"locked,omitempty"`
-	HTMLURL              string                      `json:"html_url,omitempty"`
-	User                 *MinimalUser                `json:"user,omitempty"`
+	HTMLURL              string                      `json:"html_url,omitempty" jsonschema:"Human-readable issue link."`
+	User                 *IssueUserOutput            `json:"user,omitempty"`
 	AuthorAssociation    string                      `json:"author_association,omitempty"`
 	Labels               []string                    `json:"labels,omitempty"`
 	Assignees            []string                    `json:"assignees"`
 	Milestone            string                      `json:"milestone,omitempty"`
-	Comments             int                         `json:"comments,omitempty"`
+	Comments             int                         `json:"comments,omitempty" jsonschema:"Number of comments."`
 	Reactions            *MinimalReactions           `json:"reactions,omitempty"`
-	CreatedAt            string                      `json:"created_at,omitempty"`
-	UpdatedAt            string                      `json:"updated_at,omitempty"`
-	ClosedAt             string                      `json:"closed_at,omitempty"`
+	CreatedAt            string                      `json:"created_at,omitempty" jsonschema:"Creation time (RFC 3339)."`
+	UpdatedAt            string                      `json:"updated_at,omitempty" jsonschema:"Last update time (RFC 3339)."`
+	ClosedAt             string                      `json:"closed_at,omitempty" jsonschema:"Closure time (RFC 3339), when closed."`
 	ClosedBy             string                      `json:"closed_by,omitempty"`
 	IssueType            string                      `json:"issue_type,omitempty"`
 	FieldValues          []MinimalFieldValue         `json:"field_values,omitempty"`
@@ -188,7 +187,7 @@ func issueDetailsOutput(issue MinimalIssue) *IssueDetailsOutput {
 	return &IssueDetailsOutput{
 		Number: issue.Number, Title: issue.Title, Body: issue.Body, State: issue.State,
 		StateReason: issue.StateReason, Draft: issue.Draft, Locked: issue.Locked,
-		HTMLURL: issue.HTMLURL, User: issue.User, AuthorAssociation: issue.AuthorAssociation,
+		HTMLURL: issue.HTMLURL, User: issueUserOutput(issue.User), AuthorAssociation: issue.AuthorAssociation,
 		Labels: issue.Labels, Assignees: issue.Assignees, Milestone: issue.Milestone,
 		Comments: issue.Comments, Reactions: issue.Reactions, CreatedAt: issue.CreatedAt,
 		UpdatedAt: issue.UpdatedAt, ClosedAt: issue.ClosedAt, ClosedBy: issue.ClosedBy,
@@ -196,6 +195,41 @@ func issueDetailsOutput(issue MinimalIssue) *IssueDetailsOutput {
 		HasChildren: issue.HasChildren, Parent: issue.Parent, SubIssuesSummary: issue.SubIssuesSummary,
 		ClosedByPullRequests: issue.ClosedByPullRequests,
 	}
+}
+
+type IssueUserOutput struct {
+	Login string `json:"login"`
+	ID    int64  `json:"id,omitempty"`
+}
+
+func issueUserOutput(user *MinimalUser) *IssueUserOutput {
+	if user == nil {
+		return nil
+	}
+	return &IssueUserOutput{Login: user.Login, ID: user.ID}
+}
+
+type IssueCommentOutput struct {
+	ID                int64             `json:"id"`
+	Body              string            `json:"body,omitempty"`
+	HTMLURL           string            `json:"html_url" jsonschema:"Human-readable comment link."`
+	User              *IssueUserOutput  `json:"user,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty" jsonschema:"Creation time (RFC 3339)."`
+	UpdatedAt         string            `json:"updated_at,omitempty" jsonschema:"Last update time (RFC 3339)."`
+}
+
+func issueCommentOutputs(comments []MinimalIssueComment) []IssueCommentOutput {
+	output := make([]IssueCommentOutput, 0, len(comments))
+	for _, comment := range comments {
+		output = append(output, IssueCommentOutput{
+			ID: comment.ID, Body: comment.Body, HTMLURL: comment.HTMLURL,
+			User: issueUserOutput(comment.User), AuthorAssociation: comment.AuthorAssociation,
+			Reactions: comment.Reactions, CreatedAt: comment.CreatedAt, UpdatedAt: comment.UpdatedAt,
+		})
+	}
+	return output
 }
 
 type IssueParentOutput struct {
@@ -206,9 +240,9 @@ type IssueParentOutput struct {
 type IssueParentRef struct {
 	Number     int    `json:"number"`
 	Repository string `json:"repository"`
-	State      string `json:"state"`
+	State      string `json:"state" jsonschema:"Parent issue state (uppercase GraphQL value)."`
 	Title      string `json:"title"`
-	URL        string `json:"url"`
+	URL        string `json:"url" jsonschema:"Human-readable parent issue link."`
 }
 
 type IssueLabelsOutput struct {
@@ -217,8 +251,9 @@ type IssueLabelsOutput struct {
 }
 
 type IssueWriteOutput struct {
-	Issue    *MinimalResponse
-	Awaiting *IssueWriteAwaitingOutput
+	Method   string                    `json:"method"`
+	Issue    *MinimalResponse          `json:"issue,omitempty"`
+	Awaiting *IssueWriteAwaitingOutput `json:"awaiting,omitempty"`
 }
 
 type IssueWriteAwaitingOutput struct {
@@ -230,24 +265,40 @@ func (out IssueWriteOutput) MarshalJSON() ([]byte, error) {
 	if out.Awaiting != nil {
 		return json.Marshal(out.Awaiting)
 	}
-	if out.Issue != nil {
-		return json.Marshal(out.Issue)
+	if out.Method == "" {
+		return []byte(`{"method":"create","issue":{"id":"","url":""}}`), nil
 	}
-	return json.Marshal(MinimalResponse{})
+	type plain IssueWriteOutput
+	return json.Marshal(plain(out))
 }
 
-func issueWriteOutputSchema() *jsonschema.Schema {
-	mutation := repositoryOutputSchema[MinimalResponse]()
-	awaiting := repositoryOutputSchema[IssueWriteAwaitingOutput]()
+var issueWriteOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
+	schema := issueDTOschema[IssueWriteOutput]()
+	awaiting := issueDTOschema[IssueWriteAwaitingOutput]()
 	awaiting.Properties["status"].Enum = []any{"awaiting_user_submission"}
-	return repositoryUnionSchema(mutation, awaiting)
-}
-
-func issueWriteResult(result *mcp.CallToolResult, output *MinimalResponse, err error) (*mcp.CallToolResult, *IssueWriteOutput, error) {
-	if output == nil {
-		return result, nil, err
+	delete(schema.Properties, "awaiting")
+	schema.Properties["status"] = awaiting.Properties["status"]
+	schema.Properties["reason"] = awaiting.Properties["reason"]
+	schema.Required = nil
+	schema.Properties["method"].Enum = []any{"create", "update"}
+	schema.OneOf = []*jsonschema.Schema{
+		{Required: []string{"method", "issue"}, Properties: map[string]*jsonschema.Schema{
+			"status": {Not: &jsonschema.Schema{}}, "reason": {Not: &jsonschema.Schema{}},
+		}},
+		{Required: []string{"status", "reason"}, Properties: map[string]*jsonschema.Schema{
+			"method": {Not: &jsonschema.Schema{}}, "issue": {Not: &jsonschema.Schema{}},
+		}},
 	}
-	return result, &IssueWriteOutput{Issue: output}, err
+	return schema
+})
+
+func issueWriteResult(method string) func(*mcp.CallToolResult, *MinimalResponse, error) (*mcp.CallToolResult, *IssueWriteOutput, error) {
+	return func(result *mcp.CallToolResult, output *MinimalResponse, err error) (*mcp.CallToolResult, *IssueWriteOutput, error) {
+		if output == nil {
+			return result, nil, err
+		}
+		return result, &IssueWriteOutput{Method: method, Issue: output}, err
+	}
 }
 
 func issueWriteFieldVariants() []*jsonschema.Schema {
@@ -282,140 +333,147 @@ type IssueLabelOutput struct {
 }
 
 type SubIssueOutput struct {
-	ID                       *int64                           `json:"id,omitempty"`
-	Number                   *int                             `json:"number,omitempty"`
-	State                    *string                          `json:"state,omitempty"`
-	StateReason              *string                          `json:"state_reason,omitempty"`
-	Locked                   *bool                            `json:"locked,omitempty"`
-	Title                    *string                          `json:"title,omitempty"`
-	Body                     *string                          `json:"body,omitempty"`
-	AuthorAssociation        *string                          `json:"author_association,omitempty"`
-	User                     *github.User                     `json:"user,omitempty"`
-	Labels                   []*github.Label                  `json:"labels,omitempty"`
-	Assignee                 *github.User                     `json:"assignee,omitempty"`
-	Comments                 *int                             `json:"comments,omitempty"`
-	ClosedAt                 *github.Timestamp                `json:"closed_at,omitempty"`
-	CreatedAt                *github.Timestamp                `json:"created_at,omitempty"`
-	UpdatedAt                *github.Timestamp                `json:"updated_at,omitempty"`
-	ClosedBy                 *github.User                     `json:"closed_by,omitempty"`
-	URL                      *string                          `json:"url,omitempty"`
-	HTMLURL                  *string                          `json:"html_url,omitempty"`
-	CommentsURL              *string                          `json:"comments_url,omitempty"`
-	EventsURL                *string                          `json:"events_url,omitempty"`
-	LabelsURL                *string                          `json:"labels_url,omitempty"`
-	RepositoryURL            *string                          `json:"repository_url,omitempty"`
-	ParentIssueURL           *string                          `json:"parent_issue_url,omitempty"`
-	Milestone                *github.Milestone                `json:"milestone,omitempty"`
-	PullRequestLinks         *github.PullRequestLinks         `json:"pull_request,omitempty"`
-	Repository               *github.Repository               `json:"repository,omitempty"`
-	Reactions                *github.Reactions                `json:"reactions,omitempty"`
-	Assignees                []*github.User                   `json:"assignees,omitempty"`
-	NodeID                   *string                          `json:"node_id,omitempty"`
-	Draft                    *bool                            `json:"draft,omitempty"`
-	Type                     *github.IssueType                `json:"type,omitempty"`
-	PinnedComment            *github.IssueComment             `json:"pinned_comment,omitempty"`
-	PerformedViaGithubApp    *github.App                      `json:"performed_via_github_app,omitempty"`
-	IssueDependenciesSummary *github.IssueDependenciesSummary `json:"issue_dependencies_summary,omitempty"`
-	SubIssuesSummary         *github.SubIssuesSummary         `json:"sub_issues_summary,omitempty"`
-	IssueFieldValues         []*SubIssueFieldValueOutput      `json:"issue_field_values,omitempty"`
-	TextMatches              []*github.TextMatch              `json:"text_matches,omitempty"`
-	ActiveLockReason         *string                          `json:"active_lock_reason,omitempty"`
+	ID               *int64                      `json:"id,omitempty"`
+	Number           *int                        `json:"number,omitempty"`
+	Title            *string                     `json:"title,omitempty"`
+	Body             *string                     `json:"body,omitempty"`
+	State            *string                     `json:"state,omitempty" jsonschema:"Issue state (lowercase REST value)."`
+	StateReason      *string                     `json:"state_reason,omitempty"`
+	HTMLURL          *string                     `json:"html_url,omitempty" jsonschema:"Human-readable issue link."`
+	User             *IssueUserOutput            `json:"user,omitempty"`
+	Labels           []string                    `json:"labels,omitempty"`
+	Assignees        []string                    `json:"assignees"`
+	Milestone        string                      `json:"milestone,omitempty"`
+	Comments         *int                        `json:"comments,omitempty" jsonschema:"Number of comments."`
+	CreatedAt        string                      `json:"created_at,omitempty" jsonschema:"Creation time (RFC 3339)."`
+	UpdatedAt        string                      `json:"updated_at,omitempty" jsonschema:"Last update time (RFC 3339)."`
+	ClosedAt         string                      `json:"closed_at,omitempty" jsonschema:"Closure time (RFC 3339), when closed."`
+	IssueType        string                      `json:"issue_type,omitempty"`
+	SubIssuesSummary *MinimalSubIssuesSummary    `json:"sub_issues_summary,omitempty"`
+	FieldValues      []*SubIssueFieldValueOutput `json:"field_values,omitempty"`
 }
 
 type SubIssueFieldValueOutput struct {
-	IssueFieldID       int64                                     `json:"issue_field_id"`
-	NodeID             string                                    `json:"node_id"`
-	DataType           string                                    `json:"data_type"`
-	Value              *IssueFieldValue                          `json:"value"`
-	SingleSelectOption *github.IssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
+	IssueFieldID int64            `json:"issue_field_id"`
+	DataType     string           `json:"data_type" jsonschema:"REST issue field type."`
+	Value        *IssueFieldValue `json:"value" jsonschema:"Scalar field value; dates use YYYY-MM-DD."`
 }
 
 func subIssueOutput(issue *github.SubIssue) (*SubIssueOutput, error) {
 	if issue == nil {
 		return nil, nil
 	}
+	minimal := convertToMinimalIssue((*github.Issue)(issue))
 	out := &SubIssueOutput{
 		ID: issue.ID, Number: issue.Number, State: issue.State, StateReason: issue.StateReason,
-		Locked: issue.Locked, Title: issue.Title, Body: issue.Body,
-		AuthorAssociation: issue.AuthorAssociation, //nolint:staticcheck // Preserve the existing REST response, including legacy fields.
-		User:              issue.User, Labels: issue.Labels, Comments: issue.Comments,
-		Assignee: issue.Assignee, //nolint:staticcheck // Preserve the singular assignee when supplied by older API versions.
-		ClosedAt: issue.ClosedAt, CreatedAt: issue.CreatedAt, UpdatedAt: issue.UpdatedAt,
-		ClosedBy: issue.ClosedBy, URL: issue.URL, HTMLURL: issue.HTMLURL, CommentsURL: issue.CommentsURL,
-		EventsURL: issue.EventsURL, LabelsURL: issue.LabelsURL, RepositoryURL: issue.RepositoryURL,
-		ParentIssueURL: issue.ParentIssueURL, Milestone: issue.Milestone, PullRequestLinks: issue.PullRequestLinks,
-		Repository: issue.Repository, Reactions: issue.Reactions, Assignees: issue.Assignees,
-		NodeID: issue.NodeID, Draft: issue.Draft, Type: issue.Type, PinnedComment: issue.PinnedComment,
-		PerformedViaGithubApp: issue.PerformedViaGithubApp, IssueDependenciesSummary: issue.IssueDependenciesSummary,
-		SubIssuesSummary: issue.SubIssuesSummary, TextMatches: issue.TextMatches, ActiveLockReason: issue.ActiveLockReason,
+		Title: issue.Title, Body: issue.Body, HTMLURL: issue.HTMLURL,
+		User: issueUserOutput(minimal.User), Labels: minimal.Labels, Assignees: minimal.Assignees,
+		Milestone: minimal.Milestone, Comments: issue.Comments,
+		CreatedAt: minimal.CreatedAt, UpdatedAt: minimal.UpdatedAt, ClosedAt: minimal.ClosedAt,
+		IssueType: minimal.IssueType,
+	}
+	if summary := issue.SubIssuesSummary; summary != nil {
+		out.SubIssuesSummary = &MinimalSubIssuesSummary{
+			Total: summary.GetTotal(), Completed: summary.GetCompleted(), PercentCompleted: summary.GetPercentCompleted(),
+		}
 	}
 	for _, field := range issue.IssueFieldValues {
 		if field == nil {
-			out.IssueFieldValues = append(out.IssueFieldValues, nil)
+			out.FieldValues = append(out.FieldValues, nil)
 			continue
 		}
 		value, err := issueFieldValue(field.Value)
 		if err != nil {
 			return nil, err
 		}
-		out.IssueFieldValues = append(out.IssueFieldValues, &SubIssueFieldValueOutput{
-			IssueFieldID: field.IssueFieldID, NodeID: field.NodeID, DataType: field.DataType,
-			Value: value, SingleSelectOption: field.SingleSelectOption,
+		out.FieldValues = append(out.FieldValues, &SubIssueFieldValueOutput{
+			IssueFieldID: field.IssueFieldID, DataType: field.DataType, Value: value,
 		})
 	}
 	return out, nil
 }
 
-func issueReadOutputSchema() *jsonschema.Schema {
-	issue := repositoryOutputSchema[IssueDetailsOutput]()
-	comments := repositoryOutputSchema[[]MinimalIssueComment]()
-	subIssues := subIssueArraySchema()
-	arrayDefinitions := subIssues.Defs
-	subIssues.Defs = nil
-	parent := repositoryOutputSchema[IssueParentOutput]()
-	labels := repositoryOutputSchema[IssueLabelsOutput]()
-	// Comments and sub-issues are both arrays; an empty array (or an array
-	// of nulls) is valid for either, so they form one anyOf array variant.
-	return repositoryUnionSchema(
-		&jsonschema.Schema{Type: "null"},
-		issue,
-		&jsonschema.Schema{Type: "array", AnyOf: []*jsonschema.Schema{comments, subIssues}, Defs: arrayDefinitions},
-		parent,
-		labels,
-	)
-}
+var issueReadOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
+	schema := issueDTOschema[IssueReadOutput]()
+	issue := schema.Properties["issue"]
+	issue.Properties["state"].Enum = []any{"", "open", "closed"}
+	issue.Properties["state_reason"].Enum = []any{"completed", "not_planned", "reopened", "duplicate"}
+	describeIssueSummarySchema(issue.Properties["sub_issues_summary"])
+	schema.Properties["sub_issues"] = subIssueArraySchema()
+	schema.Properties["parent"].Properties["state"].Enum = []any{"", "OPEN", "CLOSED"}
+	schema.Properties["method"].Enum = []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"}
+	methods := []string{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"}
+	fields := []string{"issue", "comments", "sub_issues", "parent", "labels"}
+	for i, method := range methods {
+		variant := &jsonschema.Schema{Required: []string{fields[i]}, Properties: map[string]*jsonschema.Schema{
+			"method": {Enum: []any{method}},
+		}}
+		for j, field := range fields {
+			if i != j {
+				variant.Properties[field] = &jsonschema.Schema{Not: &jsonschema.Schema{}}
+			}
+		}
+		if method == "get_labels" {
+			variant.Required = append(variant.Required, "totalCount")
+		} else {
+			variant.Properties["totalCount"] = &jsonschema.Schema{Not: &jsonschema.Schema{}}
+		}
+		schema.OneOf = append(schema.OneOf, variant)
+	}
+	return schema
+})
 
 type SubIssueWriteOutput struct {
-	Issue *SubIssueOutput
+	Method string          `json:"method"`
+	Issue  *SubIssueOutput `json:"issue"`
 }
 
 func (out SubIssueWriteOutput) MarshalJSON() ([]byte, error) {
 	// Unlike the SDK's default nil-pointer handling, a null API response
 	// must remain null rather than becoming an empty sub-issue object.
-	return json.Marshal(out.Issue)
+	if out.Method == "" {
+		return []byte(`{"method":"add","issue":null}`), nil
+	}
+	type plain SubIssueWriteOutput
+	return json.Marshal(plain(out))
 }
 
-func subIssueWriteResult(result *mcp.CallToolResult, output *SubIssueOutput, err error) (*mcp.CallToolResult, *SubIssueWriteOutput, error) {
-	return result, &SubIssueWriteOutput{Issue: output}, err
+func subIssueWriteResult(method string) func(*mcp.CallToolResult, *SubIssueOutput, error) (*mcp.CallToolResult, *SubIssueWriteOutput, error) {
+	return func(result *mcp.CallToolResult, output *SubIssueOutput, err error) (*mcp.CallToolResult, *SubIssueWriteOutput, error) {
+		return result, &SubIssueWriteOutput{Method: method, Issue: output}, err
+	}
 }
 
-func subIssueWriteOutputSchema() *jsonschema.Schema {
-	schema := subIssueSchema()
-	schema.Type = ""
-	schema.Types = []string{"object", "null"}
+var subIssueWriteOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
+	schema := issueDTOschema[SubIssueWriteOutput]()
+	schema.Properties["method"].Enum = []any{"add", "remove", "reprioritize"}
+	schema.Properties["issue"] = subIssueSchema()
+	schema.Properties["issue"].Type = ""
+	schema.Properties["issue"].Types = []string{"object", "null"}
 	return schema
-}
+})
 
 func subIssueSchema() *jsonschema.Schema {
-	schema := repositoryOutputSchema[SubIssueOutput]()
+	schema := issueDTOschema[SubIssueOutput]()
+	schema.Properties["state"].Enum = []any{"open", "closed"}
+	schema.Properties["state_reason"].Enum = []any{"completed", "not_planned", "reopened", "duplicate"}
+	schema.Properties["field_values"].Items.Properties["data_type"].Enum = []any{"text", "number", "date", "single_select"}
+	describeIssueSummarySchema(schema.Properties["sub_issues_summary"])
 	replaceIssueFieldScalar(schema)
 	return schema
+}
+
+func describeIssueSummarySchema(schema *jsonschema.Schema) {
+	schema.Properties["total"].Description = "Total number of sub-issues."
+	schema.Properties["completed"].Description = "Number of completed sub-issues."
+	schema.Properties["percent_completed"].Description = "Completed sub-issues as a percentage (0-100)."
 }
 
 func subIssueArraySchema() *jsonschema.Schema {
-	schema := repositoryOutputSchema[[]*SubIssueOutput]()
-	replaceIssueFieldScalar(schema)
-	return schema
+	items := subIssueSchema()
+	items.Type = ""
+	items.Types = []string{"object", "null"}
+	return &jsonschema.Schema{Types: []string{"array", "null"}, Items: items}
 }
 
 func replaceIssueFieldScalar(schema *jsonschema.Schema) {
@@ -424,10 +482,19 @@ func replaceIssueFieldScalar(schema *jsonschema.Schema) {
 	if schema == nil {
 		return
 	}
-	if fields := schema.Properties["issue_field_values"]; fields != nil && fields.Items != nil {
+	if fields := schema.Properties["field_values"]; fields != nil && fields.Items != nil {
 		fields.Items.Properties["value"] = &jsonschema.Schema{Types: []string{"string", "number", "boolean", "null"}}
 	}
+
 	replaceIssueFieldScalar(schema.Items)
+}
+
+func issueDTOschema[T any]() *jsonschema.Schema {
+	schema, err := jsonschema.For[T](nil)
+	if err != nil {
+		panic(err)
+	}
+	return schema
 }
 
 func normalizeConsolidatedIssueArguments(kind string) func(json.RawMessage) (json.RawMessage, error) {

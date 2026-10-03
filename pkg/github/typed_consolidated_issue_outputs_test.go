@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/sanitize"
@@ -62,14 +61,49 @@ func consolidatedIssueSession(t *testing.T, deps BaseDeps, protocol string, ui b
 			continue
 		}
 		require.NotNil(t, tool.OutputSchema)
-		require.NoError(t, toolsnaps.Test(tool.Name+"_typed", *tool))
 		var schema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
+		assert.Equal(t, "object", schema.Type, tool.Name)
+		assert.NotEmpty(t, schema.Properties["method"], tool.Name)
+		assertCompactIssueSchema(t, &schema)
 		resolved, err := schema.Resolve(nil)
 		require.NoError(t, err)
 		schemas[tool.Name] = resolved
 	}
 	return session, schemas
+}
+
+func assertCompactIssueSchema(t *testing.T, schema *jsonschema.Schema) {
+	t.Helper()
+	if schema == nil {
+		return
+	}
+	for field, property := range schema.Properties {
+		if strings.HasSuffix(field, "_url") && field != "html_url" {
+			t.Errorf("hypermedia URL %q in compact issue output", field)
+		}
+		assert.NotEqual(t, "node_id", field)
+		assert.NotEqual(t, "issue_field_values", field)
+		assertCompactIssueSchema(t, property)
+	}
+	for _, definition := range schema.Definitions {
+		assertCompactIssueSchema(t, definition)
+	}
+	for _, definition := range schema.Defs {
+		assertCompactIssueSchema(t, definition)
+	}
+	assertCompactIssueSchema(t, schema.Items)
+	for _, variants := range [][]*jsonschema.Schema{schema.OneOf, schema.AnyOf, schema.AllOf} {
+		for _, variant := range variants {
+			assertCompactIssueSchema(t, variant)
+		}
+	}
+}
+
+func TestCompactIssueOutputSchemasAreCached(t *testing.T) {
+	assert.Same(t, issueReadOutputSchema(), issueReadOutputSchema())
+	assert.Same(t, issueWriteOutputSchema(), issueWriteOutputSchema())
+	assert.Same(t, subIssueWriteOutputSchema(), subIssueWriteOutputSchema())
 }
 
 func assertConsolidatedResult(t *testing.T, session *mcp.ClientSession, schemas map[string]*jsonschema.Resolved, name string, args map[string]any, text string) *mcp.CallToolResult {
@@ -80,8 +114,8 @@ func assertConsolidatedResult(t *testing.T, session *mcp.ClientSession, schemas 
 	require.Len(t, result.Content, 1)
 	assert.Equal(t, text, getTextResult(t, result).Text)
 	if schema := schemas[name]; schema != nil {
-		// A JSON null is a real success for get_sub_issues, not an error.
-		assert.JSONEq(t, text, mustMarshalJSON(t, result.StructuredContent))
+		// Nullable method data must still have a present object envelope.
+		require.NotNil(t, result.StructuredContent)
 		var value any
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &value))
 		require.NoError(t, schema.Validate(value))
@@ -198,6 +232,7 @@ func consolidatedIssueDeps(t *testing.T) BaseDeps {
 func TestTypedConsolidatedIssueOutputs(t *testing.T) {
 	const mutationText = `{"id":"123","url":"https://github.com/owner/repo/issues/1"}`
 	const subText = `{"id":7,"number":7,"title":"Child","body":"body","created_at":"2026-01-01T00:00:00Z","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0}]}`
+	const subStructured = `{"id":7,"number":7,"title":"Child","body":"body","created_at":"2026-01-01T00:00:00Z","assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0}]}`
 	cases := []struct {
 		tool string
 		args map[string]any
@@ -234,7 +269,34 @@ func TestTypedConsolidatedIssueOutputs(t *testing.T) {
 				t.Run(tc.tool+"/"+tc.args["method"].(string)+"/"+string(rune('A'+i)), func(t *testing.T) {
 					args := map[string]any{"owner": "owner", "repo": "repo"}
 					maps.Copy(args, tc.args)
-					assertConsolidatedResult(t, session, schemas, tc.tool, args, tc.text)
+					result := assertConsolidatedResult(t, session, schemas, tc.tool, args, tc.text)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						want := tc.text
+						switch want {
+						case subText:
+							want = subStructured
+						case "[" + subText + "]":
+							want = "[" + subStructured + "]"
+						}
+						method := strings.ToLower(tc.args["method"].(string))
+						field := "issue"
+						switch method {
+						case "get_comments":
+							field = "comments"
+						case "get_sub_issues":
+							field = "sub_issues"
+						case "get_parent":
+							field = "parent"
+						case "get_labels":
+							field = "labels"
+						}
+						if method == "get_parent" || method == "get_labels" {
+							want = `{"method":"` + method + `",` + strings.TrimPrefix(want, "{")
+						} else {
+							want = `{"method":"` + method + `","` + field + `":` + want + `}`
+						}
+						assert.JSONEq(t, want, mustMarshalJSON(t, result.StructuredContent))
+					}
 				})
 			}
 			for _, tc := range []struct {
@@ -343,9 +405,16 @@ func TestTypedConsolidatedNullMutationResponses(t *testing.T) {
 					}, `{"id":"0","url":""}`)
 				}
 				for _, method := range []string{"add", "remove", "reprioritize"} {
-					assertConsolidatedResult(t, session, schemas, "sub_issue_write", map[string]any{
+					result := assertConsolidatedResult(t, session, schemas, "sub_issue_write", map[string]any{
 						"method": method, "owner": "owner", "repo": "repo", "issue_number": 1, "sub_issue_id": 7, "after_id": 8,
 					}, payload)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						data := `{"assignees":[]}`
+						if payload == "null" {
+							data = "null"
+						}
+						assert.JSONEq(t, `{"method":"`+method+`","issue":`+data+`}`, mustMarshalJSON(t, result.StructuredContent))
+					}
 				}
 			})
 		}
@@ -360,13 +429,13 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 	}{
 		{
 			issueReadOutputSchema(),
-			[]string{`null`, `[]`, `[null]`, `{"parent":null}`, `{"number":0,"title":"","state":"","assignees":[]}`, `{"labels":[],"totalCount":0}`},
-			[]string{`{}`, `{"number":1}`, `{"parent":{"number":1}}`, `{"labels":[]}`, `{"labels":[],"totalCount":0,"parent":null}`},
+			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[]}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
+			[]string{`null`, `[]`, `{}`, `{"method":"get"}`, `{"method":"get","comments":[]}`, `{"method":"get","issue":{"number":1}}`, `{"method":"get_parent","parent":{"number":1}}`, `{"method":"get_labels","labels":[]}`, `{"method":"get","issue":null,"comments":[]}`},
 		},
 		{
 			issueWriteOutputSchema(),
-			[]string{`{"id":"","url":""}`, `{"status":"awaiting_user_submission","reason":"wait"}`},
-			[]string{`{}`, `{"id":"1"}`, `{"status":"created","reason":"wait"}`, `{"status":"awaiting_user_submission"}`, `{"id":"1","url":"url","status":"awaiting_user_submission","reason":"wait"}`},
+			[]string{`{"method":"create","issue":{"id":"","url":""}}`, `{"status":"awaiting_user_submission","reason":"wait"}`},
+			[]string{`{}`, `{"method":"create","issue":{"id":"1"}}`, `{"status":"created","reason":"wait"}`, `{"status":"awaiting_user_submission"}`, `{"method":"create","issue":{"id":"1","url":"url"},"status":"awaiting_user_submission","reason":"wait"}`},
 		},
 		{
 			IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema).Properties["issue_fields"].Items,
@@ -430,7 +499,15 @@ func TestSubIssueOutputPreservesCompleteAPIResponse(t *testing.T) {
 	out, err := subIssueOutput(&issue)
 	require.NoError(t, err)
 	assert.Equal(t, sanitize.PlainText("Child\u202e"), *out.Title)
-	assert.Equal(t, mustMarshalJSON(t, &issue), mustMarshalJSON(t, out), "preserve exact API JSON ordering")
+	assert.JSONEq(t, `{
+		"id":1,"number":1,"title":"Child","body":"body","state":"open","state_reason":"reopened",
+		"html_url":"html","user":{"login":"octo","id":1},"labels":["bug"],"assignees":["octo"],
+		"milestone":"v1","comments":0,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","closed_at":"2026-01-01T00:00:00Z",
+		"issue_type":"Bug","sub_issues_summary":{"total":1,"completed":0,"percent_completed":0},
+		"field_values":[null,{"issue_field_id":1,"data_type":"text","value":""},{"issue_field_id":2,"data_type":"number","value":0},
+		{"issue_field_id":3,"data_type":"date","value":"2026-01-01"},{"issue_field_id":4,"data_type":"single_select","value":"High"},
+		{"issue_field_id":5,"data_type":"text","value":null}]
+	}`, mustMarshalJSON(t, out))
 	resolved, err := subIssueSchema().Resolve(nil)
 	require.NoError(t, err)
 	var value any

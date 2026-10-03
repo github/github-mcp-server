@@ -947,7 +947,7 @@ func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	return MarshalledTextResult(minimalIssue), &IssueReadOutput{Issue: issueDetailsOutput(minimalIssue)}, nil
+	return MarshalledTextResult(minimalIssue), &IssueReadOutput{Method: "get", Issue: issueDetailsOutput(minimalIssue)}, nil
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
@@ -1075,7 +1075,8 @@ func getIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
 	}
 
-	return MarshalledTextResult(minimalComments), &IssueReadOutput{Comments: &minimalComments}, nil
+	output := issueCommentOutputs(minimalComments)
+	return MarshalledTextResult(minimalComments), &IssueReadOutput{Method: "get_comments", Comments: &output}, nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -1158,7 +1159,7 @@ func getSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		}
 		output = append(output, item)
 	}
-	return utils.NewToolResultText(string(r)), &IssueReadOutput{SubIssues: &output}, nil
+	return utils.NewToolResultText(string(r)), &IssueReadOutput{Method: "get_sub_issues", SubIssues: &output}, nil
 }
 
 // GetIssueParent returns the parent issue of the given issue, or a null
@@ -1212,7 +1213,7 @@ func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	parent := query.Repository.Issue.Parent
 	if parent == nil {
 		output := &IssueParentOutput{}
-		return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
+		return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
 	}
 
 	if flags.LockdownMode {
@@ -1225,12 +1226,12 @@ func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
 		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
 			output := &IssueParentOutput{}
-			return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
+			return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
 		}
 		isSafeContent, err := cache.IsSafeContent(ctx, parentAuthorLogin, parentOwner, parentRepo)
 		if err != nil || !isSafeContent {
 			output := &IssueParentOutput{}
-			return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
+			return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
 		}
 	}
 
@@ -1239,7 +1240,7 @@ func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 		State: string(parent.State), URL: string(parent.URL),
 		Repository: string(parent.Repository.NameWithOwner),
 	}}
-	return MarshalledTextResult(output), &IssueReadOutput{Parent: output}, nil
+	return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -1293,7 +1294,7 @@ func getIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(out)), &IssueReadOutput{Labels: response}, nil
+	return utils.NewToolResultText(string(out)), &IssueReadOutput{Method: "get_labels", Labels: &response.Labels, TotalCount: &response.TotalCount}, nil
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization or repository.
@@ -1782,13 +1783,13 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch strings.ToLower(method) {
 			case "add":
-				return subIssueWriteResult(addSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent))
+				return subIssueWriteResult("add")(addSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent))
 			case "remove":
 				// Call the remove sub-issue function
-				return subIssueWriteResult(removeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID))
+				return subIssueWriteResult("remove")(removeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID))
 			case "reprioritize":
 				// Call the reprioritize sub-issue function
-				return subIssueWriteResult(reprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID))
+				return subIssueWriteResult("reprioritize")(reprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID))
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -2863,7 +2864,7 @@ Options are:
 					Reason: "An interactive form is being shown to the user. The operation has not been performed.",
 				}
 				result.StructuredContent = output
-				return result, &IssueWriteOutput{Awaiting: output}, nil
+				return result, &IssueWriteOutput{Method: method, Awaiting: output}, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -2991,16 +2992,16 @@ Options are:
 			switch method {
 			case "create":
 				if parentProvided {
-					return issueWriteResult(createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo))
+					return issueWriteResult(method)(createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo))
 				}
 
-				return issueWriteResult(createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues))
+				return issueWriteResult(method)(createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues))
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return issueWriteResult(updateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+				return issueWriteResult(method)(updateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
 					IssueTypeProvided: issueTypeProvided,

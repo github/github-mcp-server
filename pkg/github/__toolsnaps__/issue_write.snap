@@ -210,8 +210,31 @@
   },
   "name": "issue_write",
   "outputSchema": {
+    "additionalProperties": false,
     "oneOf": [
       {
+        "properties": {
+          "reason": false,
+          "status": false
+        },
+        "required": [
+          "method",
+          "issue"
+        ]
+      },
+      {
+        "properties": {
+          "issue": false,
+          "method": false
+        },
+        "required": [
+          "status",
+          "reason"
+        ]
+      }
+    ],
+    "properties": {
+      "issue": {
         "additionalProperties": false,
         "properties": {
           "id": {
@@ -225,27 +248,28 @@
           "id",
           "url"
         ],
-        "type": "object"
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "reason": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "awaiting_user_submission"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "reason"
+      "method": {
+        "enum": [
+          "create",
+          "update"
         ],
-        "type": "object"
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "awaiting_user_submission"
+        ],
+        "type": "string"
       }
-    ]
+    },
+    "type": "object"
   }
 }

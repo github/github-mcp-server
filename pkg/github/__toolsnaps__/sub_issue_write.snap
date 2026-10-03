@@ -53,412 +53,213 @@
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
-      "assignees": {
-        "items": {
-          "type": "string"
-        },
-        "type": [
-          "null",
-          "array"
-        ]
-      },
-      "author_association": {
-        "type": "string"
-      },
-      "body": {
-        "type": "string"
-      },
-      "closed_at": {
-        "type": "string"
-      },
-      "closed_by": {
-        "type": "string"
-      },
-      "closed_by_pull_requests": {
+      "issue": {
         "additionalProperties": false,
         "properties": {
-          "references": {
+          "assignees": {
             "items": {
-              "additionalProperties": false,
-              "properties": {
-                "number": {
-                  "type": "integer"
-                },
-                "repository": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "number",
-                "title",
-                "state",
-                "url"
-              ],
-              "type": "object"
+              "type": "string"
             },
             "type": [
               "null",
               "array"
             ]
           },
-          "total_count": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_count",
-          "references"
-        ],
-        "type": [
-          "null",
-          "object"
-        ]
-      },
-      "comments": {
-        "type": "integer"
-      },
-      "created_at": {
-        "type": "string"
-      },
-      "draft": {
-        "type": "boolean"
-      },
-      "field_values": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "field": {
-              "type": "string"
-            },
-            "value": {
-              "type": "string"
-            },
-            "values": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "null",
-                "array"
-              ]
-            }
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
-          "required": [
-            "field"
-          ],
-          "type": "object"
-        },
-        "type": [
-          "null",
-          "array"
-        ]
-      },
-      "has_children": {
-        "type": [
-          "null",
-          "boolean"
-        ]
-      },
-      "has_parent": {
-        "type": [
-          "null",
-          "boolean"
-        ]
-      },
-      "html_url": {
-        "type": "string"
-      },
-      "issue_field_values": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "data_type": {
-              "type": "string"
-            },
-            "issue_field_id": {
-              "type": "integer"
-            },
-            "node_id": {
-              "type": "string"
-            },
-            "single_select_option": {
+          "closed_at": {
+            "description": "Closure time (RFC 3339), when closed.",
+            "type": "string"
+          },
+          "comments": {
+            "description": "Number of comments.",
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "created_at": {
+            "description": "Creation time (RFC 3339).",
+            "type": "string"
+          },
+          "field_values": {
+            "items": {
               "additionalProperties": false,
               "properties": {
-                "color": {
+                "data_type": {
+                  "description": "REST issue field type.",
+                  "enum": [
+                    "text",
+                    "number",
+                    "date",
+                    "single_select"
+                  ],
                   "type": "string"
                 },
-                "id": {
+                "issue_field_id": {
                   "type": "integer"
                 },
-                "name": {
-                  "type": "string"
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
                 }
               },
               "required": [
-                "id",
-                "name",
-                "color"
+                "issue_field_id",
+                "data_type",
+                "value"
               ],
               "type": [
                 "null",
                 "object"
               ]
             },
-            "value": true
+            "type": [
+              "null",
+              "array"
+            ]
           },
-          "type": "object"
-        },
-        "type": [
-          "null",
-          "array"
-        ]
-      },
-      "issue_type": {
-        "type": "string"
-      },
-      "labels": {
-        "items": {
-          "type": "string"
-        },
-        "type": [
-          "null",
-          "array"
-        ]
-      },
-      "locked": {
-        "type": "boolean"
-      },
-      "milestone": {
-        "type": "string"
-      },
-      "number": {
-        "type": "integer"
-      },
-      "parent": {
-        "additionalProperties": false,
-        "properties": {
-          "number": {
-            "type": "integer"
+          "html_url": {
+            "description": "Human-readable issue link.",
+            "type": [
+              "null",
+              "string"
+            ]
           },
-          "repository": {
+          "id": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "issue_type": {
             "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "null",
+              "integer"
+            ]
           },
           "state": {
-            "type": "string"
+            "description": "Issue state (lowercase REST value).",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           },
-          "title": {
-            "type": "string"
+          "state_reason": {
+            "enum": [
+              "completed",
+              "not_planned",
+              "reopened",
+              "duplicate"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "number",
-          "title",
-          "state",
-          "url"
-        ],
-        "type": [
-          "null",
-          "object"
-        ]
-      },
-      "reactions": {
-        "additionalProperties": false,
-        "properties": {
-          "+1": {
-            "type": "integer"
-          },
-          "-1": {
-            "type": "integer"
-          },
-          "confused": {
-            "type": "integer"
-          },
-          "eyes": {
-            "type": "integer"
-          },
-          "heart": {
-            "type": "integer"
-          },
-          "hooray": {
-            "type": "integer"
-          },
-          "laugh": {
-            "type": "integer"
-          },
-          "rocket": {
-            "type": "integer"
-          },
-          "total_count": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_count",
-          "+1",
-          "-1",
-          "laugh",
-          "confused",
-          "heart",
-          "hooray",
-          "rocket",
-          "eyes"
-        ],
-        "type": [
-          "null",
-          "object"
-        ]
-      },
-      "state": {
-        "type": "string"
-      },
-      "state_reason": {
-        "type": "string"
-      },
-      "sub_issues_summary": {
-        "additionalProperties": false,
-        "properties": {
-          "completed": {
-            "type": "integer"
-          },
-          "percent_completed": {
-            "type": "integer"
-          },
-          "total": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total",
-          "completed",
-          "percent_completed"
-        ],
-        "type": [
-          "null",
-          "object"
-        ]
-      },
-      "title": {
-        "type": "string"
-      },
-      "updated_at": {
-        "type": "string"
-      },
-      "user": {
-        "additionalProperties": false,
-        "properties": {
-          "avatar_url": {
-            "type": "string"
-          },
-          "details": {
+          "sub_issues_summary": {
             "additionalProperties": false,
             "properties": {
-              "bio": {
-                "type": "string"
-              },
-              "blog": {
-                "type": "string"
-              },
-              "company": {
-                "type": "string"
-              },
-              "created_at": {
-                "description": "Account creation time in RFC3339 format.",
-                "type": "string"
-              },
-              "email": {
-                "type": "string"
-              },
-              "followers": {
+              "completed": {
+                "description": "Number of completed sub-issues.",
                 "type": "integer"
               },
-              "following": {
+              "percent_completed": {
+                "description": "Completed sub-issues as a percentage (0-100).",
                 "type": "integer"
               },
-              "hireable": {
-                "type": "boolean"
-              },
-              "location": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "owned_private_repos": {
+              "total": {
+                "description": "Total number of sub-issues.",
                 "type": "integer"
-              },
-              "private_gists": {
-                "type": "integer"
-              },
-              "public_gists": {
-                "type": "integer"
-              },
-              "public_repos": {
-                "type": "integer"
-              },
-              "total_private_repos": {
-                "type": "integer"
-              },
-              "twitter_username": {
-                "type": "string"
-              },
-              "updated_at": {
-                "description": "Last profile update time in RFC3339 format.",
-                "type": "string"
               }
             },
             "required": [
-              "public_repos",
-              "public_gists",
-              "followers",
-              "following",
-              "created_at",
-              "updated_at"
+              "total",
+              "completed",
+              "percent_completed"
             ],
             "type": [
               "null",
               "object"
             ]
           },
-          "id": {
-            "type": "integer"
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
-          "login": {
+          "updated_at": {
+            "description": "Last update time (RFC 3339).",
             "type": "string"
           },
-          "profile_url": {
-            "type": "string"
+          "user": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
           }
         },
         "required": [
-          "login"
+          "assignees"
         ],
         "type": [
-          "null",
-          "object"
+          "object",
+          "null"
         ]
+      },
+      "method": {
+        "enum": [
+          "add",
+          "remove",
+          "reprioritize"
+        ],
+        "type": "string"
       }
     },
     "required": [
-      "number",
-      "title",
-      "state",
-      "assignees"
+      "method",
+      "issue"
     ],
-    "type": [
-      "null",
-      "object"
-    ]
+    "type": "object"
   }
 }
