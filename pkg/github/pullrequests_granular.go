@@ -38,7 +38,7 @@ func prUpdateTool(
 		"pullNumber": {
 			Type:        "number",
 			Description: "The pull request number",
-			Minimum:     jsonschema.Ptr(1.0),
+			Minimum:     new(1.0),
 		},
 	}
 	maps.Copy(props, extraProps)
@@ -53,8 +53,8 @@ func prUpdateTool(
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", title),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type:       "object",
@@ -181,15 +181,15 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_PULL_REQUEST_DRAFT_STATE_USER_TITLE", "Update Pull Request Draft State"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"draft":      {Type: "boolean", Description: "Set to true to convert to draft, false to mark as ready for review"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "draft"},
@@ -286,15 +286,15 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_REQUEST_PULL_REQUEST_REVIEWERS_USER_TITLE", "Request Pull Request Reviewers"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"reviewers": {
 						Type:        "array",
 						Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
@@ -381,15 +381,15 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_CREATE_PULL_REQUEST_REVIEW_USER_TITLE", "Create Pull Request Review"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
 					"event":      {Type: "string", Description: "The review action to perform. If omitted, creates a pending review.", Enum: []any{"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
 					"commitID":   {Type: "string", Description: "The SHA of the commit to review (optional, defaults to latest)"},
@@ -450,15 +450,15 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Submit Pending Pull Request Review"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"event":      {Type: "string", Description: "The review action to perform", Enum: []any{"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
 				},
@@ -514,15 +514,15 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Delete Pending Pull Request Review"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(true),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
@@ -569,15 +569,15 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_USER_TITLE", "Add Pull Request Review Comment"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner":       {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":        {Type: "string", Description: "Repository name"},
-					"pullNumber":  {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
+					"pullNumber":  {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"path":        {Type: "string", Description: "The relative path of the file to comment on"},
 					"body":        {Type: "string", Description: "The comment body"},
 					"subjectType": {Type: "string", Description: "The subject type of the comment", Enum: []any{"FILE", "LINE"}},
@@ -709,8 +709,8 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_RESOLVE_REVIEW_THREAD_USER_TITLE", "Resolve Review Thread"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type:       "object",
@@ -781,8 +781,8 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UNRESOLVE_REVIEW_THREAD_USER_TITLE", "Unresolve Review Thread"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -825,8 +825,8 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Add Pull Request Review Comment Reaction"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -842,7 +842,7 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"content": {
 						Type:        "string",
@@ -907,8 +907,8 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_REMOVE_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Remove Pull Request Review Comment Reaction"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(true),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -924,12 +924,12 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 					"reaction_id": {
 						Type:        "number",
 						Description: "The reaction ID to remove",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "reaction_id"},

@@ -597,7 +597,7 @@ Supports adding top-level comments, replying to existing comments, updating comm
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DISCUSSION_COMMENT_WRITE_USER_TITLE", "Manage discussion comments"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

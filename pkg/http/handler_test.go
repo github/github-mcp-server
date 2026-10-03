@@ -1225,6 +1225,145 @@ func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
 	}
 }
 
+func TestHTTPStatelessTypedOutputProtocolHeaders(t *testing.T) {
+	type output struct {
+		Values []string `json:"values"`
+	}
+	tool := inventory.NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_http_tool"},
+		inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test tool"},
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, output, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text"}},
+			}, output{Values: []string{"one", "two"}}, nil
+		},
+	)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(*http.Request) (*inventory.Inventory, error) {
+			return inv, nil
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+			inv.RegisterTools(context.Background(), server, nil)
+			return server, nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	for _, tc := range []struct {
+		name          string
+		headerVersion string
+		metaVersion   string
+		wantModern    bool
+	}{
+		{name: "modern header and metadata", headerVersion: inventory.ProtocolVersionMultiRoundTrip, metaVersion: inventory.ProtocolVersionMultiRoundTrip, wantModern: true},
+		{name: "legacy header and metadata", headerVersion: "2025-11-25", metaVersion: "2025-11-25"},
+		{name: "absent protocol version"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			post := func(method string, id int) map[string]json.RawMessage {
+				t.Helper()
+				params := map[string]any{"name": "typed_http_tool", "arguments": map[string]any{}}
+				if tc.metaVersion != "" {
+					params["_meta"] = map[string]any{
+						mcp.MetaKeyProtocolVersion:    tc.metaVersion,
+						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "1.0.0"},
+						mcp.MetaKeyClientCapabilities: map[string]any{},
+					}
+				}
+				requestBody, err := json.Marshal(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      id,
+					"method":  method,
+					"params":  params,
+				})
+				require.NoError(t, err)
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(requestBody)))
+				req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+				req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+				req.Header.Set(headers.MCPMethodHeader, method)
+				if method == "tools/call" {
+					req.Header.Set(headers.MCPNameHeader, "typed_http_tool")
+				}
+				if tc.headerVersion != "" {
+					req.Header.Set(headers.MCPProtocolVersionHeader, tc.headerVersion)
+				}
+
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, req)
+				require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+
+				responseBody := recorder.Body.String()
+				for line := range strings.SplitSeq(responseBody, "\n") {
+					if data, ok := strings.CutPrefix(line, "data: "); ok {
+						responseBody = data
+						break
+					}
+				}
+				var response struct {
+					Result json.RawMessage `json:"result"`
+					Error  json.RawMessage `json:"error"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(responseBody), &response), "response body: %s", responseBody)
+				require.Empty(t, response.Error, "JSON-RPC error: %s", response.Error)
+
+				var result map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(response.Result, &result))
+				return result
+			}
+
+			listResult := post("tools/list", 1)
+			var listed []struct {
+				Name         string          `json:"name"`
+				OutputSchema json.RawMessage `json:"outputSchema"`
+			}
+			require.NoError(t, json.Unmarshal(listResult["tools"], &listed))
+			require.Len(t, listed, 1)
+			require.Equal(t, "typed_http_tool", listed[0].Name)
+			if tc.wantModern {
+				assert.JSONEq(t, `{"type":"object","properties":{"values":{"type":["null","array"],"items":{"type":"string"}}},"required":["values"],"additionalProperties":false}`, string(listed[0].OutputSchema))
+			} else {
+				assert.Empty(t, listed[0].OutputSchema, "legacy and unknown protocol versions must not advertise output schemas")
+			}
+
+			callResult := post("tools/call", 2)
+			var called struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+				StructuredContent json.RawMessage `json:"structuredContent"`
+			}
+			callResultJSON, err := json.Marshal(callResult)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(callResultJSON, &called))
+			require.Len(t, called.Content, 1, "SDK fallback serialization must not duplicate the existing text")
+			assert.Equal(t, "text", called.Content[0].Type)
+			if tc.wantModern {
+				assert.JSONEq(t, `{"values":["one","two"]}`, string(called.StructuredContent))
+				assert.Equal(t, `{"values":["one","two"]}`, called.Content[0].Text)
+			} else {
+				assert.Equal(t, "legacy text", called.Content[0].Text)
+				assert.Empty(t, called.StructuredContent, "legacy and unknown protocol versions must not expose structured content")
+			}
+		})
+	}
+}
+
 func TestSubscriptionsListenIsRejected(t *testing.T) {
 	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
 	require.NoError(t, err)
