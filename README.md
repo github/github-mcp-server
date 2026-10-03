@@ -16,6 +16,109 @@ Built for developers who want to connect their AI tools to GitHub context and ca
 
 ---
 
+## agentctl: local custom-agent CLI
+
+`agentctl` is a separate Go command for invoking custom roles through the **installed GitHub Copilot CLI** in a local checkout. It does not change the MCP server, trigger cloud coding-agent sessions, create task URLs, or guarantee a PR. A successful process exit is not proof that the requested work or validation succeeded; inspect Copilot's output and your diff.
+
+### Build and prerequisites
+
+Use the Go version declared in `go.mod`, Git on `PATH`, and an installed, authenticated [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli). You need Copilot access and any applicable organization policies enabled. Authenticate using the CLI's supported flow:
+
+```sh
+copilot login
+# On a remote terminal, if needed:
+copilot login --device-code
+
+# From this source checkout (no module path change required):
+go build -o /tmp/agentctl ./cmd/agentctl
+# Or install from this checkout into GOBIN / GOPATH/bin:
+go install ./cmd/agentctl
+```
+
+The declared module path is `github.com/github/github-mcp-server`; this fork's source install command above avoids downloading a different upstream revision that may not contain `agentctl`. Place the resulting executable on `PATH`. `agentctl --help`, `agentctl run --help`, and `agentctl --version` show usage/version information (module/build version when available, otherwise `dev`; optionally set `-ldflags="-X main.version=YOUR_VERSION"`).
+
+The wrapper does not require or store tokens. Copilot manages its own authentication, configuration and billing. Authentication, subscription quotas, model availability and network failures cannot be bypassed by this wrapper. Native subprocess output is forwarded; nonzero Copilot exit codes are preserved, wrapper/usage errors return 1, and cancellation returns 130. No failures are retried automatically.
+
+### List and explicitly install profiles
+
+```sh
+agentctl list
+agentctl install --user --dry-run
+agentctl install --user
+# Install only selected roles into a selected checkout instead:
+agentctl install errorfixer reviewer --path /absolute/path/to/checkout --dry-run
+agentctl install errorfixer reviewer --path /absolute/path/to/checkout
+```
+
+Bundled profiles are `errorfixer`, `coder`, `researcher`, `reviewer`, `summarizer`, `security-auditor`, `test-writer`, `workflow-debugger`, and `issue-planner`. They are custom roles, not separate GitHub product APIs. `list` lists the bundle, not all installed/discovered agents. The self-contained definitions are embedded from `internal/agentctl/profiles/`, **not** automatically registered in this repository's `.github/agents`.
+
+Choose exactly one installation target: `--user` installs into `~/.copilot/agents` (or `$COPILOT_HOME/agents` when configured); `--path` installs into the validated checkout's `.github/agents`. No profile is overwritten unless `--force` is explicit; symlink/non-regular destinations are rejected even with `--force`. `--dry-run` prints destinations without creating directories or writing anything; it is a preview, not a guarantee that installation will succeed. Restart Copilot to load newly installed profiles. Personal profiles take precedence over project profiles with the same ID; inspect/remove unintended overrides yourself.
+
+### Run across repositories
+
+Clone repositories yourself using your existing access; the wrapper never silently clones, selects `main`, switches branches, commits or pushes. For example, from any directory:
+
+```sh
+gh repo clone Daigrin/github-mcp-server /absolute/work/github-mcp-server
+gh repo clone github/docs /absolute/work/github-docs
+
+agentctl run reviewer --repo Daigrin/github-mcp-server \
+  --path /absolute/work/github-mcp-server \
+  --prompt "Review internal/agentctl for correctness; report findings only."
+agentctl run summarizer --repo github/docs \
+  --path /absolute/work/github-docs \
+  --prompt "Summarize the actual manifests, toolchain requirements and workflows."
+```
+
+`--path` may be a checkout subdirectory; Copilot runs at that checkout's Git root. If omitted, the current directory must belong to a Git working tree. A valid `origin` is required even without `--repo`. Supported origin forms are `https://github.com/OWNER/REPO[.git]`, `git@github.com:OWNER/REPO[.git]`, and `ssh://git@github.com/OWNER/REPO[.git]`. `--repo OWNER/REPO`, when supplied, must match origin case-insensitively. Unsupported hosts (including Enterprise hosts and SSH aliases), credential-bearing HTTPS URLs, malformed remotes and mismatches are rejected. Git environment overrides cannot redirect checkout validation. This validates local identity, not remote accessibility or the trustworthiness of repository content.
+
+Provide exactly one nonempty `--prompt` or `--prompt-file`. Multiline file content is preserved and passed as a single argument; prompt-file paths resolve relative to the caller's directory, not the target checkout:
+
+```sh
+agentctl run coder --repo github/docs --path /absolute/work/github-docs \
+  --prompt-file /absolute/private/task.txt
+```
+
+Arbitrary custom-agent IDs are accepted (letters, digits, dots, underscores and hyphens, starting with a letter/digit), including subdirectory IDs such as `security--auditor`. Create your own `.agent.md` under the documented personal or project directory with a `description`, restricted `tools`, and `include-custom-instructions: true`; the file name supplies its ID. Installation only copies bundled profiles. Use Copilot's `/agent` to see its discovered agents. See [creating custom agents](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli) and [profile configuration/tool aliases](https://docs.github.com/en/copilot/reference/custom-agents-configuration).
+
+### ErrorFixer with actual Actions evidence
+
+Fetch logs explicitly with your own GitHub CLI authentication, then reference the failed workflow and logs in a prompt. Replace the placeholders with the real failed run, workflow and selected checkout:
+
+```sh
+gh run view RUN_ID --repo OWNER/REPO --log-failed > /absolute/private/failed-job.log
+agentctl run errorfixer --repo OWNER/REPO --path /absolute/work/checkout \
+  --prompt "Inspect /absolute/private/failed-job.log, the actual .github/workflows/WORKFLOW.yml and referenced scripts. Separate quota/environment errors from source errors. Propose minimal fixes and report validation blockers; do not publish or push."
+```
+
+Copilot may require approval to read a log outside the checkout; alternatively put a redacted log in the selected checkout. Treat logs as potentially sensitive. ErrorFixer is instructed to inspect real evidence, preserve APIs/security checks and run relevant existing tests/lint only with approved permissions, reporting blockers rather than inventing success.
+
+### Permissions and limitations
+
+**Only run agents in repositories you trust.** Repository instructions, hooks, configured extensions/MCP servers, build scripts and approved shell commands can execute code or access sensitive data. Review prompts, profiles, existing Copilot configuration and every permission grant. These profiles are instructions and tool allowlists, not an operating-system sandbox or a guarantee against prompt injection.
+
+The wrapper invokes `copilot --agent ID --prompt TASK` with separate arguments, inherited terminal IO and a validated cwd; it never uses shell concatenation/eval or enables `--allow-all`, `--yolo`, unrestricted tools/paths/URLs, or automatic retries. Native approval/denial checks remain in place; existing CLI settings or environment (such as `COPILOT_ALLOW_ALL`) can affect them, so do not use permissive configuration for untrusted code.
+
+Prompt mode is noninteractive and may deny a needed tool rather than ask for approval. If you deliberately approve it, `--allow-tool` accepts only `read`, `shell(exact command)` or `write(specific file)` and can be repeated:
+
+```sh
+agentctl run errorfixer --repo Daigrin/github-mcp-server \
+  --path /absolute/work/github-mcp-server --prompt-file /absolute/private/task.txt \
+  --allow-tool 'shell(go test ./internal/agentctl)'
+```
+
+For example, `--allow-tool 'write(src/main.go)'` deliberately permits edits to matching files; Copilot's documented write filters match path suffixes, not necessarily one absolute file. There is no generic flag passthrough, wildcard permission, or automatic write grant. An exact shell command can still execute malicious repository code or cause side effects; approval is not proof of safety. For permissions not exposed here, use the native CLI directly after reviewing its [programmatic permissions reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference).
+
+The bundled research, review, summary, security-audit and issue-planning profiles explicitly allow only `read` and `search`, with no execution, edit, delegation or MCP-write tools. They return findings/drafts, not repository changes or published issues. Coding/fixing/test profiles allow read/search/edit/execute tools but grant no automatic permission to use them; Git mutations and GitHub writes require deliberate approval. Overriding a profile changes these constraints.
+
+Offline wrapper tests inject a fake subprocess backend and do not spend model requests:
+
+```sh
+go test -race ./internal/agentctl ./cmd/agentctl
+```
+
+They test dispatch and safety behavior, not model quality, live authentication or Copilot's changing tool semantics. Use a current Copilot CLI supporting the documented flags and profile format; unsupported options/errors are reported directly, with no invented cloud API fallback.
+
 ## Remote GitHub MCP Server
 
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders) [![Install in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22gallery%22%3Atrue%2C%22url%22%3A%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)
