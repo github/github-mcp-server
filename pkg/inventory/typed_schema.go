@@ -3,7 +3,9 @@ package inventory
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -59,7 +61,7 @@ func WithEnum(schema *jsonschema.Schema, path string, values ...string) (*jsonsc
 	if path == "" {
 		return nil, fmt.Errorf("schema path is empty")
 	}
-	clonedSchema := schema.CloneSchemas()
+	clonedSchema := CloneSchema(schema)
 	current := clonedSchema
 	for _, segment := range segments {
 		switch segment {
@@ -101,15 +103,180 @@ var inferredSchemaCache sync.Map
 var explicitSchemaCache sync.Map
 var ownedSchemaPointers sync.Map
 var annotatedSchemaCache sync.Map
+var defaultObjectInputSchemaEntry inferredSchemaEntry
+
+func cachedObjectInputSchema() (*jsonschema.Schema, error) {
+	defaultObjectInputSchemaEntry.once.Do(func() {
+		defaultObjectInputSchemaEntry.schema, defaultObjectInputSchemaEntry.err = CachedSchema(&jsonschema.Schema{Type: "object"})
+	})
+	return defaultObjectInputSchemaEntry.schema, defaultObjectInputSchemaEntry.err
+}
 
 // CloneSchemaWithoutDefaults returns a deep schema copy with default keywords
 // removed. The MCP SDK applies input-schema defaults before decoding arguments,
 // so use this for runtime validation schemas when omitted arguments must stay
 // omitted. The original advertised schema is unchanged.
 func CloneSchemaWithoutDefaults(schema *jsonschema.Schema) *jsonschema.Schema {
-	clonedSchema := schema.CloneSchemas()
+	clonedSchema := CloneSchema(schema)
 	removeSchemaDefaults(clonedSchema)
 	return clonedSchema
+}
+
+// CloneSchema deep-copies schema nodes and mutable metadata collections.
+func CloneSchema(schema *jsonschema.Schema) *jsonschema.Schema {
+	clonedSchema := schema.CloneSchemas()
+	cloneSchemaMetadata(clonedSchema)
+	return clonedSchema
+}
+
+type schemaValueVisit struct {
+	typeOf reflect.Type
+	ptr    uintptr
+}
+
+func cloneSchemaMetadata(schema *jsonschema.Schema) {
+	if schema == nil {
+		return
+	}
+	schema.Types = slices.Clone(schema.Types)
+	schema.Enum = cloneSchemaValue(reflect.ValueOf(schema.Enum), make(map[schemaValueVisit]reflect.Value)).Interface().([]any)
+	schema.Default = slices.Clone(schema.Default)
+	if schema.Const != nil {
+		value := any(nil)
+		if *schema.Const != nil {
+			value = cloneSchemaValue(reflect.ValueOf(*schema.Const), make(map[schemaValueVisit]reflect.Value)).Interface()
+		}
+		schema.Const = &value
+	}
+	schema.Examples = cloneSchemaValue(reflect.ValueOf(schema.Examples), make(map[schemaValueVisit]reflect.Value)).Interface().([]any)
+	schema.Required = slices.Clone(schema.Required)
+	if schema.Vocabulary != nil {
+		schema.Vocabulary = maps.Clone(schema.Vocabulary)
+	}
+	if schema.DependencyStrings != nil {
+		dependencies := make(map[string][]string, len(schema.DependencyStrings))
+		for key, values := range schema.DependencyStrings {
+			dependencies[key] = slices.Clone(values)
+		}
+		schema.DependencyStrings = dependencies
+	}
+	if schema.DependentRequired != nil {
+		dependencies := make(map[string][]string, len(schema.DependentRequired))
+		for key, values := range schema.DependentRequired {
+			dependencies[key] = slices.Clone(values)
+		}
+		schema.DependentRequired = dependencies
+	}
+	schema.PropertyOrder = slices.Clone(schema.PropertyOrder)
+	if schema.Extra != nil {
+		schema.Extra = cloneSchemaValue(reflect.ValueOf(schema.Extra), make(map[schemaValueVisit]reflect.Value)).Interface().(map[string]any)
+	}
+	for _, child := range schemaChildren(schema) {
+		cloneSchemaMetadata(child)
+	}
+}
+
+// cloneSchemaValue preserves the concrete metadata types while detaching
+// nested mutable collections from schemas retained by callers.
+func cloneSchemaValue(value reflect.Value, visited map[schemaValueVisit]reflect.Value) reflect.Value {
+	if !value.IsValid() {
+		return value
+	}
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		cloned := cloneSchemaValue(value.Elem(), visited)
+		result := reflect.New(value.Type()).Elem()
+		result.Set(cloned)
+		return result
+	case reflect.Pointer, reflect.Map, reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		visit := schemaValueVisit{typeOf: value.Type(), ptr: value.Pointer()}
+		if cloned, ok := visited[visit]; ok {
+			return cloned
+		}
+		switch value.Kind() {
+		case reflect.Pointer:
+			result := reflect.New(value.Type().Elem())
+			visited[visit] = result
+			result.Elem().Set(cloneSchemaValue(value.Elem(), visited))
+			return result
+		case reflect.Map:
+			result := reflect.MakeMapWithSize(value.Type(), value.Len())
+			visited[visit] = result
+			iter := value.MapRange()
+			for iter.Next() {
+				result.SetMapIndex(iter.Key(), cloneSchemaValue(iter.Value(), visited))
+			}
+			return result
+		default:
+			result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+			visited[visit] = result
+			for i := range value.Len() {
+				result.Index(i).Set(cloneSchemaValue(value.Index(i), visited))
+			}
+			return result
+		}
+	case reflect.Array:
+		result := reflect.New(value.Type()).Elem()
+		for i := range value.Len() {
+			result.Index(i).Set(cloneSchemaValue(value.Index(i), visited))
+		}
+		return result
+	case reflect.Struct:
+		if !value.CanInterface() {
+			return value
+		}
+		result := reflect.New(value.Type()).Elem()
+		result.Set(value)
+		for i := range value.NumField() {
+			if value.Type().Field(i).IsExported() {
+				result.Field(i).Set(cloneSchemaValue(value.Field(i), visited))
+			}
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func schemaChildren(schema *jsonschema.Schema) []*jsonschema.Schema {
+	children := []*jsonschema.Schema{
+		schema.Items,
+		schema.AdditionalItems,
+		schema.Contains,
+		schema.UnevaluatedItems,
+		schema.AdditionalProperties,
+		schema.PropertyNames,
+		schema.UnevaluatedProperties,
+		schema.Not,
+		schema.If,
+		schema.Then,
+		schema.Else,
+		schema.ContentSchema,
+	}
+	children = append(children, schema.PrefixItems...)
+	children = append(children, schema.ItemsArray...)
+	children = append(children, schema.AllOf...)
+	children = append(children, schema.AnyOf...)
+	children = append(children, schema.OneOf...)
+	for _, schemas := range []map[string]*jsonschema.Schema{
+		schema.Defs,
+		schema.Definitions,
+		schema.Properties,
+		schema.PatternProperties,
+		schema.DependentSchemas,
+		schema.DependencySchemas,
+	} {
+		for _, child := range schemas {
+			children = append(children, child)
+		}
+	}
+	return children
 }
 
 func removeSchemaDefaults(schema *jsonschema.Schema) {
@@ -145,16 +312,8 @@ func removeSchemaDefaults(schema *jsonschema.Schema) {
 	} {
 		removeSchemaDefaults(child)
 	}
-	for _, children := range [][]*jsonschema.Schema{
-		schema.PrefixItems,
-		schema.ItemsArray,
-		schema.AllOf,
-		schema.AnyOf,
-		schema.OneOf,
-	} {
-		for _, child := range children {
-			removeSchemaDefaults(child)
-		}
+	for _, child := range schemaChildren(schema) {
+		removeSchemaDefaults(child)
 	}
 }
 
@@ -176,7 +335,7 @@ func CachedSchema(schema *jsonschema.Schema) (*jsonschema.Schema, error) {
 	if cached, ok := explicitSchemaCache.Load(key); ok {
 		return cached.(*jsonschema.Schema), nil
 	}
-	clonedSchema := schema.CloneSchemas()
+	clonedSchema := CloneSchema(schema)
 	cached, _ := explicitSchemaCache.LoadOrStore(key, clonedSchema)
 	result := cached.(*jsonschema.Schema)
 	ownedSchemaPointers.Store(result, struct{}{})
