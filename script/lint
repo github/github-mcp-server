@@ -6,9 +6,9 @@ gofmt -s -w .
 BINDIR="$(git rev-parse --show-toplevel)"/bin
 BINARY=$BINDIR/golangci-lint
 # sync with .github/workflows/lint.yml
-GOLANGCI_LINT_VERSION=v2.9.0
+GOLANGCI_LINT_VERSION=v2.14.0
 
-if [ ! -f "$BINARY" ]; then
+if [ ! -f "$BINARY" ] || ! "$BINARY" version --short | grep -qx "${GOLANGCI_LINT_VERSION#v}"; then
     curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$BINDIR" "$GOLANGCI_LINT_VERSION"
 fi
 

@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Hide Issue Comment"
+  },
+  "description": "Hide (minimize) a comment on an issue, or a conversation comment on a pull request. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "classifier": {
+        "description": "The reason for hiding the comment",
+        "enum": [
+          "SPAM",
+          "ABUSE",
+          "OFF_TOPIC",
+          "OUTDATED",
+          "DUPLICATE",
+          "RESOLVED",
+          "LOW_QUALITY"
+        ],
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The numeric ID of the issue or pull request conversation comment",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "classifier"
+    ],
+    "type": "object"
+  },
+  "name": "hide_issue_comment"
+}

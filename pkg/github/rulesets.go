@@ -14,7 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -403,7 +403,7 @@ func GetRepositoryRulesForBranch(ctx context.Context, client *github.Client, own
 		PerPage: pagination.PerPage,
 	}
 
-	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, url.PathEscape(branch), opts)
+	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, branch, opts)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
