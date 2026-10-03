@@ -1,0 +1,136 @@
+{
+  "inputSchema": null,
+  "name": "search_code",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "description": "Whether GitHub returned an incomplete result set.",
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "repository": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "text_matches": {
+              "description": "Matching code fragments returned by GitHub.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "fragment": {
+                    "description": "Source fragment containing the match.",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "matches": {
+                    "description": "Matched text and its offsets in the fragment.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "indices": {
+                          "description": "Start and end offsets of the match in the fragment.",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "text": {
+                          "description": "Matched text.",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "object_type": {
+                    "description": "GitHub object type containing the match.",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "object_url": {
+                    "description": "API URL of the matched file or object.",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "property": {
+                    "description": "Property containing the matched text.",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "description": "Total number of matching code results.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": "object"
+  }
+}
