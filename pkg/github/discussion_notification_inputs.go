@@ -2,6 +2,7 @@ package github
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/go-viper/mapstructure/v2"
@@ -107,9 +108,16 @@ func normalizeDiscussionReadArguments(raw json.RawMessage) (json.RawMessage, err
 	if err := mapstructure.WeakDecode(args, &input); err != nil {
 		return nil, err
 	}
-	args["owner"] = input.Owner
-	args["repo"] = input.Repo
-	args["discussionNumber"] = input.DiscussionNumber
+	for field, value := range map[string]any{
+		"owner": input.Owner, "repo": input.Repo, "discussionNumber": input.DiscussionNumber,
+	} {
+		for source := range args {
+			if strings.EqualFold(source, field) {
+				args[field] = value
+				break
+			}
+		}
+	}
 	return json.Marshal(args)
 }
 

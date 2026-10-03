@@ -9,10 +9,8 @@ import (
 )
 
 type NotificationSubjectOutput struct {
-	Title            *string `json:"title,omitempty"`
-	URL              *string `json:"url,omitempty"`
-	LatestCommentURL *string `json:"latest_comment_url,omitempty"`
-	Type             *string `json:"type,omitempty"`
+	Title *string `json:"title,omitempty"`
+	Type  *string `json:"type,omitempty"`
 }
 
 type NotificationRepositoryOutput struct {
@@ -29,9 +27,8 @@ type NotificationOutput struct {
 	Subject    *NotificationSubjectOutput    `json:"subject,omitempty"`
 	Reason     *string                       `json:"reason,omitempty"`
 	Unread     *bool                         `json:"unread,omitempty"`
-	UpdatedAt  *time.Time                    `json:"updated_at,omitempty"`
-	LastReadAt *time.Time                    `json:"last_read_at,omitempty"`
-	URL        *string                       `json:"url,omitempty"`
+	UpdatedAt  *time.Time                    `json:"updated_at,omitempty" jsonschema:"Last update time (RFC3339)."`
+	LastReadAt *time.Time                    `json:"last_read_at,omitempty" jsonschema:"Last acknowledgement time (RFC3339)."`
 }
 
 func notificationOutput(n *github.Notification) *NotificationOutput {
@@ -39,7 +36,7 @@ func notificationOutput(n *github.Notification) *NotificationOutput {
 		return nil
 	}
 	out := &NotificationOutput{
-		ID: n.ID, Reason: n.Reason, Unread: n.Unread, URL: n.URL,
+		ID: n.ID, Reason: n.Reason, Unread: n.Unread,
 	}
 	if n.UpdatedAt != nil {
 		out.UpdatedAt = &n.UpdatedAt.Time
@@ -49,8 +46,7 @@ func notificationOutput(n *github.Notification) *NotificationOutput {
 	}
 	if n.Subject != nil {
 		out.Subject = &NotificationSubjectOutput{
-			Title: n.Subject.Title, URL: n.Subject.URL,
-			LatestCommentURL: n.Subject.LatestCommentURL, Type: n.Subject.Type,
+			Title: n.Subject.Title, Type: n.Subject.Type,
 		}
 	}
 	if n.Repository != nil {
@@ -67,13 +63,10 @@ type NotificationStatusOutput struct {
 }
 
 type NotificationSubscriptionOutput struct {
-	Subscribed    *bool      `json:"subscribed,omitempty"`
-	Ignored       *bool      `json:"ignored,omitempty"`
-	Reason        *string    `json:"reason,omitempty"`
-	CreatedAt     *time.Time `json:"created_at,omitempty"`
-	URL           *string    `json:"url,omitempty"`
-	ThreadURL     *string    `json:"thread_url,omitempty"`
-	RepositoryURL *string    `json:"repository_url,omitempty"`
+	Subscribed *bool      `json:"subscribed,omitempty"`
+	Ignored    *bool      `json:"ignored,omitempty"`
+	Reason     *string    `json:"reason,omitempty"`
+	CreatedAt  *time.Time `json:"created_at,omitempty" jsonschema:"Subscription creation time (RFC3339)."`
 }
 
 type NotificationSubscriptionResult struct {
@@ -96,9 +89,6 @@ func notificationSubscriptionOutput(s *github.Subscription) *NotificationSubscri
 		out.Subscribed = s.Subscribed
 		out.Ignored = s.Ignored
 		out.Reason = s.Reason
-		out.URL = s.URL
-		out.ThreadURL = s.ThreadURL
-		out.RepositoryURL = s.RepositoryURL
 		if s.CreatedAt != nil {
 			out.CreatedAt = &s.CreatedAt.Time
 		}
@@ -107,10 +97,7 @@ func notificationSubscriptionOutput(s *github.Subscription) *NotificationSubscri
 }
 
 func notificationSubscriptionResultSchema() *jsonschema.Schema {
-	subscription, err := jsonschema.For[NotificationSubscriptionOutput](nil)
-	if err != nil {
-		panic(err)
-	}
+	subscription := discussionNotificationOutputSchema[NotificationSubscriptionOutput]()
 	return &jsonschema.Schema{
 		Type: "object",
 		OneOf: []*jsonschema.Schema{
@@ -128,6 +115,37 @@ func notificationSubscriptionResultSchema() *jsonschema.Schema {
 			},
 		},
 	}
+
+}
+
+func discussionNotificationOutputSchema[Out any]() *jsonschema.Schema {
+	schema, err := jsonschema.For[Out](nil)
+	if err != nil {
+		panic(err)
+	}
+	return schema
+}
+
+func notificationOutputSchema(list bool) *jsonschema.Schema {
+	schema := discussionNotificationOutputSchema[NotificationOutput]()
+	schema.Properties["subject"].Properties["type"].Enum = []any{
+		"CheckSuite", "Commit", "Discussion", "Issue", "PullRequest", "Release",
+		"RepositoryInvitation", "SecurityAdvisory",
+	}
+	schema.Properties["reason"].Enum = []any{
+		"approval_requested", "assign", "author", "ci_activity", "comment",
+		"invitation", "manual", "member_feature_requested", "mention",
+		"review_requested", "security_alert", "security_advisory_credit",
+		"state_change", "subscribed", "team_mention",
+	}
+	if list {
+		schema.Type = ""
+		schema.Types = []string{"object", "null"}
+		listSchema := discussionNotificationOutputSchema[[]*NotificationOutput]()
+		listSchema.Items = schema
+		return listSchema
+	}
+	return schema
 }
 
 type DiscussionPageInfoOutput struct {
@@ -141,8 +159,8 @@ type DiscussionListItemOutput struct {
 	Number    *int       `json:"number,omitempty"`
 	Title     *string    `json:"title,omitempty"`
 	HTMLURL   *string    `json:"html_url,omitempty"`
-	CreatedAt *time.Time `json:"created_at,omitempty"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	CreatedAt *time.Time `json:"created_at,omitempty" jsonschema:"Creation time (RFC3339)."`
+	UpdatedAt *time.Time `json:"updated_at,omitempty" jsonschema:"Last update time (RFC3339)."`
 	Author    string     `json:"author"`
 	Category  string     `json:"category"`
 }
@@ -161,12 +179,12 @@ type DiscussionOutput struct {
 	Number         int                      `json:"number"`
 	Title          string                   `json:"title"`
 	Body           string                   `json:"body"`
-	URL            string                   `json:"url"`
+	HTMLURL        string                   `json:"html_url"`
 	Closed         bool                     `json:"closed"`
 	IsAnswered     bool                     `json:"isAnswered"`
-	CreatedAt      time.Time                `json:"createdAt"`
+	CreatedAt      time.Time                `json:"createdAt" jsonschema:"Creation time (RFC3339)."`
 	Category       DiscussionCategoryOutput `json:"category"`
-	AnswerChosenAt *time.Time               `json:"answerChosenAt,omitempty"`
+	AnswerChosenAt *time.Time               `json:"answerChosenAt,omitempty" jsonschema:"Answer selection time (RFC3339), when selected."`
 }
 
 type DiscussionReplyOutput struct {
@@ -180,7 +198,7 @@ type DiscussionCommentOutput struct {
 	Body            string                  `json:"body"`
 	IsAnswer        bool                    `json:"isAnswer,omitempty"`
 	Replies         []DiscussionReplyOutput `json:"replies,omitempty"`
-	ReplyTotalCount int                     `json:"replyTotalCount,omitempty"`
+	ReplyTotalCount int                     `json:"replyTotalCount,omitempty" jsonschema:"Total replies, including replies beyond the returned maximum of 100."`
 }
 
 type DiscussionCommentsOutput struct {

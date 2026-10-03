@@ -46,5 +46,139 @@
     },
     "type": "object"
   },
-  "name": "list_notifications"
+  "name": "list_notifications",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "last_read_at": {
+          "description": "Last acknowledgement time (RFC3339).",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "approval_requested",
+            "assign",
+            "author",
+            "ci_activity",
+            "comment",
+            "invitation",
+            "manual",
+            "member_feature_requested",
+            "mention",
+            "review_requested",
+            "security_alert",
+            "security_advisory_credit",
+            "state_change",
+            "subscribed",
+            "team_mention"
+          ],
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "repository": {
+          "additionalProperties": false,
+          "properties": {
+            "full_name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "html_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "private": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "subject": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "type": {
+              "enum": [
+                "CheckSuite",
+                "Commit",
+                "Discussion",
+                "Issue",
+                "PullRequest",
+                "Release",
+                "RepositoryInvitation",
+                "SecurityAdvisory"
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "unread": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "updated_at": {
+          "description": "Last update time (RFC3339).",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }
