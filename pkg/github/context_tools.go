@@ -247,9 +247,6 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 		"org":       t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
 		"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
 	})
-	minLength := 1
-	inputSchema.Properties["org"].MinLength = &minLength
-	inputSchema.Properties["team_slug"].MinLength = &minLength
 
 	return NewTool[GetTeamMembersInput, []string](
 		ToolsetMetadataContext,
