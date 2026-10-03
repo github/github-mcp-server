@@ -38,11 +38,17 @@ func contextToolInputSchema[In any](descriptions map[string]string) *jsonschema.
 	if schema.Properties == nil {
 		schema.Properties = make(map[string]*jsonschema.Schema)
 	}
-	schema.AdditionalProperties = &jsonschema.Schema{}
+	schema.AdditionalProperties = nil
 	for name, description := range descriptions {
 		schema.Properties[name].Description = description
 	}
 	return schema
+}
+
+func contextToolValidationSchema(schema *jsonschema.Schema) *jsonschema.Schema {
+	validationSchema := schema.CloneSchemas()
+	validationSchema.AdditionalProperties = &jsonschema.Schema{}
+	return validationSchema
 }
 
 // UserDetails contains additional fields about a GitHub user not already
@@ -69,7 +75,8 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[GetMeInput, MinimalUser](
+	inputSchema := contextToolInputSchema[GetMeInput](nil)
+	return NewToolWithSchemaOptions[GetMeInput, MinimalUser](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
@@ -78,7 +85,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: contextToolInputSchema[GetMeInput](nil),
+			InputSchema: inputSchema,
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
@@ -87,6 +94,9 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.NoScopes(),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ GetMeInput) (*mcp.CallToolResult, MinimalUser, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -148,7 +158,10 @@ type OrganizationTeams struct {
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[GetTeamsInput, []OrganizationTeams](
+	inputSchema := contextToolInputSchema[GetTeamsInput](map[string]string{
+		"user": t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
+	})
+	return NewToolWithSchemaOptions[GetTeamsInput, []OrganizationTeams](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_teams",
@@ -157,11 +170,12 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: contextToolInputSchema[GetTeamsInput](map[string]string{
-				"user": t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
-			}),
+			InputSchema: inputSchema,
 		},
 		scopes.RequireAll(scopes.ReadOrg),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamsInput) (*mcp.CallToolResult, []OrganizationTeams, error) {
 			var username string
 			if args.User != "" {
@@ -248,7 +262,7 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 		"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
 	})
 
-	return NewTool[GetTeamMembersInput, []string](
+	return NewToolWithSchemaOptions[GetTeamMembersInput, []string](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_team_members",
@@ -260,6 +274,9 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: inputSchema,
 		},
 		scopes.RequireAll(scopes.ReadOrg),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamMembersInput) (*mcp.CallToolResult, []string, error) {
 			if args.Org == "" {
 				return utils.NewToolResultError("missing required parameter: org"), nil, nil
