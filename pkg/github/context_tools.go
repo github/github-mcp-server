@@ -60,8 +60,8 @@ type UserDetails struct {
 	PublicGists       int       `json:"public_gists"`
 	Followers         int       `json:"followers"`
 	Following         int       `json:"following"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	CreatedAt         time.Time `json:"created_at" jsonschema:"Account creation time in RFC3339 format."`
+	UpdatedAt         time.Time `json:"updated_at" jsonschema:"Last profile update time in RFC3339 format."`
 	PrivateGists      int       `json:"private_gists,omitempty"`
 	TotalPrivateRepos int64     `json:"total_private_repos,omitempty"`
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
