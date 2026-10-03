@@ -28,5 +28,79 @@
     ],
     "type": "object"
   },
-  "name": "manage_notification_subscription"
+  "name": "manage_notification_subscription",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "subscription": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "ignored": {
+                "type": [
+                  "null",
+                  "boolean"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "repository_url": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "subscribed": {
+                "type": [
+                  "null",
+                  "boolean"
+                ]
+              },
+              "thread_url": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "url": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  }
 }
