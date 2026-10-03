@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "fields": {
-        "description": "Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+        "description": "Subset of fields to return for each pull request result. If omitted, all standard fields are returned. Select review_decision for the nullable review decision and status_check_rollup for the nullable aggregate check state of the PR's latest commit; these add one batch GraphQL request per page. Omitting 'body', 'reactions', and 'labels' drops the largest per-result data.",
         "items": {
           "enum": [
             "number",
@@ -32,7 +32,9 @@
             "closed_at",
             "closed_by",
             "pull_request",
-            "repository_url"
+            "repository_url",
+            "review_decision",
+            "status_check_rollup"
           ],
           "type": "string"
         },

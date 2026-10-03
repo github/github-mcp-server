@@ -1267,7 +1267,7 @@ The following sets of tools are available:
   - **OAuth Challenge Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
-  - `fields`: Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data. (string[], optional)
+  - `fields`: Subset of fields to return for each pull request. If omitted, all standard fields are returned. Select review_decision for the nullable review decision and status_check_rollup for the nullable aggregate check state of the PR's latest commit; these add one batch GraphQL request per page. Omitting 'body' drops the largest per-result data. (string[], optional)
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1320,7 +1320,7 @@ The following sets of tools are available:
 
 - **search_pull_requests** - Search pull requests
   - **OAuth Challenge Scopes**: `repo`
-  - `fields`: Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
+  - `fields`: Subset of fields to return for each pull request result. If omitted, all standard fields are returned. Select review_decision for the nullable review decision and status_check_rollup for the nullable aggregate check state of the PR's latest commit; these add one batch GraphQL request per page. Omitting 'body', 'reactions', and 'labels' drops the largest per-result data. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)

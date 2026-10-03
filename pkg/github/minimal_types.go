@@ -41,14 +41,15 @@ var listIssuesItemFieldEnum = []any{
 }
 
 // listPullRequestsItemFieldEnum lists the selectable fields for
-// list_pull_requests result items, matching the JSON field names of
-// MinimalPullRequest. The body field is the heaviest, so omitting it is the main
-// lever for shrinking large result sets.
+// list_pull_requests result items. Most fields come from MinimalPullRequest;
+// review_decision and status_check_rollup are opt-in GraphQL enrichments. The
+// body field is the heaviest, so omitting it shrinks large result sets.
 var listPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "draft", "merged", "mergeable_state",
 	"html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by",
 	"head", "base", "additions", "deletions", "changed_files", "commits",
 	"comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone",
+	"review_decision", "status_check_rollup",
 }
 
 // listCommitsItemFieldEnum lists the selectable fields for list_commits result
@@ -83,14 +84,15 @@ var searchIssuesItemFieldEnum = []any{
 
 // searchPullRequestsItemFieldEnum lists the selectable fields for
 // search_pull_requests result items. Issue search returns pull requests as
-// github.Issue objects, so this is a curated subset of those JSON field names.
-// The body, reactions, and labels fields are the heaviest, so omitting them is
-// the main lever for shrinking large result sets.
+// github.Issue objects, so most fields are a curated subset of those JSON
+// names. review_decision and status_check_rollup are opt-in GraphQL enrichments.
+// Omitting body, reactions, and labels shrinks large result sets.
 var searchPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
 	"html_url", "user", "author_association", "labels", "assignee", "assignees",
 	"milestone", "comments", "reactions", "created_at", "updated_at", "closed_at",
 	"closed_by", "pull_request", "repository_url",
+	"review_decision", "status_check_rollup",
 }
 
 // filterFields marshals v to a JSON object and returns a map containing only the
