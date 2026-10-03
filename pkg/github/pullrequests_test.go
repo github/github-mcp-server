@@ -180,6 +180,50 @@ func Test_GetPullRequest(t *testing.T) {
 	}
 }
 
+// Test_convertToMinimalPullRequestMergeCommitSHA pins that merge_commit_sha is
+// emitted only once a PR is merged, not for an open PR's ephemeral test-merge
+// ref (#3235).
+func Test_convertToMinimalPullRequestMergeCommitSHA(t *testing.T) {
+	const sha = "f1e2d3c4b5a6978012345678901234567890abcd"
+	tests := []struct {
+		name string
+		pr   *github.PullRequest
+		want string
+	}{
+		{
+			name: "merged PR exposes the merge commit",
+			pr: &github.PullRequest{
+				State:          github.Ptr("closed"),
+				Merged:         github.Ptr(true),
+				MergedAt:       &github.Timestamp{Time: time.Now()},
+				MergeCommitSHA: github.Ptr(sha),
+			},
+			want: sha,
+		},
+		{
+			name: "open PR withholds the ephemeral test-merge SHA",
+			pr: &github.PullRequest{
+				State:          github.Ptr("open"),
+				MergeCommitSHA: github.Ptr(sha),
+			},
+			want: "",
+		},
+		{
+			name: "closed-unmerged PR withholds any test-merge SHA",
+			pr: &github.PullRequest{
+				State:          github.Ptr("closed"),
+				MergeCommitSHA: github.Ptr(sha),
+			},
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, convertToMinimalPullRequest(tc.pr).MergeCommitSHA)
+		})
+	}
+}
+
 func Test_UpdatePullRequest(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UpdatePullRequest(translations.NullTranslationHelper)
