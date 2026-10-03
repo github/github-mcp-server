@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -26,13 +27,20 @@ const (
 	ProtocolEraModern
 )
 
-// ProtocolEraForVersion selects modern behavior only for the exact supported
-// version. Unknown and future versions remain on the legacy contract.
+// ProtocolEraForVersion selects modern behavior for SDK-supported protocol
+// versions from 2026-07-28 onward. Unknown versions remain legacy.
 func ProtocolEraForVersion(version string) ProtocolEra {
-	if version == ProtocolVersionMultiRoundTrip {
-		return ProtocolEraModern
+	return protocolEraForSupportedVersion(version, mcp.SupportedProtocolVersions())
+}
+
+func protocolEraForSupportedVersion(version string, supported []string) ProtocolEra {
+	if _, err := time.Parse(time.DateOnly, version); err != nil {
+		return ProtocolEraLegacy
 	}
-	return ProtocolEraLegacy
+	if version < ProtocolVersionMultiRoundTrip || !slices.Contains(supported, version) {
+		return ProtocolEraLegacy
+	}
+	return ProtocolEraModern
 }
 
 // SchemaEnum adds an enum to a property of an inferred schema. Path is a
