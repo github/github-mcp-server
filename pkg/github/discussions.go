@@ -129,8 +129,9 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 	return NewTool[ListDiscussionsInput, *ListDiscussionsOutput](
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
-			Name:        "list_discussions",
-			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
+			Name:         "list_discussions",
+			OutputSchema: discussionNotificationOutputSchema[ListDiscussionsOutput](),
+			Description:  t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSIONS_USER_TITLE", "List discussions"),
 				ReadOnlyHint: true,
@@ -306,8 +307,9 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool[GetDiscussionInput, *DiscussionOutput](
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
-			Name:        "get_discussion",
-			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
+			Name:         "get_discussion",
+			OutputSchema: discussionNotificationOutputSchema[DiscussionOutput](),
+			Description:  t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
 				ReadOnlyHint: true,
@@ -398,7 +400,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			output := &DiscussionOutput{
 				Number: int(d.Number), Title: sanitize.PlainText(string(d.Title)),
-				Body: sanitize.Content(string(d.Body)), URL: string(d.URL),
+				Body: sanitize.Content(string(d.Body)), HTMLURL: string(d.URL),
 				Closed: bool(d.Closed), IsAnswered: bool(d.IsAnswered), CreatedAt: d.CreatedAt.Time,
 				Category: DiscussionCategoryOutput{Name: string(d.Category.Name)},
 			}
@@ -415,8 +417,9 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 	return NewTool[GetDiscussionCommentsInput, *DiscussionCommentsOutput](
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
-			Name:        "get_discussion_comments",
-			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
+			Name:         "get_discussion_comments",
+			OutputSchema: discussionNotificationOutputSchema[DiscussionCommentsOutput](),
+			Description:  t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
 				ReadOnlyHint: true,
@@ -1025,8 +1028,9 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 	return NewTool[ListDiscussionCategoriesInput, *DiscussionCategoriesOutput](
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
-			Name:        "list_discussion_categories",
-			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
+			Name:         "list_discussion_categories",
+			OutputSchema: discussionNotificationOutputSchema[DiscussionCategoriesOutput](),
+			Description:  t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
 				ReadOnlyHint: true,

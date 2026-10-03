@@ -43,6 +43,7 @@
             "additionalProperties": false,
             "properties": {
               "created_at": {
+                "description": "Subscription creation time (RFC3339).",
                 "type": [
                   "null",
                   "string"
@@ -60,28 +61,10 @@
                   "string"
                 ]
               },
-              "repository_url": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
               "subscribed": {
                 "type": [
                   "null",
                   "boolean"
-                ]
-              },
-              "thread_url": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "url": {
-                "type": [
-                  "null",
-                  "string"
                 ]
               }
             },
