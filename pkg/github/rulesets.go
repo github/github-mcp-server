@@ -656,8 +656,9 @@ func CreateRepositoryRuleset(t translations.TranslationHelperFunc) inventory.Ser
 			Name:        "create_repository_ruleset",
 			Description: t("TOOL_CREATE_REPOSITORY_RULESET_DESCRIPTION", "Create a new ruleset at the repository, organization, or enterprise level"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_REPOSITORY_RULESET_USER_TITLE", "Create repository ruleset"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_REPOSITORY_RULESET_USER_TITLE", "Create repository ruleset"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type:                 "object",

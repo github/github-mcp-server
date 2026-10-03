@@ -888,8 +888,9 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
 			Icons:       octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: schema,
 		},
