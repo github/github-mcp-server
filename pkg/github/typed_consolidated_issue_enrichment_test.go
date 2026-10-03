@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -9,9 +10,39 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/go-github/v92/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestTypedIssueReadIFCLabels(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			deps := consolidatedIssueDeps(t)
+			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
+			session, schemas := consolidatedIssueSession(t, deps, protocol, false)
+			for _, method := range []string{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"} {
+				args := map[string]any{"method": method, "owner": "owner", "repo": "repo", "issue_number": 1}
+				if method == "get_sub_issues" {
+					args["page"], args["perPage"] = 2, 5
+				}
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "issue_read", Arguments: args})
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				label := unmarshalIFC(t, result.Meta["ifc"])
+				assert.Equal(t, "untrusted", label["integrity"])
+				assert.Equal(t, "public", label["confidentiality"])
+				if schema := schemas["issue_read"]; schema != nil {
+					require.NotNil(t, result.StructuredContent)
+					require.NoError(t, schema.Validate(result.StructuredContent))
+				} else {
+					assert.Nil(t, result.StructuredContent)
+				}
+			}
+		})
+	}
+}
 
 func TestTypedIssueReadEnrichmentAndLockdown(t *testing.T) {
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {

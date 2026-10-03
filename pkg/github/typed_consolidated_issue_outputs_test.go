@@ -56,6 +56,26 @@ func consolidatedIssueSession(t *testing.T, deps BaseDeps, protocol string, ui b
 	require.Len(t, list.Tools, len(tools))
 	schemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
+		if tool.Name == "issue_write" {
+			var wire struct {
+				Properties struct {
+					IssueFields struct {
+						Items struct {
+							OneOf []struct {
+								Properties map[string]json.RawMessage `json:"properties"`
+							} `json:"oneOf"`
+						} `json:"items"`
+					} `json:"issue_fields"`
+				} `json:"properties"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &wire))
+			require.Len(t, wire.Properties.IssueFields.Items.OneOf, 3)
+			for _, index := range []int{1, 2} {
+				value := wire.Properties.IssueFields.Items.OneOf[index].Properties["value"]
+				require.NotEmpty(t, value)
+				assert.Equal(t, byte('{'), value[0], "forbidden values must use schema objects, not bare false")
+			}
+		}
 		if protocol != inventory.ProtocolVersionMultiRoundTrip {
 			assert.Nil(t, tool.OutputSchema, tool.Name)
 			continue
@@ -104,6 +124,16 @@ func TestCompactIssueOutputSchemasAreCached(t *testing.T) {
 	assert.Same(t, issueReadOutputSchema(), issueReadOutputSchema())
 	assert.Same(t, issueWriteOutputSchema(), issueWriteOutputSchema())
 	assert.Same(t, subIssueWriteOutputSchema(), subIssueWriteOutputSchema())
+}
+
+func TestForbiddenIssueVariantPropertySchema(t *testing.T) {
+	schema := forbiddenIssueVariantProperty()
+	assert.JSONEq(t, `{"not":{"description":"Any value."}}`, mustMarshalJSON(t, schema))
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	for _, value := range []any{nil, "", float64(0), false, []any{}, map[string]any{}} {
+		assert.Error(t, resolved.Validate(value), "%v", value)
+	}
 }
 
 func assertConsolidatedResult(t *testing.T, session *mcp.ClientSession, schemas map[string]*jsonschema.Resolved, name string, args map[string]any, text string) *mcp.CallToolResult {

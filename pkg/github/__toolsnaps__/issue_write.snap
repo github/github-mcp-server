@@ -67,7 +67,11 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "value": false
+                "value": {
+                  "not": {
+                    "description": "Any value."
+                  }
+                }
               },
               "required": [
                 "field_option_name"
@@ -87,7 +91,11 @@
                   ],
                   "type": "string"
                 },
-                "value": false
+                "value": {
+                  "not": {
+                    "description": "Any value."
+                  }
+                }
               },
               "required": [
                 "delete"
@@ -214,8 +222,16 @@
     "oneOf": [
       {
         "properties": {
-          "reason": false,
-          "status": false
+          "reason": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "status": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "method",
@@ -224,8 +240,16 @@
       },
       {
         "properties": {
-          "issue": false,
-          "method": false
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "status",
