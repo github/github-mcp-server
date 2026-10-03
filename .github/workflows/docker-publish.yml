@@ -30,7 +30,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-xl
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
