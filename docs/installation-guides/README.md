@@ -9,6 +9,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[Claude Applications](install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
 - **[Cline](install-cline.md)** - Installation guide for Cline
 - **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
+- **[FLUJO](install-flujo.md)** - Manual remote setup with a secret Bearer header and read-only repository tools
 - **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[OpenAI Codex](install-codex.md)** - Installation guide for OpenAI Codex
 - **[OpenCode](install-opencode.md)** - Installation guide for the OpenCode terminal agent
@@ -30,6 +31,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 | Claude Desktop | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Moderate |
 | Cline | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Cursor | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
+| FLUJO | Not tested | Bearer header (read-only repository tools verified) | FLUJO, authorized GitHub access token | Easy |
 | Google Gemini CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | OpenCode | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Roo Code | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
