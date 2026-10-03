@@ -38,7 +38,8 @@ The SDK applies defaults from the runtime input schema before decoding. If an
 omitted field must remain omitted, build the runtime schema with
 `inventory.CloneSchemaWithoutDefaults` before applying validation-only
 changes. Use `inventory.CloneSchema` when deriving other runtime-only schema
-variants so nested metadata is detached as well as subschemas. The advertised
+variants so numeric bound pointers and nested metadata are detached as well as
+subschemas. Default removal visits each child once per parent. The advertised
 schema can retain its defaults; the constructor caches the runtime schema
 without mutating either caller-owned schema.
 
