@@ -105,6 +105,7 @@
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "Account creation time in RFC3339 format.",
                   "type": "string"
                 },
                 "email": {
@@ -144,6 +145,7 @@
                   "type": "string"
                 },
                 "updated_at": {
+                  "description": "Last profile update time in RFC3339 format.",
                   "type": "string"
                 }
               },
@@ -248,6 +250,7 @@
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "Account creation time in RFC3339 format.",
                   "type": "string"
                 },
                 "email": {
@@ -287,6 +290,7 @@
                   "type": "string"
                 },
                 "updated_at": {
+                  "description": "Last profile update time in RFC3339 format.",
                   "type": "string"
                 }
               },
