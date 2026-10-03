@@ -6,6 +6,9 @@ does not provide them, validates arguments before the handler runs, and
 validates typed output. Keep business rules that JSON Schema cannot express
 in the handler or a preflight callback.
 
+Input inference unwraps one pointer level, matching the SDK's object input
+contract. Output pointers retain nullable schemas and may return JSON null.
+
 ```go
 tool := github.NewToolWithSchemaOptions[workflowInput, workflowOutput](
     toolset,
