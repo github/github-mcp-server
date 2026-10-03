@@ -296,9 +296,11 @@ func TestCommentVisibilityProtocols(t *testing.T) {
 					}
 					matcher := unminimizeCommentMatcher("NODE_1")
 					expected := MinimizeCommentResult{NodeID: "NODE_1"}
+					legacyText := `{"node_id":"NODE_1","is_minimized":false}`
 					if hide {
 						matcher = minimizeCommentMatcher("NODE_1", "OFF_TOPIC", "off-topic")
 						expected.IsMinimized, expected.MinimizedReason = true, "off-topic"
+						legacyText = `{"node_id":"NODE_1","is_minimized":true,"minimized_reason":"off-topic"}`
 					}
 					deps := BaseDeps{
 						Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -334,13 +336,17 @@ func TestCommentVisibilityProtocols(t *testing.T) {
 					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: args})
 					require.NoError(t, err)
 					require.False(t, result.IsError, result)
-					text, err := json.Marshal(expected)
-					require.NoError(t, err)
 					require.Len(t, result.Content, 1)
-					assert.Equal(t, string(text), getTextResult(t, result).Text)
+					textResult := getTextResult(t, result).Text
 					if version == "2025-11-25" {
+						assert.Equal(t, legacyText, textResult)
 						assert.Nil(t, result.StructuredContent)
 					} else {
+						var textOutput MinimizeCommentResult
+						require.NoError(t, json.Unmarshal([]byte(textResult), &textOutput))
+						assert.Equal(t, expected, textOutput)
+						text, err := json.Marshal(textOutput)
+						require.NoError(t, err)
 						structured, err := json.Marshal(result.StructuredContent)
 						require.NoError(t, err)
 						assert.JSONEq(t, string(text), string(structured))
