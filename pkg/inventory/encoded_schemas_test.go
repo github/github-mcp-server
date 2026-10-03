@@ -123,6 +123,57 @@ func TestEncodedSchemasConcurrentRegistration(t *testing.T) {
 	assert.Equal(t, original, after, "source schema must remain unchanged")
 }
 
+func TestEncodedSchemasRepeatedInventoryRegistration(t *testing.T) {
+	t.Parallel()
+	schema := &jsonschema.Schema{
+		Type:       "object",
+		Properties: map[string]*jsonschema.Schema{"owner": {Type: "string"}},
+	}
+	definition := ServerTool{
+		Tool: mcp.Tool{Name: "repeated", InputSchema: schema, OutputSchema: schema},
+		HandlerFunc: func(any) mcp.ToolHandler {
+			return func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return &mcp.CallToolResult{}, nil
+			}
+		},
+	}
+	original, err := json.Marshal(schema)
+	require.NoError(t, err)
+	var first []byte
+	for range 20 {
+		inv, err := NewBuilder().SetTools([]ServerTool{definition}).WithToolsets([]string{"all"}).Build()
+		require.NoError(t, err)
+		server := mcp.NewServer(&mcp.Implementation{Name: "repeated"}, nil)
+		inv.ForMCPRequest(MCPMethodToolsList, "").RegisterTools(context.Background(), server, nil)
+		st, ct := mcp.NewInMemoryTransports()
+		ss, err := server.Connect(context.Background(), st, nil)
+		require.NoError(t, err)
+		cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(context.Background(), ct, nil)
+		require.NoError(t, err)
+		list, err := cs.ListTools(context.Background(), nil)
+		_ = cs.Close()
+		_ = ss.Close()
+		require.NoError(t, err)
+		data, err := json.Marshal(list)
+		require.NoError(t, err)
+		if first == nil {
+			first = data
+		}
+		assert.Equal(t, first, data)
+	}
+	var entries int
+	encodedSchemas.Range(func(key, _ any) bool {
+		if key.(encodedSchemaKey).schema == schema {
+			entries++
+		}
+		return true
+	})
+	assert.Equal(t, 2, entries, "new inventories and annotation clones must reuse the two source-schema keys")
+	after, err := json.Marshal(schema)
+	require.NoError(t, err)
+	assert.Equal(t, original, after)
+}
+
 func TestEncodedSchemasPreserveReplacementsAndErrors(t *testing.T) {
 	t.Parallel()
 	source := &jsonschema.Schema{Type: "object"}

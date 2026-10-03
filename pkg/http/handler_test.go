@@ -21,6 +21,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +60,41 @@ func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]strin
 }
 
 var _ scopes.FetcherInterface = allScopesFetcher{}
+
+func TestDefaultInventoryFactoryReusesSchemaDefinitions(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"https://github.com", "https://example.ghe.com", "https://github.example.com"} {
+		t.Run(host, func(t *testing.T) {
+			factory, err := NewDefaultInventoryFactory(&ServerConfig{Host: host}, translations.NullTranslationHelper, nil, allScopesFetcher{})
+			require.NoError(t, err)
+			request := httptest.NewRequest(http.MethodPost, "/", nil)
+			request = request.WithContext(ghcontext.WithToolsets(request.Context(), []string{"all"}))
+			first, err := factory(request)
+			require.NoError(t, err)
+			definitions := first.AllTools()
+			require.NotEmpty(t, definitions)
+			for range 10 {
+				next, err := factory(request)
+				require.NoError(t, err)
+				tools := next.AllTools()
+				require.Len(t, tools, len(definitions))
+				for i, tool := range tools {
+					assert.Equal(t, definitions[i].Tool.Name, tool.Tool.Name)
+					if _, ok := definitions[i].Tool.InputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					}
+					if _, ok := definitions[i].Tool.OutputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					}
+				}
+			}
+		})
+	}
+}
 
 func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag inventory.FeatureFlag) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)

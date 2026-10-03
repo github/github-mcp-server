@@ -240,6 +240,9 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 // the client did not advertise the io.modelcontextprotocol/ui extension. The
 // strip happens here (rather than at Build() time) so the per-request
 // context, which carries the client capability, is in scope.
+//
+// Schema definitions must remain immutable and be reused across registrations.
+// Their encodings are retained process-wide, keyed by source schema identity.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
