@@ -322,25 +322,23 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
-			// Prepare agent assignment input
-			emptyString := githubv4.String("")
-			agentAssignment := &AgentAssignmentInput{
-				CustomAgent:        &emptyString,
-				CustomInstructions: &emptyString,
-				TargetRepositoryID: getIssueQuery.Repository.ID,
-			}
-
-			// Add base ref if provided
-			if params.BaseRef != "" {
-				baseRef := githubv4.String(params.BaseRef)
-				agentAssignment.BaseRef = &baseRef
-			}
-
-			// Add custom instructions if provided
-			if params.CustomInstructions != "" {
-				customInstructions := githubv4.String(params.CustomInstructions)
-				agentAssignment.CustomInstructions = &customInstructions
-			}
+			// Prepare agent assignment input. Only populate optional fields that are
+// actually set: pointers to empty strings still serialize as
+// "customAgent": "" / "customInstructions": "" on the wire, where the Copilot
+// UI omits them entirely (see #3283).
+agentAssignment := &AgentAssignmentInput{
+	TargetRepositoryID: getIssueQuery.Repository.ID,
+}
+// Add base ref if provided
+if params.BaseRef != "" {
+	baseRef := githubv4.String(params.BaseRef)
+	agentAssignment.BaseRef = &baseRef
+}
+// Add custom instructions if provided
+if params.CustomInstructions != "" {
+	customInstructions := githubv4.String(params.CustomInstructions)
+	agentAssignment.CustomInstructions = &customInstructions
+}
 
 			// Execute the updateIssue mutation with the GraphQL-Features header
 			// This header is required for the agent assignment API which is not GA yet
@@ -434,11 +432,17 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					"title":  linkedPR.Title,
 					"state":  linkedPR.State,
 				}
+				result["agent_session_detected"] = true
 				result["message"] = "successfully assigned copilot to issue - pull request created"
 			} else {
-				result["message"] = "successfully assigned copilot to issue - pull request pending"
-				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
-			}
+	// Do not report unqualified success: no PR after the poll window may mean
+	// the agent session never started (see #3283).
+	result["message"] = "copilot assigned to issue, but no agent pull request was detected"
+	result["agent_session_detected"] = false
+	result["note"] = "The assignment was recorded, but no pull request was created before polling ended. " +
+		"The session may still start later - check the issue timeline for agent activity. " +
+		"If none appears, re-run this tool or assign Copilot manually from the issue page."
+}
 
 			r, err := json.Marshal(result)
 			if err != nil {
@@ -706,22 +710,19 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				Assignees: assignees,
 			}
 			if !params.IsSuggestion {
-				emptyString := githubv4.String("")
-				agentAssignment := &AgentAssignmentInput{
-					CustomAgent:        &emptyString,
-					CustomInstructions: &emptyString,
-					TargetRepositoryID: getIssueQuery.Repository.ID,
-				}
-				if params.BaseRef != "" {
-					baseRef := githubv4.String(params.BaseRef)
-					agentAssignment.BaseRef = &baseRef
-				}
-				if params.CustomInstructions != "" {
-					customInstructions := githubv4.String(params.CustomInstructions)
-					agentAssignment.CustomInstructions = &customInstructions
-				}
-				input.AgentAssignment = agentAssignment
-			}
+	agentAssignment := &AgentAssignmentInput{
+		TargetRepositoryID: getIssueQuery.Repository.ID,
+	}
+	if params.BaseRef != "" {
+		baseRef := githubv4.String(params.BaseRef)
+		agentAssignment.BaseRef = &baseRef
+	}
+	if params.CustomInstructions != "" {
+		customInstructions := githubv4.String(params.CustomInstructions)
+		agentAssignment.CustomInstructions = &customInstructions
+	}
+	input.AgentAssignment = agentAssignment
+}
 
 			var updateIssueMutation struct {
 				UpdateIssue struct {
@@ -800,12 +801,18 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 					"title":  linkedPR.Title,
 					"state":  linkedPR.State,
 				}
+				result["agent_session_detected"] = true
 				result["message"] = "successfully assigned copilot to issue - pull request created"
 			} else {
-				result["message"] = "successfully assigned copilot to issue - pull request pending"
-				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
-			}
-
+	// Do not report unqualified success: no PR after the poll window may mean
+	// the agent session never started (see #3283).
+	result["message"] = "copilot assigned to issue, but no agent pull request was detected"
+	result["agent_session_detected"] = false
+	result["note"] = "The assignment was recorded, but no pull request was created before polling ended. " +
+		"The session may still start later - check the issue timeline for agent activity. " +
+		"If none appears, re-run this tool or assign Copilot manually from the issue page."
+}
+			
 			r, err := json.Marshal(result)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
