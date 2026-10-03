@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -61,7 +62,32 @@ func normalizeGetTeamsInput(arguments json.RawMessage) (json.RawMessage, error) 
 	if user, exists := fields["user"]; exists && bytes.Equal(bytes.TrimSpace(user), []byte("null")) {
 		return nil, &inventory.ToolInputError{Message: "parameter user is not of type string, is <nil>"}
 	}
-	return arguments, nil
+	return normalizeContextRoutingKeys(arguments, fields, "user")
+}
+
+func normalizeGetTeamMembersInput(arguments json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &fields); err != nil {
+		return nil, err
+	}
+	return normalizeContextRoutingKeys(arguments, fields, "org", "team_slug")
+}
+
+func normalizeContextRoutingKeys(arguments json.RawMessage, fields map[string]json.RawMessage, routingKeys ...string) (json.RawMessage, error) {
+	changed := false
+	for name := range fields {
+		for _, key := range routingKeys {
+			if name != key && strings.EqualFold(name, key) {
+				delete(fields, name)
+				changed = true
+				break
+			}
+		}
+	}
+	if !changed {
+		return arguments, nil
+	}
+	return json.Marshal(fields)
 }
 
 // UserDetails contains additional fields about a GitHub user not already
@@ -338,5 +364,6 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, members, nil
 		},
+		normalizeGetTeamMembersInput,
 	)
 }
