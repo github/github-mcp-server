@@ -178,7 +178,8 @@ func helperExecutor(t *testing.T, mode string) executor {
 	require.NoError(t, err)
 	return func(ctx context.Context, process *exec.Cmd) error {
 		helper := exec.CommandContext(ctx, binary, "-test.run=^TestCopilotProcess$")
-		helper.Env = append(os.Environ(), "AGENTCTL_TEST_PROCESS="+mode)
+		helper.Env = process.Environ()
+		helper.Env = append(helper.Env, "AGENTCTL_TEST_PROCESS="+mode)
 		helper.Dir = process.Dir
 		helper.Stdin, helper.Stdout, helper.Stderr = process.Stdin, process.Stdout, process.Stderr
 		return helper.Run()
@@ -262,4 +263,30 @@ func TestNarrowPermissions(t *testing.T) {
 		"read,write", "shell(ls; rm -rf /)", "shell(ls && pwd)", "shell(ls | sh)", "shell(echo $(id))"} {
 		assert.False(t, narrowPermission(tool), tool)
 	}
+}
+
+func TestRunCannotInheritGitRepositoryOverrides(t *testing.T) {
+	dir := checkoutFixture(t, "https://github.com/owner/repo")
+	other := checkoutFixture(t, "https://github.com/owner/other")
+	t.Setenv("GIT_DIR", filepath.Join(other, ".git"))
+	t.Setenv("GIT_WORK_TREE", other)
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "remote.origin.url")
+	t.Setenv("GIT_CONFIG_VALUE_0", "https://github.com/owner/other")
+	home := t.TempDir()
+	t.Setenv("COPILOT_HOME", home)
+	called := false
+	cmd := newCommand("test", fakeLookup, func(_ context.Context, process *exec.Cmd) error {
+		called = true
+		assert.Equal(t, dir, process.Dir)
+		for _, variable := range process.Env {
+			key, _, _ := strings.Cut(variable, "=")
+			assert.False(t, strings.HasPrefix(key, "GIT_"), variable)
+		}
+		assert.Contains(t, process.Env, "COPILOT_HOME="+home)
+		return nil
+	})
+	cmd.SetArgs([]string{"run", "coder", "--path", dir, "--repo", "owner/repo", "--prompt", "task"})
+	require.NoError(t, cmd.Execute())
+	assert.True(t, called)
 }

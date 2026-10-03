@@ -93,6 +93,7 @@ func newCommand(version string, lookPath func(string) (string, error), execute e
 			}
 			process := exec.CommandContext(cmd.Context(), binary, argv...)
 			process.Dir = checkout
+			process.Env = checkoutEnvironment()
 			process.Stdin = cmd.InOrStdin()
 			process.Stdout = cmd.OutOrStdout()
 			process.Stderr = cmd.ErrOrStderr()

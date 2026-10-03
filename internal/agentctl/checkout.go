@@ -112,13 +112,19 @@ func validateCheckout(ctx context.Context, path, expected string) (string, error
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	// Do not let Git environment overrides select a different repository.
+	cmd.Env = checkoutEnvironment()
+	output, err := cmd.Output()
+	return strings.TrimSuffix(strings.TrimSuffix(string(output), "\n"), "\r"), err
+}
+
+func checkoutEnvironment() []string {
+	// Validation and agent tools must agree on the selected repository.
+	var env []string
 	for _, variable := range os.Environ() {
 		key, _, _ := strings.Cut(variable, "=")
 		if !strings.HasPrefix(key, "GIT_") {
-			cmd.Env = append(cmd.Env, variable)
+			env = append(env, variable)
 		}
 	}
-	output, err := cmd.Output()
-	return strings.TrimSuffix(strings.TrimSuffix(string(output), "\n"), "\r"), err
+	return env
 }
