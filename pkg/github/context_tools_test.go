@@ -295,6 +295,33 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 		require.NoError(t, json.Unmarshal(schemaJSON, &schema))
 		assert.Equal(t, "object", schema.Type, "input roots must remain non-nullable objects")
 		assert.Empty(t, schema.AnyOf)
+		var schemaMetadata struct {
+			AdditionalProperties *bool `json:"additionalProperties"`
+		}
+		require.NoError(t, json.Unmarshal(schemaJSON, &schemaMetadata))
+		if schemaMetadata.AdditionalProperties != nil {
+			assert.True(t, *schemaMetadata.AdditionalProperties, "explicit true must retain the legacy default")
+		}
+		for propertyName, property := range schema.Properties {
+			var propertySchema jsonschema.Schema
+			require.NoError(t, json.Unmarshal(property, &propertySchema))
+			assert.Empty(t, propertySchema.Enum, "input enums must match the legacy schema")
+			assert.Nil(t, propertySchema.Minimum)
+			assert.Nil(t, propertySchema.Maximum)
+			assert.Nil(t, propertySchema.MinLength, "input bounds must match the legacy schema")
+			assert.Nil(t, propertySchema.MaxLength)
+			assert.Nil(t, propertySchema.Default)
+			switch tool.Name + "." + propertyName {
+			case "get_teams.user":
+				assert.Equal(t, "Username to get teams for. If not provided, uses the authenticated user.", propertySchema.Description)
+			case "get_team_members.org":
+				assert.Equal(t, "Organization login (owner) that contains the team.", propertySchema.Description)
+			case "get_team_members.team_slug":
+				assert.Equal(t, "Team slug", propertySchema.Description)
+			default:
+				t.Fatalf("unexpected input property %q on tool %q", propertyName, tool.Name)
+			}
+		}
 		switch tool.Name {
 		case "get_me":
 			assert.NotNil(t, schema.Properties, "empty input schemas must retain properties")
@@ -325,8 +352,11 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedUser))
 	legacyText, err := json.Marshal(returnedUser)
 	require.NoError(t, err)
-	assert.Equal(t, string(legacyText), getTextResult(t, result).Text)
-	assert.Equal(t, `{"login":"testuser","profile_url":"https://github.com/testuser","details":{"public_repos":0,"public_gists":0,"followers":0,"following":0,"created_at":"2020-01-02T03:04:05Z","updated_at":"0001-01-01T00:00:00Z"}}`, getTextResult(t, result).Text)
+	assert.JSONEq(t, string(legacyText), getTextResult(t, result).Text)
+	request := createMCPRequest(map[string]any{})
+	legacyResult, err := getMeTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.Equal(t, `{"login":"testuser","profile_url":"https://github.com/testuser","details":{"public_repos":0,"public_gists":0,"followers":0,"following":0,"created_at":"2020-01-02T03:04:05Z","updated_at":"0001-01-01T00:00:00Z"}}`, getTextResult(t, legacyResult).Text)
 	require.NoError(t, outputSchemas["get_me"].Validate(result.StructuredContent))
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
@@ -338,7 +368,11 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, string(structuredJSON))
-	assert.Equal(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, getTextResult(t, result).Text)
+	assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
+	request = createMCPRequest(map[string]any{"user": "specificuser"})
+	legacyResult, err = getTeamsTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, getTextResult(t, legacyResult).Text)
 	require.NoError(t, outputSchemas["get_teams"].Validate(result.StructuredContent))
 	assert.Equal(t, 1, graphQLCalls)
 
@@ -351,7 +385,11 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `["user1","user2"]`, string(structuredJSON))
-	assert.Equal(t, `["user1","user2"]`, getTextResult(t, result).Text)
+	assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
+	request = createMCPRequest(map[string]any{"org": "testorg", "team_slug": "testteam"})
+	legacyResult, err = teamMembersTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.Equal(t, `["user1","user2"]`, getTextResult(t, legacyResult).Text)
 	require.NoError(t, outputSchemas["get_team_members"].Validate(result.StructuredContent))
 	assert.Equal(t, 2, graphQLCalls)
 
@@ -369,7 +407,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, result.IsError, "empty required strings should remain invalid")
-	assert.Equal(t, 2, graphQLCalls, "schema validation must reject empty required strings before the handler")
+	assert.Equal(t, 2, graphQLCalls, "handler validation must reject empty identifiers before acquiring GraphQL")
 
 	for _, tc := range []struct {
 		name       string
@@ -397,10 +435,10 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 		require.False(t, result.IsError)
 		require.NotNil(t, result.StructuredContent, "empty successful collections must have structured content on the wire")
 		require.Len(t, result.Content, 1, "SDK fallback must not duplicate the legacy text")
-		assert.Equal(t, tc.text, getTextResult(t, result).Text)
 		structuredJSON, err := json.Marshal(result.StructuredContent)
 		require.NoError(t, err)
 		assert.JSONEq(t, tc.structured, string(structuredJSON))
+		assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
 		require.NoError(t, outputSchemas[tc.name].Validate(result.StructuredContent))
 	}
 
