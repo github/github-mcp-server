@@ -36,9 +36,6 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 			if !exists {
 				continue
 			}
-			if field == "page" && preserveZeroPage {
-				continue
-			}
 			var number any
 			if err := json.Unmarshal(value, &number); err != nil {
 				return nil, err
