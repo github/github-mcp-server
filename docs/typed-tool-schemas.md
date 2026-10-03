@@ -37,8 +37,10 @@ not a replacement for schema validation.
 The SDK applies defaults from the runtime input schema before decoding. If an
 omitted field must remain omitted, build the runtime schema with
 `inventory.CloneSchemaWithoutDefaults` before applying validation-only
-changes. The advertised schema can retain its defaults; the constructor caches
-the runtime schema without mutating either caller-owned schema.
+changes. Use `inventory.CloneSchema` when deriving other runtime-only schema
+variants so nested metadata is detached as well as subschemas. The advertised
+schema can retain its defaults; the constructor caches the runtime schema
+without mutating either caller-owned schema.
 
 The output schema and `structuredContent` are exposed only for the exact
 protocol version `2026-07-28`. Older, absent, and unrecognized versions retain

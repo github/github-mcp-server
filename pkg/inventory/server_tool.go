@@ -431,6 +431,12 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
 				}
 				modernTool.InputSchema = inferred
+			} else if modernTool.InputSchema == nil {
+				inferred, err := cachedObjectInputSchema()
+				if err != nil {
+					panic(fmt.Sprintf("failed to prepare default input schema for tool %q: %v", tool.Name, err))
+				}
+				modernTool.InputSchema = inferred
 			}
 			if modernTool.OutputSchema == nil {
 				inferred, err := CachedSchemaFor[Out](schemaOptions.Output, schemaOptions.OutputEnums...)
@@ -535,7 +541,7 @@ func cloneJSONSchemaForOptions(options *jsonschema.ForOptions) *jsonschema.ForOp
 		optionsCopy.TypeSchemas = make(map[reflect.Type]*jsonschema.Schema, len(options.TypeSchemas))
 		for typ, schema := range options.TypeSchemas {
 			if schema != nil {
-				optionsCopy.TypeSchemas[typ] = schema.CloneSchemas()
+				optionsCopy.TypeSchemas[typ] = CloneSchema(schema)
 			} else {
 				optionsCopy.TypeSchemas[typ] = nil
 			}
