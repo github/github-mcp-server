@@ -23,7 +23,7 @@ import (
 type MinimizeCommentResult struct {
 	NodeID          string `json:"node_id"`
 	IsMinimized     bool   `json:"is_minimized"`
-	MinimizedReason string `json:"minimized_reason,omitempty"`
+	MinimizedReason string `json:"minimized_reason,omitempty" jsonschema:"GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden."`
 }
 
 // CommentVisibilityInput identifies the comment or review whose visibility changes.

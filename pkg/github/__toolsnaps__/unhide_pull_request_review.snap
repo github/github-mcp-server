@@ -44,6 +44,7 @@
         "type": "boolean"
       },
       "minimized_reason": {
+        "description": "GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden.",
         "type": "string"
       },
       "node_id": {
