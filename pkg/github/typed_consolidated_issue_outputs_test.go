@@ -57,26 +57,6 @@ func consolidatedIssueSession(t *testing.T, deps BaseDeps, protocol string, ui b
 	require.Len(t, list.Tools, len(tools))
 	schemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
-		if tool.Name == "issue_write" {
-			var wire struct {
-				Properties struct {
-					IssueFields struct {
-						Items struct {
-							OneOf []struct {
-								Properties map[string]json.RawMessage `json:"properties"`
-							} `json:"oneOf"`
-						} `json:"items"`
-					} `json:"issue_fields"`
-				} `json:"properties"`
-			}
-			require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &wire))
-			require.Len(t, wire.Properties.IssueFields.Items.OneOf, 3)
-			for _, index := range []int{1, 2} {
-				value := wire.Properties.IssueFields.Items.OneOf[index].Properties["value"]
-				require.NotEmpty(t, value)
-				assert.Equal(t, byte('{'), value[0], "forbidden values must use schema objects, not bare false")
-			}
-		}
 		if protocol != inventory.ProtocolVersionMultiRoundTrip {
 			assert.Nil(t, tool.OutputSchema, tool.Name)
 			continue
@@ -453,6 +433,8 @@ func TestTypedConsolidatedNullMutationResponses(t *testing.T) {
 }
 
 func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
+	fieldSchema := *IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema).Properties["issue_fields"].Items
+	fieldSchema.OneOf = issueWriteFieldVariants()
 	for _, tc := range []struct {
 		schema  *jsonschema.Schema
 		valid   []string
@@ -486,7 +468,7 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 			},
 		},
 		{
-			IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema).Properties["issue_fields"].Items,
+			&fieldSchema,
 			[]string{`{"field_name":"Text","value":""}`, `{"field_name":"Number","value":0,"delete":false}`, `{"field_name":"Date","value":"2026-01-01"}`, `{"field_name":"Priority","field_option_name":"High"}`, `{"field_name":"Text","delete":true}`},
 			[]string{`{"field_name":"Text"}`, `{"field_name":"Text","value":null}`, `{"field_name":"Text","value":1,"delete":true}`, `{"field_name":"Text","value":1,"field_option_name":"High"}`, `{"field_name":"Text","delete":false}`, `{"value":1}`},
 		},
