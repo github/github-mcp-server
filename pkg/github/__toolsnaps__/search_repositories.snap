@@ -157,10 +157,6 @@
             "name": {
               "type": "string"
             },
-            "node_id": {
-              "description": "GraphQL node ID",
-              "type": "string"
-            },
             "open_issues_count": {
               "type": "integer"
             },
@@ -234,7 +230,12 @@
               "type": "string"
             },
             "visibility": {
-              "description": "Repository visibility: public, private, or internal",
+              "description": "Repository visibility",
+              "enum": [
+                "public",
+                "private",
+                "internal"
+              ],
               "type": "string"
             },
             "watchers_count": {

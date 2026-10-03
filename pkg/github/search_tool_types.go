@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/go-github/v92/github"
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 type SearchAccountsInput struct {
@@ -32,9 +33,8 @@ type SearchRepositoriesOutput struct {
 
 type SearchRepository struct {
 	MinimalRepository
-	NodeID         string                       `json:"node_id,omitempty" jsonschema:"GraphQL node ID"`
 	Homepage       string                       `json:"homepage,omitempty" jsonschema:"Repository homepage URL"`
-	Visibility     string                       `json:"visibility,omitempty" jsonschema:"Repository visibility: public, private, or internal"`
+	Visibility     string                       `json:"visibility,omitempty" jsonschema:"Repository visibility"`
 	PushedAt       string                       `json:"pushed_at,omitempty" jsonschema:"Last push time as an ISO 8601 UTC timestamp"`
 	WatchersCount  *int                         `json:"watchers_count,omitempty" jsonschema:"Number of watchers"`
 	Size           *int                         `json:"size,omitempty" jsonschema:"Repository size in kilobytes"`
@@ -60,6 +60,17 @@ type SearchRepositoryPermissions struct {
 	Push     *bool `json:"push,omitempty"`
 	Triage   *bool `json:"triage,omitempty"`
 	Pull     *bool `json:"pull,omitempty"`
+}
+
+var searchRepositoryVisibilityEnum = []any{"public", "private", "internal"}
+
+func searchRepositoriesOutputSchema() *jsonschema.Schema {
+	schema, err := jsonschema.For[SearchRepositoriesOutput](nil)
+	if err != nil {
+		panic(err)
+	}
+	schema.Properties["items"].Items.Properties["visibility"].Enum = searchRepositoryVisibilityEnum
+	return schema
 }
 
 func minimalSearchRepository(repo *github.Repository) MinimalRepository {
@@ -93,7 +104,6 @@ func minimalSearchRepository(repo *github.Repository) MinimalRepository {
 func fullSearchRepository(repo *github.Repository) SearchRepository {
 	out := SearchRepository{
 		MinimalRepository: minimalSearchRepository(repo),
-		NodeID:            repo.GetNodeID(),
 		Homepage:          repo.GetHomepage(),
 		Visibility:        repo.GetVisibility(),
 		WatchersCount:     repo.WatchersCount,

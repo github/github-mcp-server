@@ -57,7 +57,8 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: searchRepositoriesOutputSchema(),
 		},
 		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchRepositoriesInput) (*mcp.CallToolResult, *SearchRepositoriesOutput, error) {

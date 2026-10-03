@@ -195,7 +195,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 					var full github.RepositoriesSearchResult
 					require.NoError(t, json.Unmarshal([]byte(body), &full))
 					checkStructured(map[string]any{"minimal_output": false}, mustMarshalJSON(t, full),
-						`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"<b>description</b>","html_url":"repo-url","stargazers_count":0,"forks_count":0,"open_issues_count":0,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"private":false,"fork":false,"archived":false,"node_id":"R_7","homepage":"https://example.com","visibility":"public","pushed_at":"2026-01-03T03:04:05Z","watchers_count":4,"size":0,"disabled":false,"has_issues":true,"license":{"key":"mit","name":"MIT License","spdx_id":"MIT"},"permissions":{"admin":false,"pull":true}}]}`)
+						`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"<b>description</b>","html_url":"repo-url","stargazers_count":0,"forks_count":0,"open_issues_count":0,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"private":false,"fork":false,"archived":false,"homepage":"https://example.com","visibility":"public","pushed_at":"2026-01-03T03:04:05Z","watchers_count":4,"size":0,"disabled":false,"has_issues":true,"license":{"key":"mit","name":"MIT License","spdx_id":"MIT"},"permissions":{"admin":false,"pull":true}}]}`)
 					check(map[string]any{"minimal_output": true}, fixture.text)
 				}
 				for _, emptyBody := range []string{`{"total_count":0,"incomplete_results":false,"items":[]}`, `{"items":null}`, `{}`} {
@@ -266,10 +266,10 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 }
 
 func TestSearchRepositoryOutputSchemaIsCompact(t *testing.T) {
-	schema, err := jsonschema.For[SearchRepositoriesOutput](nil)
-	require.NoError(t, err)
+	schema := searchRepositoriesOutputSchema()
+	assert.Equal(t, searchRepositoryVisibilityEnum, schema.Properties["items"].Items.Properties["visibility"].Enum)
 	encoded := mustMarshalJSON(t, schema)
-	for _, field := range []string{"custom_properties", "owner", "parent", "issues_url", "clone_url", "url\""} {
+	for _, field := range []string{"node_id", "custom_properties", "owner", "parent", "issues_url", "clone_url", "url\""} {
 		assert.NotContains(t, encoded, `"`+field, field)
 	}
 	assert.Contains(t, encoded, `"html_url"`)
