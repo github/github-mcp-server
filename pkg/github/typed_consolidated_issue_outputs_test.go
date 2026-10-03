@@ -468,6 +468,23 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 			[]string{`{}`, `{"method":"create","issue":{"id":"1"}}`, `{"status":"created","reason":"wait"}`, `{"status":"awaiting_user_submission"}`, `{"method":"create","issue":{"id":"1","url":"url"},"status":"awaiting_user_submission","reason":"wait"}`},
 		},
 		{
+			subIssueWriteOutputSchema(),
+			[]string{
+				`{"method":"add","issue":null}`,
+				`{"method":"remove","issue":{"assignees":[]}}`,
+				`{"method":"reprioritize","issue":{"state":"closed","state_reason":"duplicate","assignees":[]}}`,
+				`{"method":"add","issue":{"assignees":[],"field_values":[null,{"issue_field_id":1,"data_type":"date","value":"2026-01-01"}]}}`,
+			},
+			[]string{
+				`null`, `{}`, `{"method":"add"}`, `{"method":"get","issue":null}`,
+				`{"method":"add","issue":{"assignees":[],"state":"OPEN"}}`,
+				`{"method":"add","issue":{"assignees":[],"state_reason":"unknown"}}`,
+				`{"method":"add","issue":{"assignees":[],"url":"api"}}`,
+				`{"method":"add","issue":{"assignees":[],"field_values":[{"issue_field_id":1,"data_type":"unknown","value":1}]}}`,
+				`{"method":"add","issue":{"assignees":[],"field_values":[{"issue_field_id":1,"data_type":"number","value":{}}]}}`,
+			},
+		},
+		{
 			IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema).Properties["issue_fields"].Items,
 			[]string{`{"field_name":"Text","value":""}`, `{"field_name":"Number","value":0,"delete":false}`, `{"field_name":"Date","value":"2026-01-01"}`, `{"field_name":"Priority","field_option_name":"High"}`, `{"field_name":"Text","delete":true}`},
 			[]string{`{"field_name":"Text"}`, `{"field_name":"Text","value":null}`, `{"field_name":"Text","value":1,"delete":true}`, `{"field_name":"Text","value":1,"field_option_name":"High"}`, `{"field_name":"Text","delete":false}`, `{"value":1}`},
