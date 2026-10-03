@@ -47,6 +47,20 @@ func TestDiscussionReadRequiredArguments(t *testing.T) {
 			}
 			client := connectCommentVisibilityClient(t, server, protocol)
 			for _, name := range []string{"get_discussion", "get_discussion_comments"} {
+				// A wholly empty object must not be normalized into zero-valued
+				// owner/repo/discussionNumber keys that would satisfy the SDK's
+				// required-property validation and reach GraphQL.
+				before := calls
+				result, err := client.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: map[string]any{}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Nil(t, result.StructuredContent)
+				text := getTextResult(t, result).Text
+				assert.Contains(t, text, "owner")
+				assert.Contains(t, text, "repo")
+				assert.Contains(t, text, "discussionNumber")
+				assert.Equal(t, before, calls, "empty object must not reach GitHub")
+
 				for _, missing := range []string{"owner", "repo", "discussionNumber"} {
 					args := map[string]any{"owner": "owner", "repo": "repo", "discussionNumber": "1"}
 					delete(args, missing)
@@ -58,7 +72,7 @@ func TestDiscussionReadRequiredArguments(t *testing.T) {
 					assert.Contains(t, getTextResult(t, result).Text, missing)
 					assert.Equal(t, before, calls, "missing required property must not reach GitHub")
 				}
-				result, err := client.CallTool(context.Background(), &mcp.CallToolParams{
+				result, err = client.CallTool(context.Background(), &mcp.CallToolParams{
 					Name: name, Arguments: map[string]any{"OWNER": "", "REPO": "", "DISCUSSIONNUMBER": 0},
 				})
 				require.NoError(t, err)
@@ -100,11 +114,12 @@ func TestDiscussionNotificationEmptyAndNullOutputs(t *testing.T) {
 				result, err := client.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool.Tool.Name, Arguments: tc.args})
 				require.NoError(t, err)
 				require.False(t, result.IsError)
-				assert.Equal(t, tc.legacy, getTextResult(t, result).Text)
 				if protocol == "2025-11-25" {
+					assert.Equal(t, tc.legacy, getTextResult(t, result).Text)
 					assert.Nil(t, result.StructuredContent)
 				} else {
 					assert.JSONEq(t, tc.modern, mustMarshalJSON(t, result.StructuredContent))
+					assert.JSONEq(t, tc.modern, getTextResult(t, result).Text)
 					resolved, err := tc.tool.Tool.OutputSchema.(*jsonschema.Schema).Resolve(nil)
 					require.NoError(t, err)
 					var output any
@@ -142,6 +157,7 @@ func TestDiscussionStructuredSanitizationMatchesLegacy(t *testing.T) {
 	var legacy, modern map[string]any
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &legacy))
 	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &modern))
+	assert.Equal(t, legacy, modern, "modern JSON text and structured DTO must match")
 	assert.Equal(t, sanitize.PlainText(title), modern["title"])
 	assert.Equal(t, sanitize.Content(body), modern["body"])
 	assert.Equal(t, legacy["title"], modern["title"])
@@ -208,17 +224,16 @@ func TestDiscussionEmptyCollections(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.False(t, result.IsError, "%s", result)
-				var legacy map[string]any
-				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &legacy))
-				assert.Nil(t, legacy[tc.collection], "legacy nil collections retain JSON null")
+				var text map[string]any
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &text))
 				if protocol == "2025-11-25" {
+					assert.Nil(t, text[tc.collection], "legacy nil collections retain JSON null")
 					assert.Nil(t, result.StructuredContent)
 				} else {
 					var modern map[string]any
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &modern))
 					assert.Equal(t, []any{}, modern[tc.collection])
-					assert.Equal(t, legacy["pageInfo"], modern["pageInfo"])
-					assert.Equal(t, legacy["totalCount"], modern["totalCount"])
+					assert.Equal(t, text, modern, "modern empty collections use the same DTO in both representations")
 				}
 			}
 		})
