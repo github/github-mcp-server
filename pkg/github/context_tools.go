@@ -234,6 +234,9 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). Org team rosters are visible only
 			// to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
+			if organizations == nil {
+				organizations = []OrganizationTeams{}
+			}
 			return result, organizations, nil
 		},
 	)
@@ -302,6 +305,9 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). A team's member roster is visible
 			// only to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
+			if members == nil {
+				members = []string{}
+			}
 			return result, members, nil
 		},
 	)
