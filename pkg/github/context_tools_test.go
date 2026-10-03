@@ -372,24 +372,35 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	assert.Equal(t, 2, graphQLCalls, "schema validation must reject empty required strings before the handler")
 
 	for _, tc := range []struct {
-		name    string
-		args    map[string]any
-		text    string
-		matcher githubv4mock.Matcher
+		name       string
+		args       map[string]any
+		text       string
+		structured string
+		matcher    githubv4mock.Matcher
 	}{
-		{"get_teams", map[string]any{"user": "no-orgs"}, "null", emptyOrganizationsMatcher},
-		{"get_teams", map[string]any{"user": "no-teams"}, `[{"org":"testorg","teams":[]}]`, emptyTeamsMatcher},
-		{"get_team_members", map[string]any{"org": "testorg", "team_slug": "emptyteam"}, "null", emptyMembersMatcher},
+		{"get_teams", map[string]any{"user": "no-orgs"}, "null", "[]", emptyOrganizationsMatcher},
+		{"get_teams", map[string]any{"user": "no-teams"}, `[{"org":"testorg","teams":[]}]`, `[{"org":"testorg","teams":[]}]`, emptyTeamsMatcher},
+		{"get_team_members", map[string]any{"org": "testorg", "team_slug": "emptyteam"}, "null", "[]", emptyMembersMatcher},
 	} {
 		mockedGQLClient = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.matcher))
+		serverTool := getTeamsTool
+		if tc.name == "get_team_members" {
+			serverTool = teamMembersTool
+		}
+		request := createMCPRequest(tc.args)
+		legacyResult, err := serverTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, legacyResult.IsError)
+		assert.Equal(t, tc.text, getTextResult(t, legacyResult).Text)
 		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
 		require.NoError(t, err)
 		require.False(t, result.IsError)
+		require.NotNil(t, result.StructuredContent, "empty successful collections must have structured content on the wire")
 		require.Len(t, result.Content, 1, "SDK fallback must not duplicate the legacy text")
 		assert.Equal(t, tc.text, getTextResult(t, result).Text)
 		structuredJSON, err := json.Marshal(result.StructuredContent)
 		require.NoError(t, err)
-		assert.JSONEq(t, tc.text, string(structuredJSON))
+		assert.JSONEq(t, tc.structured, string(structuredJSON))
 		require.NoError(t, outputSchemas[tc.name].Validate(result.StructuredContent))
 	}
 
