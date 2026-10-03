@@ -56,16 +56,36 @@
     "oneOf": [
       {
         "properties": {
-          "comments": false,
-          "labels": false,
+          "comments": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get"
             ]
           },
-          "parent": false,
-          "sub_issues": false,
-          "totalCount": false
+          "parent": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "sub_issues": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "totalCount": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "issue"
@@ -73,16 +93,36 @@
       },
       {
         "properties": {
-          "issue": false,
-          "labels": false,
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get_comments"
             ]
           },
-          "parent": false,
-          "sub_issues": false,
-          "totalCount": false
+          "parent": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "sub_issues": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "totalCount": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "comments"
@@ -90,16 +130,36 @@
       },
       {
         "properties": {
-          "comments": false,
-          "issue": false,
-          "labels": false,
+          "comments": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get_sub_issues"
             ]
           },
-          "parent": false,
-          "totalCount": false
+          "parent": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "totalCount": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "sub_issues"
@@ -107,16 +167,36 @@
       },
       {
         "properties": {
-          "comments": false,
-          "issue": false,
-          "labels": false,
+          "comments": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get_parent"
             ]
           },
-          "sub_issues": false,
-          "totalCount": false
+          "sub_issues": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "totalCount": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "parent"
@@ -124,15 +204,31 @@
       },
       {
         "properties": {
-          "comments": false,
-          "issue": false,
+          "comments": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get_labels"
             ]
           },
-          "parent": false,
-          "sub_issues": false
+          "parent": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "sub_issues": {
+            "not": {
+              "description": "Any value."
+            }
+          }
         },
         "required": [
           "labels",

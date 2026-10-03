@@ -283,10 +283,10 @@ var issueWriteOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	schema.Properties["method"].Enum = []any{"create", "update"}
 	schema.OneOf = []*jsonschema.Schema{
 		{Required: []string{"method", "issue"}, Properties: map[string]*jsonschema.Schema{
-			"status": {Not: &jsonschema.Schema{}}, "reason": {Not: &jsonschema.Schema{}},
+			"status": forbiddenIssueVariantProperty(), "reason": forbiddenIssueVariantProperty(),
 		}},
 		{Required: []string{"status", "reason"}, Properties: map[string]*jsonschema.Schema{
-			"method": {Not: &jsonschema.Schema{}}, "issue": {Not: &jsonschema.Schema{}},
+			"method": forbiddenIssueVariantProperty(), "issue": forbiddenIssueVariantProperty(),
 		}},
 	}
 	return schema
@@ -313,16 +313,22 @@ func issueWriteFieldVariants() []*jsonschema.Schema {
 			Required: []string{"field_option_name"},
 			Properties: map[string]*jsonschema.Schema{
 				"field_option_name": {Type: "string", MinLength: new(1)},
-				"value":             {Not: &jsonschema.Schema{}}, "delete": {Type: "boolean", Enum: []any{false}},
+				"value":             forbiddenIssueVariantProperty(), "delete": {Type: "boolean", Enum: []any{false}},
 			},
 		},
 		{
 			Required: []string{"delete"},
 			Properties: map[string]*jsonschema.Schema{
-				"delete": {Type: "boolean", Enum: []any{true}}, "value": {Not: &jsonschema.Schema{}}, "field_option_name": {Type: "string", Enum: []any{""}},
+				"delete": {Type: "boolean", Enum: []any{true}}, "value": forbiddenIssueVariantProperty(), "field_option_name": {Type: "string", Enum: []any{""}},
 			},
 		},
 	}
+}
+
+func forbiddenIssueVariantProperty() *jsonschema.Schema {
+	// An annotation keeps jsonschema-go from simplifying the universal
+	// schema to a boolean, which schema-object-only clients cannot decode.
+	return &jsonschema.Schema{Not: &jsonschema.Schema{Description: "Any value."}}
 }
 
 type IssueLabelOutput struct {
@@ -410,13 +416,13 @@ var issueReadOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 		}}
 		for j, field := range fields {
 			if i != j {
-				variant.Properties[field] = &jsonschema.Schema{Not: &jsonschema.Schema{}}
+				variant.Properties[field] = forbiddenIssueVariantProperty()
 			}
 		}
 		if method == "get_labels" {
 			variant.Required = append(variant.Required, "totalCount")
 		} else {
-			variant.Properties["totalCount"] = &jsonschema.Schema{Not: &jsonschema.Schema{}}
+			variant.Properties["totalCount"] = forbiddenIssueVariantProperty()
 		}
 		schema.OneOf = append(schema.OneOf, variant)
 	}
