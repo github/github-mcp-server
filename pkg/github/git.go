@@ -80,7 +80,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *TreeResponse, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *RepositoryTreeOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -179,7 +179,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			// repos only collaborators can (trusted). Confidentiality follows
 			// repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
-			return result, &response, nil
+			return result, projectRepositoryTree(response), nil
 		},
 		gitGistNormalizer(validateTreeArguments),
 	)

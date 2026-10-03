@@ -19,630 +19,89 @@
   },
   "name": "get_gist",
   "outputSchema": {
-    "$defs": {
-      "team": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
         "additionalProperties": false,
         "properties": {
-          "access_source": {
-            "type": "string"
+          "comments": {
+            "type": "integer"
           },
-          "assignment": {
+          "created_at": {
+            "description": "Creation time in RFC3339 format.",
+            "format": "date-time",
             "type": "string"
           },
           "description": {
             "type": "string"
           },
+          "files": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "size": {
+                  "description": "File size in bytes.",
+                  "type": "integer"
+                },
+                "type": {
+                  "description": "File MIME type, when available.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
           "html_url": {
             "type": "string"
           },
           "id": {
-            "type": "integer"
-          },
-          "ldap_dn": {
             "type": "string"
           },
-          "members_count": {
-            "type": "integer"
-          },
-          "members_url": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "notification_setting": {
-            "type": "string"
-          },
-          "organization": {
+          "owner": {
             "additionalProperties": false,
             "properties": {
-              "advanced_security_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "archived_at": {
-                "format": "date-time",
-                "type": "string"
-              },
               "avatar_url": {
-                "type": "string"
-              },
-              "billing_email": {
-                "type": "string"
-              },
-              "blog": {
-                "type": "string"
-              },
-              "collaborators": {
-                "type": "integer"
-              },
-              "company": {
-                "type": "string"
-              },
-              "created_at": {
-                "format": "date-time",
-                "type": "string"
-              },
-              "default_repository_branch": {
-                "type": "string"
-              },
-              "default_repository_permission": {
-                "type": "string"
-              },
-              "default_repository_settings": {
-                "type": "string"
-              },
-              "dependabot_alerts_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "dependabot_security_updates_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "dependency_graph_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "deploy_keys_enabled_for_repositories": {
-                "type": "boolean"
-              },
-              "description": {
-                "type": "string"
-              },
-              "disk_usage": {
-                "type": "integer"
-              },
-              "display_commenter_full_name_setting_enabled": {
-                "type": "boolean"
-              },
-              "email": {
-                "type": "string"
-              },
-              "events_url": {
-                "type": "string"
-              },
-              "followers": {
-                "type": "integer"
-              },
-              "following": {
-                "type": "integer"
-              },
-              "has_organization_projects": {
-                "type": "boolean"
-              },
-              "has_repository_projects": {
-                "type": "boolean"
-              },
-              "hooks_url": {
-                "type": "string"
-              },
-              "html_url": {
                 "type": "string"
               },
               "id": {
                 "type": "integer"
               },
-              "is_verified": {
-                "type": "boolean"
-              },
-              "issues_url": {
-                "type": "string"
-              },
-              "location": {
-                "type": "string"
-              },
               "login": {
                 "type": "string"
               },
-              "members_allowed_repository_creation_type": {
+              "profile_url": {
                 "type": "string"
-              },
-              "members_can_change_repo_visibility": {
-                "type": "boolean"
-              },
-              "members_can_create_internal_repositories": {
-                "type": "boolean"
-              },
-              "members_can_create_pages": {
-                "type": "boolean"
-              },
-              "members_can_create_private_pages": {
-                "type": "boolean"
-              },
-              "members_can_create_private_repositories": {
-                "type": "boolean"
-              },
-              "members_can_create_public_pages": {
-                "type": "boolean"
-              },
-              "members_can_create_public_repositories": {
-                "type": "boolean"
-              },
-              "members_can_create_repositories": {
-                "type": "boolean"
-              },
-              "members_can_create_teams": {
-                "type": "boolean"
-              },
-              "members_can_delete_issues": {
-                "type": "boolean"
-              },
-              "members_can_delete_repositories": {
-                "type": "boolean"
-              },
-              "members_can_fork_private_repositories": {
-                "type": "boolean"
-              },
-              "members_can_invite_outside_collaborators": {
-                "type": "boolean"
-              },
-              "members_can_view_dependency_insights": {
-                "type": "boolean"
-              },
-              "members_url": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "node_id": {
-                "type": "string"
-              },
-              "owned_private_repos": {
-                "type": "integer"
-              },
-              "plan": {
-                "additionalProperties": false,
-                "properties": {
-                  "collaborators": {
-                    "type": "integer"
-                  },
-                  "filled_seats": {
-                    "type": "integer"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "private_repos": {
-                    "type": "integer"
-                  },
-                  "seats": {
-                    "type": "integer"
-                  },
-                  "space": {
-                    "type": "integer"
-                  }
-                },
-                "type": "object"
-              },
-              "private_gists": {
-                "type": "integer"
-              },
-              "public_gists": {
-                "type": "integer"
-              },
-              "public_members_url": {
-                "type": "string"
-              },
-              "public_repos": {
-                "type": "integer"
-              },
-              "readers_can_create_discussions": {
-                "type": "boolean"
-              },
-              "repos_url": {
-                "type": "string"
-              },
-              "secret_scanning_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "secret_scanning_push_protection_custom_link": {
-                "type": "string"
-              },
-              "secret_scanning_push_protection_custom_link_enabled": {
-                "type": "boolean"
-              },
-              "secret_scanning_push_protection_enabled_for_new_repositories": {
-                "type": "boolean"
-              },
-              "secret_scanning_validity_checks_enabled": {
-                "type": "boolean"
-              },
-              "total_private_repos": {
-                "type": "integer"
-              },
-              "twitter_username": {
-                "type": "string"
-              },
-              "two_factor_requirement_enabled": {
-                "type": "boolean"
-              },
-              "type": {
-                "type": "string"
-              },
-              "updated_at": {
-                "format": "date-time",
-                "type": "string"
-              },
-              "url": {
-                "type": "string"
-              },
-              "web_commit_signoff_required": {
-                "type": "boolean"
               }
             },
+            "required": [
+              "login"
+            ],
             "type": "object"
           },
-          "parent": {
-            "$ref": "#/$defs/team",
-            "type": "object"
-          },
-          "permission": {
-            "type": "string"
-          },
-          "permissions": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object"
-          },
-          "privacy": {
-            "type": "string"
-          },
-          "repos_count": {
-            "type": "integer"
-          },
-          "repositories_url": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "type": [
-          "object",
-          "null"
-        ]
-      }
-    },
-    "additionalProperties": false,
-    "properties": {
-      "comments": {
-        "type": "integer"
-      },
-      "created_at": {
-        "format": "date-time",
-        "type": "string"
-      },
-      "description": {
-        "type": "string"
-      },
-      "files": {
-        "additionalProperties": {
-          "additionalProperties": false,
-          "properties": {
-            "content": {
-              "type": "string"
-            },
-            "filename": {
-              "type": "string"
-            },
-            "language": {
-              "type": "string"
-            },
-            "raw_url": {
-              "type": "string"
-            },
-            "size": {
-              "type": "integer"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "type": "object"
-        },
-        "type": "object"
-      },
-      "git_pull_url": {
-        "type": "string"
-      },
-      "git_push_url": {
-        "type": "string"
-      },
-      "html_url": {
-        "type": "string"
-      },
-      "id": {
-        "type": "string"
-      },
-      "node_id": {
-        "type": "string"
-      },
-      "owner": {
-        "additionalProperties": false,
-        "properties": {
-          "assignment": {
-            "type": "string"
-          },
-          "avatar_url": {
-            "type": "string"
-          },
-          "bio": {
-            "type": "string"
-          },
-          "blog": {
-            "type": "string"
-          },
-          "business_plus": {
+          "public": {
+            "description": "True for a public gist; false for a secret, URL-accessible gist.",
             "type": "boolean"
-          },
-          "collaborators": {
-            "type": "integer"
-          },
-          "company": {
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "disk_usage": {
-            "type": "integer"
-          },
-          "email": {
-            "type": "string"
-          },
-          "events_url": {
-            "type": "string"
-          },
-          "followers": {
-            "type": "integer"
-          },
-          "followers_url": {
-            "type": "string"
-          },
-          "following": {
-            "type": "integer"
-          },
-          "following_url": {
-            "type": "string"
-          },
-          "gists_url": {
-            "type": "string"
-          },
-          "gravatar_id": {
-            "type": "string"
-          },
-          "hireable": {
-            "type": "boolean"
-          },
-          "html_url": {
-            "type": "string"
-          },
-          "id": {
-            "type": "integer"
-          },
-          "inherited": {
-            "type": "boolean"
-          },
-          "inherited_from": {
-            "items": {
-              "$ref": "#/$defs/team",
-              "type": [
-                "null",
-                "object"
-              ]
-            },
-            "type": "array"
-          },
-          "ldap_dn": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string"
-          },
-          "login": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "notification_email": {
-            "type": "string"
-          },
-          "organizations_url": {
-            "type": "string"
-          },
-          "owned_private_repos": {
-            "type": "integer"
-          },
-          "permissions": {
-            "additionalProperties": false,
-            "properties": {
-              "admin": {
-                "type": "boolean"
-              },
-              "maintain": {
-                "type": "boolean"
-              },
-              "pull": {
-                "type": "boolean"
-              },
-              "push": {
-                "type": "boolean"
-              },
-              "triage": {
-                "type": "boolean"
-              }
-            },
-            "type": "object"
-          },
-          "plan": {
-            "additionalProperties": false,
-            "properties": {
-              "collaborators": {
-                "type": "integer"
-              },
-              "filled_seats": {
-                "type": "integer"
-              },
-              "name": {
-                "type": "string"
-              },
-              "private_repos": {
-                "type": "integer"
-              },
-              "seats": {
-                "type": "integer"
-              },
-              "space": {
-                "type": "integer"
-              }
-            },
-            "type": "object"
-          },
-          "private_gists": {
-            "type": "integer"
-          },
-          "public_gists": {
-            "type": "integer"
-          },
-          "public_repos": {
-            "type": "integer"
-          },
-          "received_events_url": {
-            "type": "string"
-          },
-          "repos_url": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "role_name": {
-            "type": "string"
-          },
-          "site_admin": {
-            "type": "boolean"
-          },
-          "starred_url": {
-            "type": "string"
-          },
-          "subscriptions_url": {
-            "type": "string"
-          },
-          "suspended_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "text_matches": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "fragment": {
-                  "type": "string"
-                },
-                "matches": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "indices": {
-                        "items": {
-                          "type": "integer"
-                        },
-                        "type": "array"
-                      },
-                      "text": {
-                        "type": "string"
-                      }
-                    },
-                    "type": [
-                      "null",
-                      "object"
-                    ]
-                  },
-                  "type": "array"
-                },
-                "object_type": {
-                  "type": "string"
-                },
-                "object_url": {
-                  "type": "string"
-                },
-                "property": {
-                  "type": "string"
-                }
-              },
-              "type": [
-                "null",
-                "object"
-              ]
-            },
-            "type": "array"
-          },
-          "total_private_repos": {
-            "type": "integer"
-          },
-          "twitter_username": {
-            "type": "string"
-          },
-          "two_factor_authentication": {
-            "type": "boolean"
-          },
-          "type": {
-            "type": "string"
           },
           "updated_at": {
+            "description": "Last update time in RFC3339 format.",
             "format": "date-time",
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "user_view_type": {
             "type": "string"
           }
         },
         "type": "object"
-      },
-      "public": {
-        "type": "boolean"
-      },
-      "updated_at": {
-        "format": "date-time",
-        "type": "string"
       }
-    },
-    "type": "object"
+    ]
   }
 }

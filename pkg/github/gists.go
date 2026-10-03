@@ -20,7 +20,20 @@ import (
 
 // ListGists creates a tool to list gists for a user
 func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	inputSchema := WithPagination(&jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"username": {
+				Type:        "string",
+				Description: "GitHub username (omit for authenticated user's gists)",
+			},
+			"since": {
+				Type:        "string",
+				Description: "Only gists updated after this time (ISO 8601 timestamp)",
+			},
+		},
+	})
+	return NewToolWithSchemaOptions(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:         "list_gists",
@@ -30,22 +43,11 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_LIST_GISTS", "List Gists"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"username": {
-						Type:        "string",
-						Description: "GitHub username (omit for authenticated user's gists)",
-					},
-					"since": {
-						Type:        "string",
-						Description: "Only gists updated after this time (ISO 8601 timestamp)",
-					},
-				},
-			}),
+			InputSchema: inputSchema,
 		},
 		scopes.NoScopes(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*github.Gist, error) {
+		inventory.TypedSchemaOptions{ValidationInputSchema: relaxedPaginationValidationSchema(inputSchema)},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*GistOutput, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -103,7 +105,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGistList())
-			return result, gists, nil
+			return result, projectGists(gists), nil
 		},
 		gitGistNormalizer(validateListGistsArguments),
 	)
@@ -133,7 +135,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.NoScopes(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *github.Gist, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *GistReadOutput, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -165,7 +167,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGist())
-			return result, gist, nil
+			return result, &GistReadOutput{Gist: projectGist(gist)}, nil
 		},
 		gitGistNormalizer(validateGetGistArguments),
 	)
