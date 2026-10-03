@@ -133,7 +133,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 	}
 	WithPagination(schema)
 
-	return NewTool[ListCodeScanningAlertsInput, []*CodeScanningAlertOutput](
+	return NewToolWithSchemaOptions[ListCodeScanningAlertsInput, []*CodeScanningAlertOutput](
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
@@ -145,6 +145,9 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: inventory.CloneSchemaWithoutDefaults(schema),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListCodeScanningAlertsInput) (*mcp.CallToolResult, []*CodeScanningAlertOutput, error) {
 			if args.Owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
