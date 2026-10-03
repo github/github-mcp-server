@@ -133,6 +133,74 @@ func TestTypedSchemasAreCachedAcrossFreshRegistrations(t *testing.T) {
 	}
 }
 
+func TestCachedExplicitSchemaWarmPathsPreserveOwnership(t *testing.T) {
+	original := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {Type: "string", Description: "original owner"},
+		},
+	}
+	cached, err := CachedSchema(original)
+	require.NoError(t, err)
+	require.NotSame(t, original, cached)
+	original.Properties["owner"].Description = "changed owner"
+	assert.Equal(t, "original owner", cached.Properties["owner"].Description)
+	changed, err := CachedSchema(original)
+	require.NoError(t, err)
+	assert.NotSame(t, cached, changed, "caller-owned pointers must retain content-based lookup")
+
+	tool := mcp.Tool{InputSchema: cached}
+	AnnotateHeaderParams(&tool)
+	annotated := tool.InputSchema.(*jsonschema.Schema)
+	assert.NotSame(t, cached, annotated)
+	assert.Empty(t, cached.Properties["owner"].Extra, "header preparation must not mutate the advertised schema")
+	assert.Equal(t, "owner", annotated.Properties["owner"].Extra["x-mcp-header"])
+
+	var cacheErr error
+	allocations := testing.AllocsPerRun(10, func() {
+		warm := mcp.Tool{InputSchema: cached}
+		AnnotateHeaderParams(&warm)
+		var prepared *jsonschema.Schema
+		prepared, cacheErr = CachedSchema(warm.InputSchema.(*jsonschema.Schema))
+		if prepared != annotated {
+			panic("warm registration changed the cached schema pointer")
+		}
+	})
+	require.NoError(t, cacheErr)
+	assert.Zero(t, allocations, "cache-owned warm schemas must avoid canonical serialization and annotation cloning")
+}
+
+func TestRawExplicitSchemasReuseAnnotatedPointersAcrossRegistrations(t *testing.T) {
+	original := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {Type: "string"},
+		},
+	}
+	tool := NewServerTool(
+		mcp.Tool{Name: "cached_raw_tool", InputSchema: original},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		},
+	)
+	var first *jsonschema.Schema
+	for range 2 {
+		toolCopy := tool.Tool
+		AnnotateHeaderParams(&toolCopy)
+		registration := tool.typedRegistration(&toolCopy)
+		schema := registration.modernRuntimeTool.InputSchema.(*jsonschema.Schema)
+		if first == nil {
+			first = schema
+		} else {
+			assert.Same(t, first, schema)
+		}
+	}
+	assert.Empty(t, original.Properties["owner"].Extra)
+	assert.Empty(t, tool.Tool.InputSchema.(*jsonschema.Schema).Properties["owner"].Extra,
+		"constructor caching must not change the public definition's schema metadata")
+}
+
 func TestTypedToolInputSchemasPreserveObjectOptionality(t *testing.T) {
 	type optionalPointerInput struct {
 		Owner  string  `json:"owner"`
@@ -535,6 +603,87 @@ func TestTypedSchemaEnumsAndPreflightRunBeforeSDKValidation(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "validating tool output")
 	assert.Equal(t, 2, handlerCalls, "the SDK must reject output enum violations before returning structured success")
+}
+
+func TestTypedPreflightRunsAfterAvailabilityAndAuthorization(t *testing.T) {
+	for _, blockedBy := range []string{"availability", "authorization"} {
+		t.Run(blockedBy, func(t *testing.T) {
+			preflightCalls := 0
+			handlerCalls := 0
+			tool := NewServerToolWithContextHandlerAndSchemaOptions(
+				mcp.Tool{Name: "guarded_preflight"},
+				testToolsetMetadata("test"),
+				func(context.Context, *mcp.CallToolRequest, typedTestInput) (*mcp.CallToolResult, typedTestOutput, error) {
+					handlerCalls++
+					return nil, typedTestOutput{}, nil
+				},
+				TypedSchemaOptions{
+					Preflight: func(ctx context.Context, _ *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+						preflightCalls++
+						return ctx, &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "preflight ran"}}}, nil
+					},
+				},
+			)
+			var middleware []ToolHandlerMiddleware
+			if blockedBy == "availability" {
+				tool.MinimumProtocolVersion = "2027-01-01"
+			} else {
+				middleware = append(middleware, func(_ mcp.ToolHandler) mcp.ToolHandler {
+					return func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+						return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "unauthorized"}}}, nil
+					}
+				})
+			}
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+			tool.RegisterFunc(server, nil, middleware...)
+			session := connectTypedTestClient(t, server, "")
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name})
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Zero(t, preflightCalls)
+			assert.Zero(t, handlerCalls)
+			assert.NotContains(t, mustMarshalJSON(t, result), "preflight ran")
+			if blockedBy == "authorization" {
+				assert.Equal(t, "unauthorized", result.Content[0].(*mcp.TextContent).Text)
+			}
+		})
+	}
+}
+
+func TestTypedPreflightErrorsPreserveToolAndProtocolErrorSemantics(t *testing.T) {
+	for _, protocolError := range []bool{false, true} {
+		t.Run(fmt.Sprintf("protocol=%t", protocolError), func(t *testing.T) {
+			tool := NewServerToolWithContextHandlerAndSchemaOptions(
+				mcp.Tool{Name: "preflight_error"},
+				testToolsetMetadata("test"),
+				func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, typedTestOutput, error) {
+					t.Fatal("preflight must short-circuit the handler")
+					return nil, typedTestOutput{}, nil
+				},
+				TypedSchemaOptions{
+					Preflight: func(ctx context.Context, _ *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+						if protocolError {
+							return ctx, nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "protocol rejected"}
+						}
+						return ctx, nil, errors.New("preflight failed")
+					},
+				},
+			)
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+			tool.RegisterFunc(server, nil)
+			session := connectTypedTestClient(t, server, "")
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name})
+			if protocolError {
+				require.ErrorContains(t, err, "protocol rejected")
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, result.Content[0].(*mcp.TextContent).Text, "preflight failed")
+				assert.Nil(t, result.StructuredContent)
+			}
+		})
+	}
 }
 
 func TestTypedInputNormalizerPreservesStrictSchemaAndLegacyValues(t *testing.T) {
