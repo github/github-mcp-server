@@ -142,6 +142,10 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	st.register(s, deps, middleware...)
+}
+
+func (st *ServerTool) register(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) *mcp.Tool {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
 	for _, m := range slices.Backward(middleware) {
 		handler = m(handler)
@@ -158,6 +162,7 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
+	return &toolCopy
 }
 
 // HeaderParams maps owner/repo input properties to the MCP-Param-* headers a

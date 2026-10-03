@@ -243,9 +243,15 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	schemas := make(map[string]listedToolSchemas, len(tools))
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		registered := tool.register(s, deps, middleware...)
+		schemas[registered.Name] = listedToolSchemas{
+			source:     tool.Tool.InputSchema,
+			registered: registered,
+		}
 	}
+	s.AddReceivingMiddleware(encodedToolSchemasMiddleware(schemas))
 }
 
 // RegisterResourceTemplates registers all available resource templates with the server.
