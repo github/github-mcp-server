@@ -126,7 +126,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 	}
 	WithCursorPagination(schema)
 
-	return NewTool[ListDependabotAlertsInput, DependabotAlertsOutput](
+	return NewToolWithSchemaOptions[ListDependabotAlertsInput, DependabotAlertsOutput](
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "list_dependabot_alerts",
@@ -138,6 +138,9 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: inventory.CloneSchemaWithoutDefaults(schema),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListDependabotAlertsInput) (*mcp.CallToolResult, DependabotAlertsOutput, error) {
 			if args.Owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), DependabotAlertsOutput{}, nil
