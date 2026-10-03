@@ -373,6 +373,23 @@ type MinimalWorkflowRunsResult struct {
 	WorkflowRuns []MinimalWorkflowRun `json:"workflow_runs"`
 }
 
+// MinimalFailedWorkflowJob identifies a job that did not succeed in a watched workflow run.
+type MinimalFailedWorkflowJob struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Conclusion string `json:"conclusion,omitempty"`
+	HTMLURL    string `json:"html_url,omitempty"`
+}
+
+// MinimalWorkflowRunWatchResult is the output type for the watch_workflow_run method.
+type MinimalWorkflowRunWatchResult struct {
+	WorkflowRun   MinimalWorkflowRun         `json:"workflow_run"`
+	Completed     bool                       `json:"completed"`
+	WaitedSeconds int                        `json:"waited_seconds"`
+	FailedJobs    []MinimalFailedWorkflowJob `json:"failed_jobs,omitempty"`
+	NextStep      string                     `json:"next_step,omitempty"`
+}
+
 // MinimalWorkflowJobStep is the trimmed output type for workflow job steps.
 type MinimalWorkflowJobStep struct {
 	Name        string `json:"name"`
