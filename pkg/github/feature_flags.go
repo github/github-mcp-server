@@ -35,6 +35,11 @@ const FeatureFlagIssueDependencies = "issue_dependencies"
 // opt-in.
 const FeatureFlagDuplicateDetection = "duplicate_detection"
 
+// FeatureFlagIssueEvents is the feature flag name for the issue event history
+// methods on issue_read (get_events, get_timeline, get_event) and their event_id
+// parameter. It is gated to keep them out of the default issue_read schema.
+const FeatureFlagIssueEvents = "issue_events"
+
 // FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
 const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 
@@ -52,6 +57,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagDuplicateDetection,
+	FeatureFlagIssueEvents,
 	FeatureFlagThreadResolutionReason,
 }
 

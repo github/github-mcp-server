@@ -679,6 +679,89 @@ type MinimalIssueComment struct {
 	UpdatedAt         string            `json:"updated_at,omitempty"`
 }
 
+// MinimalIssueEvent is the trimmed output type for issue event objects to reduce verbosity.
+// Fields after Issue are set only for the event types that carry them, such as Label for labeled.
+type MinimalIssueEvent struct {
+	ID        int64        `json:"id"`
+	Event     string       `json:"event"`
+	Actor     *MinimalUser `json:"actor,omitempty"`
+	CreatedAt string       `json:"created_at,omitempty"`
+
+	// Issue is set only by get_event. Its Repository is usually empty because the REST payload
+	// sends repository_url instead of a repository object.
+	Issue *MinimalIssueRef `json:"issue,omitempty"`
+
+	CommitID          string `json:"commit_id,omitempty"`
+	Label             string `json:"label,omitempty"`
+	Assignee          string `json:"assignee,omitempty"`
+	Assigner          string `json:"assigner,omitempty"`
+	Milestone         string `json:"milestone,omitempty"`
+	LockReason        string `json:"lock_reason,omitempty"`
+	RenamedFrom       string `json:"renamed_from,omitempty"`
+	RenamedTo         string `json:"renamed_to,omitempty"`
+	RequestedReviewer string `json:"requested_reviewer,omitempty"`
+	RequestedTeam     string `json:"requested_team,omitempty"`
+	ReviewRequester   string `json:"review_requester,omitempty"`
+
+	DismissedReview *MinimalDismissedReview `json:"dismissed_review,omitempty"`
+}
+
+// MinimalDismissedReview identifies the review dismissed by a review_dismissed event.
+type MinimalDismissedReview struct {
+	State             string `json:"state,omitempty"`
+	ReviewID          int64  `json:"review_id,omitempty"`
+	DismissalMessage  string `json:"dismissal_message,omitempty"`
+	DismissalCommitID string `json:"dismissal_commit_id,omitempty"`
+}
+
+// MinimalTimelineItem is the trimmed output type for issue timeline entries. Commit parents
+// are dropped.
+type MinimalTimelineItem struct {
+	ID        int64        `json:"id,omitempty"`
+	Event     string       `json:"event"`
+	Actor     *MinimalUser `json:"actor,omitempty"`
+	User      *MinimalUser `json:"user,omitempty"`
+	CreatedAt string       `json:"created_at,omitempty"`
+
+	// Body carries the comment or review summary text; Message carries a commit message.
+	Body        string `json:"body,omitempty"`
+	Message     string `json:"message,omitempty"`
+	State       string `json:"state,omitempty"`
+	SubmittedAt string `json:"submitted_at,omitempty"`
+
+	CommitID string `json:"commit_id,omitempty"`
+	SHA      string `json:"sha,omitempty"`
+
+	// Author and Committer are set on committed entries, which have no actor or user. They hold
+	// the commit's name and email instead of GitHub logins, so lockdown drops committed entries.
+	Author    *MinimalCommitAuthor `json:"author,omitempty"`
+	Committer *MinimalCommitAuthor `json:"committer,omitempty"`
+
+	// CommitRepository is the owner/repo holding CommitID/SHA, parsed from commit_url.
+	// Referenced and force-push entries often point at a commit in another repo, such as a fork.
+	CommitRepository string `json:"commit_repository,omitempty"`
+
+	Label             string `json:"label,omitempty"`
+	Assignee          string `json:"assignee,omitempty"`
+	Assigner          string `json:"assigner,omitempty"`
+	Milestone         string `json:"milestone,omitempty"`
+	RenamedFrom       string `json:"renamed_from,omitempty"`
+	RenamedTo         string `json:"renamed_to,omitempty"`
+	RequestedReviewer string `json:"requested_reviewer,omitempty"`
+	RequestedTeam     string `json:"requested_team,omitempty"`
+	ReviewRequester   string `json:"review_requester,omitempty"`
+
+	// Source is populated for cross-referenced entries and identifies the referring issue.
+	Source *MinimalTimelineSource `json:"source,omitempty"`
+}
+
+// MinimalTimelineSource is the compact reference for a cross-referenced timeline entry.
+type MinimalTimelineSource struct {
+	Type  string           `json:"type,omitempty"`
+	Actor *MinimalUser     `json:"actor,omitempty"`
+	Issue *MinimalIssueRef `json:"issue,omitempty"`
+}
+
 // MinimalSearchCommitsResult is the trimmed output type for commit search results.
 type MinimalSearchCommitsResult struct {
 	TotalCount        int                       `json:"total_count"`
@@ -1039,6 +1122,177 @@ func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComm
 			Hooray:     r.GetHooray(),
 			Rocket:     r.GetRocket(),
 			Eyes:       r.GetEyes(),
+		}
+	}
+
+	return m
+}
+
+// repoFullNameFromCommitURL pulls the owner/repo out of a commit API URL of the form
+// .../repos/{owner}/{repo}/commits/{sha}, returning "" when the URL is absent or unparseable.
+func repoFullNameFromCommitURL(commitURL string) string {
+	_, after, ok := strings.Cut(commitURL, "/repos/")
+	if !ok {
+		return ""
+	}
+	owner, rest, ok := strings.Cut(after, "/")
+	if !ok || owner == "" {
+		return ""
+	}
+	repo, _, ok := strings.Cut(rest, "/")
+	if !ok || repo == "" {
+		return ""
+	}
+	return owner + "/" + repo
+}
+
+// convertToMinimalIssueEvent trims a REST issue event.
+func convertToMinimalIssueEvent(event *github.IssueEvent) MinimalIssueEvent {
+	if event == nil {
+		return MinimalIssueEvent{}
+	}
+
+	m := MinimalIssueEvent{
+		ID:         event.GetID(),
+		Event:      event.GetEvent(),
+		Actor:      convertToMinimalUser(event.GetActor()),
+		CommitID:   event.GetCommitID(),
+		LockReason: event.GetLockReason(),
+	}
+
+	if event.CreatedAt != nil {
+		m.CreatedAt = event.CreatedAt.Format(time.RFC3339)
+	}
+	if label := event.GetLabel(); label != nil {
+		m.Label = label.GetName()
+	}
+	if assignee := event.GetAssignee(); assignee != nil {
+		m.Assignee = assignee.GetLogin()
+	}
+	if assigner := event.GetAssigner(); assigner != nil {
+		m.Assigner = assigner.GetLogin()
+	}
+	if milestone := event.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+	if rename := event.GetRename(); rename != nil {
+		m.RenamedFrom = sanitize.PlainText(rename.GetFrom())
+		m.RenamedTo = sanitize.PlainText(rename.GetTo())
+	}
+	if issue := event.GetIssue(); issue != nil {
+		ref := newMinimalIssueRef(
+			issue.GetNumber(),
+			issue.GetTitle(),
+			issue.GetState(),
+			issue.GetHTMLURL(),
+			issue.GetRepository().GetFullName(),
+		)
+		m.Issue = &ref
+	}
+	if reviewer := event.GetRequestedReviewer(); reviewer != nil {
+		m.RequestedReviewer = reviewer.GetLogin()
+	}
+	if team := event.GetRequestedTeam(); team != nil {
+		m.RequestedTeam = team.GetName()
+	}
+	if requester := event.GetReviewRequester(); requester != nil {
+		m.ReviewRequester = requester.GetLogin()
+	}
+	if dismissed := event.GetDismissedReview(); dismissed != nil {
+		m.DismissedReview = &MinimalDismissedReview{
+			State:             dismissed.GetState(),
+			ReviewID:          dismissed.GetReviewID(),
+			DismissalMessage:  sanitize.Content(dismissed.GetDismissalMessage()),
+			DismissalCommitID: dismissed.GetDismissalCommitID(),
+		}
+	}
+
+	return m
+}
+
+// convertToMinimalTimelineItem trims a REST timeline entry.
+func convertToMinimalTimelineItem(item *github.Timeline) MinimalTimelineItem {
+	if item == nil {
+		return MinimalTimelineItem{}
+	}
+
+	m := MinimalTimelineItem{
+		ID:       item.GetID(),
+		Event:    item.GetEvent(),
+		Actor:    convertToMinimalUser(item.GetActor()),
+		User:     convertToMinimalUser(item.GetUser()),
+		Body:     sanitize.Content(item.GetBody()),
+		Message:  sanitize.Content(item.GetMessage()),
+		State:    item.GetState(),
+		CommitID: item.GetCommitID(),
+		SHA:      item.GetSHA(),
+
+		CommitRepository: repoFullNameFromCommitURL(item.GetCommitURL()),
+	}
+
+	if item.CreatedAt != nil {
+		m.CreatedAt = item.CreatedAt.Format(time.RFC3339)
+	}
+	if item.SubmittedAt != nil {
+		m.SubmittedAt = item.SubmittedAt.Format(time.RFC3339)
+	}
+	if label := item.GetLabel(); label != nil {
+		m.Label = label.GetName()
+	}
+	if assignee := item.GetAssignee(); assignee != nil {
+		m.Assignee = assignee.GetLogin()
+	}
+	if assigner := item.GetAssigner(); assigner != nil {
+		m.Assigner = assigner.GetLogin()
+	}
+	if milestone := item.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+	if rename := item.GetRename(); rename != nil {
+		m.RenamedFrom = sanitize.PlainText(rename.GetFrom())
+		m.RenamedTo = sanitize.PlainText(rename.GetTo())
+	}
+	if reviewer := item.GetReviewer(); reviewer != nil {
+		m.RequestedReviewer = reviewer.GetLogin()
+	}
+	if team := item.GetRequestedTeam(); team != nil {
+		m.RequestedTeam = team.GetName()
+	}
+	if requester := item.GetRequester(); requester != nil {
+		m.ReviewRequester = requester.GetLogin()
+	}
+	if author := item.Author; author != nil {
+		m.Author = &MinimalCommitAuthor{
+			Name:  author.GetName(),
+			Email: author.GetEmail(),
+		}
+		if author.Date != nil {
+			m.Author.Date = author.Date.Format(time.RFC3339)
+		}
+	}
+	if committer := item.Committer; committer != nil {
+		m.Committer = &MinimalCommitAuthor{
+			Name:  committer.GetName(),
+			Email: committer.GetEmail(),
+		}
+		if committer.Date != nil {
+			m.Committer.Date = committer.Date.Format(time.RFC3339)
+		}
+	}
+	if source := item.GetSource(); source != nil {
+		m.Source = &MinimalTimelineSource{
+			Type:  source.GetType(),
+			Actor: convertToMinimalUser(source.GetActor()),
+		}
+		if issue := source.GetIssue(); issue != nil {
+			ref := newMinimalIssueRef(
+				issue.GetNumber(),
+				issue.GetTitle(),
+				issue.GetState(),
+				issue.GetHTMLURL(),
+				issue.GetRepository().GetFullName(),
+			)
+			m.Source.Issue = &ref
 		}
 	}
 
