@@ -174,7 +174,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	mockUser := &github.User{
 		Login:     new("testuser"),
 		HTMLURL:   new("https://github.com/testuser"),
-		CreatedAt: &github.Timestamp{Time: time.Now()},
+		CreatedAt: &github.Timestamp{Time: time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)},
 	}
 	teamsMatcher := githubv4mock.NewQueryMatcher(
 		"query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}",
@@ -207,6 +207,29 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 					},
 				},
 			},
+		}),
+	)
+	emptyOrganizationsMatcher := githubv4mock.NewQueryMatcher(
+		"query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}",
+		map[string]any{"login": "no-orgs"},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{"organizations": map[string]any{"nodes": []any{}}},
+		}),
+	)
+	emptyTeamsMatcher := githubv4mock.NewQueryMatcher(
+		"query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}",
+		map[string]any{"login": "no-teams"},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{"organizations": map[string]any{"nodes": []any{
+				map[string]any{"login": "testorg", "teams": map[string]any{"nodes": []any{}}},
+			}}},
+		}),
+	)
+	emptyMembersMatcher := githubv4mock.NewQueryMatcher(
+		"query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}",
+		map[string]any{"org": "testorg", "teamSlug": "emptyteam"},
+		githubv4mock.DataResponse(map[string]any{
+			"organization": map[string]any{"team": map[string]any{"members": map[string]any{"nodes": []any{}}}},
 		}),
 	)
 	mockedGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(teamsMatcher, membersMatcher))
@@ -251,9 +274,16 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	list, err := clientSession.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, list.Tools, 3)
+	outputSchemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
 		assert.NotNil(t, tool.InputSchema)
 		assert.NotNil(t, tool.OutputSchema)
+		outputJSON, err := json.Marshal(tool.OutputSchema)
+		require.NoError(t, err)
+		var outputSchema jsonschema.Schema
+		require.NoError(t, json.Unmarshal(outputJSON, &outputSchema))
+		outputSchemas[tool.Name], err = outputSchema.Resolve(nil)
+		require.NoError(t, err)
 		schemaJSON, err := json.Marshal(tool.InputSchema)
 		require.NoError(t, err)
 		var schema struct {
@@ -296,6 +326,8 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	legacyText, err := json.Marshal(returnedUser)
 	require.NoError(t, err)
 	assert.Equal(t, string(legacyText), getTextResult(t, result).Text)
+	assert.Equal(t, `{"login":"testuser","profile_url":"https://github.com/testuser","details":{"public_repos":0,"public_gists":0,"followers":0,"following":0,"created_at":"2020-01-02T03:04:05Z","updated_at":"0001-01-01T00:00:00Z"}}`, getTextResult(t, result).Text)
+	require.NoError(t, outputSchemas["get_me"].Validate(result.StructuredContent))
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_teams",
@@ -307,6 +339,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, string(structuredJSON))
 	assert.Equal(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, getTextResult(t, result).Text)
+	require.NoError(t, outputSchemas["get_teams"].Validate(result.StructuredContent))
 	assert.Equal(t, 1, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
@@ -319,6 +352,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `["user1","user2"]`, string(structuredJSON))
 	assert.Equal(t, `["user1","user2"]`, getTextResult(t, result).Text)
+	require.NoError(t, outputSchemas["get_team_members"].Validate(result.StructuredContent))
 	assert.Equal(t, 2, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
@@ -336,6 +370,28 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.IsError, "empty required strings should remain invalid")
 	assert.Equal(t, 2, graphQLCalls, "schema validation must reject empty required strings before the handler")
+
+	for _, tc := range []struct {
+		name    string
+		args    map[string]any
+		text    string
+		matcher githubv4mock.Matcher
+	}{
+		{"get_teams", map[string]any{"user": "no-orgs"}, "null", emptyOrganizationsMatcher},
+		{"get_teams", map[string]any{"user": "no-teams"}, `[{"org":"testorg","teams":[]}]`, emptyTeamsMatcher},
+		{"get_team_members", map[string]any{"org": "testorg", "team_slug": "emptyteam"}, "null", emptyMembersMatcher},
+	} {
+		mockedGQLClient = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.matcher))
+		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.Len(t, result.Content, 1, "SDK fallback must not duplicate the legacy text")
+		assert.Equal(t, tc.text, getTextResult(t, result).Text)
+		structuredJSON, err := json.Marshal(result.StructuredContent)
+		require.NoError(t, err)
+		assert.JSONEq(t, tc.text, string(structuredJSON))
+		require.NoError(t, outputSchemas[tc.name].Validate(result.StructuredContent))
+	}
 
 	failGetMe = true
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
