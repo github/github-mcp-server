@@ -2811,7 +2811,6 @@ Options are:
 								},
 							},
 							Required: []string{"field_name"},
-							OneOf:    issueWriteFieldVariants(),
 						},
 					},
 				},
