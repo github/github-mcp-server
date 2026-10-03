@@ -146,7 +146,7 @@ func featureBenchmarkDistributions() []featureBenchmarkDistribution {
 		{
 			name: "mixed",
 			enabled: map[string]bool{
-				MCPAppsFeatureFlag:           true,
+				FeatureFlagCSVOutput:         true,
 				FeatureFlagFileBlame:         true,
 				FeatureFlagIssuesGranular:    true,
 				FeatureFlagIssueDependencies: true,

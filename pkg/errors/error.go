@@ -11,7 +11,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -165,8 +165,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
 
-	var rateLimitErr *github.RateLimitError
-	if stderrors.As(err, &rateLimitErr) {
+	if rateLimitErr, ok := stderrors.AsType[*github.RateLimitError](err); ok {
 		resetTime := rateLimitErr.Rate.Reset.Time
 		if !resetTime.IsZero() {
 			retryIn := time.Until(resetTime).Round(time.Second)
@@ -179,8 +178,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub API rate limit exceeded. Wait before retrying.", message))
 	}
 
-	var abuseErr *github.AbuseRateLimitError
-	if stderrors.As(err, &abuseErr) {
+	if abuseErr, ok := stderrors.AsType[*github.AbuseRateLimitError](err); ok {
 		if abuseErr.RetryAfter != nil {
 			retryAfter := abuseErr.RetryAfter.Round(time.Second)
 			if retryAfter > 0 {

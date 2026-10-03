@@ -26,8 +26,27 @@ Thanks for contributing and for helping us build toolsets that are truly valuabl
 
 These are one time installations required to be able to test your changes locally as part of the pull request (PR) submission process.
 
-1. Install Go [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
-2. [Install golangci-lint v2](https://golangci-lint.run/welcome/install/#local-installation)
+1. Install Go 1.26.8 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
+2. [Install golangci-lint v2.14.0](https://golangci-lint.run/welcome/install/#local-installation), or let `script/lint` install the repository-pinned version. The pinned version supports both Go 1.26 and Go 1.27.
+
+### UI development
+
+Use Node.js 26.x for the UI in `ui/`. This matches the Docker UI build stage
+and `@types/node`; GitHub Actions reads the Node version from `ui/package.json`.
+Node 26 is a supported Current release, with LTS scheduled for October 2026.
+
+From `ui/`, run `npm ci`, `npm run typecheck`, and `npm run build`.
+Type checking uses the native TypeScript 7 compiler through `tsc`; Vite handles
+transpilation and bundling separately. No TypeScript compiler API integration,
+typescript-eslint, or ts-node is required.
+
+### MCP Apps UI
+
+The `ui/` views use React 19 and Primer React 38. With Node.js 20.19+ or 22.12+, run `cd ui && npm ci && npm run typecheck && npm run build && npm audit` before `script/test`. The build writes self-contained HTML to `pkg/github/ui_dist/`, which the Go server embeds; these generated files are not committed.
+
+Primer 38 no longer exports `Box` or accepts `sx`/styled-system props. Use semantic HTML, native `style` props for dynamic/layout styles, and CSS Modules for nested selectors. `AppProvider` loads Primer's primitive tokens and light/dark themes, so use CSS variables rather than JavaScript theme values. Custom element typings must augment `react/jsx-runtime` rather than the global `JSX` namespace.
+
+For UI dependency upgrades, compare all four views (`get-me`, `issue-write`, `pr-write`, and `pr-edit`) in light/dark themes and at narrow widths in an MCP Apps host, including menus, Markdown editing/preview, and completed-result views. Include before/after screenshots in the pull request.
 
 ## Submitting a pull request
 

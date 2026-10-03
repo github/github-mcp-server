@@ -12,7 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -972,4 +972,24 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 	)
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
+}
+
+// GranularHidePullRequestReviewComment hides (minimizes) an inline pull request review comment.
+func GranularHidePullRequestReviewComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, pullRequestReviewCommentVisibilityTarget, true)
+}
+
+// GranularUnhidePullRequestReviewComment unhides (unminimizes) an inline pull request review comment.
+func GranularUnhidePullRequestReviewComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, pullRequestReviewCommentVisibilityTarget, false)
+}
+
+// GranularHidePullRequestReview hides (minimizes) the body of a pull request review.
+func GranularHidePullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, pullRequestReviewVisibilityTarget, true)
+}
+
+// GranularUnhidePullRequestReview unhides (unminimizes) the body of a pull request review.
+func GranularUnhidePullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, pullRequestReviewVisibilityTarget, false)
 }
