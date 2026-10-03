@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"strings"
@@ -513,7 +514,7 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 	require.Error(t, json.Unmarshal([]byte(`[]`), &value))
 }
 
-func TestSubIssueOutputPreservesCompleteAPIResponse(t *testing.T) {
+func TestSubIssueOutputProjectsCompleteAPIResponse(t *testing.T) {
 	// Every exported API field is populated, including false/zero pointers,
 	// nullable collection elements and all custom-field scalar variants.
 	var issue github.SubIssue
@@ -560,6 +561,38 @@ func TestSubIssueOutputPreservesCompleteAPIResponse(t *testing.T) {
 	var value any
 	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, out)), &value))
 	require.NoError(t, resolved.Validate(value))
+}
+
+func TestTypedIssueCommentsCompactUsersAndLockdown(t *testing.T) {
+	const comment = `{"id":42,"body":"hello\u202e","html_url":"comment","url":"api-comment","node_id":"IC_42","user":{"login":"author","id":7,"html_url":"profile","avatar_url":"avatar"}}`
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
+		for _, lockdown := range []bool{false, true} {
+			t.Run(fmt.Sprintf("protocol=%s/lockdown=%t", protocol, lockdown), func(t *testing.T) {
+				client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte(`[` + comment + `,{"id":43,"body":"restricted","html_url":"unsafe","user":{"login":"unsafe"}}]`))
+				})}}
+				deps := BaseDeps{
+					Client: mustNewGHClient(t, client), GQLClient: githubv4.NewClient(client),
+					RepoAccessCache: stubRepoAccessCache(mockRESTPermissionServer(t, "read", map[string]string{"author": "write"}), time.Minute),
+					Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": lockdown}),
+				}
+				session, schemas := consolidatedIssueSession(t, deps, protocol, false)
+				text := `[{"id":42,"body":"hello","html_url":"comment","user":{"login":"author","id":7,"profile_url":"profile","avatar_url":"avatar"}}`
+				projected := `{"method":"get_comments","comments":[{"id":42,"body":"hello","html_url":"comment","user":{"login":"author","id":7}}`
+				if !lockdown {
+					unsafe := `,{"id":43,"body":"restricted","html_url":"unsafe","user":{"login":"unsafe"}}`
+					text += unsafe
+					projected += unsafe
+				}
+				result := assertConsolidatedResult(t, session, schemas, "issue_read", map[string]any{
+					"method": "get_comments", "owner": "owner", "repo": "repo", "issue_number": 1,
+				}, text+`]`)
+				if protocol == inventory.ProtocolVersionMultiRoundTrip {
+					assert.JSONEq(t, projected+`]}`, mustMarshalJSON(t, result.StructuredContent))
+				}
+			})
+		}
+	}
 }
 
 func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
