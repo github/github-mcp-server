@@ -1,7 +1,9 @@
 package github
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -49,6 +51,17 @@ func contextToolValidationSchema(schema *jsonschema.Schema) *jsonschema.Schema {
 	validationSchema := schema.CloneSchemas()
 	validationSchema.AdditionalProperties = &jsonschema.Schema{}
 	return validationSchema
+}
+
+func normalizeGetTeamsInput(arguments json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &fields); err != nil {
+		return nil, err
+	}
+	if user, exists := fields["user"]; exists && bytes.Equal(bytes.TrimSpace(user), []byte("null")) {
+		return nil, &inventory.ToolInputError{Message: "parameter user is not of type string, is <nil>"}
+	}
+	return arguments, nil
 }
 
 // UserDetails contains additional fields about a GitHub user not already
@@ -253,6 +266,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, organizations, nil
 		},
+		normalizeGetTeamsInput,
 	)
 }
 

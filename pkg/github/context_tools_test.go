@@ -678,6 +678,17 @@ func Test_GetTeams(t *testing.T) {
 			expectedTeamsCount: 2,
 		},
 		{
+			name: "empty user uses authenticated user",
+			makeDeps: func() ToolDependencies {
+				return BaseDeps{
+					Client:    mustNewGHClient(t, httpClientWithUser()),
+					GQLClient: gqlClientForTestuser(),
+				}
+			},
+			requestArgs:        map[string]any{"user": ""},
+			expectedTeamsCount: 2,
+		},
+		{
 			name: "no teams found",
 			makeDeps: func() ToolDependencies {
 				return BaseDeps{
@@ -900,6 +911,54 @@ func Test_GetTeamMembers(t *testing.T) {
 					assert.Equal(t, "user2", members[1])
 				}
 			}
+		})
+	}
+}
+
+func Test_GetTeams_NullUserForDirectHandler(t *testing.T) {
+	t.Parallel()
+
+	clientCalls := 0
+	gqlClientCalls := 0
+	deps := stubDeps{
+		clientFn: func(context.Context) (*github.Client, error) {
+			clientCalls++
+			return nil, nil
+		},
+		gqlClientFn: func(context.Context) (*githubv4.Client, error) {
+			gqlClientCalls++
+			return nil, nil
+		},
+		obsv: stubExporters(),
+	}
+	serverTool := GetTeams(translations.NullTranslationHelper)
+	request := createMCPRequest(map[string]any{"user": nil})
+	result, err := serverTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Equal(t, "parameter user is not of type string, is <nil>", getErrorResult(t, result).Text)
+	assert.Nil(t, result.StructuredContent)
+	assert.Zero(t, clientCalls)
+	assert.Zero(t, gqlClientCalls)
+}
+
+func TestNormalizeGetTeamsInput(t *testing.T) {
+	t.Parallel()
+
+	for _, arguments := range []string{`{}`, `{"user":""}`, `{"user":"octocat"}`, `{"legacy_ignored_argument":true}`} {
+		t.Run(arguments, func(t *testing.T) {
+			normalized, err := normalizeGetTeamsInput(json.RawMessage(arguments))
+			require.NoError(t, err)
+			assert.Equal(t, arguments, string(normalized))
+		})
+	}
+	for _, arguments := range []string{`{"user":null}`, `{"user": null }`} {
+		t.Run(arguments, func(t *testing.T) {
+			_, err := normalizeGetTeamsInput(json.RawMessage(arguments))
+			var inputError *inventory.ToolInputError
+			require.ErrorAs(t, err, &inputError)
+			assert.Equal(t, "parameter user is not of type string, is <nil>", inputError.Message)
 		})
 	}
 }
