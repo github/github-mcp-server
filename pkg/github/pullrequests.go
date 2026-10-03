@@ -1343,7 +1343,7 @@ type ListPullRequestOutput struct {
 	Number             *int             `json:"number,omitempty"`
 	Title              *string          `json:"title,omitempty"`
 	Body               *string          `json:"body,omitempty"`
-	State              *string          `json:"state,omitempty"`
+	State              *string          `json:"state,omitempty" jsonschema:"Pull request state: open or closed."`
 	Draft              *bool            `json:"draft,omitempty"`
 	Merged             *bool            `json:"merged,omitempty"`
 	MergeableState     *string          `json:"mergeable_state,omitempty"`
@@ -1355,15 +1355,15 @@ type ListPullRequestOutput struct {
 	MergedBy           *string          `json:"merged_by,omitempty"`
 	Head               *MinimalPRBranch `json:"head,omitempty"`
 	Base               *MinimalPRBranch `json:"base,omitempty"`
-	Additions          *int             `json:"additions,omitempty"`
-	Deletions          *int             `json:"deletions,omitempty"`
-	ChangedFiles       *int             `json:"changed_files,omitempty"`
-	Commits            *int             `json:"commits,omitempty"`
-	Comments           *int             `json:"comments,omitempty"`
-	CreatedAt          *string          `json:"created_at,omitempty"`
-	UpdatedAt          *string          `json:"updated_at,omitempty"`
-	ClosedAt           *string          `json:"closed_at,omitempty"`
-	MergedAt           *string          `json:"merged_at,omitempty"`
+	Additions          *int             `json:"additions,omitempty" jsonschema:"Number of lines added."`
+	Deletions          *int             `json:"deletions,omitempty" jsonschema:"Number of lines removed."`
+	ChangedFiles       *int             `json:"changed_files,omitempty" jsonschema:"Number of files changed."`
+	Commits            *int             `json:"commits,omitempty" jsonschema:"Number of commits in the pull request."`
+	Comments           *int             `json:"comments,omitempty" jsonschema:"Number of comments on the pull request."`
+	CreatedAt          *string          `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt          *string          `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
+	ClosedAt           *string          `json:"closed_at,omitempty" jsonschema:"Closing time in RFC 3339 format."`
+	MergedAt           *string          `json:"merged_at,omitempty" jsonschema:"Merge time in RFC 3339 format."`
 	Milestone          *string          `json:"milestone,omitempty"`
 }
 

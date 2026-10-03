@@ -203,17 +203,30 @@ type SearchCodeInput struct {
 }
 
 type SearchCodeOutput struct {
-	TotalCount        int                    `json:"total_count"`
-	IncompleteResults bool                   `json:"incomplete_results"`
+	TotalCount        int                    `json:"total_count" jsonschema:"Total number of matching code results."`
+	IncompleteResults bool                   `json:"incomplete_results" jsonschema:"Whether GitHub returned an incomplete result set."`
 	Items             []SearchCodeOutputItem `json:"items"`
 }
 
 type SearchCodeOutputItem struct {
-	Name        *string             `json:"name,omitempty"`
-	Path        *string             `json:"path,omitempty"`
-	SHA         *string             `json:"sha,omitempty"`
-	Repository  *string             `json:"repository,omitempty"`
-	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
+	Name        *string                `json:"name,omitempty"`
+	Path        *string                `json:"path,omitempty"`
+	SHA         *string                `json:"sha,omitempty"`
+	Repository  *string                `json:"repository,omitempty"`
+	TextMatches []*SearchCodeTextMatch `json:"text_matches,omitempty" jsonschema:"Matching code fragments returned by GitHub."`
+}
+
+type SearchCodeTextMatch struct {
+	ObjectURL  *string                   `json:"object_url,omitempty" jsonschema:"API URL of the matched file or object."`
+	ObjectType *string                   `json:"object_type,omitempty" jsonschema:"GitHub object type containing the match."`
+	Property   *string                   `json:"property,omitempty" jsonschema:"Property containing the matched text."`
+	Fragment   *string                   `json:"fragment,omitempty" jsonschema:"Source fragment containing the match."`
+	Matches    []*SearchCodeTextMatchHit `json:"matches,omitempty" jsonschema:"Matched text and its offsets in the fragment."`
+}
+
+type SearchCodeTextMatchHit struct {
+	Text    *string `json:"text,omitempty" jsonschema:"Matched text."`
+	Indices []int   `json:"indices,omitempty" jsonschema:"Start and end offsets of the match in the fragment."`
 }
 
 func structuredSearchCodeOutput(result MinimalCodeSearchResult, fields []string) SearchCodeOutput {
@@ -240,7 +253,33 @@ func structuredSearchCodeOutput(result MinimalCodeSearchResult, fields []string)
 			projected.Repository = new(item.Repository)
 		}
 		if selected("text_matches") && item.TextMatches != nil {
-			projected.TextMatches = item.TextMatches
+			projected.TextMatches = make([]*SearchCodeTextMatch, 0, len(item.TextMatches))
+			for _, match := range item.TextMatches {
+				if match == nil {
+					projected.TextMatches = append(projected.TextMatches, nil)
+					continue
+				}
+				projectedMatch := &SearchCodeTextMatch{
+					ObjectURL:  match.ObjectURL,
+					ObjectType: match.ObjectType,
+					Property:   match.Property,
+					Fragment:   match.Fragment,
+				}
+				if match.Matches != nil {
+					projectedMatch.Matches = make([]*SearchCodeTextMatchHit, 0, len(match.Matches))
+					for _, hit := range match.Matches {
+						if hit == nil {
+							projectedMatch.Matches = append(projectedMatch.Matches, nil)
+							continue
+						}
+						projectedMatch.Matches = append(projectedMatch.Matches, &SearchCodeTextMatchHit{
+							Text:    hit.Text,
+							Indices: hit.Indices,
+						})
+					}
+				}
+				projected.TextMatches = append(projected.TextMatches, projectedMatch)
+			}
 		}
 		output.Items = append(output.Items, projected)
 	}

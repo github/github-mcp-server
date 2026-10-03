@@ -2146,8 +2146,8 @@ type SearchIssuesResponse struct {
 }
 
 type SearchIssuesOutput struct {
-	Total             *int                    `json:"total_count,omitempty"`
-	IncompleteResults *bool                   `json:"incomplete_results,omitempty"`
+	Total             *int                    `json:"total_count,omitempty" jsonschema:"Total number of matching issues or pull requests."`
+	IncompleteResults *bool                   `json:"incomplete_results,omitempty" jsonschema:"Whether GitHub returned an incomplete result set."`
 	Items             []SearchIssueOutputItem `json:"items"`
 }
 
@@ -2155,7 +2155,7 @@ type SearchIssueOutputItem struct {
 	Number            *int                    `json:"number,omitempty"`
 	Title             *string                 `json:"title,omitempty"`
 	Body              *string                 `json:"body,omitempty"`
-	State             *string                 `json:"state,omitempty"`
+	State             *string                 `json:"state,omitempty" jsonschema:"Issue state, typically open or closed."`
 	StateReason       *string                 `json:"state_reason,omitempty"`
 	Draft             *bool                   `json:"draft,omitempty"`
 	Locked            *bool                   `json:"locked,omitempty"`
@@ -2166,16 +2166,16 @@ type SearchIssueOutputItem struct {
 	Assignee          *string                 `json:"assignee,omitempty"`
 	Assignees         []string                `json:"assignees,omitempty"`
 	Milestone         *string                 `json:"milestone,omitempty"`
-	Comments          *int                    `json:"comments,omitempty"`
+	Comments          *int                    `json:"comments,omitempty" jsonschema:"Number of comments on the issue."`
 	Reactions         *MinimalReactions       `json:"reactions,omitempty"`
-	CreatedAt         *string                 `json:"created_at,omitempty"`
-	UpdatedAt         *string                 `json:"updated_at,omitempty"`
-	ClosedAt          *string                 `json:"closed_at,omitempty"`
+	CreatedAt         *string                 `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt         *string                 `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
+	ClosedAt          *string                 `json:"closed_at,omitempty" jsonschema:"Closing time in RFC 3339 format."`
 	ClosedBy          *string                 `json:"closed_by,omitempty"`
 	Type              *string                 `json:"type,omitempty"`
 	RepositoryURL     *string                 `json:"repository_url,omitempty"`
 	PullRequest       *SearchIssuePullRequest `json:"pull_request,omitempty"`
-	FieldValues       []MinimalFieldValue     `json:"field_values,omitempty"`
+	FieldValues       *[]MinimalFieldValue    `json:"field_values,omitempty"`
 }
 
 type SearchIssuePullRequest struct {
@@ -2284,7 +2284,7 @@ func searchIssueOutputItem(result SearchIssueResult, fields []string) SearchIssu
 		}
 	}
 	if selected("field_values") && result.FieldValues != nil {
-		output.FieldValues = result.FieldValues
+		output.FieldValues = &result.FieldValues
 	}
 	return output
 }
@@ -3582,29 +3582,41 @@ type IssueFieldFilterInput struct {
 
 type ListIssuesOutput struct {
 	Issues     []ListIssueOutput `json:"issues"`
-	TotalCount int               `json:"totalCount"`
-	PageInfo   MinimalPageInfo   `json:"pageInfo"`
+	TotalCount int               `json:"totalCount" jsonschema:"Total number of issues matching the filters."`
+	PageInfo   ListIssuePageInfo `json:"pageInfo"`
 }
 
 type ListIssueOutput struct {
 	Number      *int                 `json:"number,omitempty"`
 	Title       *string              `json:"title,omitempty"`
 	Body        *string              `json:"body,omitempty"`
-	State       *string              `json:"state,omitempty"`
+	State       *string              `json:"state,omitempty" jsonschema:"Issue state: OPEN or CLOSED."`
 	User        *MinimalUser         `json:"user,omitempty"`
 	Labels      *[]string            `json:"labels,omitempty"`
 	Assignees   *[]string            `json:"assignees,omitempty"`
-	Comments    *int                 `json:"comments,omitempty"`
-	CreatedAt   *string              `json:"created_at,omitempty"`
-	UpdatedAt   *string              `json:"updated_at,omitempty"`
+	Comments    *int                 `json:"comments,omitempty" jsonschema:"Number of comments on the issue."`
+	CreatedAt   *string              `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt   *string              `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
 	FieldValues *[]MinimalFieldValue `json:"field_values,omitempty"`
+}
+
+type ListIssuePageInfo struct {
+	HasNextPage     bool   `json:"hasNextPage" jsonschema:"Whether another page of results is available."`
+	HasPreviousPage bool   `json:"hasPreviousPage" jsonschema:"Whether a previous page of results is available."`
+	StartCursor     string `json:"startCursor,omitempty" jsonschema:"Cursor for the first issue in this page."`
+	EndCursor       string `json:"endCursor,omitempty" jsonschema:"Cursor for the last issue in this page."`
 }
 
 func structuredListIssuesOutput(response MinimalIssuesResponse, fields []string) ListIssuesOutput {
 	output := ListIssuesOutput{
 		Issues:     make([]ListIssueOutput, 0, len(response.Issues)),
 		TotalCount: response.TotalCount,
-		PageInfo:   response.PageInfo,
+		PageInfo: ListIssuePageInfo{
+			HasNextPage:     response.PageInfo.HasNextPage,
+			HasPreviousPage: response.PageInfo.HasPreviousPage,
+			StartCursor:     response.PageInfo.StartCursor,
+			EndCursor:       response.PageInfo.EndCursor,
+		},
 	}
 	selected := func(field string) bool {
 		return len(fields) == 0 || slices.Contains(fields, field)
