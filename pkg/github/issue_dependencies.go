@@ -100,7 +100,7 @@ Options are:
 				result, err := GetIssueBlocking(ctx, client, owner, repo, issueNumber, opts)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: get_blocked_by, get_blocking", method)), nil, nil
 			}
 		})
 	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
@@ -293,7 +293,7 @@ Options are:
 			method = strings.ToLower(method)
 			relationshipType = strings.ToLower(relationshipType)
 			if method != "add" && method != "remove" {
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: add, remove", method)), nil, nil
 			}
 			if relationshipType != "blocked_by" && relationshipType != "blocking" {
 				return utils.NewToolResultError(fmt.Sprintf("unknown type: %s", relationshipType)), nil, nil
@@ -374,7 +374,7 @@ func writeIssueDependency(ctx context.Context, client *github.Client, method str
 		}
 		return dependencyWriteResult("dependency removed", blockedIssue, blockingIssue, blocked, blocking), nil
 	default:
-		return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
+		return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: add, remove", method)), nil
 	}
 }
 
