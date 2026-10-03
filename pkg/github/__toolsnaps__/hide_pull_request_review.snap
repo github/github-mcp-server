@@ -50,5 +50,24 @@
     ],
     "type": "object"
   },
-  "name": "hide_pull_request_review"
+  "name": "hide_pull_request_review",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
 }

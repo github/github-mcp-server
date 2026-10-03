@@ -30,5 +30,24 @@
     ],
     "type": "object"
   },
-  "name": "unhide_issue_comment"
+  "name": "unhide_issue_comment",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
 }
