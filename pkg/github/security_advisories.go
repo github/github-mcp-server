@@ -19,7 +19,7 @@ import (
 )
 
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[ListGlobalSecurityAdvisoriesInput, []*GlobalSecurityAdvisoryOutput](
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_global_security_advisories",
@@ -86,103 +86,48 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListGlobalSecurityAdvisoriesInput) (*mcp.CallToolResult, []*GlobalSecurityAdvisoryOutput, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			ghsaID, err := OptionalParam[string](args, "ghsaId")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
-			}
-
-			typ, err := OptionalParam[string](args, "type")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid type: %v", err)), nil, nil
-			}
-
-			cveID, err := OptionalParam[string](args, "cveId")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid cveId: %v", err)), nil, nil
-			}
-
-			eco, err := OptionalParam[string](args, "ecosystem")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
-			}
-
-			sev, err := OptionalParam[string](args, "severity")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
-			}
-
-			cwes, err := OptionalStringArrayParam(args, "cwes")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid cwes: %v", err)), nil, nil
-			}
-
-			isWithdrawn, err := OptionalParam[bool](args, "isWithdrawn")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid isWithdrawn: %v", err)), nil, nil
-			}
-
-			affects, err := OptionalParam[string](args, "affects")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid affects: %v", err)), nil, nil
-			}
-
-			published, err := OptionalParam[string](args, "published")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid published: %v", err)), nil, nil
-			}
-
-			updated, err := OptionalParam[string](args, "updated")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid updated: %v", err)), nil, nil
-			}
-
-			modified, err := OptionalParam[string](args, "modified")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
-			}
-
 			opts := &github.ListGlobalSecurityAdvisoriesOptions{}
 
-			if ghsaID != "" {
-				opts.GHSAID = &ghsaID
+			if args.GHSAID != "" {
+				opts.GHSAID = &args.GHSAID
 			}
-			if typ != "" {
-				opts.Type = &typ
+			if args.Type != "" {
+				opts.Type = &args.Type
 			}
-			if cveID != "" {
-				opts.CVEID = &cveID
+			if args.CVEID != "" {
+				opts.CVEID = &args.CVEID
 			}
-			if eco != "" {
-				opts.Ecosystem = &eco
+			if args.Ecosystem != "" {
+				opts.Ecosystem = &args.Ecosystem
 			}
-			if sev != "" {
-				opts.Severity = &sev
+			if args.Severity != "" {
+				opts.Severity = &args.Severity
 			}
-			if len(cwes) > 0 {
-				opts.CWEs = cwes
-			}
-
-			if isWithdrawn {
-				opts.IsWithdrawn = &isWithdrawn
+			if len(args.CWEs) > 0 {
+				opts.CWEs = args.CWEs
 			}
 
-			if affects != "" {
-				opts.Affects = &affects
+			if args.IsWithdrawn {
+				opts.IsWithdrawn = &args.IsWithdrawn
 			}
-			if published != "" {
-				opts.Published = &published
+
+			if args.Affects != "" {
+				opts.Affects = &args.Affects
 			}
-			if updated != "" {
-				opts.Updated = &updated
+			if args.Published != "" {
+				opts.Published = &args.Published
 			}
-			if modified != "" {
-				opts.Modified = &modified
+			if args.Updated != "" {
+				opts.Updated = &args.Updated
+			}
+			if args.Modified != "" {
+				opts.Modified = &args.Modified
 			}
 
 			advisories, resp, err := client.SecurityAdvisories.ListGlobalSecurityAdvisories(ctx, opts)
@@ -209,13 +154,13 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			// Database (public) but contain externally authored prose
 			// (untrusted).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
-			return result, nil, nil
+			return result, mapSecurityOutputs(advisories, globalSecurityAdvisoryOutput), nil
 		},
 	)
 }
 
 func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[ListRepositorySecurityAdvisoriesInput, []*SecurityAdvisoryOutput](
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_repository_security_advisories",
@@ -255,27 +200,12 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListRepositorySecurityAdvisoriesInput) (*mcp.CallToolResult, []*SecurityAdvisoryOutput, error) {
+			if args.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sortField, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if args.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -284,17 +214,17 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			}
 
 			opts := &github.ListRepositorySecurityAdvisoriesOptions{}
-			if direction != "" {
-				opts.Direction = direction
+			if args.Direction != "" {
+				opts.Direction = args.Direction
 			}
-			if sortField != "" {
-				opts.Sort = sortField
+			if args.Sort != "" {
+				opts.Sort = args.Sort
 			}
-			if state != "" {
-				opts.State = state
+			if args.State != "" {
+				opts.State = args.State
 			}
 
-			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisories(ctx, owner, repo, opts)
+			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisories(ctx, args.Owner, args.Repo, opts)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to list repository security advisories: %w", err)
 			}
@@ -319,17 +249,17 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			// advisories are not world-readable even on a public repo, so the
 			// result is only public when every returned advisory is published.
 			allPublished := allAdvisoriesPublished(advisories)
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, args.Owner, args.Repo, result,
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRepositorySecurityAdvisory(isPrivate, allPublished)
 				})
-			return result, nil, nil
+			return result, mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
 		},
 	)
 }
 
 func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetGlobalSecurityAdvisoryInput, *GlobalSecurityAdvisoryOutput](
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "get_global_security_advisory",
@@ -350,18 +280,17 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetGlobalSecurityAdvisoryInput) (*mcp.CallToolResult, *GlobalSecurityAdvisoryOutput, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			ghsaID, err := RequiredParam[string](args, "ghsaId")
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
+			if args.GHSAID == "" {
+				return utils.NewToolResultError("invalid ghsaId: missing required parameter: ghsaId"), nil, nil
 			}
 
-			advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, ghsaID)
+			advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, args.GHSAID)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get advisory: %w", err)
 			}
@@ -384,13 +313,13 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 			// A global advisory is world-readable (public) but externally
 			// authored (untrusted).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
-			return result, nil, nil
+			return result, globalSecurityAdvisoryOutput(advisory), nil
 		},
 	)
 }
 
 func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[ListOrgRepositorySecurityAdvisoriesInput, []*SecurityAdvisoryOutput](
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_org_repository_security_advisories",
@@ -426,22 +355,9 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			org, err := RequiredParam[string](args, "org")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sortField, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListOrgRepositorySecurityAdvisoriesInput) (*mcp.CallToolResult, []*SecurityAdvisoryOutput, error) {
+			if args.Org == "" {
+				return utils.NewToolResultError("missing required parameter: org"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -450,17 +366,17 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			}
 
 			opts := &github.ListRepositorySecurityAdvisoriesOptions{}
-			if direction != "" {
-				opts.Direction = direction
+			if args.Direction != "" {
+				opts.Direction = args.Direction
 			}
-			if sortField != "" {
-				opts.Sort = sortField
+			if args.Sort != "" {
+				opts.Sort = args.Sort
 			}
-			if state != "" {
-				opts.State = state
+			if args.State != "" {
+				opts.State = args.State
 			}
 
-			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisoriesForOrg(ctx, org, opts)
+			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisoriesForOrg(ctx, args.Org, opts)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to list organization repository security advisories: %w", err)
 			}
@@ -485,7 +401,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			// they are conservatively labeled private-untrusted (isPrivate=true,
 			// which forces private regardless of publication state).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepositorySecurityAdvisory(true, false))
-			return result, nil, nil
+			return result, mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
 		},
 	)
 }
