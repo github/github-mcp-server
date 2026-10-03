@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/profiler"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
@@ -38,6 +39,7 @@ const (
 	actionsMethodGetWorkflowJob           = "get_workflow_job"
 	actionsMethodGetWorkflowRunUsage      = "get_workflow_run_usage"
 	actionsMethodGetWorkflowRunLogsURL    = "get_workflow_run_logs_url"
+	actionsMethodWatchWorkflowRun         = "watch_workflow_run"
 	actionsMethodDownloadWorkflowArtifact = "download_workflow_run_artifact"
 	actionsMethodRunWorkflow              = "run_workflow"
 	actionsMethodRerunWorkflowRun         = "rerun_workflow_run"
@@ -45,6 +47,31 @@ const (
 	actionsMethodCancelWorkflowRun        = "cancel_workflow_run"
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
+
+const (
+	defaultWatchTimeoutSeconds = 45
+	maxWatchTimeoutSeconds     = 600
+)
+
+// WatchConfig configures how often watch_workflow_run polls a workflow run.
+type WatchConfig struct {
+	PollInterval time.Duration
+}
+
+type watchConfigKey struct{}
+
+// ContextWithWatchConfig returns a context with workflow run watch configuration.
+// Use this in tests to poll without waiting.
+func ContextWithWatchConfig(ctx context.Context, config WatchConfig) context.Context {
+	return context.WithValue(ctx, watchConfigKey{}, config)
+}
+
+func getWatchConfig(ctx context.Context) WatchConfig {
+	if config, ok := ctx.Value(watchConfigKey{}).(WatchConfig); ok {
+		return config
+	}
+	return WatchConfig{PollInterval: 10 * time.Second}
+}
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
@@ -412,6 +439,7 @@ func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name: "actions_get",
 			Description: t("TOOL_ACTIONS_GET_DESCRIPTION", `Get details about specific GitHub Actions resources.
 Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.
+Use the 'watch_workflow_run' method to wait for a workflow run to finish instead of polling 'get_workflow_run' repeatedly.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ACTIONS_GET_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
@@ -430,6 +458,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 							actionsMethodDownloadWorkflowArtifact,
 							actionsMethodGetWorkflowRunUsage,
 							actionsMethodGetWorkflowRunLogsURL,
+							actionsMethodWatchWorkflowRun,
 						},
 					},
 					"owner": {
@@ -444,17 +473,23 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 						Type: "string",
 						Description: `The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
-- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
+- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', 'get_workflow_run_logs_url', and 'watch_workflow_run' methods.
 - Provide an artifact ID for 'download_workflow_run_artifact' method.
 - Provide a job ID for 'get_workflow_job' method.
 `,
+					},
+					"timeout_seconds": {
+						Type:        "number",
+						Description: fmt.Sprintf("How long to wait for the workflow run to complete before returning its current status. **ONLY** used when method is 'watch_workflow_run'. Default %d, maximum %d.", defaultWatchTimeoutSeconds, maxWatchTimeoutSeconds),
+						Minimum:     jsonschema.Ptr(1.0),
+						Maximum:     jsonschema.Ptr(float64(maxWatchTimeoutSeconds)),
 					},
 				},
 				Required: []string{"method", "owner", "repo", "resource_id"},
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -517,6 +552,16 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowRunLogsURL:
 				result, payload, err := getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
+			case actionsMethodWatchWorkflowRun:
+				timeoutSeconds, err := OptionalIntParamWithDefault(args, "timeout_seconds", defaultWatchTimeoutSeconds)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if timeoutSeconds < 1 || timeoutSeconds > maxWatchTimeoutSeconds {
+					return utils.NewToolResultError(fmt.Sprintf("timeout_seconds must be between 1 and %d", maxWatchTimeoutSeconds)), nil, nil
+				}
+				result, payload, err := watchWorkflowRun(ctx, client, request, owner, repo, resourceIDInt, time.Duration(timeoutSeconds)*time.Second)
 				return attachIFC(result), payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -807,6 +852,98 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
 	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// watchWorkflowRun polls a workflow run until it completes or the timeout elapses.
+// Reaching the timeout is not an error: the result reports the current status so the caller can watch again.
+func watchWorkflowRun(ctx context.Context, client *github.Client, request *mcp.CallToolRequest, owner, repo string, runID int64, timeout time.Duration) (*mcp.CallToolResult, any, error) {
+	pollInterval := getWatchConfig(ctx).PollInterval
+	start := time.Now()
+	deadline := start.Add(timeout)
+
+	var progressToken any
+	if request != nil && request.Params != nil {
+		progressToken = request.Params.GetProgressToken()
+	}
+
+	for poll := 1; ; poll++ {
+		workflowRun, resp, err := client.Actions.GetWorkflowRunByID(ctx, owner, repo, runID)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run", resp, err), nil, nil
+		}
+		_ = resp.Body.Close()
+
+		completed := workflowRun.GetStatus() == "completed"
+		remaining := time.Until(deadline)
+		if completed || remaining <= 0 {
+			return watchWorkflowRunResult(ctx, client, owner, repo, workflowRun, completed, time.Since(start))
+		}
+
+		if progressToken != nil && request.Session != nil {
+			_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+				ProgressToken: progressToken,
+				Progress:      float64(poll),
+				Message:       fmt.Sprintf("Workflow run %d is %s (waited %ds)", runID, workflowRun.GetStatus(), int(time.Since(start).Seconds())),
+			})
+		}
+
+		timer := time.NewTimer(min(pollInterval, remaining))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, nil, fmt.Errorf("stopped watching workflow run %d: %w", runID, ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func watchWorkflowRunResult(ctx context.Context, client *github.Client, owner, repo string, workflowRun *github.WorkflowRun, completed bool, waited time.Duration) (*mcp.CallToolResult, any, error) {
+	result := MinimalWorkflowRunWatchResult{
+		WorkflowRun:   convertToMinimalWorkflowRun(workflowRun),
+		Completed:     completed,
+		WaitedSeconds: int(waited.Seconds()),
+	}
+
+	switch {
+	case !completed:
+		result.NextStep = fmt.Sprintf("The workflow run is still %s. Call watch_workflow_run again to keep waiting.", workflowRun.GetStatus())
+	case !isSuccessfulConclusion(workflowRun.GetConclusion()):
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, workflowRun.GetID(), &github.ListWorkflowJobsOptions{
+			Filter: "latest",
+		})
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+		}
+		_ = resp.Body.Close()
+
+		for _, job := range jobs.Jobs {
+			if !isSuccessfulConclusion(job.GetConclusion()) {
+				result.FailedJobs = append(result.FailedJobs, MinimalFailedWorkflowJob{
+					ID:         job.GetID(),
+					Name:       job.GetName(),
+					Conclusion: job.GetConclusion(),
+					HTMLURL:    job.GetHTMLURL(),
+				})
+			}
+		}
+		result.NextStep = fmt.Sprintf("Use get_job_logs with run_id %d and failed_only true to read the logs of the failed jobs.", workflowRun.GetID())
+	}
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal workflow run watch result: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// isSuccessfulConclusion reports whether a workflow run or job conclusion needs no attention.
+func isSuccessfulConclusion(conclusion string) bool {
+	switch conclusion {
+	case "success", "neutral", "skipped":
+		return true
+	default:
+		return false
+	}
 }
 
 func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
