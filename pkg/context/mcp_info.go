@@ -24,6 +24,12 @@ type MCPMethodInfo struct {
 	ItemName string
 	// RawArguments contains the unmaterialized tool arguments for tools/call requests.
 	RawArguments json.RawMessage
+	// NormalizedArguments contains canonical arguments prepared by HTTP scope
+	// middleware so tool adapters do not rerun non-idempotent normalizers.
+	NormalizedArguments json.RawMessage
+	// ArgumentsNormalized distinguishes an intentionally empty normalized value
+	// from a request that has not been normalized.
+	ArgumentsNormalized bool
 	// ProtocolVersion and ClientCapabilities describe the requesting MCP client
 	// when stateless HTTP parsing makes them available before registration.
 	ProtocolVersion    string

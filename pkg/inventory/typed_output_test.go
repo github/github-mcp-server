@@ -1,14 +1,18 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -52,7 +56,6 @@ func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	require.Len(t, list.Tools, 1)
 	assert.NotNil(t, list.Tools[0].InputSchema)
 	assert.NotNil(t, list.Tools[0].OutputSchema)
-	assert.NotContains(t, list.Tools[0].Meta, typedOutputMetaKey)
 	var inferredSchema map[string]any
 	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, list.Tools[0].InputSchema)), &inferredSchema))
 	properties := inferredSchema["properties"].(map[string]any)
@@ -69,7 +72,7 @@ func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	require.NotNil(t, result.StructuredContent)
 	assert.JSONEq(t, `{"query":"is:open"}`, mustMarshalJSON(t, result.StructuredContent))
 	require.Len(t, result.Content, 1)
-	assert.Equal(t, "old text result", result.Content[0].(*mcp.TextContent).Text)
+	assert.JSONEq(t, `{"query":"is:open"}`, result.Content[0].(*mcp.TextContent).Text)
 
 	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "typed_tool",
@@ -85,33 +88,49 @@ func TestTypedToolInferredInputSchemaUsesStablePointer(t *testing.T) {
 		Owner string `json:"owner"`
 		Repo  string `json:"repo"`
 	}
-	tool := NewServerToolWithContextHandler(
-		mcp.Tool{Name: "cached_schema_tool"},
-		testToolsetMetadata("test"),
-		func(context.Context, *mcp.CallToolRequest, input) (*mcp.CallToolResult, struct{}, error) {
-			return nil, struct{}{}, nil
-		},
-	)
-	require.NotNil(t, tool.inferredInputSchema)
-	require.Nil(t, tool.inferredInputSchema.schema)
-
-	cache := mcp.NewSchemaCache()
-	var inferredSchema *jsonschema.Schema
-	for range 2 {
-		server := mcp.NewServer(
-			&mcp.Implementation{Name: "test-server", Version: "v0.0.1"},
-			&mcp.ServerOptions{SchemaCache: cache},
-		)
-		tool.RegisterFunc(server, nil)
-		require.NotNil(t, tool.inferredInputSchema.schema)
-		if inferredSchema == nil {
-			inferredSchema = tool.inferredInputSchema.schema
-		} else {
-			assert.Same(t, inferredSchema, tool.inferredInputSchema.schema, "re-registration must reuse the inferred schema pointer")
-		}
-	}
+	first, err := CachedInputSchemaFor[input](nil)
+	require.NoError(t, err)
+	second, err := CachedInputSchemaFor[input](nil)
+	require.NoError(t, err)
+	assert.Same(t, first, second, "schema inference must be cached across tool/server instances")
+	inferredSchema := first
 	assert.Equal(t, "owner", inferredSchema.Properties["owner"].Extra["x-mcp-header"])
 	assert.Equal(t, "repo", inferredSchema.Properties["repo"].Extra["x-mcp-header"])
+}
+
+func TestTypedSchemasAreCachedAcrossFreshRegistrations(t *testing.T) {
+	type input struct {
+		Owner string `json:"owner"`
+		Repo  string `json:"repo"`
+	}
+	type output struct {
+		State string `json:"state"`
+	}
+	var firstInput, firstOutput *jsonschema.Schema
+	for range 2 {
+		tool := NewServerToolWithContextHandler(
+			mcp.Tool{Name: "cached_typed_tool"},
+			testToolsetMetadata("test"),
+			func(context.Context, *mcp.CallToolRequest, input) (*mcp.CallToolResult, output, error) {
+				return nil, output{}, nil
+			},
+		)
+		registration := tool.typedRegistration(&tool.Tool)
+		modernInput := registration.modernTool.InputSchema.(*jsonschema.Schema)
+		legacyInput := registration.legacyTool.InputSchema.(*jsonschema.Schema)
+		assert.Same(t, modernInput, legacyInput, "both eras must share the pre-annotated input schema")
+		assert.Same(t, modernInput, registration.modernRuntimeTool.InputSchema)
+		assert.Same(t, modernInput, registration.legacyRuntimeTool.InputSchema)
+		assert.Nil(t, registration.legacyTool.OutputSchema)
+		assert.Nil(t, registration.legacyRuntimeTool.OutputSchema)
+		if firstInput == nil {
+			firstInput = modernInput
+			firstOutput = registration.modernTool.OutputSchema.(*jsonschema.Schema)
+			continue
+		}
+		assert.Same(t, firstInput, modernInput)
+		assert.Same(t, firstOutput, registration.modernTool.OutputSchema)
+	}
 }
 
 func TestTypedToolInputSchemasPreserveObjectOptionality(t *testing.T) {
@@ -337,6 +356,187 @@ func TestTypedToolRegistrationAppliesExplicitSchemas(t *testing.T) {
 	require.ErrorContains(t, err, "validating tool output")
 }
 
+func TestTypedSchemaOptionsKeepAdvertisedSchemaAndRuntimeValidationSeparate(t *testing.T) {
+	type input struct {
+		State string `json:"state"`
+	}
+	type output struct {
+		State string `json:"state"`
+	}
+	publicSchema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"state": {Type: "string", Enum: []any{"open"}},
+		},
+		Required: []string{"state"},
+	}
+	validationSchema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"state": {Type: "string"},
+		},
+		Required: []string{"state"},
+	}
+	tool := NewServerToolWithContextHandlerAndSchemaOptions(
+		mcp.Tool{Name: "validation_override_tool", InputSchema: publicSchema},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args input) (*mcp.CallToolResult, output, error) {
+			return nil, output(args), nil
+		},
+		TypedSchemaOptions{ValidationInputSchema: validationSchema},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Contains(t, mustMarshalJSON(t, list.Tools[0].InputSchema), `"enum":["open"]`)
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "validation_override_tool",
+		Arguments: map[string]any{"state": "legacy-value"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `{"state":"legacy-value"}`, mustMarshalJSON(t, result.StructuredContent))
+}
+
+func TestValidationInputSchemaIsCachedAndDoesNotInjectDefaults(t *testing.T) {
+	type paginationInput struct {
+		Page    int `json:"page"`
+		PerPage int `json:"per_page"`
+	}
+	type paginationOutput struct {
+		Page    int `json:"page"`
+		PerPage int `json:"per_page"`
+	}
+	publicSchema := &jsonschema.Schema{}
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"type":"object",
+		"properties":{
+			"page":{"type":"integer","minimum":1,"default":1},
+			"per_page":{"type":"integer","minimum":1,"default":30}
+		}
+	}`), publicSchema))
+	validationSchema := CloneSchemaWithoutDefaults(publicSchema)
+	minimum := float64(0)
+	validationSchema.Properties["page"].Minimum = &minimum
+	validationSchema.Properties["per_page"].Minimum = &minimum
+
+	handlerCalls := 0
+	newTool := func(name string) ServerTool {
+		return NewServerToolWithContextHandlerAndSchemaOptions(
+			mcp.Tool{Name: name, InputSchema: publicSchema},
+			testToolsetMetadata("test"),
+			func(_ context.Context, _ *mcp.CallToolRequest, args paginationInput) (*mcp.CallToolResult, paginationOutput, error) {
+				handlerCalls++
+				return nil, paginationOutput(args), nil
+			},
+			TypedSchemaOptions{ValidationInputSchema: validationSchema},
+		)
+	}
+	tool := newTool("pagination_tool")
+	registration := tool.typedRegistration(&tool.Tool)
+	runtimeSchema := registration.modernRuntimeTool.InputSchema.(*jsonschema.Schema)
+	otherTool := newTool("other_pagination_tool")
+	otherRegistration := otherTool.typedRegistration(&otherTool.Tool)
+	assert.Same(t, runtimeSchema, otherRegistration.modernRuntimeTool.InputSchema,
+		"equal runtime schemas must reuse a process-cached immutable pointer")
+	assert.Contains(t, mustMarshalJSON(t, registration.modernTool.InputSchema), `"minimum":1`)
+	assert.Contains(t, mustMarshalJSON(t, registration.modernTool.InputSchema), `"default":30`)
+	assert.Contains(t, mustMarshalJSON(t, runtimeSchema), `"minimum":0`)
+	assert.NotContains(t, mustMarshalJSON(t, runtimeSchema), `"default"`)
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "pagination_tool",
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `{"page":0,"per_page":0}`, mustMarshalJSON(t, result.StructuredContent),
+		"JSON Schema defaults are validation metadata and must not populate omitted query parameters")
+	assert.Equal(t, 1, handlerCalls)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "pagination_tool",
+		Arguments: map[string]any{"page": -1},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Equal(t, 1, handlerCalls, "runtime validation must continue enforcing the relaxed schema's minimum")
+}
+
+func TestTypedSchemaEnumsAndPreflightRunBeforeSDKValidation(t *testing.T) {
+	type input struct {
+		State string `json:"state"`
+	}
+	type output struct {
+		State string `json:"state"`
+	}
+	type preparedKey struct{}
+	handlerCalls := 0
+	preflightCalls := 0
+	tool := NewServerToolWithContextHandlerAndSchemaOptions(
+		mcp.Tool{Name: "preflight_schema_tool"},
+		testToolsetMetadata("test"),
+		func(ctx context.Context, _ *mcp.CallToolRequest, args input) (*mcp.CallToolResult, output, error) {
+			handlerCalls++
+			require.Equal(t, "prepared", ctx.Value(preparedKey{}))
+			return nil, output(args), nil
+		},
+		TypedSchemaOptions{
+			OutputEnums: []SchemaEnum{{Path: "state", Values: []string{"open", "closed"}}},
+			Preflight: func(ctx context.Context, req *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+				preflightCalls++
+				if bytes.Contains(req.Params.Arguments, []byte(`"state":42`)) {
+					return ctx, &mcp.CallToolResult{
+						Content: []mcp.Content{&mcp.TextContent{Text: "preflight rejected raw arguments"}},
+						IsError: true,
+					}, nil
+				}
+				return context.WithValue(ctx, preparedKey{}, "prepared"), nil, nil
+			},
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "")
+
+	invalid, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "preflight_schema_tool",
+		Arguments: map[string]any{"state": 42},
+	})
+	require.NoError(t, err)
+	require.True(t, invalid.IsError)
+	require.Len(t, invalid.Content, 1)
+	assert.Equal(t, "preflight rejected raw arguments", invalid.Content[0].(*mcp.TextContent).Text)
+	assert.Nil(t, invalid.StructuredContent)
+	assert.Zero(t, handlerCalls)
+
+	valid, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "preflight_schema_tool",
+		Arguments: map[string]any{"state": "open"},
+	})
+	require.NoError(t, err)
+	require.False(t, valid.IsError)
+	assert.JSONEq(t, `{"state":"open"}`, mustMarshalJSON(t, valid.StructuredContent))
+	assert.Equal(t, 2, preflightCalls)
+	assert.Equal(t, 1, handlerCalls)
+
+	_, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "preflight_schema_tool",
+		Arguments: map[string]any{"state": "unknown"},
+	})
+	require.ErrorContains(t, err, "validating tool output")
+	assert.Equal(t, 2, handlerCalls, "the SDK must reject output enum violations before returning structured success")
+}
+
 func TestTypedInputNormalizerPreservesStrictSchemaAndLegacyValues(t *testing.T) {
 	type listIssuesInput struct {
 		Owner       string `json:"owner"`
@@ -428,6 +628,55 @@ func TestTypedInputNormalizerPreservesStrictSchemaAndLegacyValues(t *testing.T) 
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Equal(t, 1, handlerCalls)
+}
+
+func TestInvalidArgumentsPreservesToolInputErrorMessage(t *testing.T) {
+	result := invalidArgumentsResult(fmt.Errorf(
+		"normalize tool arguments: %w",
+		&ToolInputError{Message: "missing required parameter: method"},
+	))
+	require.True(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "missing required parameter: method", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestTypedInputNormalizerReusesScopeNormalizedArguments(t *testing.T) {
+	normalizerCalls := 0
+	tool := &mcp.Tool{Name: "normalized_scope_tool"}
+	registration := &typedToolRegistration{
+		name:              tool.Name,
+		modernTool:        tool,
+		legacyTool:        tool,
+		modernRuntimeTool: tool,
+		legacyRuntimeTool: tool,
+		hasTypedOutput:    true,
+		inputNormalizer: func(_ json.RawMessage) (json.RawMessage, error) {
+			normalizerCalls++
+			return json.RawMessage(`{"state":"CHANGED"}`), nil
+		},
+	}
+	wrapped := typedOutputMiddleware(&typedToolRegistrationSet{byName: map[string]*typedToolRegistration{
+		tool.Name: registration,
+	}})(func(_ context.Context, _ string, request mcp.Request) (mcp.Result, error) {
+		call := request.(*mcp.CallToolRequest)
+		assert.JSONEq(t, `{"state":"OPEN"}`, string(call.Params.Arguments))
+		return &mcp.CallToolResult{}, nil
+	})
+	ctx := ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+		Method:              MCPMethodToolsCall,
+		ItemName:            tool.Name,
+		ArgumentsNormalized: true,
+		NormalizedArguments: json.RawMessage(`{"state":"OPEN"}`),
+	})
+	result, err := wrapped(ctx, MCPMethodToolsCall, &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Name:      tool.Name,
+			Arguments: json.RawMessage(`{"state":"open"}`),
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Zero(t, normalizerCalls, "scope and typed adapters must not run a non-idempotent normalizer twice")
 }
 
 func normalizeListIssuesWireInput(arguments json.RawMessage) (json.RawMessage, error) {
@@ -524,6 +773,28 @@ func TestTypedToolMiddlewareShortCircuitAndHandlerErrors(t *testing.T) {
 			return nil, typedTestOutput{}, errors.New("typed handler failed")
 		},
 	)
+	type enumOutput struct {
+		Method string `json:"method"`
+	}
+	errorResult := NewServerToolWithContextHandler(
+		mcp.Tool{
+			Name: "typed_error_result_tool",
+			OutputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {Type: "string", Enum: []any{"list_projects"}},
+				},
+				Required: []string{"method"},
+			},
+		},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, *enumOutput, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "project list failed"}},
+				IsError: true,
+			}, nil, nil
+		},
+	)
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
 	shortCircuit.RegisterFunc(server, nil, func(mcp.ToolHandler) mcp.ToolHandler {
 		return func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -534,6 +805,7 @@ func TestTypedToolMiddlewareShortCircuitAndHandlerErrors(t *testing.T) {
 		}
 	})
 	handlerError.RegisterFunc(server, nil)
+	errorResult.RegisterFunc(server, nil)
 	session := connectTypedTestClient(t, server, "")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "short_circuit_tool"})
@@ -546,10 +818,16 @@ func TestTypedToolMiddlewareShortCircuitAndHandlerErrors(t *testing.T) {
 
 	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "handler_error_tool"})
 	require.NoError(t, err)
-	assert.True(t, result.IsError)
+	require.True(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "typed handler failed", result.Content[0].(*mcp.TextContent).Text)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_error_result_tool"})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
 	assert.Nil(t, result.StructuredContent)
 	require.Len(t, result.Content, 1)
-	assert.Contains(t, result.Content[0].(*mcp.TextContent).Text, "typed handler failed")
+	assert.Equal(t, "project list failed", result.Content[0].(*mcp.TextContent).Text)
 }
 
 func TestTypedPointerOutputAndUntypedGenericCompatibility(t *testing.T) {
@@ -648,13 +926,11 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, legacyList.Tools, 1)
 	assert.Nil(t, legacyList.Tools[0].OutputSchema)
-	assert.NotContains(t, legacyList.Tools[0].Meta, typedOutputMetaKey)
 
 	modernList, err := modern.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, modernList.Tools, 1)
 	assert.NotNil(t, modernList.Tools[0].OutputSchema)
-	assert.NotContains(t, modernList.Tools[0].Meta, typedOutputMetaKey)
 	assert.JSONEq(t, `{"type":["null","array"],"items":{"type":"string"}}`, mustMarshalJSON(t, modernList.Tools[0].OutputSchema))
 
 	legacyResult, err := legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
@@ -667,7 +943,7 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `["one","two"]`, mustMarshalJSON(t, modernResult.StructuredContent))
 	require.Len(t, modernResult.Content, 1)
-	assert.Equal(t, "legacy array text", modernResult.Content[0].(*mcp.TextContent).Text)
+	assert.Equal(t, `["one","two"]`, modernResult.Content[0].(*mcp.TextContent).Text)
 
 	legacyList, err = legacy.ListTools(context.Background(), nil)
 	require.NoError(t, err)
@@ -684,10 +960,67 @@ func TestTypedToolOutputProtocolGatePreservesTextAndSharedTool(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `["one","two"]`, mustMarshalJSON(t, modernResult.StructuredContent))
 	require.Len(t, modernResult.Content, 1)
-	assert.Equal(t, "legacy array text", modernResult.Content[0].(*mcp.TextContent).Text)
+	assert.Equal(t, `["one","two"]`, modernResult.Content[0].(*mcp.TextContent).Text)
+
+	type concurrentCall struct {
+		list   *mcp.ListToolsResult
+		result *mcp.CallToolResult
+		err    error
+	}
+	type clientCalls struct {
+		modern bool
+		calls  []concurrentCall
+	}
+	const iterations = 5
+	start := make(chan struct{})
+	calls := make(chan clientCalls, 2)
+	var workers sync.WaitGroup
+	runClient := func(session *mcp.ClientSession, isModern bool) {
+		defer workers.Done()
+		<-start
+		run := clientCalls{modern: isModern, calls: make([]concurrentCall, 0, iterations)}
+		for range iterations {
+			list, listErr := session.ListTools(context.Background(), nil)
+			if listErr != nil {
+				run.calls = append(run.calls, concurrentCall{err: listErr})
+				break
+			}
+			result, callErr := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_array_tool"})
+			run.calls = append(run.calls, concurrentCall{list: list, result: result, err: callErr})
+			if callErr != nil {
+				break
+			}
+		}
+		calls <- run
+	}
+	workers.Add(2)
+	go runClient(modern, true)
+	go runClient(legacy, false)
+	close(start)
+	go func() {
+		workers.Wait()
+		close(calls)
+	}()
+	for run := range calls {
+		require.Len(t, run.calls, iterations)
+		for _, call := range run.calls {
+			require.NoError(t, call.err)
+			require.Len(t, call.list.Tools, 1)
+			if run.modern {
+				assert.NotNil(t, call.list.Tools[0].OutputSchema)
+				assert.JSONEq(t, `["one","two"]`, mustMarshalJSON(t, call.result.StructuredContent))
+				require.Len(t, call.result.Content, 1)
+				assert.Equal(t, `["one","two"]`, call.result.Content[0].(*mcp.TextContent).Text)
+			} else {
+				assert.Nil(t, call.list.Tools[0].OutputSchema)
+				assert.Nil(t, call.result.StructuredContent)
+				require.Len(t, call.result.Content, 1)
+				assert.Equal(t, "legacy array text", call.result.Content[0].(*mcp.TextContent).Text)
+			}
+		}
+	}
 
 	require.Nil(t, tool.Tool.OutputSchema, "registration must not mutate the shared definition")
-	assert.NotContains(t, tool.Tool.Meta, typedOutputMetaKey)
 }
 
 func TestTypedScalarOutputProtocolGatePreservesHandlerText(t *testing.T) {
@@ -714,6 +1047,132 @@ func TestTypedScalarOutputProtocolGatePreservesHandlerText(t *testing.T) {
 	assert.Nil(t, result.StructuredContent)
 	require.Len(t, result.Content, 1, "SDK scalar fallback must not replace or duplicate handler text")
 	assert.Equal(t, "custom legacy text", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestTypedLegacyOutputGateRemovesFallbackWithEmptyHandlerContent(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_empty_content_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, []string, error) {
+			return &mcp.CallToolResult{Content: []mcp.Content{}}, []string{"structured"}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	legacy := connectTypedTestClient(t, server, "2025-11-25")
+
+	result, err := legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_empty_content_tool"})
+	require.NoError(t, err)
+	assert.Nil(t, result.StructuredContent)
+	assert.Empty(t, result.Content, "the SDK fallback is not part of the legacy handler result")
+}
+
+func TestTypedOutputMiddlewareShortCircuitPreservesErrorResult(t *testing.T) {
+	type output struct {
+		Required string `json:"required"`
+	}
+	handlerCalls := 0
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_short_circuit_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, output, error) {
+			handlerCalls++
+			return nil, output{Required: "unexpected"}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil, func(_ mcp.ToolHandler) mcp.ToolHandler {
+		return func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "blocked"}},
+				IsError: true,
+			}, nil
+		}
+	})
+	session := connectTypedTestClient(t, server, "")
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_short_circuit_tool"})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "blocked", result.Content[0].(*mcp.TextContent).Text)
+	assert.Nil(t, result.StructuredContent)
+	assert.Zero(t, handlerCalls)
+}
+
+func TestTypedOutputGateUsesCurrentRequestVersionNotInitializeRequest(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_initialize_version_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, []string, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy initialize text"}},
+			}, []string{"one"}, nil
+		},
+	)
+	server := mcp.NewServer(
+		&mcp.Implementation{Name: "test-server", Version: "v0.0.1"},
+		&mcp.ServerOptions{SupportedProtocolVersions: []string{"2025-11-25"}},
+	)
+	tool.RegisterFunc(server, nil)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	transport := protocolVersionTransport{
+		Transport:       clientTransport,
+		protocolVersion: ProtocolVersionMultiRoundTrip,
+	}
+	session, err := client.Connect(context.Background(), transport, &mcp.ClientSessionOptions{
+		ProtocolVersion: "2025-11-25",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+	require.Equal(t, "2025-11-25", session.InitializeResult().ProtocolVersion)
+
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_initialize_version_tool"})
+	require.NoError(t, err)
+	assert.Nil(t, result.StructuredContent)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "legacy initialize text", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestTypedNullableOutputPreservesProtocolSemantics(t *testing.T) {
+	type output struct {
+		Value *string `json:"value"`
+	}
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_nullable_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, output, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy null text"}},
+			}, output{}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	modern := connectTypedTestClient(t, server, "")
+	legacy := connectTypedTestClient(t, server, "2025-11-25")
+
+	modernResult, err := modern.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_nullable_tool"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"value":null}`, mustMarshalJSON(t, modernResult.StructuredContent))
+	require.Len(t, modernResult.Content, 1)
+	assert.JSONEq(t, `{"value":null}`, modernResult.Content[0].(*mcp.TextContent).Text)
+
+	legacyResult, err := legacy.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_nullable_tool"})
+	require.NoError(t, err)
+	assert.Nil(t, legacyResult.StructuredContent)
+	require.Len(t, legacyResult.Content, 1)
+	assert.Equal(t, "legacy null text", legacyResult.Content[0].(*mcp.TextContent).Text)
 }
 
 func TestTypedToolSupportsExplicitRootUnionOutputSchema(t *testing.T) {
@@ -748,37 +1207,35 @@ func TestTypedToolSupportsExplicitRootUnionOutputSchema(t *testing.T) {
 }
 
 func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
-	tool := &mcp.Tool{
+	modernTool := &mcp.Tool{
 		Name:         "typed_tool",
 		OutputSchema: json.RawMessage(`{"type":"object"}`),
-		Meta:         mcp.Meta{typedOutputMetaKey: true},
 	}
-	next := func(_ context.Context, method string, _ mcp.Request) (mcp.Result, error) {
-		switch method {
-		case MCPMethodToolsList:
-			return &mcp.ListToolsResult{Tools: []*mcp.Tool{tool}}, nil
-		case MCPMethodToolsCall:
-			return &mcp.CallToolResult{
-				Meta:              mcp.Meta{typedOutputMetaKey: typedOutputMetadata{hasOutput: true}},
-				Content:           []mcp.Content{&mcp.TextContent{Text: "text fallback"}},
-				StructuredContent: map[string]any{"ok": true},
-			}, nil
-		default:
-			t.Fatalf("unexpected method %q", method)
-			return nil, nil
-		}
+	legacyTool := &mcp.Tool{Name: "typed_tool"}
+	registration := &typedToolRegistration{
+		name:              "typed_tool",
+		modernTool:        modernTool,
+		legacyTool:        legacyTool,
+		modernRuntimeTool: modernTool,
+		legacyRuntimeTool: legacyTool,
+		hasTypedOutput:    true,
 	}
-	wrapped := typedOutputMiddleware(nil)(next)
+	wrapped := typedOutputMiddleware(&typedToolRegistrationSet{byName: map[string]*typedToolRegistration{
+		"typed_tool": registration,
+	}})(func(_ context.Context, method string, _ mcp.Request) (mcp.Result, error) {
+		require.Equal(t, MCPMethodToolsList, method)
+		return &mcp.ListToolsResult{Tools: []*mcp.Tool{modernTool}}, nil
+	})
 
 	for _, tc := range []struct {
 		name            string
 		protocolVersion string
-		wantSchema      bool
-		wantStructured  bool
+		wantTool        *mcp.Tool
 	}{
-		{name: "stateless modern", protocolVersion: ProtocolVersionMultiRoundTrip, wantSchema: true, wantStructured: true},
-		{name: "stateless legacy", protocolVersion: "2025-11-25"},
-		{name: "unknown version defaults to legacy behavior"},
+		{name: "stateless modern", protocolVersion: ProtocolVersionMultiRoundTrip, wantTool: modernTool},
+		{name: "stateless legacy", protocolVersion: "2025-11-25", wantTool: legacyTool},
+		{name: "unknown version defaults to legacy", protocolVersion: "2027-01-01", wantTool: legacyTool},
+		{name: "absent version defaults to legacy", wantTool: legacyTool},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := mcp.Meta{}
@@ -790,34 +1247,12 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 			})
 			require.NoError(t, err)
 			list := listResult.(*mcp.ListToolsResult)
-			if tc.wantSchema {
-				assert.NotNil(t, list.Tools[0].OutputSchema)
-			} else {
-				assert.Nil(t, list.Tools[0].OutputSchema)
-			}
-			assert.NotContains(t, list.Tools[0].Meta, typedOutputMetaKey)
-
-			callResult, err := wrapped(context.Background(), MCPMethodToolsCall, &mcp.CallToolRequest{
-				Params: &mcp.CallToolParamsRaw{
-					Name: "typed_tool",
-					Meta: meta,
-				},
-			})
-			require.NoError(t, err)
-			call := callResult.(*mcp.CallToolResult)
-			if tc.wantStructured {
-				assert.NotNil(t, call.StructuredContent)
-			} else {
-				assert.Nil(t, call.StructuredContent)
-			}
-			assert.NotContains(t, call.Meta, typedOutputMetaKey)
-			require.Len(t, call.Content, 1)
-			assert.Equal(t, "text fallback", call.Content[0].(*mcp.TextContent).Text)
+			require.Len(t, list.Tools, 1)
+			assert.Same(t, tc.wantTool, list.Tools[0])
 		})
 	}
 
 	inputRequired := &mcp.CallToolResult{
-		Meta:              mcp.Meta{},
 		StructuredContent: map[string]any{"awaiting": true},
 		InputRequests:     mcp.InputRequestMap{"input": &mcp.ElicitParams{Mode: "form"}},
 	}
@@ -829,6 +1264,48 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Same(t, inputRequired, result, "non-typed multi-round-trip structured content must pass through")
+
+	typedRegistration := &typedToolRegistration{
+		name:              "typed_tool",
+		modernTool:        modernTool,
+		legacyTool:        legacyTool,
+		modernRuntimeTool: modernTool,
+		legacyRuntimeTool: legacyTool,
+		hasTypedOutput:    true,
+	}
+	typedMiddleware := typedOutputMiddleware(&typedToolRegistrationSet{byName: map[string]*typedToolRegistration{
+		"typed_tool": typedRegistration,
+	}})(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		return inputRequired, nil
+	})
+	for _, tc := range []struct {
+		name            string
+		protocolVersion string
+		wantStructured  bool
+	}{
+		{name: "modern", protocolVersion: ProtocolVersionMultiRoundTrip, wantStructured: true},
+		{name: "legacy", protocolVersion: "2025-11-25"},
+	} {
+		t.Run("typed awaiting form "+tc.name, func(t *testing.T) {
+			meta := mcp.Meta{}
+			if tc.protocolVersion != "" {
+				meta[mcp.MetaKeyProtocolVersion] = tc.protocolVersion
+			}
+			result, err := typedMiddleware(context.Background(), MCPMethodToolsCall, &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{Name: "typed_tool", Meta: meta},
+			})
+			require.NoError(t, err)
+			callResult := result.(*mcp.CallToolResult)
+			if tc.wantStructured {
+				assert.Same(t, inputRequired, callResult)
+				assert.Equal(t, map[string]any{"awaiting": true}, callResult.StructuredContent)
+			} else {
+				assert.NotSame(t, inputRequired, callResult)
+				assert.Nil(t, callResult.StructuredContent, "legacy typed tools must not expose structured output")
+			}
+			assert.Equal(t, inputRequired.InputRequests, callResult.InputRequests)
+		})
+	}
 }
 
 func TestTypedOutputGateLeavesRawToolResultsAlone(t *testing.T) {
@@ -860,7 +1337,7 @@ func TestTypedOutputGateLeavesRawToolResultsAlone(t *testing.T) {
 	list, err := session.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, list.Tools, 1)
-	assert.Nil(t, list.Tools[0].OutputSchema, "output schemas are hidden from legacy clients")
+	assert.JSONEq(t, `{"type":"object"}`, mustMarshalJSON(t, list.Tools[0].OutputSchema), "raw tool schemas must remain unchanged")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "raw_tool"})
 	require.NoError(t, err)
