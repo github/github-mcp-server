@@ -88,7 +88,7 @@ func GetCodeQualityFinding(t translations.TranslationHelperFunc) inventory.Serve
 			if err := json.Unmarshal(rawFinding, &finding); err != nil {
 				return utils.NewToolResultErrorFromErr("failed to decode finding", err), nil, nil
 			}
-			r, err := json.Marshal(rawFinding)
+			r, err := marshalLegacyCodeQualityFinding(rawFinding)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal finding", err), nil, nil
 			}
@@ -97,4 +97,13 @@ func GetCodeQualityFinding(t translations.TranslationHelperFunc) inventory.Serve
 		},
 		normalizeSecurityIntegerArguments("findingNumber"),
 	)
+}
+
+func marshalLegacyCodeQualityFinding(rawFinding json.RawMessage) ([]byte, error) {
+	// Match main's map-based formatting, including key ordering and number encoding.
+	var finding map[string]any
+	if err := json.Unmarshal(rawFinding, &finding); err != nil {
+		return nil, err
+	}
+	return json.Marshal(finding)
 }

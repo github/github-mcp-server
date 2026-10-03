@@ -27,5 +27,174 @@
     ],
     "type": "object"
   },
-  "name": "get_dependabot_alert"
+  "name": "get_dependabot_alert",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "dependency": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest_path": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "package": {
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "name": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "scope": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "dismissed_comment": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "dismissed_reason": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "html_url": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "number": {
+        "type": [
+          "null",
+          "integer"
+        ]
+      },
+      "security_advisory": {
+        "additionalProperties": false,
+        "properties": {
+          "cve_id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ghsa_id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "severity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "security_vulnerability": {
+        "additionalProperties": false,
+        "properties": {
+          "first_patched_version": {
+            "description": "Earliest version fixing the affected package.",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "package": {
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "name": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "severity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vulnerable_version_range": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "state": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

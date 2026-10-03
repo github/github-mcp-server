@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
@@ -14,6 +16,44 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func securityOutputSchema(t *testing.T, name string) *jsonschema.Schema {
+	t.Helper()
+	var schema *jsonschema.Schema
+	var err error
+	switch name {
+	case "get_code_quality_finding":
+		schema, err = jsonschema.For[*CodeQualityFindingOutput](nil)
+	case "get_code_scanning_alert":
+		schema, err = jsonschema.For[*CodeScanningAlertOutput](nil)
+	case "list_code_scanning_alerts":
+		schema, err = jsonschema.For[[]*CodeScanningAlertOutput](nil)
+	case "get_secret_scanning_alert":
+		schema, err = jsonschema.For[*SecretScanningAlertOutput](nil)
+	case "list_secret_scanning_alerts":
+		schema, err = jsonschema.For[[]*SecretScanningAlertOutput](nil)
+	case "get_dependabot_alert":
+		schema, err = jsonschema.For[*DependabotAlertOutput](nil)
+	case "list_dependabot_alerts":
+		schema, err = jsonschema.For[DependabotAlertsOutput](nil)
+	case "get_global_security_advisory":
+		schema, err = jsonschema.For[*GlobalSecurityAdvisoryOutput](nil)
+	case "list_global_security_advisories":
+		schema, err = jsonschema.For[[]*GlobalSecurityAdvisoryOutput](nil)
+	case "list_repository_security_advisories", "list_org_repository_security_advisories":
+		schema, err = jsonschema.For[[]*SecurityAdvisoryOutput](nil)
+	default:
+		t.Fatalf("unexpected security tool %s", name)
+	}
+	require.NoError(t, err)
+	return schema
+}
+
+func testSecurityToolSnapshot(t *testing.T, tool mcp.Tool) {
+	t.Helper()
+	tool.OutputSchema = securityOutputSchema(t, tool.Name)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+}
 
 func TestTypedSecurityToolOutputs(t *testing.T) {
 	codeQualityFinding := map[string]any{
@@ -24,31 +64,51 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 			"description": "Test rule",
 		},
 		"unknown_legacy_field": "preserved in text",
+		"url":                  "https://api.github.com/repos/owner/repo/code-quality/findings/42",
 	}
 	codeScanningAlert := &github.Alert{
 		Number:  new(42),
 		State:   new("open"),
 		HTMLURL: new("https://github.com/owner/repo/security/code-scanning/42"),
+		URL:     new("https://api.github.com/repos/owner/repo/code-scanning/alerts/42"),
 		Rule: &github.Rule{
-			ID:              new("test-rule"),
-			Description:     new("Test rule"),
-			FullDescription: new("Full rule description"),
+			ID:                    new("test-rule"),
+			Description:           new("Test rule"),
+			FullDescription:       new("Full rule description"),
+			Help:                  new("Use parameterized queries"),
+			SecuritySeverityLevel: new("high"),
 		},
 	}
 	secretScanningAlert := &github.SecretScanningAlert{
-		Number:                             new(43),
-		State:                              new("open"),
-		HTMLURL:                            new("https://github.com/owner/repo/security/secret-scanning/43"),
-		SecretType:                         new("test_secret"),
+		Number:                 new(43),
+		State:                  new("open"),
+		HTMLURL:                new("https://github.com/owner/repo/security/secret-scanning/43"),
+		SecretType:             new("test_secret"),
+		Secret:                 new("test-secret"),
+		URL:                    new("https://api.github.com/repos/owner/repo/secret-scanning/alerts/43"),
+		Validity:               new("active"),
+		ResolutionComment:      new("Rotate this credential"),
+		PushProtectionBypassed: new(true),
+		FirstLocationDetected: &github.SecretScanningAlertLocationDetails{
+			Path: new("config.env"), CommitSHA: new("abc123"), StartColumn: new(5),
+			CommitURL: new("https://api.github.com/repos/owner/repo/commits/abc123"),
+		},
 		PushProtectionBypassRequestComment: new("legacy response detail"),
 	}
 	dependabotAlert := &github.DependabotAlert{
-		Number:  new(44),
-		State:   new("open"),
-		HTMLURL: new("https://github.com/owner/repo/security/dependabot/44"),
+		Number:          new(44),
+		State:           new("open"),
+		HTMLURL:         new("https://github.com/owner/repo/security/dependabot/44"),
+		URL:             new("https://api.github.com/repos/owner/repo/dependabot/alerts/44"),
+		DismissedReason: new("tolerable_risk"),
+		SecurityVulnerability: &github.AdvisoryVulnerability{
+			VulnerableVersionRange: new("< 2.0"),
+			FirstPatchedVersion:    &github.FirstPatchedVersion{Identifier: new("2.0")},
+		},
 		SecurityAdvisory: &github.DependabotSecurityAdvisory{
-			GHSAID:         new("GHSA-aaaa-bbbb-cccc"),
-			Classification: new("malware"),
+			GHSAID:          new("GHSA-aaaa-bbbb-cccc"),
+			Classification:  new("malware"),
+			Vulnerabilities: []*github.AdvisoryVulnerability{{VulnerableVersionRange: new("< 2.0")}},
 		},
 	}
 	advisory := &github.SecurityAdvisory{
@@ -57,24 +117,52 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 		Description: new("Test advisory description"),
 		Severity:    new("high"),
 		State:       new("published"),
+		URL:         new("https://api.github.com/repos/owner/repo/security-advisories/GHSA-aaaa-bbbb-cccc"),
+		Vulnerabilities: []*github.AdvisoryVulnerability{{
+			PatchedVersions: new("2.0"), VulnerableVersionRange: new("< 2.0"),
+			VulnerableFunctions: []string{"unsafeQuery"},
+		}},
 	}
 	globalAdvisory := &github.GlobalSecurityAdvisory{
-		SecurityAdvisory: *advisory,
+		SecurityAdvisory:      *advisory,
+		RepositoryAdvisoryURL: new("https://api.github.com/repos/owner/repo/security-advisories/GHSA-aaaa-bbbb-cccc"),
+		Vulnerabilities: []*github.GlobalSecurityVulnerability{{
+			FirstPatchedVersion: new("2.0"), VulnerableVersionRange: new("< 2.0"),
+			VulnerableFunctions: []string{"unsafeQuery"},
+		}},
+	}
+	codeQualityJSON := json.RawMessage(`{"unknown_legacy_field":"preserved in text","url":"https://api.github.com/repos/owner/repo/code-quality/findings/42","state":"open","rule":{"id":"test-rule","description":"Test rule"},"number":42}`)
+	legacyOutputs := map[string]any{
+		"get_code_quality_finding":    codeQualityFinding,
+		"get_code_scanning_alert":     codeScanningAlert,
+		"list_code_scanning_alerts":   []*github.Alert{codeScanningAlert},
+		"get_secret_scanning_alert":   secretScanningAlert,
+		"list_secret_scanning_alerts": []*github.SecretScanningAlert{secretScanningAlert},
+		"get_dependabot_alert":        dependabotAlert,
+		"list_dependabot_alerts": struct {
+			Alerts   []*github.DependabotAlert `json:"alerts"`
+			PageInfo pageInfo                  `json:"pageInfo"`
+		}{Alerts: []*github.DependabotAlert{dependabotAlert}},
+		"get_global_security_advisory":            globalAdvisory,
+		"list_global_security_advisories":         []*github.GlobalSecurityAdvisory{globalAdvisory},
+		"list_repository_security_advisories":     []*github.SecurityAdvisory{advisory},
+		"list_org_repository_security_advisories": []*github.SecurityAdvisory{advisory},
 	}
 
 	deps := BaseDeps{
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber: mockResponse(t, http.StatusOK, codeQualityFinding),
-			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:    mockResponse(t, http.StatusOK, codeScanningAlert),
-			GetReposCodeScanningAlertsByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
-			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber:  mockResponse(t, http.StatusOK, secretScanningAlert),
-			GetReposSecretScanningAlertsByOwnerByRepo:               mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
-			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:      mockResponse(t, http.StatusOK, dependabotAlert),
-			GetReposDependabotAlertsByOwnerByRepo:                   mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
-			GetAdvisories:                                           mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
-			GetAdvisoriesByGhsaID:                                   mockResponse(t, http.StatusOK, globalAdvisory),
-			GetReposSecurityAdvisoriesByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
-			GetOrgsSecurityAdvisoriesByOrg:                          mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber: mockResponse(t, http.StatusOK, codeQualityJSON),
+			GetReposByOwnerByRepo:                                  mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
+			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:   mockResponse(t, http.StatusOK, codeScanningAlert),
+			GetReposCodeScanningAlertsByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
+			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, secretScanningAlert),
+			GetReposSecretScanningAlertsByOwnerByRepo:              mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
+			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:     mockResponse(t, http.StatusOK, dependabotAlert),
+			GetReposDependabotAlertsByOwnerByRepo:                  mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
+			GetAdvisories:                                          mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
+			GetAdvisoriesByGhsaID:                                  mockResponse(t, http.StatusOK, globalAdvisory),
+			GetReposSecurityAdvisoriesByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetOrgsSecurityAdvisoriesByOrg:                         mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
 		})),
 		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 	}
@@ -104,6 +192,21 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 		{Name: "list_repository_security_advisories", Arguments: map[string]any{"owner": "owner", "repo": "repo"}},
 		{Name: "list_org_repository_security_advisories", Arguments: map[string]any{"org": "owner"}},
 	}
+	legacyIFC := make(map[string]string)
+	t.Run("unknown direct caller", func(t *testing.T) {
+		for i, tool := range tools {
+			call := calls[i]
+			arguments, err := json.Marshal(call.Arguments)
+			require.NoError(t, err)
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{Name: call.Name, Arguments: arguments},
+			})
+			require.NoError(t, err, call.Name)
+			require.False(t, result.IsError, call.Name)
+			assert.Nil(t, result.StructuredContent, "unknown callers must remain text-only")
+			assert.Equal(t, mustMarshalJSON(t, legacyOutputs[call.Name]), getTextResult(t, result).Text, call.Name)
+		}
+	})
 
 	for _, protocolVersion := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
 		t.Run(protocolVersion, func(t *testing.T) {
@@ -125,6 +228,10 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 					continue
 				}
 				require.NotNil(t, tool.OutputSchema, "%s must publish an output schema", tool.Name)
+				schemaBytes, err := json.Marshal(tool.OutputSchema)
+				require.NoError(t, err)
+				t.Logf("%s output schema: %d bytes", tool.Name, len(schemaBytes))
+				assert.JSONEq(t, mustMarshalJSON(t, securityOutputSchema(t, tool.Name)), string(schemaBytes), "canonical snapshots must describe the modern wire schema")
 			}
 
 			for _, call := range calls {
@@ -132,22 +239,18 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				require.NoError(t, err, call.Name)
 				require.False(t, result.IsError, "%s: %s", call.Name, result)
 				text := getTextResult(t, result).Text
-				switch call.Name {
-				case "get_code_quality_finding":
-					assert.Contains(t, text, "unknown_legacy_field", "the legacy text response must preserve unknown API fields")
-				case "get_code_scanning_alert":
-					assert.Contains(t, text, "full_description", "the legacy text response must retain full API details")
-				case "get_secret_scanning_alert":
-					assert.Contains(t, text, "legacy response detail", "the legacy text response must retain full API details")
-				case "list_dependabot_alerts":
-					assert.Contains(t, text, "classification", "the legacy text response must retain full API details")
-				}
 				if protocolVersion == "2025-11-25" {
+					assert.Equal(t, mustMarshalJSON(t, legacyOutputs[call.Name]), text, "%s must retain byte-exact main serialization for legacy clients", call.Name)
+					legacyIFC[call.Name] = mustMarshalJSON(t, result.Meta["ifc"])
 					assert.Nil(t, result.StructuredContent, "%s must remain text-only for legacy clients", call.Name)
 					continue
 				}
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.Name)
+				assert.Equal(t, legacyIFC[call.Name], mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels must protect text and structured content identically")
+				if call.Name != "get_code_quality_finding" {
+					assert.NotNil(t, result.Meta["ifc"], "%s must retain its IFC label", call.Name)
+				}
 				schemaJSON, err := json.Marshal(toolsByName[call.Name].OutputSchema)
 				require.NoError(t, err)
 				var schema jsonschema.Schema
@@ -156,13 +259,37 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				require.NoError(t, err)
 				structuredJSON, err := json.Marshal(result.StructuredContent)
 				require.NoError(t, err)
+				assert.JSONEq(t, string(structuredJSON), text, "modern JSON text must expose the same compact DTO as structuredContent")
 				var structured any
 				require.NoError(t, json.Unmarshal(structuredJSON, &structured))
 				require.NoError(t, resolved.Validate(structured), "%s output must conform to its schema", call.Name)
+				assert.NotContains(t, string(structuredJSON), "https://api.github.com", "API/hypermedia URLs must remain text-only")
+				switch call.Name {
+				case "get_code_scanning_alert", "list_code_scanning_alerts":
+					assert.Contains(t, string(structuredJSON), "Use parameterized queries")
+					assert.Contains(t, string(structuredJSON), `"security_severity_level":"high"`)
+				case "get_secret_scanning_alert", "list_secret_scanning_alerts":
+					assert.Contains(t, text, `"secret":"test-secret"`)
+					assert.Contains(t, string(structuredJSON), `"secret":"test-secret"`, "preserve the same intentionally scoped secret as text")
+					assert.Contains(t, string(structuredJSON), `"validity":"active"`)
+					assert.Contains(t, string(structuredJSON), "Rotate this credential")
+					assert.Contains(t, string(structuredJSON), `"start_column":5`)
+				case "get_dependabot_alert", "list_dependabot_alerts":
+					assert.Contains(t, string(structuredJSON), `"first_patched_version":"2.0"`)
+					assert.Contains(t, string(structuredJSON), `"dismissed_reason":"tolerable_risk"`)
+					assert.NotContains(t, string(structuredJSON), `"vulnerabilities"`, "use the alert's affected package instead of repeating advisory-wide packages")
+				case "get_global_security_advisory", "list_global_security_advisories":
+					assert.Contains(t, string(structuredJSON), `"first_patched_version":"2.0"`)
+					assert.Contains(t, string(structuredJSON), "unsafeQuery")
+				case "list_repository_security_advisories", "list_org_repository_security_advisories":
+					assert.Contains(t, string(structuredJSON), `"patched_versions":"2.0"`)
+					assert.Contains(t, string(structuredJSON), "unsafeQuery")
+				}
 
 				if call.Name == "get_code_quality_finding" {
 					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "unknown_legacy_field")
 				}
+
 				if call.Name == "get_code_scanning_alert" {
 					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "full_description")
 				}
@@ -177,5 +304,38 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSecurityOutputDTOs(t *testing.T) {
+	seen := make(map[reflect.Type]bool)
+	var check func(reflect.Type)
+	check = func(typ reflect.Type) {
+		if seen[typ] {
+			return
+		}
+		seen[typ] = true
+		assert.NotEqual(t, "github.com/google/go-github/v92/github", typ.PkgPath(), "%s must not embed raw API models", typ)
+		switch typ.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Array:
+			check(typ.Elem())
+		case reflect.Struct:
+			for field := range typ.Fields() {
+				if field.IsExported() {
+					check(field.Type)
+				}
+			}
+		case reflect.Map, reflect.Interface:
+			t.Errorf("%s must not use open-ended maps or interfaces", typ)
+		}
+	}
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[CodeQualityFindingOutput](),
+		reflect.TypeFor[CodeScanningAlertOutput](),
+		reflect.TypeFor[SecretScanningAlertOutput](),
+		reflect.TypeFor[DependabotAlertsOutput](),
+		reflect.TypeFor[GlobalSecurityAdvisoryOutput](),
+	} {
+		check(typ)
 	}
 }

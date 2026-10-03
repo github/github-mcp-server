@@ -19,73 +19,77 @@ import (
 )
 
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[ListGlobalSecurityAdvisoriesInput, []*GlobalSecurityAdvisoryOutput](
-		ToolsetMetadataSecurityAdvisories,
-		mcp.Tool{
-			Name:        "list_global_security_advisories",
-			Description: t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_DESCRIPTION", "List global security advisories from GitHub."),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_USER_TITLE", "List global security advisories"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"ghsaId": {
-						Type:        "string",
-						Description: "Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+	tool := mcp.Tool{
+		Name:        "list_global_security_advisories",
+		Description: t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_DESCRIPTION", "List global security advisories from GitHub."),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_USER_TITLE", "List global security advisories"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"ghsaId": {
+					Type:        "string",
+					Description: "Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+				},
+				"type": {
+					Type:        "string",
+					Description: "Advisory type.",
+					Enum:        []any{"reviewed", "malware", "unreviewed"},
+					Default:     json.RawMessage(`"reviewed"`),
+				},
+				"cveId": {
+					Type:        "string",
+					Description: "Filter by CVE ID.",
+				},
+				"ecosystem": {
+					Type:        "string",
+					Description: "Filter by package ecosystem.",
+					Enum:        []any{"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust"},
+				},
+				"severity": {
+					Type:        "string",
+					Description: "Filter by severity.",
+					Enum:        []any{"unknown", "low", "medium", "high", "critical"},
+				},
+				"cwes": {
+					Type:        "array",
+					Description: "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"]).",
+					Items: &jsonschema.Schema{
+						Type: "string",
 					},
-					"type": {
-						Type:        "string",
-						Description: "Advisory type.",
-						Enum:        []any{"reviewed", "malware", "unreviewed"},
-						Default:     json.RawMessage(`"reviewed"`),
-					},
-					"cveId": {
-						Type:        "string",
-						Description: "Filter by CVE ID.",
-					},
-					"ecosystem": {
-						Type:        "string",
-						Description: "Filter by package ecosystem.",
-						Enum:        []any{"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust"},
-					},
-					"severity": {
-						Type:        "string",
-						Description: "Filter by severity.",
-						Enum:        []any{"unknown", "low", "medium", "high", "critical"},
-					},
-					"cwes": {
-						Type:        "array",
-						Description: "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"]).",
-						Items: &jsonschema.Schema{
-							Type: "string",
-						},
-					},
-					"isWithdrawn": {
-						Type:        "boolean",
-						Description: "Whether to only return withdrawn advisories.",
-					},
-					"affects": {
-						Type:        "string",
-						Description: "Filter advisories by affected package or version (e.g. \"package1,package2@1.0.0\").",
-					},
-					"published": {
-						Type:        "string",
-						Description: "Filter by publish date or date range (ISO 8601 date or range).",
-					},
-					"updated": {
-						Type:        "string",
-						Description: "Filter by update date or date range (ISO 8601 date or range).",
-					},
-					"modified": {
-						Type:        "string",
-						Description: "Filter by publish or update date or date range (ISO 8601 date or range).",
-					},
+				},
+				"isWithdrawn": {
+					Type:        "boolean",
+					Description: "Whether to only return withdrawn advisories.",
+				},
+				"affects": {
+					Type:        "string",
+					Description: "Filter advisories by affected package or version (e.g. \"package1,package2@1.0.0\").",
+				},
+				"published": {
+					Type:        "string",
+					Description: "Filter by publish date or date range (ISO 8601 date or range).",
+				},
+				"updated": {
+					Type:        "string",
+					Description: "Filter by update date or date range (ISO 8601 date or range).",
+				},
+				"modified": {
+					Type:        "string",
+					Description: "Filter by publish or update date or date range (ISO 8601 date or range).",
 				},
 			},
 		},
+	}
+	return NewToolWithSchemaOptions[ListGlobalSecurityAdvisoriesInput, []*GlobalSecurityAdvisoryOutput](
+		ToolsetMetadataSecurityAdvisories,
+		tool,
 		scopes.RequireAll(scopes.SecurityEvents),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: inventory.CloneSchemaWithoutDefaults(tool.InputSchema.(*jsonschema.Schema)),
+		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListGlobalSecurityAdvisoriesInput) (*mcp.CallToolResult, []*GlobalSecurityAdvisoryOutput, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -156,6 +160,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
 			return result, mapSecurityOutputs(advisories, globalSecurityAdvisoryOutput), nil
 		},
+		normalizeGlobalAdvisoryArguments,
 	)
 }
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 	// Verify tool definition
 	toolDef := GetDependabotAlert(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	// Validate tool schema
 	assert.Equal(t, "get_dependabot_alert", tool.Name)
@@ -129,7 +128,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListDependabotAlerts(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_dependabot_alerts", tool.Name)
 	assert.NotEmpty(t, tool.Description)
