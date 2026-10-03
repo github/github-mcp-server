@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -255,11 +256,14 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
 	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 	getMeTool := GetMe(translations.NullTranslationHelper)
-	getMeTool.RegisterFunc(server, nil)
 	getTeamsTool := GetTeams(translations.NullTranslationHelper)
-	getTeamsTool.RegisterFunc(server, nil)
 	teamMembersTool := GetTeamMembers(translations.NullTranslationHelper)
-	teamMembersTool.RegisterFunc(server, nil)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{getMeTool, getTeamsTool, teamMembersTool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+	inv.RegisterTools(context.Background(), server, deps)
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
@@ -267,11 +271,15 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	t.Cleanup(func() { _ = serverSession.Close() })
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
-	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, &mcp.ClientSessionOptions{
+		ProtocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+	})
 	require.NoError(t, err)
+	require.Equal(t, inventory.ProtocolVersionMultiRoundTrip, clientSession.InitializeResult().ProtocolVersion)
 	t.Cleanup(func() { _ = clientSession.Close() })
 
-	list, err := clientSession.ListTools(context.Background(), nil)
+	protocolMeta := mcp.Meta{mcp.MetaKeyProtocolVersion: inventory.ProtocolVersionMultiRoundTrip}
+	list, err := clientSession.ListTools(context.Background(), &mcp.ListToolsParams{Meta: protocolMeta})
 	require.NoError(t, err)
 	require.Len(t, list.Tools, 3)
 	outputSchemas := make(map[string]*jsonschema.Resolved)
@@ -299,9 +307,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 			AdditionalProperties *bool `json:"additionalProperties"`
 		}
 		require.NoError(t, json.Unmarshal(schemaJSON, &schemaMetadata))
-		if schemaMetadata.AdditionalProperties != nil {
-			assert.True(t, *schemaMetadata.AdditionalProperties, "explicit true must retain the legacy default")
-		}
+		assert.Nil(t, schemaMetadata.AdditionalProperties, "advertised input schema must match the legacy snapshot bytes")
 		for propertyName, property := range schema.Properties {
 			var propertySchema jsonschema.Schema
 			require.NoError(t, json.Unmarshal(property, &propertySchema))
@@ -340,6 +346,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_me",
 		Arguments: map[string]any{"legacy_ignored_argument": true},
+		Meta:      protocolMeta,
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -362,52 +369,56 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_teams",
 		Arguments: map[string]any{"user": "specificuser", "legacy_ignored_argument": true},
+		Meta:      protocolMeta,
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, string(structuredJSON))
-	assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
+	assert.JSONEq(t, string(structuredJSON), getTextResult(t, result).Text)
 	request = createMCPRequest(map[string]any{"user": "specificuser"})
 	legacyResult, err = getTeamsTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	assert.Equal(t, `[{"org":"testorg","teams":[{"name":"team1","slug":"team1","description":"Team 1"}]}]`, getTextResult(t, legacyResult).Text)
 	require.NoError(t, outputSchemas["get_teams"].Validate(result.StructuredContent))
-	assert.Equal(t, 1, graphQLCalls)
+	assert.Equal(t, 2, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_team_members",
 		Arguments: map[string]any{"org": "testorg", "team_slug": "testteam", "legacy_ignored_argument": true},
+		Meta:      protocolMeta,
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 	structuredJSON, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, `["user1","user2"]`, string(structuredJSON))
-	assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
+	assert.JSONEq(t, string(structuredJSON), getTextResult(t, result).Text)
 	request = createMCPRequest(map[string]any{"org": "testorg", "team_slug": "testteam"})
 	legacyResult, err = teamMembersTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	assert.Equal(t, `["user1","user2"]`, getTextResult(t, legacyResult).Text)
 	require.NoError(t, outputSchemas["get_team_members"].Validate(result.StructuredContent))
-	assert.Equal(t, 2, graphQLCalls)
+	assert.Equal(t, 4, graphQLCalls)
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_team_members",
 		Arguments: map[string]any{},
+		Meta:      protocolMeta,
 	})
 	require.NoError(t, err)
 	assert.True(t, result.IsError, "missing required arguments should be rejected by the inferred input schema")
-	assert.Equal(t, 2, graphQLCalls, "schema validation must happen before invoking the handler")
+	assert.Equal(t, 4, graphQLCalls, "schema validation must happen before invoking the handler")
 
 	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "get_team_members",
 		Arguments: map[string]any{"org": "", "team_slug": "testteam"},
+		Meta:      protocolMeta,
 	})
 	require.NoError(t, err)
 	assert.True(t, result.IsError, "empty required strings should remain invalid")
-	assert.Equal(t, 2, graphQLCalls, "handler validation must reject empty identifiers before acquiring GraphQL")
+	assert.Equal(t, 4, graphQLCalls, "handler validation must reject empty identifiers before acquiring GraphQL")
 
 	for _, tc := range []struct {
 		name       string
@@ -430,7 +441,7 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, legacyResult.IsError)
 		assert.Equal(t, tc.text, getTextResult(t, legacyResult).Text)
-		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args, Meta: protocolMeta})
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 		require.NotNil(t, result.StructuredContent, "empty successful collections must have structured content on the wire")
@@ -438,12 +449,12 @@ func TestContextToolsTypedRegistration(t *testing.T) {
 		structuredJSON, err := json.Marshal(result.StructuredContent)
 		require.NoError(t, err)
 		assert.JSONEq(t, tc.structured, string(structuredJSON))
-		assert.Equal(t, string(structuredJSON), getTextResult(t, result).Text)
+		assert.JSONEq(t, string(structuredJSON), getTextResult(t, result).Text)
 		require.NoError(t, outputSchemas[tc.name].Validate(result.StructuredContent))
 	}
 
 	failGetMe = true
-	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me"})
+	result, err = clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_me", Meta: protocolMeta})
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Nil(t, result.StructuredContent, "handler errors must not expose a successful typed output")
