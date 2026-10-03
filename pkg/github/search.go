@@ -57,8 +57,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: true,
 			},
-			InputSchema:  schema,
-			OutputSchema: searchRepositoriesOutputSchema(),
+			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchRepositoriesInput) (*mcp.CallToolResult, *SearchRepositoriesOutput, error) {
@@ -102,37 +101,17 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			// Return either minimal or full response based on parameter
 			var r []byte
-			output = new(SearchRepositoriesOutput)
+			output = &SearchRepositoriesOutput{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             make([]SearchRepository, 0, len(result.Repositories)),
+			}
 			if minimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
-					minimalRepo := MinimalRepository{
-						ID:            repo.GetID(),
-						Name:          repo.GetName(),
-						FullName:      repo.GetFullName(),
-						Description:   repo.GetDescription(),
-						HTMLURL:       repo.GetHTMLURL(),
-						Language:      repo.GetLanguage(),
-						Stars:         repo.GetStargazersCount(),
-						Forks:         repo.GetForksCount(),
-						OpenIssues:    repo.GetOpenIssuesCount(),
-						Private:       repo.GetPrivate(),
-						Fork:          repo.GetFork(),
-						Archived:      repo.GetArchived(),
-						DefaultBranch: repo.GetDefaultBranch(),
-					}
-
-					if repo.UpdatedAt != nil {
-						minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.CreatedAt != nil {
-						minimalRepo.CreatedAt = repo.CreatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.Topics != nil {
-						minimalRepo.Topics = repo.Topics
-					}
-
+					minimalRepo := minimalSearchRepository(repo)
 					minimalRepos = append(minimalRepos, minimalRepo)
+					output.Items = append(output.Items, SearchRepository{MinimalRepository: minimalRepo})
 				}
 
 				minimalResult := &MinimalSearchRepositoriesResult{
@@ -145,15 +124,13 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal minimal response", err), nil, nil
 				}
-				output.Minimal = minimalResult
 			} else {
 				r, err = json.Marshal(result)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal full response", err), nil, nil
 				}
-				output.Full = new(FullSearchRepositoriesResult)
-				if err := json.Unmarshal(r, output.Full); err != nil {
-					return utils.NewToolResultErrorFromErr("failed to decode full response", err), nil, nil
+				for _, repo := range result.Repositories {
+					output.Items = append(output.Items, fullSearchRepository(repo))
 				}
 			}
 

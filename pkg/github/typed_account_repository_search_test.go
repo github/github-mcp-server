@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"maps"
 	"net/http"
 	"reflect"
@@ -61,7 +60,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 	}{
 		"search_repositories": {
 			GetSearchRepositories,
-			`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"<b>description</b>","html_url":"repo-url","stargazers_count":0,"private":false,"fork":false,"archived":false,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"owner":{"login":"owner"},"parent":{"id":8,"custom_properties":{"nested":{"flag":false}}},"custom_properties":{"text":"value","list":["one","two"],"empty":[],"nil":null,"number":12.5,"bool":true,"object":{}}}]}`,
+			`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"<b>description</b>","html_url":"repo-url","stargazers_count":0,"private":false,"fork":false,"archived":false,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"owner":{"login":"owner"},"node_id":"R_7","homepage":"https://example.com","visibility":"public","pushed_at":"2026-01-03T03:04:05Z","watchers_count":4,"size":0,"disabled":false,"has_issues":true,"license":{"key":"mit","name":"MIT License","spdx_id":"MIT","url":"license-api-url"},"permissions":{"admin":false,"pull":true},"issues_url":"issues-api-url","parent":{"id":8},"custom_properties":{"text":"value"}}]}`,
 			`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"\u003cb\u003edescription\u003c/b\u003e","html_url":"repo-url","stargazers_count":0,"forks_count":0,"open_issues_count":0,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"private":false,"fork":false,"archived":false}]}`,
 		},
 		"search_users": {
@@ -125,7 +124,9 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 				var resolved *jsonschema.Resolved
 				if protocol == inventory.ProtocolVersionMultiRoundTrip {
 					require.NotNil(t, listed.OutputSchema)
-					require.NoError(t, toolsnaps.Test(tool.Tool.Name+"_typed", *listed))
+					canonical := *listed
+					canonical.Icons = nil // Registration adds toolset icons absent from canonical snapshots.
+					require.NoError(t, toolsnaps.Test(tool.Tool.Name, canonical))
 					var schema jsonschema.Schema
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, listed.OutputSchema)), &schema))
 					resolved, err = schema.Resolve(nil)
@@ -133,7 +134,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 				} else {
 					assert.Nil(t, listed.OutputSchema)
 				}
-				check := func(args map[string]any, expected string) {
+				checkStructured := func(args map[string]any, expected, structured string) {
 					t.Helper()
 					args = maps.Clone(args)
 					args["query"] = query
@@ -156,7 +157,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 					} else {
 						require.NotNil(t, result.StructuredContent)
 						encoded := mustMarshalJSON(t, result.StructuredContent)
-						assert.JSONEq(t, expected, encoded)
+						assert.JSONEq(t, structured, encoded)
 						var output any
 						require.NoError(t, json.Unmarshal([]byte(encoded), &output))
 						require.NoError(t, resolved.Validate(output))
@@ -166,6 +167,10 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 					require.NoError(t, err)
 					require.False(t, direct.IsError)
 					assert.Equal(t, expected, getTextResult(t, direct).Text)
+				}
+				check := func(args map[string]any, expected string) {
+					t.Helper()
+					checkStructured(args, expected, expected)
 				}
 				for _, args := range []map[string]any{
 					{}, {"page": 0, "perPage": 0}, {"page": "0", "perPage": "0"},
@@ -189,18 +194,19 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 				if tool.Tool.Name == "search_repositories" {
 					var full github.RepositoriesSearchResult
 					require.NoError(t, json.Unmarshal([]byte(body), &full))
-					check(map[string]any{"minimal_output": false}, mustMarshalJSON(t, full))
+					checkStructured(map[string]any{"minimal_output": false}, mustMarshalJSON(t, full),
+						`{"total_count":1,"incomplete_results":false,"items":[{"id":7,"name":"repo","full_name":"owner/repo","description":"<b>description</b>","html_url":"repo-url","stargazers_count":0,"forks_count":0,"open_issues_count":0,"created_at":"2026-01-02T03:04:05Z","topics":["go"],"private":false,"fork":false,"archived":false,"node_id":"R_7","homepage":"https://example.com","visibility":"public","pushed_at":"2026-01-03T03:04:05Z","watchers_count":4,"size":0,"disabled":false,"has_issues":true,"license":{"key":"mit","name":"MIT License","spdx_id":"MIT"},"permissions":{"admin":false,"pull":true}}]}`)
 					check(map[string]any{"minimal_output": true}, fixture.text)
 				}
-				for _, emptyBody := range []string{`{"total_count":0,"incomplete_results":false,"items":[]}`, `{}`} {
+				for _, emptyBody := range []string{`{"total_count":0,"incomplete_results":false,"items":[]}`, `{"items":null}`, `{}`} {
 					body = emptyBody
 					check(map[string]any{}, `{"total_count":0,"incomplete_results":false,"items":[]}`)
 					if tool.Tool.Name == "search_repositories" {
 						expected := `{"total_count":0,"incomplete_results":false}`
-						if emptyBody == "{}" {
+						if emptyBody != `{"total_count":0,"incomplete_results":false,"items":[]}` {
 							expected = "{}"
 						}
-						check(map[string]any{"minimal_output": false}, expected)
+						checkStructured(map[string]any{"minimal_output": false}, expected, `{"total_count":0,"incomplete_results":false,"items":[]}`)
 					}
 				}
 				before := calls
@@ -259,40 +265,14 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 	}
 }
 
-func TestSearchRepositoryOutputCoversUpstreamFields(t *testing.T) {
-	upstream := reflect.TypeFor[github.Repository]()
-	output := reflect.TypeFor[SearchRepository]()
-	require.Equal(t, upstream.NumField(), output.NumField())
-	for field := range upstream.Fields() {
-		actual, ok := output.FieldByName(field.Name)
-		require.True(t, ok, field.Name)
-		assert.Equal(t, field.Tag, actual.Tag, field.Name)
-		switch field.Name {
-		case "CustomProperties", "Parent", "Source", "TemplateRepository":
-		default:
-			assert.Equal(t, field.Type, actual.Type, field.Name)
-		}
-	}
-}
-
-func TestSearchPropertyValueJSONUnion(t *testing.T) {
-	schema, err := searchRepositoriesOutputSchema().Resolve(nil)
+func TestSearchRepositoryOutputSchemaIsCompact(t *testing.T) {
+	schema, err := jsonschema.For[SearchRepositoriesOutput](nil)
 	require.NoError(t, err)
-	for _, raw := range []string{`null`, `false`, `0`, `""`, `[]`, `{}`, `["a",null]`, `{"nested":[true,1,"a"]}`} {
-		var value SearchPropertyValue
-		require.NoError(t, json.Unmarshal([]byte(raw), &value))
-		assert.JSONEq(t, raw, mustMarshalJSON(t, value))
-		out := FullSearchRepositoriesResult{Repositories: []*SearchRepository{{CustomProperties: map[string]SearchPropertyValue{"value": value}}}}
-		var decoded any
-		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, out)), &decoded))
-		require.NoError(t, schema.Validate(decoded))
+	encoded := mustMarshalJSON(t, schema)
+	for _, field := range []string{"custom_properties", "owner", "parent", "issues_url", "clone_url", "url\""} {
+		assert.NotContains(t, encoded, `"`+field, field)
 	}
-	for _, raw := range []string{``, `"`, `[`, `NaN`, `null false`} {
-		var value SearchPropertyValue
-		require.Error(t, json.Unmarshal([]byte(raw), &value))
-	}
-	var value SearchPropertyValue
-	require.ErrorIs(t, value.UnmarshalJSON(nil), io.ErrUnexpectedEOF)
+	assert.Contains(t, encoded, `"html_url"`)
 	for _, tool := range typedAccountRepositorySearchTools() {
 		assert.True(t, tool.IsReadOnly())
 	}
