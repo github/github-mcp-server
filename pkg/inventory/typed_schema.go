@@ -357,6 +357,10 @@ func CachedInputSchemaFor[T any](options *jsonschema.ForOptions, enums ...Schema
 }
 
 func cachedSchemaFor(goType reflect.Type, options *jsonschema.ForOptions, enums []SchemaEnum, inputSchema bool) (*jsonschema.Schema, error) {
+	// Match SDK input inference without removing nullable output semantics.
+	if inputSchema && goType.Kind() == reflect.Pointer {
+		goType = goType.Elem()
+	}
 	optionsKey, err := schemaOptionsKey(options)
 	if err != nil {
 		return nil, err

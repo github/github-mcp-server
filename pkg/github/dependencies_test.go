@@ -2,7 +2,9 @@ package github_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +16,11 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/observability"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +29,94 @@ import (
 func testExporters() observability.Exporters {
 	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
 	return obs
+}
+
+func TestNewToolWithSchemaOptionsPointerInputAndNullableOutput(t *testing.T) {
+	type input struct {
+		Query string `json:"query"`
+	}
+	type output struct {
+		Query string `json:"query"`
+	}
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			options := &mcp.ServerOptions{}
+			if legacy {
+				options.SupportedProtocolVersions = []string{"2025-11-25"}
+			}
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, options)
+			if legacy {
+				server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+					return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+						if method == "server/discover" {
+							return nil, errors.New("legacy initialize required")
+						}
+						return next(ctx, method, req)
+					}
+				})
+			}
+			deps := github.NewRequestDeps(newRequestDepsAPIHostResolver(t, "https://api.github.com"),
+				"test", false, nil, translations.NullTranslationHelper, 0, nil, testExporters())
+			server.AddReceivingMiddleware(github.InjectDepsMiddleware(deps))
+			tool := github.NewToolWithSchemaOptions(
+				inventory.ToolsetMetadata{ID: "test"},
+				mcp.Tool{Name: "pointer_tool"},
+				inventory.ScopeAccess{},
+				inventory.TypedSchemaOptions{},
+				func(_ context.Context, gotDeps github.ToolDependencies, _ *mcp.CallToolRequest, args *input) (*mcp.CallToolResult, *output, error) {
+					require.Same(t, deps, gotDeps)
+					require.NotNil(t, args)
+					result := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: args.Query}}}
+					if args.Query == "null" {
+						return result, nil, nil
+					}
+					return result, &output{Query: args.Query}, nil
+				},
+			)
+			require.NotPanics(t, func() { tool.RegisterFunc(server, deps) })
+			serverTransport, clientTransport := mcp.NewInMemoryTransports()
+			serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+			require.NoError(t, err)
+			defer serverSession.Close()
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1"}, nil)
+			session, err := client.Connect(context.Background(), clientTransport, nil)
+			require.NoError(t, err)
+			defer session.Close()
+			if legacy {
+				assert.Equal(t, "2025-11-25", session.InitializeResult().ProtocolVersion)
+			}
+			list, err := session.ListTools(context.Background(), nil)
+			require.NoError(t, err)
+			require.Len(t, list.Tools, 1)
+			inputJSON, err := json.Marshal(list.Tools[0].InputSchema)
+			require.NoError(t, err)
+			assert.Contains(t, string(inputJSON), `"type":"object"`)
+			for _, query := range []string{"value", "null"} {
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+					Name: tool.Tool.Name, Arguments: map[string]any{"query": query},
+				})
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				if legacy {
+					assert.Nil(t, list.Tools[0].OutputSchema)
+					assert.Nil(t, result.StructuredContent)
+					require.Len(t, result.Content, 1)
+					assert.Equal(t, query, result.Content[0].(*mcp.TextContent).Text)
+				} else {
+					schemaJSON, err := json.Marshal(list.Tools[0].OutputSchema)
+					require.NoError(t, err)
+					assert.Contains(t, string(schemaJSON), `"null"`)
+					valueJSON, err := json.Marshal(result.StructuredContent)
+					require.NoError(t, err)
+					if query == "null" {
+						assert.JSONEq(t, `null`, string(valueJSON))
+					} else {
+						assert.JSONEq(t, `{"query":"value"}`, string(valueJSON))
+					}
+				}
+			}
+		})
+	}
 }
 
 type requestDepsAPIHostResolver struct {
