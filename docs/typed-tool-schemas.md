@@ -43,9 +43,10 @@ subschemas. Default removal visits each child once per parent. The advertised
 schema can retain its defaults; the constructor caches the runtime schema
 without mutating either caller-owned schema.
 
-The output schema and `structuredContent` are exposed only for the exact
-protocol version `2026-07-28`. Older, absent, and unrecognized versions retain
-the legacy text result. Normal `Inventory.RegisterTools` and
+The output schema and `structuredContent` are exposed only for a negotiated,
+SDK-supported protocol version `2026-07-28` or later. Unknown versions are
+treated as legacy, including unsupported future dates; older, absent, and
+malformed versions also retain the legacy text result. Normal `Inventory.RegisterTools` and
 `ServerTool.RegisterFunc` registrations select behavior per request. Use
 `RegisterToolsForProtocolEra` or `RegisterFuncForProtocolEra` only when the
 protocol era is already known before server construction, such as a stateless

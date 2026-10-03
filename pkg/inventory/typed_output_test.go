@@ -171,6 +171,40 @@ func TestCachedExplicitSchemaWarmPathsPreserveOwnership(t *testing.T) {
 	assert.Zero(t, allocations, "cache-owned warm schemas must avoid canonical serialization and annotation cloning")
 }
 
+func TestProtocolEraForSupportedVersions(t *testing.T) {
+	supported := []string{"2027-01-01", ProtocolVersionMultiRoundTrip, "2025-11-25", "2027-02-30", "garbage"}
+	for _, tc := range []struct {
+		name    string
+		version string
+		want    ProtocolEra
+	}{
+		{name: "exact threshold", version: ProtocolVersionMultiRoundTrip, want: ProtocolEraModern},
+		{name: "supported later", version: "2027-01-01", want: ProtocolEraModern},
+		{name: "older", version: "2025-11-25", want: ProtocolEraLegacy},
+		{name: "unsupported future", version: "2099-01-01", want: ProtocolEraLegacy},
+		{name: "invalid date even if listed", version: "2027-02-30", want: ProtocolEraLegacy},
+		{name: "garbage even if listed", version: "garbage", want: ProtocolEraLegacy},
+		{name: "absent", want: ProtocolEraLegacy},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, protocolEraForSupportedVersion(tc.version, supported))
+		})
+	}
+	assert.Equal(t, ProtocolEraLegacy, protocolEraForSupportedVersion(ProtocolVersionMultiRoundTrip, nil),
+		"a valid modern date must still be supported")
+
+	for _, version := range mcp.SupportedProtocolVersions() {
+		want := ProtocolEraLegacy
+		if version >= ProtocolVersionMultiRoundTrip {
+			want = ProtocolEraModern
+		}
+		assert.Equal(t, want, ProtocolEraForVersion(version), "SDK-supported version %q", version)
+	}
+	for _, version := range []string{"", "garbage", "2027-02-30", "2099-01-01"} {
+		assert.Equal(t, ProtocolEraLegacy, ProtocolEraForVersion(version), "unknown version %q", version)
+	}
+}
+
 func TestCachedSchemaDeepCopiesMutableMetadata(t *testing.T) {
 	constant := any(map[string]any{"nested": []string{"const"}})
 	nullConstant := any(nil)
