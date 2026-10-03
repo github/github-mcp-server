@@ -236,7 +236,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

@@ -563,7 +563,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 						Type: "string",
 						Description: "One concise sentence explaining what specifically about the issue led to choosing Copilot. " +
 							"State the concrete signal (e.g. 'Well-scoped task with clear acceptance criteria').",
-						MaxLength: jsonschema.Ptr(280),
+						MaxLength: new(280),
 					},
 					"confidence": {
 						Type:        "string",

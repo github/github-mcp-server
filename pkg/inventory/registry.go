@@ -241,10 +241,35 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 // strip happens here (rather than at Build() time) so the per-request
 // context, which carries the client capability, is in scope.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, ProtocolEraDynamic, middleware...)
+}
+
+// RegisterToolsForProtocolEra registers a preselected protocol-compatible
+// variant. Remote stateless servers should use this to select schemas before
+// registering their request-scoped server.
+func (r *Inventory) RegisterToolsForProtocolEra(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, era, middleware...)
+}
+
+func (r *Inventory) registerTools(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	registrations := make(map[string]*typedToolRegistration, len(tools))
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		toolCopy := tool.Tool
+		if len(toolCopy.Icons) == 0 {
+			toolCopy.Icons = tool.Toolset.Icons()
+		}
+		AnnotateHeaderParams(&toolCopy)
+		registration := tool.typedRegistration(&toolCopy)
+		registration.fixedEra = era
+		registrations[tool.Tool.Name] = registration
+	}
+	if len(tools) > 0 {
+		s.AddReceivingMiddleware(typedOutputMiddleware(&typedToolRegistrationSet{byName: registrations}))
+	}
+	for _, tool := range tools {
+		tool.registerFunc(s, deps, false, era, registrations[tool.Tool.Name], middleware...)
 	}
 }
 
