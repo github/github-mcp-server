@@ -99,6 +99,8 @@ type inferredSchemaEntry struct {
 
 var inferredSchemaCache sync.Map
 var explicitSchemaCache sync.Map
+var ownedSchemaPointers sync.Map
+var annotatedSchemaCache sync.Map
 
 // CloneSchemaWithoutDefaults returns a deep schema copy with default keywords
 // removed. The MCP SDK applies input-schema defaults before decoding arguments,
@@ -163,6 +165,9 @@ func CachedSchema(schema *jsonschema.Schema) (*jsonschema.Schema, error) {
 	if schema == nil {
 		return nil, nil
 	}
+	if _, owned := ownedSchemaPointers.Load(schema); owned {
+		return schema, nil
+	}
 	encoded, err := json.Marshal(schema)
 	if err != nil {
 		return nil, fmt.Errorf("marshal explicit schema: %w", err)
@@ -173,7 +178,9 @@ func CachedSchema(schema *jsonschema.Schema) (*jsonschema.Schema, error) {
 	}
 	clonedSchema := schema.CloneSchemas()
 	cached, _ := explicitSchemaCache.LoadOrStore(key, clonedSchema)
-	return cached.(*jsonschema.Schema), nil
+	result := cached.(*jsonschema.Schema)
+	ownedSchemaPointers.Store(result, struct{}{})
+	return result, nil
 }
 
 // CachedSchemaFor infers a schema once per process for the Go type and
