@@ -1261,7 +1261,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 // ListIssueTypes creates a tool to list defined issue types for an organization or repository.
 // This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[IssueMetadataInput, []*IssueTypeOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
@@ -1286,14 +1286,10 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		repositoryOrOrganizationScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := OptionalParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueMetadataInput) (*mcp.CallToolResult, []*IssueTypeOutput, error) {
+			owner, repo := input.Owner, input.Repo
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1329,7 +1325,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 				result := utils.NewToolResultText(string(r))
 				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
-				return result, nil, nil
+				return result, issueTypeOutputs(issueTypes), nil
 			}
 
 			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
@@ -1357,14 +1353,14 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// than a single repo, so confidentiality is conservatively treated
 			// as private (restricted to org members).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
-			return result, nil, nil
-		})
+			return result, issueTypeOutputs(issueTypes), nil
+		}, normalizeIssueStrings([]string{"owner"}, []string{"repo"}))
 	return st
 }
 
 // AddIssueComment creates a tool to add a comment or reaction to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[AddIssueCommentInput, *AddIssueCommentOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
@@ -1406,40 +1402,29 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				},
 				Required: []string{"owner", "repo", "issue_number"},
 			},
+			OutputSchema: addIssueCommentOutputSchema(),
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input AddIssueCommentInput) (*mcp.CallToolResult, *AddIssueCommentOutput, error) {
+			owner, repo, issueNumber := input.Owner, input.Repo, input.IssueNumber
+			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			var commentID int64
-			hasCommentID := false
-			if value, ok := args["comment_id"]; ok {
-				commentID, err = toInt64(value)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("parameter comment_id is not a valid number: %v", err)), nil, nil
-				}
+			hasCommentID := input.CommentID != nil
+			if hasCommentID {
+				commentID = *input.CommentID
 				if commentID < 1 {
 					return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
 				}
-				hasCommentID = true
 			}
-			body, hasBody, err := OptionalParamOK[string](args, "body")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			hasBody, hasReaction := input.Body != nil, input.Reaction != nil
+			var body, reactionContent string
+			if hasBody {
+				body = *input.Body
 			}
-			reactionContent, hasReaction, err := OptionalParamOK[string](args, "reaction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if hasReaction {
+				reactionContent = *input.Reaction
 			}
 			if hasCommentID && hasBody {
 				return utils.NewToolResultError("comment_id cannot be combined with body"), nil, nil
@@ -1531,17 +1516,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				}
 			}
 
-			var result any
+			result := &AddIssueCommentOutput{}
 			switch {
 			case hasBody && hasReaction:
-				result = map[string]MinimalResponse{
-					"comment":  *commentResponse,
-					"reaction": *reactionResponse,
-				}
+				result.Combined = &IssueCommentAndReactionOutput{Comment: *commentResponse, Reaction: *reactionResponse}
 			case hasReaction:
-				result = reactionResponse
+				result.Single = reactionResponse
 			default:
-				result = commentResponse
+				result.Single = commentResponse
 			}
 
 			r, err := json.Marshal(result)
@@ -1549,13 +1531,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
-		})
+			return utils.NewToolResultText(string(r)), result, nil
+		}, normalizeIssueStrings([]string{"owner", "repo"}, []string{"body", "reaction"}),
+		normalizeIssueIntegers([]string{"issue_number"}, nil), normalizeIssueCommentID)
 }
 
 // UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
 func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[UpdateIssueCommentInput, *MinimalResponse](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_comment",
@@ -1590,29 +1573,24 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueCommentInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+			owner, repo, commentID := input.Owner, input.Repo, input.CommentID
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			commentID, err := RequiredBigInt(args, "comment_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if commentID == 0 {
+				return utils.NewToolResultError("missing required parameter: comment_id"), nil, nil
 			}
 			if commentID < 1 {
 				return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
 			}
-			body, hasBody, err := OptionalParamOK[string](args, "body")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			if !hasBody {
+			if input.Body == nil {
 				return utils.NewToolResultError("missing required parameter: body"), nil, nil
 			}
+			body := *input.Body
 			if body == "" {
 				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
 			}
@@ -1632,16 +1610,17 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue comment", resp, err), nil, nil
 			}
 
-			r, err := json.Marshal(MinimalResponse{
+			output := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", updatedComment.GetID()),
 				URL: updatedComment.GetHTMLURL(),
-			})
+			}
+			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
-		})
+			return utils.NewToolResultText(string(r)), output, nil
+		}, normalizeIssueStrings([]string{"owner", "repo"}, []string{"body"}), normalizeIssueCommentID)
 }
 
 func isValidIssueReaction(reaction string) bool {
