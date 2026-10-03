@@ -183,15 +183,17 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 				require.False(t, result.IsError, "%s: %s", call.name, result)
 				require.Len(t, result.Content, 1, "%s must preserve one legacy text result", call.name)
 				assert.NotNil(t, result.Meta["ifc"], "typed and legacy outputs retain IFC labeling")
-				assert.Equal(t, call.text, getTextResult(t, result).Text, "%s legacy text is byte-exact", call.name)
+				text := getTextResult(t, result).Text
 				if protocolVersion == "2025-11-25" {
+					assert.Equal(t, call.text, text, "%s legacy text is byte-exact", call.name)
 					assert.Nil(t, result.StructuredContent)
 					continue
 				}
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.name)
 				structuredJSON := mustMarshalJSON(t, result.StructuredContent)
-				assert.JSONEq(t, call.text, structuredJSON)
+				assert.JSONEq(t, call.text, text)
+				assert.JSONEq(t, text, structuredJSON, "modern text must serialize the typed DTO")
 
 				var schema jsonschema.Schema
 				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, outputSchemas[call.name].OutputSchema)), &schema))
