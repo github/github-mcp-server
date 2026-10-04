@@ -231,3 +231,36 @@ func Test_PushFiles_NewBranchPreservesModes(t *testing.T) {
 	require.Equal(t, "100755", f.entries[0].GetMode())
 	require.Equal(t, []string{"POST /git/refs", "POST /git/trees", "POST /git/commits", "PATCH /git/refs/heads/main"}, f.writes)
 }
+
+func Test_PushFiles_TreeTraversalLimit(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		for _, depth := range []int{64, 65} {
+			name := strings.Repeat("dir/", depth-1) + "run"
+			t.Run(name+map[bool]string{false: " omitted", true: " explicit"}[explicit], func(t *testing.T) {
+				f := pushFilesFixture{trees: map[string]*github.Tree{}, missingBranch: true}
+				sha := "root"
+				for i := 1; i < depth; i++ {
+					next := sha + "-child"
+					f.trees[sha] = &github.Tree{Entries: []*github.TreeEntry{{Path: new("dir"), Mode: new("040000"), Type: new("tree"), SHA: new(next)}}}
+					sha = next
+				}
+				f.trees[sha] = &github.Tree{Entries: []*github.TreeEntry{pushFilesTreeEntry("run", "100755", "blob")}}
+				file := map[string]any{"path": name, "content": "x"}
+				if explicit {
+					file["mode"] = "100755"
+				}
+				result := f.run(t, []any{file})
+				if depth > 64 {
+					require.True(t, result.IsError)
+					require.Contains(t, result.Content[0].(*mcp.TextContent).Text, "exceeds Git tree traversal limit")
+					require.Empty(t, f.treeReads)
+					require.Empty(t, f.writes)
+				} else {
+					require.False(t, result.IsError)
+					require.Len(t, f.treeReads, depth)
+					require.Equal(t, "100755", f.entries[0].GetMode())
+				}
+			})
+		}
+	}
+}

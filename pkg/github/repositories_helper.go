@@ -81,6 +81,9 @@ func resolvePushFilesModes(ctx context.Context, client *github.Client, owner, re
 	for _, entry := range entries {
 		treeSHA := baseTree
 		parts := strings.Split(entry.GetPath(), "/")
+		if len(parts) > 64 {
+			return fmt.Errorf("path %q exceeds Git tree traversal limit", entry.GetPath())
+		}
 		mode := "100644"
 		for i, part := range parts {
 			treeEntries, cached := trees[treeSHA]
