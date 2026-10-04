@@ -1636,7 +1636,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"files": {
 						Type:        "array",
-						Description: "Array of file objects to push, each object with path (string) and content (string)",
+						Description: "Array of file objects to push, each with path, content, and optional mode (100644 or 100755). Omitted mode preserves existing regular file permissions; new files default to 100644. Only regular files are supported.",
 						Items: &jsonschema.Schema{
 							Type:                 "object",
 							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -1648,6 +1648,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 								"content": {
 									Type:        "string",
 									Description: "file content",
+								},
+								"mode": {
+									Type:        "string",
+									Description: "File mode: 100644 (ordinary) or 100755 (executable). Omit to preserve an existing regular file's mode or default a new file to 100644.",
+									Enum:        []any{"100644", "100755"},
 								},
 							},
 							Required: []string{"path", "content"},
@@ -1707,9 +1712,18 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
 
+				var mode *string
+				if value, supplied := fileMap["mode"]; supplied {
+					fileMode, ok := value.(string)
+					if !ok || (fileMode != "100644" && fileMode != "100755") {
+						return utils.NewToolResultError("file mode must be a string with value 100644 or 100755"), nil, nil
+					}
+					mode = new(fileMode)
+				}
+
 				entries = append(entries, &github.TreeEntry{
 					Path:    new(filePath),
-					Mode:    new("100644"),
+					Mode:    mode,
 					Type:    new("blob"),
 					Content: new(content),
 				})
@@ -1750,7 +1764,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			var baseCommit *github.Commit
 			if !repositoryIsEmpty {
 				if branchNotFound {
-					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					ref, err = resolveDefaultBranch(ctx, client, owner, repo)
 					if err != nil {
 						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
@@ -1777,15 +1791,26 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 
 				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
-				if branch != defaultBranch {
-					// Create the requested branch from the default branch
-					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
-					}
-				}
-
+				branchNotFound = branch != defaultBranch
 				baseCommit = base
+			}
+
+			if err := resolvePushFilesModes(ctx, client, owner, repo, baseCommit.Tree.GetSHA(), entries); err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to resolve file modes: %v", err)), nil, nil
+			}
+
+			// Validate against the pinned default-branch tree before creating a missing branch.
+			if branchNotFound {
+				ref, resp, err = client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
+					Ref: "refs/heads/" + branch,
+					SHA: baseCommit.GetSHA(),
+				})
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create branch from default", resp, err), nil, nil
+				}
+				if resp != nil && resp.Body != nil {
+					defer func() { _ = resp.Body.Close() }()
+				}
 			}
 
 			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)

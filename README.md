@@ -1482,7 +1482,7 @@ The following sets of tools are available:
 - **push_files** - Push files to repository
   - **OAuth Challenge Scopes**: `repo`, `workflow`
   - `branch`: Branch to push to (string, required)
-  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
+  - `files`: Array of file objects to push, each with path, content, and optional mode (100644 or 100755). Omitted mode preserves existing regular file permissions; new files default to 100644. Only regular files are supported. (object[], required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)

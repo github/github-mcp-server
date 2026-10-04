@@ -71,28 +71,60 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	return ref, baseCommit, nil
 }
 
-// createReferenceFromDefaultBranch creates a new branch reference from the repository's default branch
-func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (*github.Reference, error) {
-	defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to resolve default branch", nil, err)
-		return nil, fmt.Errorf("failed to resolve default branch: %w", err)
+// resolvePushFilesModes reads only the pinned base tree, without following symlinks.
+// Cache nonrecursive trees so shared parent directories require only one lookup.
+func resolvePushFilesModes(ctx context.Context, client *github.Client, owner, repo, baseTree string, entries []*github.TreeEntry) error {
+	if baseTree == "" {
+		return fmt.Errorf("base commit has no tree SHA")
 	}
-
-	// Create the new branch reference
-	createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
-		Ref: "refs/heads/" + branch,
-		SHA: *defaultRef.Object.SHA,
-	})
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create new branch reference", resp, err)
-		return nil, fmt.Errorf("failed to create new branch reference: %w", err)
+	trees := make(map[string]map[string]*github.TreeEntry)
+	for _, entry := range entries {
+		treeSHA := baseTree
+		parts := strings.Split(entry.GetPath(), "/")
+		mode := "100644"
+		for i, part := range parts {
+			treeEntries, cached := trees[treeSHA]
+			if !cached {
+				tree, resp, err := client.Git.GetTree(ctx, owner, repo, treeSHA, false)
+				if resp != nil && resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+				if err != nil {
+					return fmt.Errorf("failed to get tree for %q: %w", entry.GetPath(), err)
+				}
+				if tree == nil || tree.GetTruncated() {
+					return fmt.Errorf("incomplete tree for %q", entry.GetPath())
+				}
+				treeEntries = make(map[string]*github.TreeEntry, len(tree.Entries))
+				for _, existing := range tree.Entries {
+					if existing == nil || existing.GetPath() == "" {
+						return fmt.Errorf("invalid tree entry for %q", entry.GetPath())
+					}
+					treeEntries[existing.GetPath()] = existing
+				}
+				trees[treeSHA] = treeEntries
+			}
+			existing, found := treeEntries[part]
+			if !found {
+				break
+			}
+			if i < len(parts)-1 {
+				if existing.GetType() != "tree" || existing.GetMode() != "040000" || existing.GetSHA() == "" {
+					return fmt.Errorf("cannot write %q: ancestor %q is not a directory with a tree SHA", entry.GetPath(), strings.Join(parts[:i+1], "/"))
+				}
+				treeSHA = existing.GetSHA()
+				continue
+			}
+			if existing.GetType() != "blob" || (existing.GetMode() != "100644" && existing.GetMode() != "100755") {
+				return fmt.Errorf("cannot write %q: existing entry is not a regular file (type %q, mode %q)", entry.GetPath(), existing.GetType(), existing.GetMode())
+			}
+			mode = existing.GetMode()
+		}
+		if entry.Mode == nil {
+			entry.Mode = new(mode)
+		}
 	}
-	if resp != nil && resp.Body != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	return createdRef, nil
+	return nil
 }
 
 const (
@@ -133,12 +165,12 @@ func newSymlinkWriteBlockedResult(path, target string) *mcp.CallToolResult {
 		ResolvedTargetPath: resolvedTargetPath,
 	})
 	recovery := fmt.Sprintf(
-		`Target is outside this repository. Retarget link: allow_symlink_write=true. Replace with a file: push_files path=%q.`,
+		`Target is outside this repository. Retarget link: allow_symlink_write=true. push_files only writes regular files; remove the symlink at %q separately before replacing it.`,
 		path,
 	)
 	if resolvedTargetPath != "" {
 		recovery = fmt.Sprintf(
-			`Edit target: create_or_update_file path=%q. Retarget link: allow_symlink_write=true. Replace with a file: push_files path=%q.`,
+			`Edit target: create_or_update_file path=%q. Retarget link: allow_symlink_write=true. push_files only writes regular files; remove the symlink at %q separately before replacing it.`,
 			resolvedTargetPath,
 			path,
 		)
