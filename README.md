@@ -597,6 +597,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> | `orgs` | GitHub Organization related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/package-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/package-light.png"><img src="pkg/octicons/icons/package-light.png" width="20" height="20" alt="package"></picture> | `packages` | GitHub Packages related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> | `projects` | GitHub Projects related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> | `pull_requests` | GitHub Pull Request related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> | `repos` | GitHub Repository related tools |
@@ -1160,6 +1161,52 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org. (string, required)
   - `sort`: Sort field by category (string, optional)
+
+</details>
+
+<details>
+
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/package-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/package-light.png"><img src="pkg/octicons/icons/package-light.png" width="20" height="20" alt="package"></picture> Packages</summary>
+
+- **packages_read** - Read package information
+  - **OAuth Challenge Scopes**: `read:packages`
+  - `method`: The read operation to perform.
+    Options are:
+    - 'list_org_packages' - list packages for an organization. Requires 'org'. Optional filters: 'package_type', 'visibility'.
+    - 'get_org_package' - get a package owned by an organization. Requires 'org', 'package_type', 'package_name'.
+    - 'list_org_package_versions' - list versions of an organization package. Requires 'org', 'package_type', 'package_name'. Optional filter: 'state'.
+    - 'get_org_package_version' - get a single version of an organization package. Requires 'org', 'package_type', 'package_name', 'package_version_id'.
+    - 'list_user_packages' - list packages for a user (or the authenticated user when 'username' is omitted). Optional filters: 'package_type', 'visibility'.
+    - 'get_user_package' - get a package owned by a user. Requires 'package_type', 'package_name'.
+    - 'list_user_package_versions' - list versions of a user package. Requires 'package_type', 'package_name'. Optional filter: 'state'.
+    - 'get_user_package_version' - get a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'.
+    
+    Download statistics are not available through the GitHub REST API. (string, required)
+  - `org`: Organization name. Required for org_* methods. (string, optional)
+  - `package_name`: Package name. Required for every method except list_org_packages and list_user_packages. (string, optional)
+  - `package_type`: Package type. Required for every method except list_org_packages and list_user_packages, where it is an optional filter. (string, optional)
+  - `package_version_id`: Package version ID. Required for methods that target a single version. (number, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `state`: Filter package versions by state (list_*_package_versions only). (string, optional)
+  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. (string, optional)
+  - `visibility`: Filter packages by visibility (list_org_packages and list_user_packages only). (string, optional)
+
+- **packages_write** - Delete packages
+  - **OAuth Challenge Scopes**: `read:packages`, `delete:packages`
+  - `method`: The delete operation to perform.
+    Options are:
+    - 'delete_org_package' - delete an entire organization package, including all versions. Requires 'org', 'package_type', 'package_name'.
+    - 'delete_org_package_version' - delete a single version of an organization package. Requires 'org', 'package_type', 'package_name', 'package_version_id'.
+    - 'delete_user_package' - delete an entire user package, including all versions. Requires 'package_type', 'package_name'. Omit 'username' to target the authenticated user.
+    - 'delete_user_package_version' - delete a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'. Omit 'username' to target the authenticated user.
+    
+    Deleted packages and versions can be restored from the GitHub web interface within 30 days. (string, required)
+  - `org`: Organization name. Required for org_* methods. (string, optional)
+  - `package_name`: Package name. (string, required)
+  - `package_type`: Package type. (string, required)
+  - `package_version_id`: Package version ID. Required for methods that target a single version. (number, optional)
+  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. (string, optional)
 
 </details>
 
