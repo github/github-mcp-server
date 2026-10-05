@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 type GranularPullRequestCoordinate struct {
@@ -30,7 +32,7 @@ type GranularPullRequestBodyInput struct {
 
 type GranularPullRequestStateInput struct {
 	GranularPullRequestCoordinate
-	State string `json:"state"`
+	State GranularPullRequestState `json:"state"`
 }
 
 type GranularPullRequestDraftInput struct {
@@ -45,15 +47,26 @@ type GranularPullRequestReviewersInput struct {
 
 type GranularCreatePullRequestReviewInput struct {
 	GranularPullRequestCoordinate
-	Body     string `json:"body,omitempty"`
-	Event    string `json:"event,omitempty"`
-	CommitID string `json:"commitID,omitempty"`
+	Body     string                         `json:"body,omitempty"`
+	Event    GranularPullRequestReviewEvent `json:"event,omitempty"`
+	CommitID string                         `json:"commitID,omitempty"`
 }
 
 type GranularSubmitPullRequestReviewInput struct {
 	GranularPullRequestCoordinate
-	Event string `json:"event"`
-	Body  string `json:"body,omitempty"`
+	Event GranularPullRequestReviewEvent `json:"event"`
+	Body  string                         `json:"body,omitempty"`
+}
+
+type GranularPullRequestReviewCommentInput struct {
+	GranularPullRequestCoordinate
+	Path        string                            `json:"path"`
+	Body        string                            `json:"body"`
+	SubjectType GranularPullRequestCommentSubject `json:"subjectType"`
+	Line        *int                              `json:"line,omitempty"`
+	Side        *GranularPullRequestDiffSide      `json:"side,omitempty"`
+	StartLine   *int                              `json:"startLine,omitempty"`
+	StartSide   *GranularPullRequestDiffSide      `json:"startSide,omitempty"`
 }
 
 type GranularReviewThreadInput struct {
@@ -66,10 +79,10 @@ type GranularResolveReviewThreadInput struct {
 }
 
 type GranularAddPullRequestCommentReactionInput struct {
-	Owner     string `json:"owner"`
-	Repo      string `json:"repo"`
-	CommentID int64  `json:"comment_id"`
-	Content   string `json:"content"`
+	Owner     string                         `json:"owner"`
+	Repo      string                         `json:"repo"`
+	CommentID int64                          `json:"comment_id"`
+	Content   PullRequestCommentReactionType `json:"content"`
 }
 
 type GranularRemovePullRequestCommentReactionInput struct {
@@ -79,10 +92,72 @@ type GranularRemovePullRequestCommentReactionInput struct {
 	ReactionID int64  `json:"reaction_id"`
 }
 
+// MinimalPullRequestCommentReaction omits the derivable REST reaction URL.
+type MinimalPullRequestCommentReaction struct {
+	ID      int64                          `json:"id"`
+	Content PullRequestCommentReactionType `json:"content,omitempty"`
+}
+
+type PullRequestCommentReactionType string
+
+func (PullRequestCommentReactionType) Values() []string {
+	return []string{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"}
+}
+
+func (value PullRequestCommentReactionType) JSONSchema() *jsonschema.Schema {
+	return granularPullRequestEnumSchema(value.Values())
+}
+
+type GranularPullRequestState string
+
+func (GranularPullRequestState) Values() []string { return []string{"open", "closed"} }
+func (value GranularPullRequestState) JSONSchema() *jsonschema.Schema {
+	return granularPullRequestEnumSchema(value.Values())
+}
+
+type GranularPullRequestReviewEvent string
+
+func (GranularPullRequestReviewEvent) Values() []string {
+	return []string{"APPROVE", "REQUEST_CHANGES", "COMMENT"}
+}
+func (value GranularPullRequestReviewEvent) JSONSchema() *jsonschema.Schema {
+	return granularPullRequestEnumSchema(value.Values())
+}
+
+type GranularPullRequestCommentSubject string
+
+func (GranularPullRequestCommentSubject) Values() []string { return []string{"FILE", "LINE"} }
+func (value GranularPullRequestCommentSubject) JSONSchema() *jsonschema.Schema {
+	return granularPullRequestEnumSchema(value.Values())
+}
+
+type GranularPullRequestDiffSide string
+
+func (GranularPullRequestDiffSide) Values() []string { return []string{"LEFT", "RIGHT"} }
+func (value GranularPullRequestDiffSide) JSONSchema() *jsonschema.Schema {
+	return granularPullRequestEnumSchema(value.Values())
+}
+
+func granularPullRequestEnumSchema(values []string) *jsonschema.Schema {
+	enum := make([]any, len(values))
+	for i, value := range values {
+		enum[i] = value
+	}
+	return &jsonschema.Schema{Type: "string", Enum: enum}
+}
+
+func minimalPullRequestCommentReactionSchema() *jsonschema.Schema {
+	schema := repositoryOutputSchema[MinimalPullRequestCommentReaction]()
+	schema.Properties["id"].Description = "Reaction ID"
+	schema.Properties["content"].Description = "Reaction type"
+	schema.Properties["content"].Enum = PullRequestCommentReactionType("").JSONSchema().Enum
+	return schema
+}
+
 // normalizeGranularPullRequestArguments replays the untyped parameter checks
 // in their original order, including ignored optional-string type errors.
-// Schema enums/minima are intentionally descriptive rather than restrictive:
-// the legacy handlers left those checks to GitHub, including negative IDs.
+// The advertised enum/minimum constraints remain unchanged; the compatibility
+// validation schema leaves these legacy-unvalidated checks to GitHub.
 func normalizeGranularPullRequestArguments(kind string) inventory.InputNormalizer {
 	return func(raw json.RawMessage) (json.RawMessage, error) {
 		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
@@ -98,6 +173,21 @@ func normalizeGranularPullRequestArguments(kind string) inventory.InputNormalize
 		}
 		return json.Marshal(args)
 	}
+}
+
+func granularPullRequestValidationSchema(advertised *jsonschema.Schema) *jsonschema.Schema {
+	validation := *advertised
+	validation.Properties = maps.Clone(advertised.Properties)
+	for name, property := range advertised.Properties {
+		if len(property.Enum) == 0 && property.Minimum == nil {
+			continue
+		}
+		validationProperty := *property
+		validationProperty.Enum = nil
+		validationProperty.Minimum = nil
+		validation.Properties[name] = &validationProperty
+	}
+	return &validation
 }
 
 func normalizeGranularResolveReviewThreadArguments(withResolutionReason bool) inventory.InputNormalizer {

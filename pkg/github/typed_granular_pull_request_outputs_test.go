@@ -234,22 +234,35 @@ func granularPRSession(t *testing.T, deps ToolDependencies, protocol string, rea
 			continue
 		}
 		require.NotNil(t, tool.OutputSchema, name)
-		require.NoError(t, toolsnaps.Test(name+"_typed", *tool))
+		require.NoError(t, toolsnaps.Test(name, *tool))
 		var schema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
 		resolved, err := schema.Resolve(nil)
 		require.NoError(t, err, name)
 		schemas[tool.Name] = resolved
+		if tool.Name == "add_pull_request_review_comment_reaction" {
+			require.NoError(t, resolved.Validate(map[string]any{"id": float64(77), "content": "heart"}))
+			require.Error(t, resolved.Validate(map[string]any{"id": float64(77), "url": "https://api.github.com/reaction"}))
+		}
 	}
 	return session, schemas
+}
+
+func TestGranularPullRequestCanonicalSnapshots(t *testing.T) {
+	for _, protocol := range typedPullRequestProtocols {
+		for _, reason := range []bool{false, true} {
+			granularPRSession(t, BaseDeps{}, protocol, reason)
+		}
+	}
 }
 
 func assertGranularPRResult(t *testing.T, result *mcp.CallToolResult, schema *jsonschema.Resolved, text string, isError bool) {
 	t.Helper()
 	require.Equal(t, isError, result.IsError, mustMarshalJSON(t, result))
 	require.Len(t, result.Content, 1)
-	require.Equal(t, text, result.Content[0].(*mcp.TextContent).Text)
+	wireText := result.Content[0].(*mcp.TextContent).Text
 	if schema == nil || isError {
+		require.Equal(t, text, wireText)
 		require.Nil(t, result.StructuredContent)
 		return
 	}
@@ -257,12 +270,26 @@ func assertGranularPRResult(t *testing.T, result *mcp.CallToolResult, schema *js
 	var output any
 	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 	require.NoError(t, schema.Validate(output))
-	if strings.HasPrefix(text, "{") {
+	switch {
+	case strings.Contains(text, "/reactions/"):
+		var reference MinimalResponse
+		require.NoError(t, json.Unmarshal([]byte(text), &reference))
+		var reaction MinimalPullRequestCommentReaction
+		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, output)), &reaction))
+		assert.Equal(t, reference.ID, fmt.Sprint(reaction.ID))
+		if reaction.ID != 0 {
+			assert.Equal(t, PullRequestCommentReactionType("heart"), reaction.Content)
+		}
+		assert.NotContains(t, mustMarshalJSON(t, output), "url")
+		assert.JSONEq(t, mustMarshalJSON(t, output), wireText)
+	case strings.HasPrefix(text, "{"):
+		assert.JSONEq(t, mustMarshalJSON(t, output), wireText)
 		assert.JSONEq(t, text, mustMarshalJSON(t, output))
-	} else {
+	default:
 		assert.JSONEq(t, mustMarshalJSON(t, RepositoryMessageOutput{Message: text}), mustMarshalJSON(t, output))
+		assert.JSONEq(t, mustMarshalJSON(t, output), wireText)
 	}
-	for _, raw := range []string{`{}`, `[]`, `{"id":1,"url":false}`, `{"message":1}`} {
+	for _, raw := range []string{`{}`, `[]`, `{"id":false}`, `{"message":1}`} {
 		var invalid any
 		require.NoError(t, json.Unmarshal([]byte(raw), &invalid))
 		require.Error(t, schema.Validate(invalid), raw)
@@ -377,6 +404,55 @@ func TestGranularPullRequestFeatureVariants(t *testing.T) {
 	enabled, err := variant.Enabled(context.Background())
 	require.NoError(t, err)
 	assert.False(t, enabled)
+}
+
+func TestGranularPullRequestAdvertisedInputConstraints(t *testing.T) {
+	enumFields := map[string]map[string][]any{
+		"update_pull_request_state":          {"state": {"open", "closed"}},
+		"create_pull_request_review":         {"event": {"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
+		"submit_pending_pull_request_review": {"event": {"APPROVE", "REQUEST_CHANGES", "COMMENT"}},
+		"add_pull_request_review_comment": {
+			"subjectType": {"FILE", "LINE"}, "side": {"LEFT", "RIGHT"}, "startSide": {"LEFT", "RIGHT"},
+		},
+		"add_pull_request_review_comment_reaction": {"content": {"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"}},
+	}
+	for _, tool := range granularPullRequestTools() {
+		schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
+		require.True(t, ok, tool.Tool.Name)
+		before := mustMarshalJSON(t, schema)
+		validation := granularPullRequestValidationSchema(schema)
+		for _, field := range []string{"pullNumber", "comment_id", "reaction_id"} {
+			if property := schema.Properties[field]; property != nil {
+				require.NotNil(t, property.Minimum, tool.Tool.Name+"/"+field)
+				assert.Equal(t, 1.0, *property.Minimum, tool.Tool.Name+"/"+field)
+				assert.Nil(t, validation.Properties[field].Minimum)
+			}
+		}
+		for field, values := range enumFields[tool.Tool.Name] {
+			require.NotNil(t, schema.Properties[field], tool.Tool.Name+"/"+field)
+			assert.Equal(t, values, schema.Properties[field].Enum, tool.Tool.Name+"/"+field)
+			assert.Empty(t, validation.Properties[field].Enum)
+		}
+		assert.Equal(t, schema.Required, validation.Required)
+		assert.Equal(t, before, mustMarshalJSON(t, schema), "runtime schema must not mutate advertised schema")
+	}
+}
+
+func TestGranularPullRequestReactionSchema(t *testing.T) {
+	schema, err := minimalPullRequestCommentReactionSchema().Resolve(nil)
+	require.NoError(t, err)
+	for _, content := range PullRequestCommentReactionType("").Values() {
+		require.NoError(t, schema.Validate(map[string]any{"id": float64(77), "content": content}))
+	}
+	require.NoError(t, schema.Validate(map[string]any{"id": float64(0)}))
+	for _, raw := range []string{
+		`null`, `[]`, `{}`, `{"id":"77"}`, `{"id":77,"content":"other"}`,
+		`{"id":77,"content":null}`, `{"id":77,"url":"https://api.github.com/reaction"}`,
+	} {
+		var output any
+		require.NoError(t, json.Unmarshal([]byte(raw), &output))
+		require.Error(t, schema.Validate(output), raw)
+	}
 }
 
 func TestGranularPullRequestParentBehavior(t *testing.T) {
