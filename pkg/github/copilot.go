@@ -448,7 +448,6 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			output := &AssignCopilotToIssueOutput{
 				IssueNumber: int(updateIssueMutation.UpdateIssue.Issue.Number),
-				IssueURL:    string(updateIssueMutation.UpdateIssue.Issue.URL),
 				Message:     result["message"].(string),
 				Owner:       params.Owner,
 				Repo:        params.Repo,
@@ -461,7 +460,6 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					Number: linkedPR.Number,
 					State:  linkedPR.State,
 					Title:  linkedPR.Title,
-					URL:    linkedPR.URL,
 				}
 			}
 			return utils.NewToolResultText(string(r)), output, nil
@@ -606,10 +604,10 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			if _, ok := args["is_suggestion"]; !ok {
 				return utils.NewToolResultError("is_suggestion is required"), nil, nil
 			}
-			if rationale, ok := args["_compat_rationale"].(string); ok {
+			if rationale, ok := args["_compat_rationale"]; ok {
 				args["rationale"] = rationale
 			}
-			if confidence, ok := args["_compat_confidence"].(string); ok {
+			if confidence, ok := args["_compat_confidence"]; ok {
 				args["confidence"] = confidence
 			}
 
@@ -783,7 +781,6 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				}
 				return utils.NewToolResultText(string(r)), &AssignCopilotToIssueWithIntentOutput{
 					IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
-					IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
 					IsSuggestion: params.IsSuggestion,
 					Message:      result["message"].(string),
 					Owner:        params.Owner,
@@ -845,7 +842,6 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 			output := &AssignCopilotToIssueWithIntentOutput{
 				IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
-				IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
 				IsSuggestion: params.IsSuggestion,
 				Message:      result["message"].(string),
 				Owner:        params.Owner,
@@ -859,7 +855,6 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 					Number: linkedPR.Number,
 					State:  linkedPR.State,
 					Title:  linkedPR.Title,
-					URL:    linkedPR.URL,
 				}
 			}
 			return utils.NewToolResultText(string(r)), output, nil
@@ -937,7 +932,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		ToolsetMetadataCopilot,
 		mcp.Tool{
 			Name:         "request_copilot_review",
-			OutputSchema: &jsonschema.Schema{Type: "null"},
+			OutputSchema: copilotReviewOutputSchema(),
 			Description:  t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
 			Icons:        octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
@@ -996,7 +991,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), CopilotReviewOutput{}, nil
+			return utils.NewToolResultText(""), CopilotReviewOutput{Status: "requested"}, nil
 		}, normalizeRequestCopilotReviewArguments)
 }
 

@@ -72,7 +72,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *UIGetOutput, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: "labels"}, nil
 			}
 			if compatibilityMethod, ok := args["_compat_method"].(string); ok {
 				method = compatibilityMethod
@@ -80,7 +80,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: uiGetSchemaMethod(method)}, nil
 			}
 
 			var result *mcp.CallToolResult
@@ -100,7 +100,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "reviewers":
 				result, _, err = uiGetReviewers(ctx, deps, args, owner)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), &UIGetOutput{Method: "labels"}, nil
 			}
 			if err != nil {
 				return nil, nil, err

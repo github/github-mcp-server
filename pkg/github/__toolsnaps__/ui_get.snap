@@ -42,5 +42,382 @@
     ],
     "type": "object"
   },
-  "name": "ui_get"
+  "name": "ui_get",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "assignees": {
+        "additionalProperties": false,
+        "properties": {
+          "assignees": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "login": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "description": "True when results were truncated at the pagination limit.",
+            "type": "boolean"
+          },
+          "totalCount": {
+            "description": "Total number of matching assignees.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assignees",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "branches": {
+        "additionalProperties": false,
+        "properties": {
+          "branches": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "protected": {
+                  "type": "boolean"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "sha",
+                "protected"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "description": "True when results were truncated at the pagination limit.",
+            "type": "boolean"
+          },
+          "totalCount": {
+            "description": "Number of branches returned.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "branches",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "issue_fields": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data_type": {
+                  "enum": [
+                    "text",
+                    "number",
+                    "date",
+                    "single_select"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "options": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description",
+                      "color"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "data_type",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totalCount": {
+            "description": "Number of supported issue fields returned.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fields",
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      "issue_types": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "description": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "is_enabled": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "labels": {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "description": "True when results were truncated at the pagination limit.",
+            "type": "boolean"
+          },
+          "labels": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "color",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totalCount": {
+            "description": "Total number of matching labels.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "labels",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "method": {
+        "description": "The method that produced the corresponding typed output.",
+        "enum": [
+          "labels",
+          "assignees",
+          "milestones",
+          "issue_types",
+          "branches",
+          "issue_fields",
+          "reviewers"
+        ],
+        "type": "string"
+      },
+      "milestones": {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "description": "True when results were truncated at the pagination limit.",
+            "type": "boolean"
+          },
+          "milestones": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "due_on": {
+                  "description": "Due date in YYYY-MM-DD form, or empty when no due date is set.",
+                  "type": "string"
+                },
+                "number": {
+                  "description": "Milestone number.",
+                  "type": "integer"
+                },
+                "open_issues": {
+                  "description": "Number of open issues assigned to the milestone.",
+                  "type": "integer"
+                },
+                "state": {
+                  "enum": [
+                    "open",
+                    "closed"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "title",
+                "description",
+                "state",
+                "open_issues",
+                "due_on"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totalCount": {
+            "description": "Total number of matching milestones.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "milestones",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "reviewers": {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "teams": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "org": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "org"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totalCount": {
+            "description": "Total number of matching users and teams.",
+            "type": "integer"
+          },
+          "users": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "login": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "users",
+          "teams",
+          "totalCount",
+          "has_more"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  }
 }

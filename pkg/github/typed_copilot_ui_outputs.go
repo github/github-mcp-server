@@ -15,12 +15,10 @@ type CopilotPullRequestOutput struct {
 	Number int    `json:"number"`
 	State  string `json:"state"`
 	Title  string `json:"title"`
-	URL    string `json:"url"`
 }
 
 type AssignCopilotToIssueOutput struct {
 	IssueNumber int                       `json:"issue_number"`
-	IssueURL    string                    `json:"issue_url"`
 	Message     string                    `json:"message"`
 	Note        string                    `json:"note,omitempty"`
 	Owner       string                    `json:"owner"`
@@ -31,7 +29,6 @@ type AssignCopilotToIssueOutput struct {
 type AssignCopilotToIssueWithIntentOutput struct {
 	IsSuggestion bool                      `json:"is_suggestion"`
 	IssueNumber  int                       `json:"issue_number"`
-	IssueURL     string                    `json:"issue_url"`
 	Message      string                    `json:"message"`
 	Note         string                    `json:"note,omitempty"`
 	Owner        string                    `json:"owner"`
@@ -40,17 +37,31 @@ type AssignCopilotToIssueWithIntentOutput struct {
 }
 
 func assignCopilotToIssueOutputSchema() *jsonschema.Schema {
-	return forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueOutput]())
+	schema := forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueOutput]())
+	schema.Properties["issue_number"].Description = "The assigned issue's number."
+	schema.Properties["message"].Description = "Assignment outcome or tool error message."
+	schema.Properties["note"].Description = "Additional status detail when Copilot has not created a pull request yet."
+	schema.Properties["pull_request"].Properties["state"].Enum = []any{"OPEN", "CLOSED", "MERGED"}
+	return schema
 }
 
 func assignCopilotToIssueWithIntentOutputSchema() *jsonschema.Schema {
-	return forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueWithIntentOutput]())
+	schema := forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueWithIntentOutput]())
+	schema.Properties["issue_number"].Description = "The assigned issue's number."
+	schema.Properties["message"].Description = "Assignment outcome or tool error message."
+	schema.Properties["note"].Description = "Additional status detail when Copilot has not created a pull request yet."
+	schema.Properties["pull_request"].Properties["state"].Enum = []any{"OPEN", "CLOSED", "MERGED"}
+	return schema
 }
 
-type CopilotReviewOutput struct{}
+type CopilotReviewOutput struct {
+	Status string `json:"status"`
+}
 
-func (CopilotReviewOutput) MarshalJSON() ([]byte, error) {
-	return []byte("null"), nil
+func copilotReviewOutputSchema() *jsonschema.Schema {
+	schema := forbidOmittedNulls(repositoryOutputSchema[CopilotReviewOutput]())
+	schema.Properties["status"].Description = "Outcome of the Copilot review request; requested on success."
+	return schema
 }
 
 func normalizeAssignCopilotToIssueArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -195,8 +206,7 @@ type UIGetLabelOutput struct {
 }
 
 type UIGetAssigneeOutput struct {
-	Login     string `json:"login"`
-	AvatarURL string `json:"avatar_url"`
+	Login string `json:"login"`
 }
 
 type UIGetMilestoneOutput struct {
@@ -265,35 +275,14 @@ type UIGetIssueFieldsOutput struct {
 }
 
 type UIGetOutput struct {
-	Method      string
-	Labels      *UIGetLabelsOutput
-	Assignees   *UIGetAssigneesOutput
-	Milestones  *UIGetMilestonesOutput
-	IssueTypes  []*IssueTypeOutput
-	Branches    *UIGetBranchesOutput
-	IssueFields *UIGetIssueFieldsOutput
-	Reviewers   *UIGetReviewersOutput
-}
-
-func (out UIGetOutput) MarshalJSON() ([]byte, error) {
-	switch out.Method {
-	case "labels":
-		return json.Marshal(out.Labels)
-	case "assignees":
-		return json.Marshal(out.Assignees)
-	case "milestones":
-		return json.Marshal(out.Milestones)
-	case "issue_types":
-		return json.Marshal(out.IssueTypes)
-	case "branches":
-		return json.Marshal(out.Branches)
-	case "issue_fields":
-		return json.Marshal(out.IssueFields)
-	case "reviewers":
-		return json.Marshal(out.Reviewers)
-	default:
-		return []byte("null"), nil
-	}
+	Method      string                  `json:"method"`
+	Labels      *UIGetLabelsOutput      `json:"labels,omitempty"`
+	Assignees   *UIGetAssigneesOutput   `json:"assignees,omitempty"`
+	Milestones  *UIGetMilestonesOutput  `json:"milestones,omitempty"`
+	IssueTypes  *[]*IssueTypeOutput     `json:"issue_types,omitempty"`
+	Branches    *UIGetBranchesOutput    `json:"branches,omitempty"`
+	IssueFields *UIGetIssueFieldsOutput `json:"issue_fields,omitempty"`
+	Reviewers   *UIGetReviewersOutput   `json:"reviewers,omitempty"`
 }
 
 func decodeUIGetOutput(method string, content []byte) (*UIGetOutput, error) {
@@ -301,45 +290,85 @@ func decodeUIGetOutput(method string, content []byte) (*UIGetOutput, error) {
 	switch method {
 	case "labels":
 		output.Labels = new(UIGetLabelsOutput)
-		return output, json.Unmarshal(content, output.Labels)
+		err := json.Unmarshal(content, output.Labels)
+		return output, err
 	case "assignees":
 		output.Assignees = new(UIGetAssigneesOutput)
-		return output, json.Unmarshal(content, output.Assignees)
+		err := json.Unmarshal(content, output.Assignees)
+		return output, err
 	case "milestones":
 		output.Milestones = new(UIGetMilestonesOutput)
-		return output, json.Unmarshal(content, output.Milestones)
+		err := json.Unmarshal(content, output.Milestones)
+		return output, err
 	case "issue_types":
-		return output, json.Unmarshal(content, &output.IssueTypes)
+		var issueTypes []*IssueTypeOutput
+		err := json.Unmarshal(content, &issueTypes)
+		output.IssueTypes = &issueTypes
+		return output, err
 	case "branches":
 		output.Branches = new(UIGetBranchesOutput)
-		return output, json.Unmarshal(content, output.Branches)
+		err := json.Unmarshal(content, output.Branches)
+		return output, err
 	case "issue_fields":
 		output.IssueFields = new(UIGetIssueFieldsOutput)
-		return output, json.Unmarshal(content, output.IssueFields)
+		err := json.Unmarshal(content, output.IssueFields)
+		return output, err
 	case "reviewers":
 		output.Reviewers = new(UIGetReviewersOutput)
-		return output, json.Unmarshal(content, output.Reviewers)
+		err := json.Unmarshal(content, output.Reviewers)
+		return output, err
 	default:
 		return nil, fmt.Errorf("unknown ui_get output method: %s", method)
 	}
 }
 
 func uiGetOutputSchema() *jsonschema.Schema {
-	return actionsUnionSchema(
-		&jsonschema.Schema{Type: "null"},
-		forbidOmittedNulls(repositoryOutputSchema[UIGetLabelsOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[UIGetAssigneesOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[UIGetMilestonesOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[[]*IssueTypeOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[UIGetBranchesOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[UIGetIssueFieldsOutput]()),
-		forbidOmittedNulls(repositoryOutputSchema[UIGetReviewersOutput]()),
-	)
+	schema := forbidOmittedNulls(repositoryOutputSchema[UIGetOutput]())
+	schema.Properties["method"].Enum = []any{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"}
+	schema.Properties["method"].Description = "The method that produced the corresponding typed output."
+	schema.Required = []string{"method"}
+	schema.Properties["issue_types"].Type = ""
+	schema.Properties["issue_types"].Types = []string{"array", "null"}
+	schema.Properties["issue_types"].Items = repositoryOutputSchema[[]*IssueTypeOutput]().Items
+	schema.Properties["labels"].Properties["totalCount"].Description = "Total number of matching labels."
+	schema.Properties["labels"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
+	schema.Properties["assignees"].Properties["totalCount"].Description = "Total number of matching assignees."
+	schema.Properties["assignees"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
+	schema.Properties["milestones"].Properties["totalCount"].Description = "Total number of matching milestones."
+	schema.Properties["milestones"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
+	schema.Properties["reviewers"].Properties["totalCount"].Description = "Total number of matching users and teams."
+	typedArrays := map[string][]string{
+		"labels":       {"labels"},
+		"assignees":    {"assignees"},
+		"milestones":   {"milestones"},
+		"branches":     {"branches"},
+		"issue_fields": {"fields"},
+		"reviewers":    {"users", "teams"},
+	}
+	for property, arrays := range typedArrays {
+		nested := schema.Properties[property]
+		for _, name := range arrays {
+			array := nested.Properties[name]
+			array.Type, array.Types = "array", nil
+		}
+	}
+	schema.Properties["milestones"].Properties["milestones"].Items.Properties["number"].Description = "Milestone number."
+	schema.Properties["milestones"].Properties["milestones"].Items.Properties["open_issues"].Description = "Number of open issues assigned to the milestone."
+	schema.Properties["milestones"].Properties["milestones"].Items.Properties["due_on"].Description = "Due date in YYYY-MM-DD form, or empty when no due date is set."
+	schema.Properties["milestones"].Properties["milestones"].Items.Properties["state"].Enum = []any{"open", "closed"}
+	schema.Properties["issue_fields"].Properties["fields"].Items.Properties["data_type"].Enum = []any{"text", "number", "date", "single_select"}
+	schema.Properties["issue_fields"].Properties["totalCount"].Description = "Number of supported issue fields returned."
+	schema.Properties["branches"].Properties["totalCount"].Description = "Number of branches returned."
+	schema.Properties["branches"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
+	return schema
 }
 
 func uiGetTypedResult(method string, result *mcp.CallToolResult) (*mcp.CallToolResult, *UIGetOutput, error) {
-	if result == nil || result.IsError {
-		return result, nil, nil
+	if result == nil {
+		return nil, nil, fmt.Errorf("ui_get %s returned no result", method)
+	}
+	if result.IsError {
+		return result, &UIGetOutput{Method: uiGetSchemaMethod(method)}, nil
 	}
 	if len(result.Content) != 1 {
 		return nil, nil, fmt.Errorf("ui_get %s returned %d content blocks; expected one", method, len(result.Content))
@@ -353,4 +382,13 @@ func uiGetTypedResult(method string, result *mcp.CallToolResult) (*mcp.CallToolR
 		return nil, nil, fmt.Errorf("failed to decode ui_get %s output: %w", method, err)
 	}
 	return result, output, nil
+}
+
+func uiGetSchemaMethod(method string) string {
+	switch method {
+	case "labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers":
+		return method
+	default:
+		return "labels"
+	}
 }

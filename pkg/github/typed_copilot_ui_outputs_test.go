@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -23,8 +25,12 @@ func (roundTripper typedOutputRoundTripper) RoundTrip(request *http.Request) (*h
 	return roundTripper(request)
 }
 
-func typedCopilotUIClient(t *testing.T) ToolDependencies {
+func typedCopilotUIClient(t *testing.T, fixture ...string) ToolDependencies {
 	t.Helper()
+	fixtureMode := ""
+	if len(fixture) > 0 {
+		fixtureMode = fixture[0]
+	}
 	httpClient := &http.Client{Transport: typedOutputRoundTripper(func(request *http.Request) (*http.Response, error) {
 		body := `[]`
 		status := http.StatusOK
@@ -40,14 +46,47 @@ func typedCopilotUIClient(t *testing.T) ToolDependencies {
 			case strings.Contains(string(query), "updateIssue(input:"):
 				body = `{"data":{"updateIssue":{"issue":{"id":"ISSUE","number":7,"url":"https://github.com/owner/repo/issues/7"}}}}`
 			case strings.Contains(string(query), "issueFields"):
-				body = `{"data":{"repository":{"issueFields":{"nodes":[]}}}}`
+				if fixtureMode == "nonempty" {
+					body = `{"data":{"repository":{"issueFields":{"nodes":[{"__typename":"IssueFieldText","id":"FIELD_1","name":"Priority","description":"Issue priority","dataType":"text","visibility":"ALL"}]}}}}`
+				} else {
+					body = `{"data":{"repository":{"issueFields":{"nodes":[]}}}}`
+				}
 			case strings.Contains(string(query), "labels"):
-				body = `{"data":{"repository":{"labels":{"nodes":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+				if fixtureMode == "nonempty" {
+					body = `{"data":{"repository":{"labels":{"nodes":[{"id":"LABEL_1","name":"bug","color":"d73a4a","description":"Something isn't working"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+				} else {
+					body = `{"data":{"repository":{"labels":{"nodes":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+				}
 			default:
 				return nil, assert.AnError
 			}
 		case "/orgs/owner/issue-types":
-			body = `[]`
+			switch fixtureMode {
+			case "nonempty":
+				body = `[{"id":12,"name":"Bug","description":"A bug","color":"red"},null]`
+			case "issue-types-null":
+				body = `null`
+			}
+		case "/repos/owner/repo/assignees":
+			if fixtureMode == "nonempty" {
+				body = `[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}]`
+			}
+		case "/repos/owner/repo/branches":
+			if fixtureMode == "nonempty" {
+				body = `[{"name":"main","protected":true,"commit":{"sha":"abc123"}}]`
+			}
+		case "/repos/owner/repo/milestones":
+			if fixtureMode == "nonempty" {
+				body = `[{"number":4,"title":"v1","description":"First release","state":"open","open_issues":2,"due_on":"2026-12-31T00:00:00Z"}]`
+			}
+		case "/repos/owner/repo/collaborators":
+			if fixtureMode == "nonempty" {
+				body = `[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}]`
+			}
+		case "/repos/owner/repo/teams":
+			if fixtureMode == "nonempty" {
+				body = `[{"slug":"docs","name":"Docs"}]`
+			}
 		case "/repos/owner/repo/pulls/7/requested_reviewers":
 			status = http.StatusCreated
 			body = `{}`
@@ -79,6 +118,7 @@ func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string)
 	require.NoError(t, err)
 	server := mcp.NewServer(&mcp.Implementation{Name: "copilot-ui", Version: "v1"}, nil)
 	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	registry.RegisterTools(context.Background(), server, deps)
 	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
 			switch request := request.(type) {
@@ -93,11 +133,11 @@ func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string)
 				}
 				request.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: protocol}
 				ctx = ContextWithPollConfig(ctx, PollConfig{})
+				ctx = ghcontext.WithMCPMethodInfo(ctx, &ghcontext.MCPMethodInfo{ProtocolVersion: protocol})
 			}
 			return next(ctx, method, request)
 		}
 	})
-	registry.RegisterTools(context.Background(), server, deps)
 	version := protocol
 	if version == "" || version == "unknown" {
 		version = inventory.ProtocolVersionMultiRoundTrip
@@ -125,59 +165,76 @@ func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string)
 func TestTypedCopilotAndUIWireOutputs(t *testing.T) {
 	protocols := []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", "", "unknown"}
 	tests := []struct {
-		name string
-		args map[string]any
-		text string
+		name       string
+		args       map[string]any
+		text       string
+		structured string
 	}{
 		{
-			name: "assign_copilot_to_issue",
-			args: map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7"},
-			text: `{"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
+			name:       "assign_copilot_to_issue",
+			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7"},
+			text:       `{"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
+			structured: `{"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
 		},
 		{
-			name: "assign_copilot_to_issue_with_intent",
-			args: map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7", "rationale": "  Clear acceptance criteria  ", "confidence": "medium", "is_suggestion": "true"},
-			text: `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
+			name:       "assign_copilot_to_issue_with_intent",
+			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7", "rationale": "  Clear acceptance criteria  ", "confidence": "medium", "is_suggestion": "true"},
+			text:       `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
+			structured: `{"is_suggestion":true,"issue_number":7,"message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
 		},
 		{
-			name: "request_copilot_review",
-			args: map[string]any{"owner": "owner", "repo": "repo", "pullNumber": "7"},
-			text: "",
+			name:       "assign_copilot_to_issue_with_intent",
+			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7", "rationale": "Clear acceptance criteria", "confidence": "HIGH", "is_suggestion": false},
+			text:       `{"is_suggestion":false,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
+			structured: `{"is_suggestion":false,"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo"},
-			text: `{"has_more":false,"labels":[],"totalCount":0}`,
+			name:       "request_copilot_review",
+			args:       map[string]any{"owner": "owner", "repo": "repo", "pullNumber": "7"},
+			text:       "",
+			structured: `{"status":"requested"}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "assignees", "owner": "owner", "repo": "repo"},
-			text: `{"assignees":[],"has_more":false,"totalCount":0}`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "labels", "owner": "owner", "repo": "repo"},
+			text:       `{"has_more":false,"labels":[],"totalCount":0}`,
+			structured: `{"method":"labels","labels":{"has_more":false,"labels":[],"totalCount":0}}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "milestones", "owner": "owner", "repo": "repo"},
-			text: `{"has_more":false,"milestones":[],"totalCount":0}`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "assignees", "owner": "owner", "repo": "repo"},
+			text:       `{"assignees":[],"has_more":false,"totalCount":0}`,
+			structured: `{"method":"assignees","assignees":{"assignees":[],"has_more":false,"totalCount":0}}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "issue_types", "owner": "owner"},
-			text: `[]`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "milestones", "owner": "owner", "repo": "repo"},
+			text:       `{"has_more":false,"milestones":[],"totalCount":0}`,
+			structured: `{"method":"milestones","milestones":{"has_more":false,"milestones":[],"totalCount":0}}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "branches", "owner": "owner", "repo": "repo"},
-			text: `{"branches":[],"has_more":false,"totalCount":0}`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "issue_types", "owner": "owner"},
+			text:       `[]`,
+			structured: `{"method":"issue_types","issue_types":[]}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "issue_fields", "owner": "owner", "repo": "repo"},
-			text: `{"fields":[],"totalCount":0}`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "branches", "owner": "owner", "repo": "repo"},
+			text:       `{"branches":[],"has_more":false,"totalCount":0}`,
+			structured: `{"method":"branches","branches":{"branches":[],"has_more":false,"totalCount":0}}`,
 		},
 		{
-			name: "ui_get",
-			args: map[string]any{"method": "reviewers", "owner": "owner", "repo": "repo"},
-			text: `{"has_more":false,"teams":[],"totalCount":0,"users":[]}`,
+			name:       "ui_get",
+			args:       map[string]any{"method": "issue_fields", "owner": "owner", "repo": "repo"},
+			text:       `{"fields":[],"totalCount":0}`,
+			structured: `{"method":"issue_fields","issue_fields":{"fields":[],"totalCount":0}}`,
+		},
+		{
+			name:       "ui_get",
+			args:       map[string]any{"method": "reviewers", "owner": "owner", "repo": "repo"},
+			text:       `{"has_more":false,"teams":[],"totalCount":0,"users":[]}`,
+			structured: `{"method":"reviewers","reviewers":{"has_more":false,"teams":[],"totalCount":0,"users":[]}}`,
 		},
 	}
 
@@ -190,22 +247,76 @@ func TestTypedCopilotAndUIWireOutputs(t *testing.T) {
 					require.NoError(t, err)
 					require.False(t, result.IsError, mustMarshalJSON(t, result))
 					require.Len(t, result.Content, 1)
-					assert.Equal(t, tc.text, getTextResult(t, result).Text)
 					schema := schemas[tc.name]
 					if schema == nil {
+						assert.Equal(t, tc.text, getTextResult(t, result).Text)
 						assert.Nil(t, result.StructuredContent)
-						return
-					}
-					if tc.name == "request_copilot_review" {
-						assert.Nil(t, result.StructuredContent)
-						require.NoError(t, schema.Validate(nil))
 						return
 					}
 					var output any
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 					require.NoError(t, schema.Validate(output))
-					assert.JSONEq(t, tc.text, mustMarshalJSON(t, output))
+					assert.JSONEq(t, tc.structured, mustMarshalJSON(t, output))
+					text := getTextResult(t, result).Text
+					assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), text,
+						"modern success text should be the compact structured output")
 				})
+			}
+		})
+	}
+}
+
+func TestTypedUIGetNonemptyWireOutputs(t *testing.T) {
+	session, schemas := typedCopilotUISession(t, typedCopilotUIClient(t, "nonempty"), inventory.ProtocolVersionMultiRoundTrip)
+	tests := []struct {
+		method     string
+		args       map[string]any
+		structured string
+	}{
+		{method: "labels", args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo"}, structured: `{"method":"labels","labels":{"labels":[{"id":"LABEL_1","name":"bug","color":"d73a4a","description":"Something isn't working"}],"totalCount":1,"has_more":false}}`},
+		{method: "assignees", args: map[string]any{"method": "assignees", "owner": "owner", "repo": "repo"}, structured: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat"}],"totalCount":1,"has_more":false}}`},
+		{method: "milestones", args: map[string]any{"method": "milestones", "owner": "owner", "repo": "repo"}, structured: `{"method":"milestones","milestones":{"milestones":[{"number":4,"title":"v1","description":"First release","state":"open","open_issues":2,"due_on":"2026-12-31"}],"totalCount":1,"has_more":false}}`},
+		{method: "issue_types", args: map[string]any{"method": "issue_types", "owner": "owner"}, structured: `{"method":"issue_types","issue_types":[{"id":12,"name":"Bug","description":"A bug","color":"red"},null]}`},
+		{method: "branches", args: map[string]any{"method": "branches", "owner": "owner", "repo": "repo"}, structured: `{"method":"branches","branches":{"branches":[{"name":"main","sha":"abc123","protected":true}],"totalCount":1,"has_more":false}}`},
+		{method: "issue_fields", args: map[string]any{"method": "issue_fields", "owner": "owner", "repo": "repo"}, structured: `{"method":"issue_fields","issue_fields":{"fields":[{"id":"FIELD_1","name":"Priority","data_type":"text","description":"Issue priority"}],"totalCount":1}}`},
+		{method: "reviewers", args: map[string]any{"method": "reviewers", "owner": "owner", "repo": "repo"}, structured: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat"}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.method, func(t *testing.T) {
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "ui_get", Arguments: tc.args})
+			require.NoError(t, err)
+			require.False(t, result.IsError, mustMarshalJSON(t, result))
+			schema := schemas["ui_get"]
+			require.NotNil(t, result.StructuredContent)
+			var output any
+			require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+			require.NoError(t, schema.Validate(output))
+			assert.JSONEq(t, tc.structured, mustMarshalJSON(t, output))
+			assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+		})
+	}
+}
+
+func TestTypedUIGetNullIssueTypesWireOutput(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			session, schemas := typedCopilotUISession(t, typedCopilotUIClient(t, "issue-types-null"), protocol)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name:      "ui_get",
+				Arguments: map[string]any{"method": "issue_types", "owner": "owner"},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			if protocol == inventory.ProtocolVersionMultiRoundTrip {
+				require.NotNil(t, result.StructuredContent)
+				var output any
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+				require.NoError(t, schemas["ui_get"].Validate(output))
+				assert.JSONEq(t, `{"method":"issue_types","issue_types":null}`, mustMarshalJSON(t, output))
+				assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+			} else {
+				assert.Equal(t, "null", getTextResult(t, result).Text)
+				assert.Nil(t, result.StructuredContent)
 			}
 		})
 	}
@@ -247,14 +358,16 @@ func TestTypedUIGetUnionOutputs(t *testing.T) {
 	cases := []struct {
 		method string
 		raw    string
+		typed  string
 	}{
-		{method: "labels", raw: `{"labels":[{"id":"L","name":"bug","color":"red","description":""}],"totalCount":1,"has_more":false}`},
-		{method: "assignees", raw: `{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}`},
-		{method: "milestones", raw: `{"milestones":[{"number":4,"title":"v1","description":"","state":"open","open_issues":2,"due_on":""}],"totalCount":1,"has_more":false}`},
-		{method: "issue_types", raw: `[{"id":1,"name":"Bug"}]`},
-		{method: "branches", raw: `{"branches":[{"name":"main","sha":"abc","protected":true}],"totalCount":1,"has_more":false}`},
-		{method: "issue_fields", raw: `{"fields":[{"id":"F","name":"Priority","data_type":"single_select","description":"","options":[]}],"totalCount":1}`},
-		{method: "reviewers", raw: `{"users":[{"login":"octocat","avatar_url":""}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}`},
+		{method: "labels", raw: `{"labels":[{"id":"L","name":"bug","color":"red","description":""}],"totalCount":1,"has_more":false}`, typed: `{"method":"labels","labels":{"labels":[{"id":"L","name":"bug","color":"red","description":""}],"totalCount":1,"has_more":false}}`},
+		{method: "assignees", raw: `{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}`, typed: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat"}],"totalCount":1,"has_more":false}}`},
+		{method: "milestones", raw: `{"milestones":[{"number":4,"title":"v1","description":"","state":"open","open_issues":2,"due_on":""}],"totalCount":1,"has_more":false}`, typed: `{"method":"milestones","milestones":{"milestones":[{"number":4,"title":"v1","description":"","state":"open","open_issues":2,"due_on":""}],"totalCount":1,"has_more":false}}`},
+		{method: "issue_types", raw: `[{"id":1,"name":"Bug"}]`, typed: `{"method":"issue_types","issue_types":[{"id":1,"name":"Bug"}]}`},
+		{method: "issue_types", raw: `null`, typed: `{"method":"issue_types","issue_types":null}`},
+		{method: "branches", raw: `{"branches":[{"name":"main","sha":"abc","protected":true}],"totalCount":1,"has_more":false}`, typed: `{"method":"branches","branches":{"branches":[{"name":"main","sha":"abc","protected":true}],"totalCount":1,"has_more":false}}`},
+		{method: "issue_fields", raw: `{"fields":[{"id":"F","name":"Priority","data_type":"single_select","description":"","options":[]}],"totalCount":1}`, typed: `{"method":"issue_fields","issue_fields":{"fields":[{"id":"F","name":"Priority","data_type":"single_select","description":"","options":[]}],"totalCount":1}}`},
+		{method: "reviewers", raw: `{"users":[{"login":"octocat","avatar_url":""}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}`, typed: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat"}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
 	}
 	schema, err := uiGetOutputSchema().Resolve(nil)
 	require.NoError(t, err)
@@ -264,7 +377,7 @@ func TestTypedUIGetUnionOutputs(t *testing.T) {
 			require.NoError(t, err)
 			encoded, err := json.Marshal(output)
 			require.NoError(t, err)
-			assert.JSONEq(t, tc.raw, string(encoded))
+			assert.JSONEq(t, tc.typed, string(encoded))
 			var value any
 			require.NoError(t, json.Unmarshal(encoded, &value))
 			require.NoError(t, schema.Validate(value))
@@ -272,25 +385,84 @@ func TestTypedUIGetUnionOutputs(t *testing.T) {
 	}
 }
 
+func TestToolDefinitionsUseConcreteOutputTypes(t *testing.T) {
+	for _, tool := range AllTools(translations.NullTranslationHelper) {
+		registerTyped := reflect.ValueOf(tool).FieldByName("registerTyped")
+		require.True(t, registerTyped.IsValid(), "tool %q has no output registration metadata", tool.Tool.Name)
+		assert.False(t, registerTyped.IsNil(), "tool %q uses an untyped output registration", tool.Tool.Name)
+	}
+}
+
 func TestTypedCopilotOutputSchemas(t *testing.T) {
 	cases := []struct {
+		name   string
 		schema *jsonschema.Schema
 		raw    string
 	}{
 		{
+			name:   "assign_copilot_to_issue",
 			schema: assignCopilotToIssueOutputSchema(),
-			raw:    `{"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"assigned","note":"pending","owner":"owner","pull_request":{"number":8,"state":"OPEN","title":"Fix","url":"https://github.com/owner/repo/pull/8"},"repo":"repo"}`,
+			raw:    `{"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"pending","owner":"owner","pull_request":{"number":8,"state":"OPEN","title":"Fix"},"repo":"repo"}`,
 		},
 		{
+			name:   "assign_copilot_to_issue_with_intent",
 			schema: assignCopilotToIssueWithIntentOutputSchema(),
-			raw:    `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"suggested","owner":"owner","repo":"repo"}`,
+			raw:    `{"is_suggestion":true,"issue_number":7,"message":"suggested","owner":"owner","repo":"repo"}`,
+		},
+		{
+			name:   "request_copilot_review",
+			schema: copilotReviewOutputSchema(),
+			raw:    `{"status":"requested"}`,
 		},
 	}
 	for _, tc := range cases {
-		resolved, err := tc.schema.Resolve(nil)
-		require.NoError(t, err)
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, "object", tc.schema.Type)
+			require.NotEmpty(t, tc.schema.Properties)
+			assert.Nil(t, tc.schema.AnyOf)
+			assert.Nil(t, tc.schema.OneOf)
+			resolved, err := tc.schema.Resolve(nil)
+			require.NoError(t, err)
+			var value any
+			require.NoError(t, json.Unmarshal([]byte(tc.raw), &value))
+			require.NoError(t, resolved.Validate(value))
+		})
+	}
+	assert.NotContains(t, mustMarshalJSON(t, assignCopilotToIssueOutputSchema()), `"url"`)
+	assert.NotContains(t, mustMarshalJSON(t, assignCopilotToIssueWithIntentOutputSchema()), `"url"`)
+	reviewSchema, err := copilotReviewOutputSchema().Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, reviewSchema.Validate(map[string]any{"status": "requested"}))
+	require.NoError(t, reviewSchema.Validate(map[string]any{"status": ""}))
+	assert.Error(t, reviewSchema.Validate(map[string]any{}))
+}
+
+func TestTypedUIGetOutputSchemaDiscriminator(t *testing.T) {
+	schema := uiGetOutputSchema()
+	require.Equal(t, "object", schema.Type)
+	require.Equal(t, []string{"method"}, schema.Required)
+	assert.Nil(t, schema.AnyOf)
+	assert.Nil(t, schema.OneOf)
+	require.Contains(t, schema.Properties, "method")
+	assert.Equal(t, []any{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"}, schema.Properties["method"].Enum)
+	for _, property := range []string{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"} {
+		require.Contains(t, schema.Properties, property)
+		assert.NotEqual(t, `{}`, mustMarshalJSON(t, schema.Properties[property]), property)
+	}
+	assert.NotContains(t, mustMarshalJSON(t, schema), `"url"`)
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	for _, raw := range []string{
+		`{"method":"labels","labels":{"labels":[],"totalCount":0,"has_more":false}}`,
+		`{"method":"issue_types","issue_types":[]}`,
+	} {
 		var value any
-		require.NoError(t, json.Unmarshal([]byte(tc.raw), &value))
+		require.NoError(t, json.Unmarshal([]byte(raw), &value))
 		require.NoError(t, resolved.Validate(value))
+	}
+	for _, raw := range []string{`{}`, `{"method":"unsupported"}`, `{"method":"labels","labels":true}`} {
+		var value any
+		require.NoError(t, json.Unmarshal([]byte(raw), &value))
+		assert.Error(t, resolved.Validate(value), raw)
 	}
 }

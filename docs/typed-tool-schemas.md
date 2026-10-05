@@ -58,4 +58,7 @@ request-scoped server.
 If a handler intentionally returns non-JSON text or content blocks, set
 `PreserveHandlerContent` in `TypedSchemaOptions`, or call
 `inventory.PreserveToolHandlerContent(ctx)` from the handler middleware for
-request-dependent output such as CSV.
+request-dependent output such as CSV. This is for intentional non-DTO responses
+such as resources, errors, or CSV; ordinary declared structured success must
+retain shared DTO serialization, with modern JSON text equal to
+`structuredContent`, even when legacy handler text was a plain mutation message.
