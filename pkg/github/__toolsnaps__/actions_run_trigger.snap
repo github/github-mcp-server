@@ -14,7 +14,14 @@
         "type": "object"
       },
       "method": {
-        "description": "The method to execute Supported values: run_workflow, rerun_workflow_run, rerun_failed_jobs, cancel_workflow_run, delete_workflow_run_logs.",
+        "description": "The method to execute",
+        "enum": [
+          "run_workflow",
+          "rerun_workflow_run",
+          "rerun_failed_jobs",
+          "cancel_workflow_run",
+          "delete_workflow_run_logs"
+        ],
         "type": "string"
       },
       "owner": {
@@ -47,11 +54,42 @@
   },
   "name": "actions_run_trigger",
   "outputSchema": {
-    "oneOf": [
-      {
-        "type": "null"
+    "$defs": {
+      "run_operation": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "status": {
+            "description": "HTTP response status.",
+            "type": "string"
+          },
+          "status_code": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "run_id",
+          "status",
+          "status_code"
+        ],
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "cancel": {
+        "$ref": "#/$defs/run_operation"
       },
-      {
+      "delete_logs": {
+        "$ref": "#/$defs/run_operation"
+      },
+      "dispatch": {
         "additionalProperties": false,
         "properties": {
           "inputs": {
@@ -68,6 +106,7 @@
             "type": "string"
           },
           "status": {
+            "description": "HTTP response status.",
             "type": "string"
           },
           "status_code": {
@@ -77,6 +116,10 @@
             "type": "string"
           },
           "workflow_type": {
+            "enum": [
+              "workflow_file",
+              "workflow_id"
+            ],
             "type": "string"
           }
         },
@@ -89,32 +132,29 @@
           "workflow_id",
           "workflow_type"
         ],
-        "type": "object"
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "run_id": {
-            "type": "integer"
-          },
-          "status": {
-            "type": "string"
-          },
-          "status_code": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "message",
-          "run_id",
-          "status",
-          "status_code"
+      "method": {
+        "description": "Operation that produced this response.",
+        "enum": [
+          "run_workflow",
+          "rerun_workflow_run",
+          "rerun_failed_jobs",
+          "cancel_workflow_run",
+          "delete_workflow_run_logs"
         ],
-        "type": "object"
+        "type": "string"
+      },
+      "rerun": {
+        "$ref": "#/$defs/run_operation"
+      },
+      "rerun_failed": {
+        "$ref": "#/$defs/run_operation"
       }
-    ]
+    },
+    "type": "object"
   }
 }

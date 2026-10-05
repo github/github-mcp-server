@@ -8,7 +8,13 @@
   "inputSchema": {
     "properties": {
       "method": {
-        "description": "The action to perform Supported values: list_workflows, list_workflow_runs, list_workflow_jobs, list_workflow_run_artifacts.",
+        "description": "The action to perform",
+        "enum": [
+          "list_workflows",
+          "list_workflow_runs",
+          "list_workflow_jobs",
+          "list_workflow_run_artifacts"
+        ],
         "type": "string"
       },
       "owner": {
@@ -35,56 +41,81 @@
         "type": "string"
       },
       "workflow_jobs_filter": {
-        "anyOf": [
-          {
-            "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'",
-            "properties": {
-              "filter": {
-                "description": "Filters jobs by their completed_at timestamp Supported values: latest, all.",
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          {
-            "not": {
-              "type": "object"
-            }
+        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'",
+        "properties": {
+          "filter": {
+            "description": "Filters jobs by their completed_at timestamp",
+            "enum": [
+              "latest",
+              "all"
+            ],
+            "type": "string"
           }
-        ],
-        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'"
+        },
+        "type": "object"
       },
       "workflow_runs_filter": {
-        "anyOf": [
-          {
-            "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'",
-            "properties": {
-              "actor": {
-                "description": "Filter to a specific GitHub user's workflow runs.",
-                "type": "string"
-              },
-              "branch": {
-                "description": "Filter workflow runs to a specific Git branch. Use the name of the branch.",
-                "type": "string"
-              },
-              "event": {
-                "description": "Filter workflow runs to a specific event type Supported values: branch_protection_rule, check_run, check_suite, create, delete, deployment, deployment_status, discussion, discussion_comment, fork, gollum, issue_comment, issues, label, merge_group, milestone, page_build, public, pull_request, pull_request_review, pull_request_review_comment, pull_request_target, push, registry_package, release, repository_dispatch, schedule, status, watch, workflow_call, workflow_dispatch, workflow_run.",
-                "type": "string"
-              },
-              "status": {
-                "description": "Filter workflow runs to only runs with a specific status Supported values: queued, in_progress, completed, requested, waiting.",
-                "type": "string"
-              }
-            },
-            "type": "object"
+        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'",
+        "properties": {
+          "actor": {
+            "description": "Filter to a specific GitHub user's workflow runs.",
+            "type": "string"
           },
-          {
-            "not": {
-              "type": "object"
-            }
+          "branch": {
+            "description": "Filter workflow runs to a specific Git branch. Use the name of the branch.",
+            "type": "string"
+          },
+          "event": {
+            "description": "Filter workflow runs to a specific event type",
+            "enum": [
+              "branch_protection_rule",
+              "check_run",
+              "check_suite",
+              "create",
+              "delete",
+              "deployment",
+              "deployment_status",
+              "discussion",
+              "discussion_comment",
+              "fork",
+              "gollum",
+              "issue_comment",
+              "issues",
+              "label",
+              "merge_group",
+              "milestone",
+              "page_build",
+              "public",
+              "pull_request",
+              "pull_request_review",
+              "pull_request_review_comment",
+              "pull_request_target",
+              "push",
+              "registry_package",
+              "release",
+              "repository_dispatch",
+              "schedule",
+              "status",
+              "watch",
+              "workflow_call",
+              "workflow_dispatch",
+              "workflow_run"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Filter workflow runs to only runs with a specific status",
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed",
+              "requested",
+              "waiting"
+            ],
+            "type": "string"
           }
-        ],
-        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'"
+        },
+        "type": "object"
       }
     },
     "required": [
@@ -96,41 +127,36 @@
   },
   "name": "actions_list",
   "outputSchema": {
-    "anyOf": [
-      {
-        "type": "null"
-      },
-      {
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
         "additionalProperties": false,
         "properties": {
-          "total_count": {
-            "type": [
-              "null",
-              "integer"
-            ]
-          },
-          "workflows": {
+          "artifacts": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "badge_url": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
                 "created_at": {
+                  "description": "Timestamp in RFC3339 format.",
                   "format": "date-time",
+                  "type": "string"
+                },
+                "digest": {
                   "type": [
                     "null",
                     "string"
                   ]
                 },
-                "html_url": {
+                "expired": {
                   "type": [
                     "null",
-                    "string"
+                    "boolean"
                   ]
+                },
+                "expires_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
                 },
                 "id": {
                   "type": [
@@ -144,35 +170,43 @@
                     "string"
                   ]
                 },
-                "node_id": {
+                "size_in_bytes": {
+                  "description": "Artifact size in bytes.",
                   "type": [
                     "null",
-                    "string"
-                  ]
-                },
-                "path": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
-                "state": {
-                  "type": [
-                    "null",
-                    "string"
+                    "integer"
                   ]
                 },
                 "updated_at": {
+                  "description": "Timestamp in RFC3339 format.",
                   "format": "date-time",
-                  "type": [
-                    "null",
-                    "string"
-                  ]
+                  "type": "string"
                 },
-                "url": {
+                "workflow_run": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "head_branch": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "head_sha": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "id": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    }
+                  },
                   "type": [
                     "null",
-                    "string"
+                    "object"
                   ]
                 }
               },
@@ -185,11 +219,214 @@
               "null",
               "array"
             ]
+          },
+          "total_count": {
+            "type": [
+              "null",
+              "integer"
+            ]
           }
         },
-        "type": "object"
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      {
+      "method": {
+        "description": "Operation that produced this response.",
+        "enum": [
+          "list_workflows",
+          "list_workflow_runs",
+          "list_workflow_jobs",
+          "list_workflow_run_artifacts"
+        ],
+        "type": "string"
+      },
+      "workflow_jobs": {
+        "additionalProperties": false,
+        "properties": {
+          "jobs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "completed_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "conclusion": {
+                  "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "neutral",
+                    "cancelled",
+                    "skipped",
+                    "timed_out",
+                    "action_required",
+                    "stale",
+                    "startup_failure"
+                  ],
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "head_branch": {
+                  "type": "string"
+                },
+                "head_sha": {
+                  "type": "string"
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "labels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "run_attempt": {
+                  "type": "integer"
+                },
+                "run_id": {
+                  "type": "integer"
+                },
+                "runner_group_id": {
+                  "type": "integer"
+                },
+                "runner_group_name": {
+                  "type": "string"
+                },
+                "runner_id": {
+                  "type": "integer"
+                },
+                "runner_name": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Lifecycle status, e.g. queued, in_progress, completed, waiting.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "requested",
+                    "waiting",
+                    "pending",
+                    ""
+                  ],
+                  "type": "string"
+                },
+                "steps": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "completed_at": {
+                        "description": "Timestamp in RFC3339 format.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "conclusion": {
+                        "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
+                        "enum": [
+                          "success",
+                          "failure",
+                          "neutral",
+                          "cancelled",
+                          "skipped",
+                          "timed_out",
+                          "action_required",
+                          "stale",
+                          "startup_failure"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "integer"
+                      },
+                      "started_at": {
+                        "description": "Timestamp in RFC3339 format.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "Lifecycle status, e.g. queued, in_progress, completed, waiting.",
+                        "enum": [
+                          "queued",
+                          "in_progress",
+                          "completed",
+                          "requested",
+                          "waiting",
+                          "pending",
+                          ""
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "status",
+                      "number"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "workflow_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "run_id",
+                "name",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "total_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "jobs"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "workflow_runs": {
         "additionalProperties": false,
         "properties": {
           "total_count": {
@@ -218,6 +455,8 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "Timestamp in RFC3339 format.",
+                          "format": "date-time",
                           "type": "string"
                         },
                         "email": {
@@ -257,6 +496,8 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "Timestamp in RFC3339 format.",
+                          "format": "date-time",
                           "type": "string"
                         }
                       },
@@ -292,9 +533,23 @@
                   ]
                 },
                 "conclusion": {
+                  "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "neutral",
+                    "cancelled",
+                    "skipped",
+                    "timed_out",
+                    "action_required",
+                    "stale",
+                    "startup_failure"
+                  ],
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
                   "type": "string"
                 },
                 "display_title": {
@@ -325,6 +580,7 @@
                   "type": "string"
                 },
                 "html_url": {
+                  "description": "Browser URL.",
                   "type": "string"
                 },
                 "id": {
@@ -373,9 +629,21 @@
                   "type": "integer"
                 },
                 "run_started_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
                   "type": "string"
                 },
                 "status": {
+                  "description": "Lifecycle status, e.g. queued, in_progress, completed, waiting.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "requested",
+                    "waiting",
+                    "pending",
+                    ""
+                  ],
                   "type": "string"
                 },
                 "triggering_actor": {
@@ -397,6 +665,8 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "Timestamp in RFC3339 format.",
+                          "format": "date-time",
                           "type": "string"
                         },
                         "email": {
@@ -436,6 +706,8 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "Timestamp in RFC3339 format.",
+                          "format": "date-time",
                           "type": "string"
                         }
                       },
@@ -471,6 +743,8 @@
                   ]
                 },
                 "updated_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
                   "type": "string"
                 },
                 "workflow_id": {
@@ -497,177 +771,31 @@
           "total_count",
           "workflow_runs"
         ],
-        "type": "object"
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      {
+      "workflows": {
         "additionalProperties": false,
         "properties": {
-          "jobs": {
-            "additionalProperties": false,
-            "properties": {
-              "jobs": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "completed_at": {
-                      "type": "string"
-                    },
-                    "conclusion": {
-                      "type": "string"
-                    },
-                    "created_at": {
-                      "type": "string"
-                    },
-                    "head_branch": {
-                      "type": "string"
-                    },
-                    "head_sha": {
-                      "type": "string"
-                    },
-                    "html_url": {
-                      "type": "string"
-                    },
-                    "id": {
-                      "type": "integer"
-                    },
-                    "labels": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "run_attempt": {
-                      "type": "integer"
-                    },
-                    "run_id": {
-                      "type": "integer"
-                    },
-                    "runner_group_id": {
-                      "type": "integer"
-                    },
-                    "runner_group_name": {
-                      "type": "string"
-                    },
-                    "runner_id": {
-                      "type": "integer"
-                    },
-                    "runner_name": {
-                      "type": "string"
-                    },
-                    "started_at": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "steps": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "completed_at": {
-                            "type": "string"
-                          },
-                          "conclusion": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "number": {
-                            "type": "integer"
-                          },
-                          "started_at": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "status",
-                          "number"
-                        ],
-                        "type": "object"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "workflow_name": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "run_id",
-                    "name",
-                    "status"
-                  ],
-                  "type": "object"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "total_count": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "total_count",
-              "jobs"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "jobs"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "artifacts": {
+          "total_count": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "workflows": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "archive_download_url": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
                 "created_at": {
+                  "description": "Timestamp in RFC3339 format.",
                   "format": "date-time",
-                  "type": [
-                    "null",
-                    "string"
-                  ]
+                  "type": "string"
                 },
-                "digest": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
-                "expired": {
-                  "type": [
-                    "null",
-                    "boolean"
-                  ]
-                },
-                "expires_at": {
-                  "format": "date-time",
+                "html_url": {
+                  "description": "Browser URL.",
                   "type": [
                     "null",
                     "string"
@@ -685,69 +813,30 @@
                     "string"
                   ]
                 },
-                "node_id": {
+                "path": {
                   "type": [
                     "null",
                     "string"
                   ]
                 },
-                "size_in_bytes": {
+                "state": {
+                  "description": "Workflow state, e.g. active, deleted, disabled_fork, disabled_inactivity, disabled_manually.",
+                  "enum": [
+                    "active",
+                    "deleted",
+                    "disabled_fork",
+                    "disabled_inactivity",
+                    "disabled_manually"
+                  ],
                   "type": [
                     "null",
-                    "integer"
+                    "string"
                   ]
                 },
                 "updated_at": {
+                  "description": "Timestamp in RFC3339 format.",
                   "format": "date-time",
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
-                "url": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                },
-                "workflow_run": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "head_branch": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "head_repository_id": {
-                      "type": [
-                        "null",
-                        "integer"
-                      ]
-                    },
-                    "head_sha": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "id": {
-                      "type": [
-                        "null",
-                        "integer"
-                      ]
-                    },
-                    "repository_id": {
-                      "type": [
-                        "null",
-                        "integer"
-                      ]
-                    }
-                  },
-                  "type": [
-                    "null",
-                    "object"
-                  ]
+                  "type": "string"
                 }
               },
               "type": [
@@ -759,16 +848,14 @@
               "null",
               "array"
             ]
-          },
-          "total_count": {
-            "type": [
-              "null",
-              "integer"
-            ]
           }
         },
-        "type": "object"
+        "type": [
+          "null",
+          "object"
+        ]
       }
-    ]
+    },
+    "type": "object"
   }
 }
