@@ -335,7 +335,7 @@ func TestTypedProjectedReadOutputsRespectFieldSelection(t *testing.T) {
 	emptyFieldValues := structuredSearchIssuesOutput(SearchIssuesResponse{
 		Items: []SearchIssueResult{{Issue: &github.Issue{}, FieldValues: []MinimalFieldValue{}}},
 	}, []string{"field_values"})
-	assert.Equal(t, `{"items":[{"field_values":[]}]}`, mustMarshalJSON(t, emptyFieldValues))
+	assert.Equal(t, `{"items":[{}]}`, mustMarshalJSON(t, emptyFieldValues))
 
 	unavailableFieldValues := structuredSearchIssuesOutput(SearchIssuesResponse{
 		Items: []SearchIssueResult{{Issue: &github.Issue{}}},
