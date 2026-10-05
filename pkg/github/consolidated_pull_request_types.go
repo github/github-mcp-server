@@ -9,7 +9,6 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -116,7 +115,7 @@ type PullRequestReadOutput struct {
 	Commits       *[]MinimalPullRequestCommit
 	ReviewThreads *MinimalReviewThreadsResponse
 	Reviews       *[]MinimalPullRequestReview
-	Comments      *[]MinimalIssueComment
+	Comments      *[]IssueReadCommentOutput
 	CheckRuns     *MinimalCheckRunsResult
 }
 
@@ -161,10 +160,10 @@ func pullRequestCommentsOutput(output *IssueReadOutput) *PullRequestReadOutput {
 
 func pullRequestReadOutputSchema() *jsonschema.Schema {
 	arrays := []*jsonschema.Schema{
-		repositoryOutputSchema[[]MinimalPRFile](),
-		repositoryOutputSchema[[]MinimalPullRequestCommit](),
-		repositoryOutputSchema[[]MinimalPullRequestReview](),
-		repositoryOutputSchema[[]MinimalIssueComment](),
+		pullRequestOutputSchema[[]MinimalPRFile](),
+		pullRequestOutputSchema[[]MinimalPullRequestCommit](),
+		pullRequestOutputSchema[[]MinimalPullRequestReview](),
+		pullRequestOutputSchema[[]IssueReadCommentOutput](),
 	}
 	for _, array := range arrays {
 		array.Defs = nil
@@ -173,11 +172,11 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 	// one anyOf array variant instead of ambiguous oneOf branches.
 	return repositoryUnionSchema(
 		&jsonschema.Schema{Type: "null"},
-		repositoryOutputSchema[MinimalPullRequest](),
-		repositoryOutputSchema[PullRequestDiffOutput](),
-		repositoryOutputSchema[MinimalCombinedStatus](),
-		repositoryOutputSchema[MinimalReviewThreadsResponse](),
-		repositoryOutputSchema[MinimalCheckRunsResult](),
+		pullRequestOutputSchema[MinimalPullRequest](),
+		pullRequestOutputSchema[PullRequestDiffOutput](),
+		pullRequestOutputSchema[MinimalCombinedStatus](),
+		pullRequestOutputSchema[MinimalReviewThreadsResponse](),
+		pullRequestOutputSchema[MinimalCheckRunsResult](),
 		&jsonschema.Schema{Type: "array", AnyOf: arrays},
 	)
 }
@@ -185,7 +184,7 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 // PullRequestWriteOutput is either the created/updated pull request reference
 // or the notice that an interactive form is awaiting user submission.
 type PullRequestWriteOutput struct {
-	PullRequest *MinimalResponse
+	PullRequest *PullRequestMutationReference
 	Awaiting    *IssueWriteAwaitingOutput
 }
 
@@ -196,11 +195,24 @@ func (out PullRequestWriteOutput) MarshalJSON() ([]byte, error) {
 	if out.PullRequest != nil {
 		return json.Marshal(out.PullRequest)
 	}
-	return json.Marshal(MinimalResponse{})
+	return json.Marshal(PullRequestMutationReference{})
 }
 
 func pullRequestWriteOutputSchema() *jsonschema.Schema {
-	return issueWriteOutputSchema()
+	awaiting := pullRequestOutputSchema[IssueWriteAwaitingOutput]()
+	awaiting.Properties["status"].Enum = []any{"awaiting_user_submission"}
+	return repositoryUnionSchema(pullRequestOutputSchema[PullRequestMutationReference](), awaiting)
+}
+
+// PullRequestMutationReference includes a browser URL only when the API supplied one.
+// Reactions have no browser URL; their API endpoint is not useful output.
+type PullRequestMutationReference struct {
+	ID      string `json:"id"`
+	HTMLURL string `json:"html_url,omitempty"`
+}
+
+func pullRequestMutationReference(response MinimalResponse) *PullRequestMutationReference {
+	return &PullRequestMutationReference{ID: response.ID, HTMLURL: response.URL}
 }
 
 func pullRequestFormArguments(req *mcp.CallToolRequest, args map[string]any) (map[string]any, error) {
@@ -229,7 +241,13 @@ func pullRequestAwaitingFormResult(message string) (*mcp.CallToolResult, *PullRe
 // PullRequestMergeOutput preserves a JSON null merge response rather than
 // letting the SDK replace a nil pointer with an empty object.
 type PullRequestMergeOutput struct {
-	Result *github.PullRequestMergeResult
+	Result *PullRequestMergeResult
+}
+
+type PullRequestMergeResult struct {
+	SHA     *string `json:"sha,omitempty"`
+	Merged  *bool   `json:"merged,omitempty"`
+	Message *string `json:"message,omitempty"`
 }
 
 func (out PullRequestMergeOutput) MarshalJSON() ([]byte, error) {
@@ -237,13 +255,17 @@ func (out PullRequestMergeOutput) MarshalJSON() ([]byte, error) {
 }
 
 func pullRequestMergeOutputSchema() *jsonschema.Schema {
-	return nullableRepositoryOutputSchema[github.PullRequestMergeResult]()
+	return nullableRepositoryOutputSchema[PullRequestMergeResult]()
 }
 
 // PullRequestBranchUpdateOutput carries either the API response or, for an
 // accepted asynchronous update, the in-progress message.
 type PullRequestBranchUpdateOutput struct {
-	Result *github.PullRequestBranchUpdateResponse
+	Result *PullRequestBranchUpdateResult
+}
+
+type PullRequestBranchUpdateResult struct {
+	Message *string `json:"message,omitempty"`
 }
 
 func (out PullRequestBranchUpdateOutput) MarshalJSON() ([]byte, error) {
@@ -251,11 +273,11 @@ func (out PullRequestBranchUpdateOutput) MarshalJSON() ([]byte, error) {
 }
 
 func pullRequestBranchUpdateOutputSchema() *jsonschema.Schema {
-	return nullableRepositoryOutputSchema[github.PullRequestBranchUpdateResponse]()
+	return nullableRepositoryOutputSchema[PullRequestBranchUpdateResult]()
 }
 
 func nullableRepositoryOutputSchema[T any]() *jsonschema.Schema {
-	schema := repositoryOutputSchema[T]()
+	schema := pullRequestOutputSchema[T]()
 	schema.Type = ""
 	schema.Types = []string{"object", "null"}
 	return schema
@@ -264,14 +286,14 @@ func nullableRepositoryOutputSchema[T any]() *jsonschema.Schema {
 // PullRequestCommentReplyOutput is a single reply or reaction reference, or
 // both when the caller requested a reply and a reaction together.
 type PullRequestCommentReplyOutput struct {
-	Response         *MinimalResponse
+	Response         *PullRequestMutationReference
 	ReplyAndReaction *PullRequestReplyAndReactionOutput
 }
 
 // PullRequestReplyAndReactionOutput keeps the legacy map's sorted key order.
 type PullRequestReplyAndReactionOutput struct {
-	Comment  MinimalResponse `json:"comment"`
-	Reaction MinimalResponse `json:"reaction"`
+	Comment  PullRequestMutationReference `json:"comment"`
+	Reaction PullRequestMutationReference `json:"reaction"`
 }
 
 func (out PullRequestCommentReplyOutput) MarshalJSON() ([]byte, error) {
@@ -281,14 +303,81 @@ func (out PullRequestCommentReplyOutput) MarshalJSON() ([]byte, error) {
 	if out.Response != nil {
 		return json.Marshal(out.Response)
 	}
-	return json.Marshal(MinimalResponse{})
+	return json.Marshal(PullRequestMutationReference{})
 }
 
 func pullRequestCommentReplyOutputSchema() *jsonschema.Schema {
 	return repositoryUnionSchema(
-		repositoryOutputSchema[MinimalResponse](),
-		repositoryOutputSchema[PullRequestReplyAndReactionOutput](),
+		pullRequestOutputSchema[PullRequestMutationReference](),
+		pullRequestOutputSchema[PullRequestReplyAndReactionOutput](),
 	)
+}
+
+func pullRequestOutputSchema[T any]() *jsonschema.Schema {
+	schema := repositoryOutputSchema[T]()
+	describePullRequestOutputSchema(schema)
+	return schema
+}
+
+// Only newly inferred schemas are customized, once during tool construction.
+func describePullRequestOutputSchema(schema *jsonschema.Schema) {
+	if schema == nil {
+		return
+	}
+	for name, field := range schema.Properties {
+		switch name {
+		case "html_url":
+			field.Description = "Browser URL."
+		case "sha", "commit_id":
+			field.Description = "Git commit SHA."
+		case "created_at", "updated_at", "closed_at", "merged_at", "submitted_at", "started_at", "completed_at":
+			field.Description = "RFC 3339 timestamp."
+		case "line", "original_line", "start_line", "original_start_line":
+			field.Description = "One-based diff line number."
+		case "additions", "deletions", "changes":
+			field.Description = "Number of lines."
+		case "total_count", "totalCount":
+			field.Description = "Total number of results."
+		case "message":
+			field.Description = "Operation result message."
+		case "merged":
+			field.Description = "Whether the pull request was merged."
+		case "diff":
+			field.Description = "Unified pull request diff."
+		case "state":
+			switch {
+			case schema.Properties["draft"] != nil:
+				field.Description = "Pull request state; empty for a sparse response."
+				field.Enum = []any{"open", "closed", ""}
+			case schema.Properties["statuses"] != nil || schema.Properties["context"] != nil:
+				field.Description = "Commit status; empty for a sparse response."
+				field.Enum = []any{"error", "failure", "pending", "success", ""}
+			case schema.Properties["commit_id"] != nil:
+				field.Description = "Review state; empty for a sparse response."
+				field.Enum = []any{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING", ""}
+			}
+		case "status":
+			switch {
+			case schema.Properties["filename"] != nil:
+				field.Description = "File change status."
+				field.Enum = []any{"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
+			case schema.Properties["conclusion"] != nil:
+				field.Description = "Check execution status; empty for a sparse response."
+				field.Enum = []any{"queued", "in_progress", "completed", "waiting", "requested", "pending", ""}
+			}
+		case "conclusion":
+			field.Description = "Completed check outcome."
+			field.Enum = []any{"success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale", "startup_failure"}
+		}
+		describePullRequestOutputSchema(field)
+	}
+	describePullRequestOutputSchema(schema.Items)
+	for _, definition := range schema.Defs {
+		describePullRequestOutputSchema(definition)
+	}
+	for _, variant := range append(slices.Clone(schema.OneOf), schema.AnyOf...) {
+		describePullRequestOutputSchema(variant)
+	}
 }
 
 // pullRequestMessageResult exposes the success message of review mutations

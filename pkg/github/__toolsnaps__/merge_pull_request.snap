@@ -65,18 +65,21 @@
     "additionalProperties": false,
     "properties": {
       "merged": {
+        "description": "Whether the pull request was merged.",
         "type": [
           "null",
           "boolean"
         ]
       },
       "message": {
+        "description": "Operation result message.",
         "type": [
           "null",
           "string"
         ]
       },
       "sha": {
+        "description": "Git commit SHA.",
         "type": [
           "null",
           "string"

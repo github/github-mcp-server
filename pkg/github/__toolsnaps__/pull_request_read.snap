@@ -68,6 +68,7 @@
         "additionalProperties": false,
         "properties": {
           "additions": {
+            "description": "Number of lines.",
             "type": "integer"
           },
           "assignees": {
@@ -104,6 +105,7 @@
                 ]
               },
               "sha": {
+                "description": "Git commit SHA.",
                 "type": "string"
               }
             },
@@ -123,6 +125,7 @@
             "type": "integer"
           },
           "closed_at": {
+            "description": "RFC 3339 timestamp.",
             "type": "string"
           },
           "comments": {
@@ -132,9 +135,11 @@
             "type": "integer"
           },
           "created_at": {
+            "description": "RFC 3339 timestamp.",
             "type": "string"
           },
           "deletions": {
+            "description": "Number of lines.",
             "type": "integer"
           },
           "draft": {
@@ -165,6 +170,7 @@
                 ]
               },
               "sha": {
+                "description": "Git commit SHA.",
                 "type": "string"
               }
             },
@@ -178,6 +184,7 @@
             ]
           },
           "html_url": {
+            "description": "Browser URL.",
             "type": "string"
           },
           "labels": {
@@ -193,9 +200,11 @@
             "type": "string"
           },
           "merged": {
+            "description": "Whether the pull request was merged.",
             "type": "boolean"
           },
           "merged_at": {
+            "description": "RFC 3339 timestamp.",
             "type": "string"
           },
           "merged_by": {
@@ -217,12 +226,19 @@
             ]
           },
           "state": {
+            "description": "Pull request state; empty for a sparse response.",
+            "enum": [
+              "open",
+              "closed",
+              ""
+            ],
             "type": "string"
           },
           "title": {
             "type": "string"
           },
           "updated_at": {
+            "description": "RFC 3339 timestamp.",
             "type": "string"
           },
           "user": {
@@ -244,6 +260,7 @@
                     "type": "string"
                   },
                   "created_at": {
+                    "description": "RFC 3339 timestamp.",
                     "type": "string"
                   },
                   "email": {
@@ -283,6 +300,7 @@
                     "type": "string"
                   },
                   "updated_at": {
+                    "description": "RFC 3339 timestamp.",
                     "type": "string"
                   }
                 },
@@ -332,6 +350,7 @@
         "additionalProperties": false,
         "properties": {
           "diff": {
+            "description": "Unified pull request diff.",
             "type": "string"
           }
         },
@@ -344,9 +363,18 @@
         "additionalProperties": false,
         "properties": {
           "sha": {
+            "description": "Git commit SHA.",
             "type": "string"
           },
           "state": {
+            "description": "Commit status; empty for a sparse response.",
+            "enum": [
+              "error",
+              "failure",
+              "pending",
+              "success",
+              ""
+            ],
             "type": "string"
           },
           "statuses": {
@@ -357,18 +385,28 @@
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "description": {
                   "type": "string"
                 },
                 "state": {
+                  "description": "Commit status; empty for a sparse response.",
+                  "enum": [
+                    "error",
+                    "failure",
+                    "pending",
+                    "success",
+                    ""
+                  ],
                   "type": "string"
                 },
                 "target_url": {
                   "type": "string"
                 },
                 "updated_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 }
               },
@@ -384,6 +422,7 @@
             ]
           },
           "total_count": {
+            "description": "Total number of results.",
             "type": "integer"
           }
         },
@@ -435,24 +474,29 @@
                         "type": "string"
                       },
                       "created_at": {
+                        "description": "RFC 3339 timestamp.",
                         "type": "string"
                       },
                       "html_url": {
+                        "description": "Browser URL.",
                         "type": "string"
                       },
                       "line": {
+                        "description": "One-based diff line number.",
                         "type": [
                           "null",
                           "integer"
                         ]
                       },
                       "original_line": {
+                        "description": "One-based diff line number.",
                         "type": [
                           "null",
                           "integer"
                         ]
                       },
                       "original_start_line": {
+                        "description": "One-based diff line number.",
                         "type": [
                           "null",
                           "integer"
@@ -462,12 +506,14 @@
                         "type": "string"
                       },
                       "start_line": {
+                        "description": "One-based diff line number.",
                         "type": [
                           "null",
                           "integer"
                         ]
                       },
                       "updated_at": {
+                        "description": "RFC 3339 timestamp.",
                         "type": "string"
                       }
                     },
@@ -495,6 +541,7 @@
                   "type": "boolean"
                 },
                 "total_count": {
+                  "description": "Total number of results.",
                   "type": "integer"
                 }
               },
@@ -514,6 +561,7 @@
             ]
           },
           "totalCount": {
+            "description": "Total number of results.",
             "type": "integer"
           }
         },
@@ -532,15 +580,29 @@
               "additionalProperties": false,
               "properties": {
                 "completed_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "conclusion": {
+                  "description": "Completed check outcome.",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "neutral",
+                    "cancelled",
+                    "skipped",
+                    "timed_out",
+                    "action_required",
+                    "stale",
+                    "startup_failure"
+                  ],
                   "type": "string"
                 },
                 "details_url": {
                   "type": "string"
                 },
                 "html_url": {
+                  "description": "Browser URL.",
                   "type": "string"
                 },
                 "id": {
@@ -550,9 +612,20 @@
                   "type": "string"
                 },
                 "started_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "status": {
+                  "description": "Check execution status; empty for a sparse response.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "waiting",
+                    "requested",
+                    "pending",
+                    ""
+                  ],
                   "type": "string"
                 }
               },
@@ -569,6 +642,7 @@
             ]
           },
           "total_count": {
+            "description": "Total number of results.",
             "type": "integer"
           }
         },
@@ -585,12 +659,15 @@
               "additionalProperties": false,
               "properties": {
                 "additions": {
+                  "description": "Number of lines.",
                   "type": "integer"
                 },
                 "changes": {
+                  "description": "Number of lines.",
                   "type": "integer"
                 },
                 "deletions": {
+                  "description": "Number of lines.",
                   "type": "integer"
                 },
                 "filename": {
@@ -603,6 +680,16 @@
                   "type": "string"
                 },
                 "status": {
+                  "description": "File change status.",
+                  "enum": [
+                    "added",
+                    "removed",
+                    "modified",
+                    "renamed",
+                    "copied",
+                    "changed",
+                    "unchanged"
+                  ],
                   "type": "string"
                 }
               },
@@ -639,12 +726,15 @@
                   ]
                 },
                 "html_url": {
+                  "description": "Browser URL.",
                   "type": "string"
                 },
                 "message": {
+                  "description": "Operation result message.",
                   "type": "string"
                 },
                 "sha": {
+                  "description": "Git commit SHA.",
                   "type": "string"
                 }
               },
@@ -669,18 +759,30 @@
                   "type": "string"
                 },
                 "commit_id": {
+                  "description": "Git commit SHA.",
                   "type": "string"
                 },
                 "html_url": {
+                  "description": "Browser URL.",
                   "type": "string"
                 },
                 "id": {
                   "type": "integer"
                 },
                 "state": {
+                  "description": "Review state; empty for a sparse response.",
+                  "enum": [
+                    "APPROVED",
+                    "CHANGES_REQUESTED",
+                    "COMMENTED",
+                    "DISMISSED",
+                    "PENDING",
+                    ""
+                  ],
                   "type": "string"
                 },
                 "submitted_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "user": {
@@ -702,6 +804,7 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "RFC 3339 timestamp.",
                           "type": "string"
                         },
                         "email": {
@@ -741,6 +844,7 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "RFC 3339 timestamp.",
                           "type": "string"
                         }
                       },
@@ -799,9 +903,11 @@
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "html_url": {
+                  "description": "Browser URL.",
                   "type": "string"
                 },
                 "id": {
@@ -835,6 +941,7 @@
                       "type": "integer"
                     },
                     "total_count": {
+                      "description": "Total number of results.",
                       "type": "integer"
                     }
                   },
@@ -855,89 +962,16 @@
                   ]
                 },
                 "updated_at": {
+                  "description": "RFC 3339 timestamp.",
                   "type": "string"
                 },
                 "user": {
                   "additionalProperties": false,
                   "properties": {
-                    "avatar_url": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "bio": {
-                          "type": "string"
-                        },
-                        "blog": {
-                          "type": "string"
-                        },
-                        "company": {
-                          "type": "string"
-                        },
-                        "created_at": {
-                          "type": "string"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "followers": {
-                          "type": "integer"
-                        },
-                        "following": {
-                          "type": "integer"
-                        },
-                        "hireable": {
-                          "type": "boolean"
-                        },
-                        "location": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "owned_private_repos": {
-                          "type": "integer"
-                        },
-                        "private_gists": {
-                          "type": "integer"
-                        },
-                        "public_gists": {
-                          "type": "integer"
-                        },
-                        "public_repos": {
-                          "type": "integer"
-                        },
-                        "total_private_repos": {
-                          "type": "integer"
-                        },
-                        "twitter_username": {
-                          "type": "string"
-                        },
-                        "updated_at": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "public_repos",
-                        "public_gists",
-                        "followers",
-                        "following",
-                        "created_at",
-                        "updated_at"
-                      ],
-                      "type": [
-                        "null",
-                        "object"
-                      ]
-                    },
                     "id": {
                       "type": "integer"
                     },
                     "login": {
-                      "type": "string"
-                    },
-                    "profile_url": {
                       "type": "string"
                     }
                   },

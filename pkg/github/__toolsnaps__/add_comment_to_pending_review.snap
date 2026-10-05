@@ -75,6 +75,7 @@
     "additionalProperties": false,
     "properties": {
       "message": {
+        "description": "Operation result message.",
         "type": "string"
       }
     },
