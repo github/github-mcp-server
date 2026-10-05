@@ -495,22 +495,8 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		stringFields := spec.strings
 		boolFields := spec.bools
 		stringArrayFields := spec.stringArrays
-		if kind == "create" {
-			stringFields = []string{"title", "head", "base"}
-			boolFields = []string{"draft", "maintainer_can_modify"}
-			stringArrayFields = []string{"reviewers"}
-		}
-		if kind == "update" {
-			boolFields = []string{"maintainer_can_modify"}
-		}
 		if kind == "reply" {
 			stringFields = []string{"body", "reaction"}
-		}
-		if kind == "update" {
-			// The update handler checks draft before title/body/state/base.
-			if _, err := OptionalParam[bool](args, "draft"); err != nil {
-				return nil, err
-			}
 		}
 		if kind == "create" || kind == "update" {
 			// This flag is inspected from the raw call only to control form
@@ -522,38 +508,6 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		for _, field := range stringFields {
 			if _, err := OptionalParam[string](args, field); err != nil {
 				return nil, err
-			}
-		}
-		if kind == "create" {
-			missingRequired := ""
-			for _, field := range []string{"title", "head", "base"} {
-				if args[field] == "" && missingRequired == "" {
-					missingRequired = field
-				}
-			}
-			if missingRequired != "" {
-				// The handler may defer to the form before checking these later
-				// fields. Drop malformed values so strict typed decoding cannot
-				// change the earlier missing-field result.
-				if _, err := OptionalParam[string](args, "body"); err != nil {
-					delete(args, "body")
-				}
-				for _, field := range []string{"draft", "maintainer_can_modify", "_ui_submitted"} {
-					if _, err := OptionalParam[bool](args, field); err != nil {
-						delete(args, field)
-					}
-				}
-				if _, exists := args["reviewers"]; exists {
-					if _, err := OptionalStringArrayParam(args, "reviewers"); err != nil {
-						delete(args, "reviewers")
-					}
-				}
-				boolFields = nil
-				stringArrayFields = nil
-			} else {
-				if _, err := OptionalParam[string](args, "body"); err != nil {
-					return nil, err
-				}
 			}
 		}
 		for _, field := range boolFields {
@@ -584,26 +538,11 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		if spec.methods != nil && !slices.Contains(spec.methods, args["method"].(string)) {
 			return nil, fmt.Errorf("unknown method: %s", args["method"])
 		}
-		if kind == "read" {
-			if args["method"] == "get_review_comments" {
-				if _, err := OptionalParam[string](args, "after"); err != nil {
-					return nil, err
-				}
-			} else {
-				delete(args, "after")
-			}
-		}
 		if kind == "reply" {
 			_, hasBody := args["body"]
 			_, hasReaction := args["reaction"]
 			if !hasBody && !hasReaction {
 				return nil, fmt.Errorf("at least one of body or reaction is required")
-			}
-			if hasBody && args["body"] == "" {
-				return nil, fmt.Errorf("body cannot be empty when provided")
-			}
-			if hasReaction && args["reaction"] == "" {
-				return nil, fmt.Errorf("reaction cannot be empty when provided")
 			}
 			// pullNumber is only read, and validated, when a reply body is sent.
 			if value, exists := args["pullNumber"]; exists {
@@ -616,6 +555,12 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 				default:
 					delete(args, "pullNumber")
 				}
+			}
+			if hasBody && args["body"] == "" {
+				return nil, fmt.Errorf("body cannot be empty when provided")
+			}
+			if hasReaction && args["reaction"] == "" {
+				return nil, fmt.Errorf("reaction cannot be empty when provided")
 			}
 		}
 		for _, field := range spec.ignoredStrings {
