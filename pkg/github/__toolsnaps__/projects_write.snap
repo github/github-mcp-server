@@ -9,477 +9,279 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "anyOf": [
-          {
-            "description": "The body of the status update (markdown). Used for 'create_project_status_update' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The body of the status update (markdown). Used for 'create_project_status_update' method. Validated by the selected method; otherwise ignored."
+        "description": "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+        "type": "string"
       },
       "field_name": {
-        "anyOf": [
-          {
-            "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method. Validated by the selected method; otherwise ignored."
+        "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
+        "type": "string"
       },
       "filter": {
         "anyOf": [
           {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Saved view filter; omit on update to preserve it, or pass null to clear it."
+            "type": "string"
           },
           {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
+            "type": "null"
           }
         ],
-        "description": "Saved view filter; omit on update to preserve it, or pass null to clear it. Validated by the selected method; otherwise ignored."
+        "description": "Saved view filter; omit on update to preserve it, or pass null to clear it."
       },
       "issue_number": {
-        "anyOf": [
-          {
-            "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo). Validated by the selected method; otherwise ignored."
+        "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
+        "type": "number"
       },
       "item_id": {
-        "anyOf": [
-          {
-            "description": "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue. Validated by the selected method; otherwise ignored."
+        "description": "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue.",
+        "type": "number"
       },
       "item_owner": {
-        "anyOf": [
-          {
-            "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. Validated by the selected method; otherwise ignored."
+        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
+        "type": "string"
       },
       "item_repo": {
-        "anyOf": [
-          {
-            "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. Validated by the selected method; otherwise ignored."
+        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
+        "type": "string"
       },
       "item_type": {
-        "anyOf": [
-          {
-            "description": "The item's type, either issue or pull_request. Required for 'add_project_item' method.",
-            "enum": [
-              "issue",
-              "pull_request"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "The item's type, either issue or pull_request. Required for 'add_project_item' method.",
+        "enum": [
+          "issue",
+          "pull_request"
         ],
-        "description": "The item's type, either issue or pull_request. Required for 'add_project_item' method. Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "items": {
-        "anyOf": [
-          {
-            "description": "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call.",
-            "items": {
-              "oneOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node_id": {
-                      "description": "The project item's GraphQL node ID, as returned by 'list_project_items' or 'add_project_item'.",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "node_id"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "item_id": {
-                      "description": "The numeric project item ID.",
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "item_id"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "issue_number": {
-                      "description": "Issue number used to resolve the project item.",
-                      "type": "integer"
-                    },
-                    "item_owner": {
-                      "description": "Owner of the repository containing the issue.",
-                      "type": "string"
-                    },
-                    "item_repo": {
-                      "description": "Repository containing the issue.",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "item_owner",
-                    "item_repo",
-                    "issue_number"
-                  ],
-                  "type": "object"
-                }
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call. Validated by the selected method; otherwise ignored."
-      },
-      "iteration_duration": {
-        "anyOf": [
-          {
-            "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method. Validated by the selected method; otherwise ignored."
-      },
-      "iterations": {
-        "anyOf": [
-          {
-            "description": "Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases.",
-            "items": {
+        "description": "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call.",
+        "items": {
+          "oneOf": [
+            {
               "additionalProperties": false,
               "properties": {
-                "duration": {
-                  "description": "Duration in days",
-                  "type": "number"
-                },
-                "start_date": {
-                  "description": "Start date in YYYY-MM-DD format",
-                  "type": "string"
-                },
-                "title": {
-                  "description": "Iteration title (e.g. 'Sprint 1')",
+                "node_id": {
+                  "description": "The project item's GraphQL node ID, as returned by 'list_project_items' or 'add_project_item'.",
                   "type": "string"
                 }
               },
               "required": [
-                "title",
-                "start_date",
-                "duration"
+                "node_id"
               ],
               "type": "object"
             },
-            "type": "array"
+            {
+              "additionalProperties": false,
+              "properties": {
+                "item_id": {
+                  "description": "The numeric project item ID.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "issue_number": {
+                  "description": "Issue number used to resolve the project item.",
+                  "type": "integer"
+                },
+                "item_owner": {
+                  "description": "Owner of the repository containing the issue.",
+                  "type": "string"
+                },
+                "item_repo": {
+                  "description": "Repository containing the issue.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item_owner",
+                "item_repo",
+                "issue_number"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "iteration_duration": {
+        "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
+        "type": "number"
+      },
+      "iterations": {
+        "description": "Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "description": "Duration in days",
+              "type": "number"
+            },
+            "start_date": {
+              "description": "Start date in YYYY-MM-DD format",
+              "type": "string"
+            },
+            "title": {
+              "description": "Iteration title (e.g. 'Sprint 1')",
+              "type": "string"
+            }
           },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases. Validated by the selected method; otherwise ignored."
+          "required": [
+            "title",
+            "start_date",
+            "duration"
+          ],
+          "type": "object"
+        },
+        "type": "array"
       },
       "layout": {
-        "anyOf": [
-          {
-            "description": "View layout; required when creating a view.",
-            "enum": [
-              "table",
-              "board",
-              "roadmap"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "View layout; required when creating a view.",
+        "enum": [
+          "table",
+          "board",
+          "roadmap"
         ],
-        "description": "View layout; required when creating a view. Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "method": {
-        "anyOf": [
-          {
-            "description": "The method to execute",
-            "enum": [
-              "add_project_item",
-              "update_project_item",
-              "update_project_items",
-              "delete_project_item",
-              "create_project_status_update",
-              "create_project_view",
-              "update_project_view",
-              "delete_project_view",
-              "create_project",
-              "create_iteration_field"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "The method to execute",
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "update_project_items",
+          "delete_project_item",
+          "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
+          "create_project",
+          "create_iteration_field"
         ],
-        "description": "The method to execute Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "name": {
-        "anyOf": [
-          {
-            "description": "View name; required when creating a view.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "View name; required when creating a view. Validated by the selected method; otherwise ignored."
+        "description": "View name; required when creating a view.",
+        "type": "string"
       },
       "owner": {
         "description": "The project owner (user or organization login). The name is not case sensitive.",
         "type": "string"
       },
       "owner_type": {
-        "anyOf": [
-          {
-            "description": "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected.",
-            "enum": [
-              "user",
-              "org"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected.",
+        "enum": [
+          "user",
+          "org"
         ],
-        "description": "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected. Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "project_number": {
-        "anyOf": [
-          {
-            "description": "The project's number. Required for all methods except 'create_project'.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The project's number. Required for all methods except 'create_project'. Validated by the selected method; otherwise ignored."
+        "description": "The project's number. Required for all methods except 'create_project'.",
+        "type": "number"
       },
       "pull_request_number": {
-        "anyOf": [
-          {
-            "description": "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number. Validated by the selected method; otherwise ignored."
+        "description": "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+        "type": "number"
       },
       "start_date": {
-        "anyOf": [
-          {
-            "description": "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods. Validated by the selected method; otherwise ignored."
+        "description": "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
+        "type": "string"
       },
       "status": {
-        "anyOf": [
-          {
-            "description": "The status of the project. Used for 'create_project_status_update' method.",
-            "enum": [
-              "INACTIVE",
-              "ON_TRACK",
-              "AT_RISK",
-              "OFF_TRACK",
-              "COMPLETE"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "The status of the project. Used for 'create_project_status_update' method.",
+        "enum": [
+          "INACTIVE",
+          "ON_TRACK",
+          "AT_RISK",
+          "OFF_TRACK",
+          "COMPLETE"
         ],
-        "description": "The status of the project. Used for 'create_project_status_update' method. Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "target_date": {
-        "anyOf": [
-          {
-            "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. Validated by the selected method; otherwise ignored."
+        "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+        "type": "string"
       },
       "title": {
-        "anyOf": [
-          {
-            "description": "The project title. Required for 'create_project' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The project title. Required for 'create_project' method. Validated by the selected method; otherwise ignored."
+        "description": "The project title. Required for 'create_project' method.",
+        "type": "string"
       },
       "updated_field": {
-        "anyOf": [
+        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+        "oneOf": [
           {
-            "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
-            "oneOf": [
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "id": {
-                    "description": "The numeric project field ID.",
-                    "type": "integer"
-                  },
-                  "value": {
-                    "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
-                  }
-                },
-                "required": [
-                  "id",
-                  "value"
-                ],
-                "type": "object"
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The numeric project field ID.",
+                "type": "integer"
               },
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "description": "The project field name. Matching is case-insensitive.",
-                    "type": "string"
-                  },
-                  "value": {
-                    "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
-                  }
-                },
-                "required": [
-                  "name",
-                  "value"
-                ],
-                "type": "object"
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
               }
+            },
+            "required": [
+              "id",
+              "value"
             ],
             "type": "object"
           },
           {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "description": "The project field name. Matching is case-insensitive.",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
           }
         ],
-        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID. Validated by the selected method; otherwise ignored."
+        "type": "object"
       },
       "view_id": {
-        "anyOf": [
-          {
-            "description": "Project view node ID for update or delete; must belong to owner/project_number.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Project view node ID for update or delete; must belong to owner/project_number. Validated by the selected method; otherwise ignored."
+        "description": "Project view node ID for update or delete; must belong to owner/project_number.",
+        "type": "string"
       },
       "visible_field_names": {
-        "anyOf": [
-          {
-            "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only [].",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only []. Validated by the selected method; otherwise ignored."
+        "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "visible_fields": {
-        "anyOf": [
-          {
-            "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only [].",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only []. Validated by the selected method; otherwise ignored."
+        "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       }
     },
+    "required": [
+      "method",
+      "owner"
+    ],
     "type": "object"
   },
   "name": "projects_write",
   "outputSchema": {
-    "anyOf": [
-      {
-        "type": "null"
-      },
-      {
+    "additionalProperties": false,
+    "properties": {
+      "added": {
         "additionalProperties": false,
         "properties": {
           "full_database_id": {
@@ -504,10 +306,160 @@
         ],
         "type": "object"
       },
-      {
+      "batch": {
+        "additionalProperties": false,
+        "properties": {
+          "failed": {
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "error": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "candidates": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "data_type": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "item": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "full_database_id": {
+                      "type": "string"
+                    },
+                    "item_id": {
+                      "type": "integer"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "ref": {
+                  "additionalProperties": true,
+                  "description": "Original batch reference, including malformed or extra fields.",
+                  "type": "object"
+                },
+                "status": {
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "unknown"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "succeeded": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "unknown": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "unknown",
+          "results"
+        ],
+        "type": "object"
+      },
+      "deleted_item": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "deleted_view": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted_view_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deleted_view_id"
+        ],
+        "type": "object"
+      },
+      "issue_fields": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "item": {
         "additionalProperties": false,
         "properties": {
           "archived_at": {
+            "description": "RFC3339 timestamp.",
             "type": "string"
           },
           "content": {
@@ -523,12 +475,14 @@
                 "type": "string"
               },
               "closed_at": {
+                "description": "RFC3339 timestamp.",
                 "type": "string"
               },
               "comments": {
                 "type": "integer"
               },
               "created_at": {
+                "description": "RFC3339 timestamp.",
                 "type": "string"
               },
               "draft": {
@@ -574,6 +528,7 @@
                 "type": "string"
               },
               "updated_at": {
+                "description": "RFC3339 timestamp.",
                 "type": "string"
               }
             },
@@ -583,6 +538,7 @@
             "type": "string"
           },
           "created_at": {
+            "description": "RFC3339 timestamp.",
             "type": "string"
           },
           "creator": {
@@ -616,6 +572,7 @@
             "type": "string"
           },
           "updated_at": {
+            "description": "RFC3339 timestamp.",
             "type": "string"
           }
         },
@@ -624,132 +581,111 @@
         ],
         "type": "object"
       },
-      {
+      "iteration_field": {
         "additionalProperties": false,
         "properties": {
+          "configuration": {
+            "additionalProperties": false,
+            "properties": {
+              "iterations": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duration": {
+                      "description": "Iteration duration in days.",
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "start_date": {
+                      "description": "Date in YYYY-MM-DD format.",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "start_date",
+                    "duration"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "iterations"
+            ],
+            "type": "object"
+          },
           "id": {
             "type": "string"
           },
-          "url": {
+          "name": {
             "type": "string"
           }
         },
         "required": [
           "id",
-          "url"
+          "name",
+          "configuration"
         ],
         "type": "object"
       },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "failed": {
-            "type": "integer"
-          },
-          "results": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "error": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "candidates": {
-                      "description": "Resolution candidates supplied by the selected field or item resolver.",
-                      "items": true,
-                      "type": "array"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "hint": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message"
-                  ],
-                  "type": "object"
-                },
-                "index": {
-                  "type": "integer"
-                },
-                "item": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "full_database_id": {
-                      "type": "string"
-                    },
-                    "item_id": {
-                      "type": "integer"
-                    },
-                    "node_id": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
-                },
-                "ref": {
-                  "additionalProperties": true,
-                  "description": "Original batch reference, including malformed or extra fields.",
-                  "type": "object"
-                },
-                "status": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "index",
-                "status"
-              ],
-              "type": "object"
-            },
-            "type": [
-              "null",
-              "array"
-            ]
-          },
-          "succeeded": {
-            "type": "integer"
-          },
-          "total": {
-            "type": "integer"
-          },
-          "unknown": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total",
-          "succeeded",
-          "failed",
-          "unknown",
-          "results"
+      "method": {
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "update_project_items",
+          "delete_project_item",
+          "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
+          "create_project",
+          "create_iteration_field"
         ],
-        "type": "object"
+        "type": "string"
       },
-      {
+      "project": {
         "additionalProperties": false,
         "properties": {
-          "message": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "message"
+          "id",
+          "number",
+          "title",
+          "html_url"
         ],
         "type": "object"
       },
-      {
+      "status_update": {
         "additionalProperties": false,
         "properties": {
           "body": {
             "type": "string"
           },
           "created_at": {
+            "description": "RFC3339 timestamp.",
             "type": "string"
           },
           "creator": {
@@ -771,6 +707,7 @@
                     "type": "string"
                   },
                   "created_at": {
+                    "description": "RFC3339 timestamp.",
                     "type": "string"
                   },
                   "email": {
@@ -810,6 +747,7 @@
                     "type": "string"
                   },
                   "updated_at": {
+                    "description": "RFC3339 timestamp.",
                     "type": "string"
                   }
                 },
@@ -842,12 +780,21 @@
             "type": "string"
           },
           "start_date": {
+            "description": "Date in YYYY-MM-DD format.",
             "type": "string"
           },
           "status": {
+            "enum": [
+              "INACTIVE",
+              "ON_TRACK",
+              "AT_RISK",
+              "OFF_TRACK",
+              "COMPLETE"
+            ],
             "type": "string"
           },
           "target_date": {
+            "description": "Date in YYYY-MM-DD format.",
             "type": "string"
           }
         },
@@ -856,7 +803,7 @@
         ],
         "type": "object"
       },
-      {
+      "view": {
         "additionalProperties": false,
         "properties": {
           "filter": {
@@ -866,6 +813,11 @@
             "type": "string"
           },
           "layout": {
+            "enum": [
+              "board",
+              "table",
+              "roadmap"
+            ],
             "type": "string"
           },
           "name": {
@@ -890,99 +842,11 @@
           "visible_fields"
         ],
         "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "deleted_view_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "deleted_view_id"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "number": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "number",
-          "title",
-          "url"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "configuration": {
-            "additionalProperties": false,
-            "properties": {
-              "iterations": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "duration": {
-                      "type": "integer"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "start_date": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "title",
-                    "start_date",
-                    "duration"
-                  ],
-                  "type": "object"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "required": [
-              "iterations"
-            ],
-            "type": "object"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "configuration"
-        ],
-        "type": "object"
       }
-    ]
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
   }
 }

@@ -284,7 +284,7 @@ func derefString(s *githubv4.String) string {
 
 // ProjectsList returns the tool and handler for listing GitHub Projects resources.
 func ProjectsList(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool[ProjectsListInput, *ProjectsListOutput](
+	tool := NewToolWithSchemaOptions[ProjectsListInput, *ProjectsListOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:         "projects_list",
@@ -359,6 +359,7 @@ Use this tool to list projects for a user or organization, or list project field
 			},
 		},
 		scopes.RequireAll(scopes.ReadProject),
+		projectsSchemaOptions(),
 		projectsTypedHandler[ProjectsListInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -446,12 +447,12 @@ Use this tool to list projects for a user or organization, or list project field
 		}, decodeProjectsListOutput),
 		normalizeProjectsRouting("list"),
 	)
-	return projectsInputSchema(tool)
+	return tool
 }
 
 // ProjectsGet returns the tool and handler for getting GitHub Projects resources.
 func ProjectsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool[ProjectsGetInput, *ProjectsGetOutput](
+	tool := NewToolWithSchemaOptions[ProjectsGetInput, *ProjectsGetOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:         "projects_get",
@@ -525,6 +526,7 @@ Use this tool to get details about individual projects, project fields, project 
 			},
 		},
 		scopes.RequireAll(scopes.ReadProject),
+		projectsSchemaOptions(),
 		projectsTypedHandler[ProjectsGetInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -649,7 +651,7 @@ Use this tool to get details about individual projects, project fields, project 
 		}, decodeProjectsGetOutput),
 		normalizeProjectsRouting("get"),
 	)
-	return projectsInputSchema(tool)
+	return tool
 }
 
 func updateProjectItemsItemSchema() *jsonschema.Schema {
@@ -730,7 +732,7 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 // ProjectsWrite returns the tool and handler for modifying GitHub Projects resources.
 func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool[ProjectsWriteInput, *ProjectsWriteOutput](
+	tool := NewToolWithSchemaOptions[ProjectsWriteInput, *ProjectsWriteOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:         "projects_write",
@@ -895,6 +897,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.RequireAll(scopes.Project),
+		projectsSchemaOptions(),
 		projectsTypedHandler[ProjectsWriteInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1044,7 +1047,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		}, decodeProjectsWriteOutput),
 		normalizeProjectsRouting("write"),
 	)
-	return projectsInputSchema(tool)
+	return tool
 }
 
 // Helper functions for consolidated projects tools

@@ -36,8 +36,8 @@ func Test_ProjectsList(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "project_number")
 	assert.Contains(t, inputSchema.Properties, "query")
 	assert.Contains(t, inputSchema.Properties, "fields")
-	assert.Contains(t, inputSchema.Properties["method"].AnyOf[0].Enum, projectsMethodListProjectViews)
-	assert.Empty(t, inputSchema.Required, "required arguments are checked in legacy order by the handler")
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodListProjectViews)
+	assert.ElementsMatch(t, []string{"method", "owner"}, inputSchema.Required)
 }
 
 func Test_ProjectsList_ListProjects(t *testing.T) {
@@ -635,10 +635,10 @@ func Test_ProjectsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "owner_type")
 	assert.Contains(t, inputSchema.Properties, "project_number")
 	assert.Contains(t, inputSchema.Properties, "view_id")
-	assert.Contains(t, inputSchema.Properties["method"].AnyOf[0].Enum, projectsMethodGetProjectView)
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodGetProjectView)
 	assert.Contains(t, inputSchema.Properties, "field_id")
 	assert.Contains(t, inputSchema.Properties, "item_id")
-	assert.Empty(t, inputSchema.Required, "required arguments are checked in legacy order by the handler")
+	assert.ElementsMatch(t, []string{"method"}, inputSchema.Required)
 }
 
 func Test_ProjectsGet_GetProject(t *testing.T) {
@@ -931,10 +931,10 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "filter")
 	assert.Contains(t, inputSchema.Properties, "visible_fields")
 	assert.Contains(t, inputSchema.Properties, "visible_field_names")
-	assert.Contains(t, inputSchema.Properties["method"].AnyOf[0].Enum, projectsMethodCreateProjectView)
-	assert.Contains(t, inputSchema.Properties["method"].AnyOf[0].Enum, projectsMethodUpdateProjectView)
-	assert.Contains(t, inputSchema.Properties["method"].AnyOf[0].Enum, projectsMethodDeleteProjectView)
-	assert.Empty(t, inputSchema.Required, "required arguments are checked in legacy order by the handler")
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodCreateProjectView)
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodUpdateProjectView)
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodDeleteProjectView)
+	assert.ElementsMatch(t, []string{"method", "owner"}, inputSchema.Required)
 
 	// Verify DestructiveHint is set
 	assert.NotNil(t, toolDef.Tool.Annotations)
@@ -945,7 +945,7 @@ func Test_ProjectsWrite(t *testing.T) {
 func Test_ProjectsWrite_UpdateProjectItemsSchema(t *testing.T) {
 	inputSchema := ProjectsWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, inputSchema.Properties["items"].Description, "prefer it over calling 'update_project_item' in a loop")
-	itemSchema := inputSchema.Properties["items"].AnyOf[0].Items
+	itemSchema := inputSchema.Properties["items"].Items
 
 	assert.Equal(t, "object", itemSchema.Type)
 	assert.Empty(t, itemSchema.Properties, "item references should be modeled by oneOf, not flattened properties")
@@ -977,7 +977,7 @@ func Test_ProjectsWrite_UpdateProjectItemsSchema(t *testing.T) {
 		assert.NotNil(t, variant.AdditionalProperties.Not, "variant must reject additional properties")
 	}
 
-	fieldSchema := inputSchema.Properties["updated_field"].AnyOf[0]
+	fieldSchema := inputSchema.Properties["updated_field"]
 	assert.Equal(t, "object", fieldSchema.Type)
 	assert.Contains(t, fieldSchema.Description, "one top-level field/value applies to every item")
 	require.Len(t, fieldSchema.OneOf, 2)

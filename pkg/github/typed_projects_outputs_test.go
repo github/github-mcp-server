@@ -49,12 +49,17 @@ func projectsTypedSession(t *testing.T, deps ToolDependencies, protocol string) 
 	require.Len(t, list.Tools, 3)
 	schemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
+		definition := map[string]inventory.ServerTool{
+			"projects_list": tools[0], "projects_get": tools[1], "projects_write": tools[2],
+		}[tool.Name]
+		inventory.AnnotateHeaderParams(&definition.Tool)
+		assert.JSONEq(t, mustMarshalJSON(t, definition.Tool.InputSchema), mustMarshalJSON(t, tool.InputSchema))
 		if protocol != inventory.ProtocolVersionMultiRoundTrip {
 			assert.Nil(t, tool.OutputSchema, tool.Name)
 			continue
 		}
 		require.NotNil(t, tool.OutputSchema, tool.Name)
-		require.NoError(t, toolsnaps.Test(tool.Name+"_typed", *tool))
+		assert.JSONEq(t, mustMarshalJSON(t, definition.Tool.OutputSchema), mustMarshalJSON(t, tool.OutputSchema))
 		var schema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
 		resolved, err := schema.Resolve(nil)
@@ -69,6 +74,8 @@ type projectWireStep struct {
 	path   string
 	query  string
 	body   string
+	status int
+	header http.Header
 }
 
 type projectWireCase struct {
@@ -167,9 +174,9 @@ func TestTypedProjectsOutputSchemaContracts(t *testing.T) {
 		schema *jsonschema.Schema
 		bad    string
 	}{
-		{"list", projectsListOutputSchema(), `{"items":[{"id":"bad"}],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`},
-		{"get", projectsGetOutputSchema(), `{"id":4,"fields":[{"name":5}]}`},
-		{"write", projectsWriteOutputSchema(), `{"deleted_view_id":123}`},
+		{"list", projectsListOutputSchema(), `{"method":"list_project_items","items":{"items":[{"id":"bad"}],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}`},
+		{"get", projectsGetOutputSchema(), `{"method":"get_project_item","item":{"id":4,"fields":[{"name":5}]}}`},
+		{"write", projectsWriteOutputSchema(), `{"method":"delete_project_view","deleted_view":{"deleted_view_id":123}}`},
 		{"view", projectOutputSchema[MinimalProjectView](), `{"id":"V","number":1,"name":"Board","layout":"board","filter":"","visible_fields":null}`},
 		{"optional", projectOutputSchema[MinimalProject](), `{"id":null}`},
 		{"batch", projectOutputSchema[ProjectBatchOutput](), `{"total":1,"succeeded":1,"failed":0,"unknown":0,"results":[{"index":0,"status":"succeeded","item":{"node_id":false}}]}`},
@@ -185,12 +192,12 @@ func TestTypedProjectsOutputSchemaContracts(t *testing.T) {
 	for _, raw := range []string{`{"id":null,"message":"added"}`, `{"id":"I","message":"added","item_id":0}`, `{"id":"I","message":"added","full_database_id":"not-numeric"}`} {
 		out, err := decodeProjectsWriteOutput(projectsMethodAddProjectItem, []byte(raw))
 		require.NoError(t, err)
-		assert.JSONEq(t, raw, mustMarshalJSON(t, out))
+		assert.JSONEq(t, `{"method":"add_project_item","added":`+raw+`}`, mustMarshalJSON(t, out))
 	}
 	raw := `{"total":2,"succeeded":1,"failed":1,"unknown":0,"results":[{"index":0,"status":"succeeded","item":{"node_id":"I"}},{"index":1,"status":"failed","ref":{"unexpected":[1,true,null]},"error":{"code":"ambiguous","message":"many","candidates":[{"id":"I","name":"A"}]}}]}`
 	out, err := decodeProjectsWriteOutput(projectsMethodUpdateProjectItems, []byte(raw))
 	require.NoError(t, err)
-	assert.JSONEq(t, raw, mustMarshalJSON(t, out))
+	assert.JSONEq(t, `{"method":"update_project_items","batch":`+raw+`}`, mustMarshalJSON(t, out))
 	schema, err := projectsWriteOutputSchema().Resolve(nil)
 	require.NoError(t, err)
 	var value any
@@ -208,8 +215,18 @@ func projectWireDeps(t *testing.T, tc projectWireCase) BaseDeps {
 		assert.Equal(t, step.method, r.Method)
 		assert.Equal(t, step.path, r.URL.Path)
 		assert.Equal(t, step.query, r.URL.RawQuery)
+		for name, values := range step.header {
+			for _, value := range values {
+				w.Header().Add(name, value)
+			}
+		}
+		if step.status != 0 {
+			w.WriteHeader(step.status)
+		}
 		if step.method == "DELETE" {
-			w.WriteHeader(http.StatusNoContent)
+			if step.status == 0 {
+				w.WriteHeader(http.StatusNoContent)
+			}
 		}
 		_, _ = w.Write([]byte(step.body))
 	})}}
@@ -233,20 +250,366 @@ func TestTypedProjectsWireOutputs(t *testing.T) {
 					require.NoError(t, err)
 					require.False(t, result.IsError, mustMarshalJSON(t, result))
 					require.Len(t, result.Content, 1)
-					assert.Equal(t, tc.text, getTextResult(t, result).Text)
 					if schema := schemas[tc.tool]; schema != nil {
 						var output any
 						require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 						require.NoError(t, schema.Validate(output))
-						expected := tc.text
-						if tc.method == projectsMethodDeleteProjectItem {
-							expected = `{"message":"project item successfully deleted"}`
-						}
-						assert.JSONEq(t, expected, mustMarshalJSON(t, output))
+						assert.JSONEq(t, projectWireStructured(t, tc), mustMarshalJSON(t, output))
+						assert.Equal(t, mustMarshalJSON(t, output), getTextResult(t, result).Text)
 					} else {
+						assert.Equal(t, tc.text, getTextResult(t, result).Text)
 						assert.Nil(t, result.StructuredContent)
 					}
 				})
+			}
+		})
+	}
+}
+
+func projectWireStructured(t *testing.T, tc projectWireCase) string {
+	t.Helper()
+	fields := map[string]string{
+		projectsMethodListProjects: "projects", projectsMethodListProjectFields: "fields",
+		projectsMethodListProjectItems: "items", projectsMethodListProjectStatusUpdates: "status_updates",
+		projectsMethodListProjectViews: "views", projectsMethodGetProject: "project",
+		projectsMethodGetProjectField: "field", projectsMethodGetProjectItem: "item",
+		projectsMethodGetProjectStatusUpdate: "status_update", projectsMethodGetProjectView: "view",
+		projectsMethodAddProjectItem: "added", projectsMethodUpdateProjectItem: "item",
+		projectsMethodUpdateProjectItems: "batch", projectsMethodDeleteProjectItem: "deleted_item",
+		projectsMethodCreateProjectStatusUpdate: "status_update", projectsMethodCreateProjectView: "view",
+		projectsMethodUpdateProjectView: "view", projectsMethodDeleteProjectView: "deleted_view",
+		projectsMethodCreateProject: "project", projectsMethodCreateIterationField: "iteration_field",
+	}
+	var payload map[string]any
+	if tc.method == projectsMethodDeleteProjectItem {
+		payload = map[string]any{"message": tc.text}
+	} else {
+		require.NoError(t, json.Unmarshal([]byte(tc.text), &payload))
+	}
+	if url, ok := payload["url"]; ok {
+		payload["html_url"] = url
+		delete(payload, "url")
+		if tc.method == projectsMethodUpdateProjectItem {
+			fields[tc.method] = "issue_fields"
+		}
+	}
+	return mustMarshalJSON(t, map[string]any{"method": tc.method, fields[tc.method]: payload})
+}
+
+func TestTypedProjectsObjectRoots(t *testing.T) {
+	for name, schema := range map[string]*jsonschema.Schema{
+		"projects_list":  projectsListOutputSchema(),
+		"projects_get":   projectsGetOutputSchema(),
+		"projects_write": projectsWriteOutputSchema(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, "object", schema.Type)
+			assert.Empty(t, schema.AnyOf)
+			assert.Contains(t, schema.Required, "method")
+			assert.NotEmpty(t, schema.Properties["method"].Enum)
+			resolved, err := schema.Resolve(nil)
+			require.NoError(t, err)
+			assert.Error(t, resolved.Validate(nil))
+			assert.Error(t, resolved.Validate([]any{}))
+			assert.Error(t, resolved.Validate(map[string]any{}))
+			assert.Error(t, resolved.Validate(map[string]any{"method": "unknown"}))
+			require.NoError(t, toolsnaps.Test(name, map[string]inventory.ServerTool{
+				"projects_list":  ProjectsList(translations.NullTranslationHelper),
+				"projects_get":   ProjectsGet(translations.NullTranslationHelper),
+				"projects_write": ProjectsWrite(translations.NullTranslationHelper),
+			}[name].Tool))
+		})
+	}
+}
+
+func TestTypedProjectsFieldProjection(t *testing.T) {
+	raw := `{"id":3,"node_id":"F","name":"Status","data_type":"SINGLE_SELECT","project_url":"https://api.github.com/orgs/o/projectsV2/2","options":[{"id":"o","name":{"raw":"Ready","html":"Ready"},"color":"GREEN"}],"configuration":{"duration":7,"start_day":1,"iterations":[{"id":"iter","title":{"raw":"Sprint","html":"Sprint"},"duration":7,"start_date":"2026-01-01"}]}}`
+	out, err := decodeProjectsGetOutput(projectsMethodGetProjectField, []byte(raw))
+	require.NoError(t, err)
+	assert.NotContains(t, mustMarshalJSON(t, out), "project_url")
+	assert.Equal(t, "Ready", *out.Field.Options[0].Name.Raw)
+	assert.Equal(t, "Sprint", *out.Field.Configuration.Iterations[0].Title.Raw)
+	schema, err := projectsGetOutputSchema().Resolve(nil)
+	require.NoError(t, err)
+	var value any
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, out)), &value))
+	require.NoError(t, schema.Validate(value))
+}
+
+func TestTypedProjectsEmptyOutputs(t *testing.T) {
+	_, err := decodeProjectsListOutput(projectsMethodListProjectItems, nil)
+	require.Error(t, err, "empty legacy JSON must not produce a fabricated success")
+	for _, tc := range []struct {
+		name string
+		text string
+	}{
+		{"empty", `{"items":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`},
+		{"null_items", `{"items":null,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`},
+		{"null_payload", `null`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := projectsTypedHandler[ProjectsListInput](
+				func(context.Context, ToolDependencies, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error) {
+					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: tc.text}}}, nil, nil
+				}, decodeProjectsListOutput)
+			result, out, err := handler(context.Background(), BaseDeps{}, nil, ProjectsListInput{
+				Method: ProjectParameter[string]{Value: projectsMethodListProjectItems},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.text, getTextResult(t, result).Text)
+			schema, err := projectsListOutputSchema().Resolve(nil)
+			require.NoError(t, err)
+			var value map[string]any
+			require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, out)), &value))
+			require.NoError(t, schema.Validate(value))
+			assert.Equal(t, projectsMethodListProjectItems, value["method"])
+			if tc.name == "null_payload" {
+				assert.NotContains(t, value, "items", "a null legacy payload must not become a fake populated result")
+			}
+		})
+	}
+	get, err := decodeProjectsGetOutput(projectsMethodGetProject, []byte("null"))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"method":"get_project"}`, mustMarshalJSON(t, get))
+	get, err = decodeProjectsGetOutput(projectsMethodGetProjectItem, []byte(`{"id":4}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"method":"get_project_item","item":{"id":4}}`, mustMarshalJSON(t, get))
+	getSchema, err := projectsGetOutputSchema().Resolve(nil)
+	require.NoError(t, err)
+	var getValue any
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, get)), &getValue))
+	require.NoError(t, getSchema.Validate(getValue), "optional fields array may be absent")
+	for _, method := range []string{projectsMethodCreateProject, projectsMethodUpdateProjectItem, projectsMethodAddProjectItem} {
+		out, err := decodeProjectsWriteOutput(method, []byte("null"))
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"method":"`+method+`"}`, mustMarshalJSON(t, out))
+	}
+}
+
+func TestTypedProjectsRESTListPageShapes(t *testing.T) {
+	nextLink := http.Header{"Link": {`<https://api.github.com/orgs/o/projectsV2?after=next>; rel="next"`}}
+	cases := []struct {
+		name string
+		tc   projectWireCase
+	}{
+		{
+			name: "projects_empty_final_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjects,
+				steps: []projectWireStep{{method: "GET", path: "/orgs/o/projectsV2", query: "per_page=2", body: `[]`}},
+				text:  `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false},"projects":[]}`,
+			},
+		},
+		{
+			name: "fields_empty_final_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectFields,
+				steps: []projectWireStep{{method: "GET", path: "/orgs/o/projectsV2/2/fields", query: "per_page=2", body: `[]`}},
+				text:  `{"fields":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`,
+			},
+		},
+		{
+			name: "items_empty_final_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectItems,
+				steps: []projectWireStep{{method: "GET", path: "/orgs/o/projectsV2/2/items", query: "per_page=2", body: `[]`}},
+				text:  `{"items":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`,
+			},
+		},
+		{
+			name: "status_updates_empty_final_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectStatusUpdates,
+				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"public":true,"statusUpdates":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
+				text:  `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"nextCursor":"","prevCursor":""},"statusUpdates":[]}`,
+			},
+		},
+		{
+			name: "views_empty_final_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectViews,
+				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"id":"P","public":true,"views":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
+				text:  `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"nextCursor":"","prevCursor":""},"views":[]}`,
+			},
+		},
+		{
+			name: "projects_empty_next_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjects,
+				steps: []projectWireStep{{method: "GET", path: "/orgs/o/projectsV2", query: "per_page=2", body: `[]`, header: nextLink}},
+				text:  `{"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"nextCursor":"next"},"projects":[]}`,
+			},
+		},
+		{
+			name: "fields_empty_next_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectFields,
+				steps: []projectWireStep{{
+					method: "GET", path: "/orgs/o/projectsV2/2/fields", query: "per_page=2", body: `[]`,
+					header: http.Header{"Link": []string{`<https://api.github.com/orgs/o/projectsV2/2/fields?per_page=2&after=next>; rel="next"`}},
+				}},
+				text: `{"fields":[],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"nextCursor":"next"}}`,
+			},
+		},
+		{
+			name: "items_empty_next_page",
+			tc: projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectItems,
+				steps: []projectWireStep{{
+					method: "GET", path: "/orgs/o/projectsV2/2/items", query: "per_page=2", body: `[]`,
+					header: http.Header{"Link": []string{`<https://api.github.com/orgs/o/projectsV2/2/items?per_page=2&after=next>; rel="next"`}},
+				}},
+				text: `{"items":[],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"nextCursor":"next"}}`,
+			},
+		},
+	}
+
+	for _, protocol := range typedGitGistProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					tc.tc.args = map[string]any{"perPage": 2}
+					session, schemas := projectsTypedSession(t, projectWireDeps(t, tc.tc), protocol)
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: tc.tc.tool, Arguments: projectWireArgs(tc.tc),
+					})
+					require.NoError(t, err)
+					require.False(t, result.IsError, mustMarshalJSON(t, result))
+					if schema := schemas[tc.tc.tool]; schema != nil {
+						var output any
+						require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+						require.NoError(t, schema.Validate(output))
+						assert.JSONEq(t, projectWireStructured(t, tc.tc), mustMarshalJSON(t, output))
+						assert.Equal(t, mustMarshalJSON(t, output), getTextResult(t, result).Text)
+					} else {
+						assert.Equal(t, tc.tc.text, getTextResult(t, result).Text)
+						assert.Nil(t, result.StructuredContent)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestTypedProjectsSequentialPagination(t *testing.T) {
+	for _, protocol := range typedGitGistProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			tc := projectWireCase{
+				tool: "projects_list", method: projectsMethodListProjectItems,
+				args: map[string]any{"perPage": 2},
+				steps: []projectWireStep{
+					{method: "GET", path: "/orgs/o/projectsV2/2/items", query: "per_page=2", body: `[]`,
+						header: http.Header{"Link": {`<https://api.github.com/orgs/o/projectsV2/2/items?after=next&per_page=2>; rel="next"`}}},
+					{method: "GET", path: "/orgs/o/projectsV2/2/items", query: "after=next&per_page=2", body: `[]`},
+				},
+			}
+			session, schemas := projectsTypedSession(t, projectWireDeps(t, tc), protocol)
+			args := projectWireArgs(tc)
+			for page, text := range []string{
+				`{"items":[],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"nextCursor":"next"}}`,
+				`{"items":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`,
+			} {
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool, Arguments: args})
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				var payload struct {
+					PageInfo pageInfo `json:"pageInfo"`
+				}
+				if schema := schemas[tc.tool]; schema != nil {
+					var output map[string]any
+					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+					require.NoError(t, schema.Validate(output))
+					tc.text = text
+					assert.JSONEq(t, projectWireStructured(t, tc), mustMarshalJSON(t, output))
+					assert.Equal(t, mustMarshalJSON(t, output), getTextResult(t, result).Text)
+					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, output["items"])), &payload))
+				} else {
+					assert.Equal(t, text, getTextResult(t, result).Text)
+					assert.Nil(t, result.StructuredContent)
+					require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &payload))
+				}
+				assert.Equal(t, page == 0, payload.PageInfo.HasNextPage)
+				if page == 0 {
+					require.Equal(t, "next", payload.PageInfo.NextCursor)
+					args["after"] = payload.PageInfo.NextCursor
+				} else {
+					assert.Empty(t, payload.PageInfo.NextCursor)
+				}
+			}
+		})
+	}
+}
+
+func TestTypedProjectsWriteBackendErrors(t *testing.T) {
+	cases := []struct {
+		tc      projectWireCase
+		message string
+	}{{
+		tc: projectWireCase{
+			tool: "projects_write", method: projectsMethodUpdateProjectItem,
+			args: map[string]any{"item_id": "4", "updated_field": map[string]any{"id": 3, "value": "Updated"}},
+			steps: []projectWireStep{{
+				method: "PATCH", path: "/orgs/o/projectsV2/2/items/4",
+				body: `{"message":"server error"}`, status: http.StatusInternalServerError,
+			}},
+		}, message: ProjectUpdateFailedError,
+	}, {
+		tc: projectWireCase{
+			tool: "projects_write", method: projectsMethodDeleteProjectItem,
+			args: map[string]any{"item_id": 4},
+			steps: []projectWireStep{{method: "DELETE", path: "/orgs/o/projectsV2/2/items/4",
+				status: http.StatusInternalServerError, body: `{"message":"server error"}`}},
+		}, message: ProjectDeleteFailedError,
+	}, {
+		tc: projectWireCase{
+			tool: "projects_write", method: projectsMethodCreateProjectStatusUpdate,
+			args: map[string]any{"body": "Update", "status": "ON_TRACK"},
+			steps: []projectWireStep{
+				{method: "POST", path: "/graphql", body: projectWireResolve},
+				{method: "POST", path: "/graphql", body: `{"errors":[{"message":"mutation denied"}]}`},
+			},
+		}, message: ProjectStatusUpdateCreateFailedError,
+	}}
+	for _, protocol := range typedGitGistProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			for _, fixture := range cases {
+				t.Run(fixture.tc.method, func(t *testing.T) {
+					tc := fixture.tc
+					session, _ := projectsTypedSession(t, projectWireDeps(t, tc), protocol)
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: tc.tool, Arguments: projectWireArgs(tc),
+					})
+					require.NoError(t, err)
+					require.True(t, result.IsError)
+					assert.Contains(t, getTextResult(t, result).Text, fixture.message)
+					assert.Nil(t, result.StructuredContent)
+				})
+			}
+		})
+	}
+}
+
+func TestTypedProjectsWireIFC(t *testing.T) {
+	for _, protocol := range typedGitGistProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			tc := projectWireCases()[5]
+			tc.steps[0].body = `{"id":1,"node_id":"P","title":"Roadmap","public":false,"number":2}`
+			tc.text = `{"id":1,"node_id":"P","title":"Roadmap","description":"","public":false,"closed_at":"0001-01-01T00:00:00Z","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z","deleted_at":"0001-01-01T00:00:00Z","number":2,"short_description":""}`
+			deps := projectWireDeps(t, tc)
+			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
+			session, schemas := projectsTypedSession(t, deps, protocol)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool, Arguments: projectWireArgs(tc)})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			label := unmarshalIFC(t, result.Meta["ifc"])
+			assert.Equal(t, "trusted", label["integrity"])
+			assert.Equal(t, "private", label["confidentiality"])
+			if schemas[tc.tool] != nil {
+				assert.JSONEq(t, projectWireStructured(t, tc), mustMarshalJSON(t, result.StructuredContent))
+				assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+			} else {
+				assert.Equal(t, tc.text, getTextResult(t, result).Text)
+				assert.Nil(t, result.StructuredContent)
 			}
 		})
 	}

@@ -8,144 +8,398 @@
   "inputSchema": {
     "properties": {
       "after": {
-        "anyOf": [
-          {
-            "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Forward pagination cursor from previous pageInfo.nextCursor. Validated by the selected method; otherwise ignored."
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
       },
       "before": {
-        "anyOf": [
-          {
-            "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare). Validated by the selected method; otherwise ignored."
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
+        "type": "string"
       },
       "field_names": {
-        "anyOf": [
-          {
-            "description": "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method. Validated by the selected method; otherwise ignored."
+        "description": "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "fields": {
-        "anyOf": [
-          {
-            "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method. Validated by the selected method; otherwise ignored."
+        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "method": {
-        "anyOf": [
-          {
-            "description": "The action to perform",
-            "enum": [
-              "list_projects",
-              "list_project_fields",
-              "list_project_items",
-              "list_project_status_updates",
-              "list_project_views"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "The action to perform",
+        "enum": [
+          "list_projects",
+          "list_project_fields",
+          "list_project_items",
+          "list_project_status_updates",
+          "list_project_views"
         ],
-        "description": "The action to perform Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "owner": {
         "description": "The owner (user or organization login). The name is not case sensitive.",
         "type": "string"
       },
       "owner_type": {
-        "anyOf": [
-          {
-            "description": "Owner type (user or org). If not provided, will automatically try both.",
-            "enum": [
-              "user",
-              "org"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
+        "description": "Owner type (user or org). If not provided, will automatically try both.",
+        "enum": [
+          "user",
+          "org"
         ],
-        "description": "Owner type (user or org). If not provided, will automatically try both. Validated by the selected method; otherwise ignored."
+        "type": "string"
       },
       "perPage": {
-        "anyOf": [
-          {
-            "description": "Results per page (max 50)",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Results per page (max 50) Validated by the selected method; otherwise ignored."
+        "description": "Results per page (max 50)",
+        "type": "number"
       },
       "project_number": {
-        "anyOf": [
-          {
-            "description": "The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods. Validated by the selected method; otherwise ignored."
+        "description": "The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods.",
+        "type": "number"
       },
       "query": {
-        "anyOf": [
-          {
-            "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are handled by the method-specific validator, preserving its errors and validation order."
-          }
-        ],
-        "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax. Validated by the selected method; otherwise ignored."
+        "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax.",
+        "type": "string"
       }
     },
+    "required": [
+      "method",
+      "owner"
+    ],
     "type": "object"
   },
   "name": "projects_list",
   "outputSchema": {
-    "anyOf": [
-      {
-        "type": "null"
+    "additionalProperties": false,
+    "properties": {
+      "fields": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "configuration": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duration": {
+                      "description": "Iteration duration in days.",
+                      "type": "integer"
+                    },
+                    "iterations": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "duration": {
+                            "description": "Iteration duration in days.",
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "start_date": {
+                            "description": "Date in YYYY-MM-DD format.",
+                            "type": "string"
+                          },
+                          "title": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "html": {
+                                "type": "string"
+                              },
+                              "raw": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "start_day": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "data_type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "html": {
+                            "type": "string"
+                          },
+                          "raw": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "html": {
+                            "type": "string"
+                          },
+                          "raw": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "updated_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "fields",
+          "pageInfo"
+        ],
+        "type": "object"
       },
-      {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "archived_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                },
+                "content": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "assignees": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "author": {
+                      "type": "string"
+                    },
+                    "closed_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    },
+                    "comments": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "boolean"
+                    },
+                    "html_url": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "labels": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "merged": {
+                      "type": "boolean"
+                    },
+                    "merged_at": {
+                      "type": "string"
+                    },
+                    "milestone": {
+                      "type": "string"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "integer"
+                    },
+                    "repository": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "state_reason": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "content_type": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                },
+                "creator": {
+                  "type": "string"
+                },
+                "fields": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "data_type": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "description": "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "method": {
+        "enum": [
+          "list_projects",
+          "list_project_fields",
+          "list_project_items",
+          "list_project_status_updates",
+          "list_project_views"
+        ],
+        "type": "string"
+      },
+      "projects": {
         "additionalProperties": false,
         "properties": {
           "note": {
@@ -178,10 +432,12 @@
               "additionalProperties": false,
               "properties": {
                 "closed_at": {
+                  "description": "RFC3339 timestamp.",
                   "format": "date-time",
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "RFC3339 timestamp.",
                   "format": "date-time",
                   "type": "string"
                 },
@@ -204,6 +460,7 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         },
                         "email": {
@@ -243,6 +500,7 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         }
                       },
@@ -272,6 +530,7 @@
                   "type": "object"
                 },
                 "deleted_at": {
+                  "description": "RFC3339 timestamp.",
                   "format": "date-time",
                   "type": "string"
                 },
@@ -294,6 +553,7 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         },
                         "email": {
@@ -333,6 +593,7 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         }
                       },
@@ -392,6 +653,7 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         },
                         "email": {
@@ -431,6 +693,7 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         }
                       },
@@ -472,6 +735,7 @@
                   "type": "string"
                 },
                 "updated_at": {
+                  "description": "RFC3339 timestamp.",
                   "format": "date-time",
                   "type": "string"
                 }
@@ -489,322 +753,7 @@
         ],
         "type": "object"
       },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "fields": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "configuration": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "duration": {
-                      "type": "integer"
-                    },
-                    "iterations": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "duration": {
-                            "type": "integer"
-                          },
-                          "id": {
-                            "type": "string"
-                          },
-                          "start_date": {
-                            "type": "string"
-                          },
-                          "title": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "html": {
-                                "type": "string"
-                              },
-                              "raw": {
-                                "type": "string"
-                              }
-                            },
-                            "type": "object"
-                          }
-                        },
-                        "type": [
-                          "null",
-                          "object"
-                        ]
-                      },
-                      "type": "array"
-                    },
-                    "start_day": {
-                      "type": "integer"
-                    }
-                  },
-                  "type": "object"
-                },
-                "created_at": {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                "data_type": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "integer"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "node_id": {
-                  "type": "string"
-                },
-                "options": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "color": {
-                        "type": "string"
-                      },
-                      "description": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "html": {
-                            "type": "string"
-                          },
-                          "raw": {
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
-                      },
-                      "id": {
-                        "type": "string"
-                      },
-                      "name": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "html": {
-                            "type": "string"
-                          },
-                          "raw": {
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
-                      }
-                    },
-                    "type": [
-                      "null",
-                      "object"
-                    ]
-                  },
-                  "type": "array"
-                },
-                "project_url": {
-                  "type": "string"
-                },
-                "updated_at": {
-                  "format": "date-time",
-                  "type": "string"
-                }
-              },
-              "type": [
-                "null",
-                "object"
-              ]
-            },
-            "type": [
-              "null",
-              "array"
-            ]
-          },
-          "pageInfo": {
-            "additionalProperties": false,
-            "properties": {
-              "hasNextPage": {
-                "type": "boolean"
-              },
-              "hasPreviousPage": {
-                "type": "boolean"
-              },
-              "nextCursor": {
-                "type": "string"
-              },
-              "prevCursor": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "hasNextPage",
-              "hasPreviousPage"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "fields",
-          "pageInfo"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "archived_at": {
-                  "type": "string"
-                },
-                "content": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "assignees": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "author": {
-                      "type": "string"
-                    },
-                    "closed_at": {
-                      "type": "string"
-                    },
-                    "comments": {
-                      "type": "integer"
-                    },
-                    "created_at": {
-                      "type": "string"
-                    },
-                    "draft": {
-                      "type": "boolean"
-                    },
-                    "html_url": {
-                      "type": "string"
-                    },
-                    "id": {
-                      "type": "integer"
-                    },
-                    "labels": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "merged": {
-                      "type": "boolean"
-                    },
-                    "merged_at": {
-                      "type": "string"
-                    },
-                    "milestone": {
-                      "type": "string"
-                    },
-                    "node_id": {
-                      "type": "string"
-                    },
-                    "number": {
-                      "type": "integer"
-                    },
-                    "repository": {
-                      "type": "string"
-                    },
-                    "state": {
-                      "type": "string"
-                    },
-                    "state_reason": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "updated_at": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
-                },
-                "content_type": {
-                  "type": "string"
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "creator": {
-                  "type": "string"
-                },
-                "fields": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "data_type": {
-                        "type": "string"
-                      },
-                      "id": {
-                        "type": "integer"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "description": "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "id": {
-                  "type": "integer"
-                },
-                "node_id": {
-                  "type": "string"
-                },
-                "updated_at": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id"
-              ],
-              "type": "object"
-            },
-            "type": [
-              "null",
-              "array"
-            ]
-          },
-          "pageInfo": {
-            "additionalProperties": false,
-            "properties": {
-              "hasNextPage": {
-                "type": "boolean"
-              },
-              "hasPreviousPage": {
-                "type": "boolean"
-              },
-              "nextCursor": {
-                "type": "string"
-              },
-              "prevCursor": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "hasNextPage",
-              "hasPreviousPage"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "type": "object"
-      },
-      {
+      "status_updates": {
         "additionalProperties": false,
         "properties": {
           "pageInfo": {
@@ -839,6 +788,7 @@
                   "type": "string"
                 },
                 "created_at": {
+                  "description": "RFC3339 timestamp.",
                   "type": "string"
                 },
                 "creator": {
@@ -860,6 +810,7 @@
                           "type": "string"
                         },
                         "created_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         },
                         "email": {
@@ -899,6 +850,7 @@
                           "type": "string"
                         },
                         "updated_at": {
+                          "description": "RFC3339 timestamp.",
                           "type": "string"
                         }
                       },
@@ -931,12 +883,21 @@
                   "type": "string"
                 },
                 "start_date": {
+                  "description": "Date in YYYY-MM-DD format.",
                   "type": "string"
                 },
                 "status": {
+                  "enum": [
+                    "INACTIVE",
+                    "ON_TRACK",
+                    "AT_RISK",
+                    "OFF_TRACK",
+                    "COMPLETE"
+                  ],
                   "type": "string"
                 },
                 "target_date": {
+                  "description": "Date in YYYY-MM-DD format.",
                   "type": "string"
                 }
               },
@@ -957,7 +918,7 @@
         ],
         "type": "object"
       },
-      {
+      "views": {
         "additionalProperties": false,
         "properties": {
           "pageInfo": {
@@ -995,6 +956,11 @@
                   "type": "string"
                 },
                 "layout": {
+                  "enum": [
+                    "board",
+                    "table",
+                    "roadmap"
+                  ],
                   "type": "string"
                 },
                 "name": {
@@ -1032,6 +998,10 @@
         ],
         "type": "object"
       }
-    ]
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
   }
 }

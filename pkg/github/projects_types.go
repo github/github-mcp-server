@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -202,11 +203,12 @@ func (p ProjectParameter[T]) argumentJSON() (json.RawMessage, error) {
 }
 
 type ProjectsListOutput struct {
-	Projects      *ProjectListOutput
-	Fields        *ProjectFieldListOutput
-	Items         *ProjectItemListOutput
-	StatusUpdates *ProjectStatusUpdateListOutput
-	Views         *ProjectViewListOutput
+	Method        string                         `json:"method"`
+	Projects      *ProjectListOutput             `json:"projects,omitempty"`
+	Fields        *ProjectFieldListOutput        `json:"fields,omitempty"`
+	Items         *ProjectItemListOutput         `json:"items,omitempty"`
+	StatusUpdates *ProjectStatusUpdateListOutput `json:"status_updates,omitempty"`
+	Views         *ProjectViewListOutput         `json:"views,omitempty"`
 }
 
 type ProjectListOutput struct {
@@ -216,8 +218,45 @@ type ProjectListOutput struct {
 }
 
 type ProjectFieldListOutput struct {
-	Fields   []*github.ProjectV2Field `json:"fields"`
-	PageInfo pageInfo                 `json:"pageInfo"`
+	Fields   []ProjectFieldOutput `json:"fields"`
+	PageInfo pageInfo             `json:"pageInfo"`
+}
+
+// ProjectFieldOutput omits the derivable project API URL from REST fields.
+type ProjectFieldOutput struct {
+	ID            *int64                           `json:"id,omitempty"`
+	NodeID        *string                          `json:"node_id,omitempty"`
+	Name          *string                          `json:"name,omitempty"`
+	DataType      *string                          `json:"data_type,omitempty"`
+	Options       []ProjectFieldOptionOutput       `json:"options,omitempty"`
+	Configuration *ProjectFieldConfigurationOutput `json:"configuration,omitempty"`
+	CreatedAt     *github.Timestamp                `json:"created_at,omitempty"`
+	UpdatedAt     *github.Timestamp                `json:"updated_at,omitempty"`
+}
+
+type ProjectFieldOptionOutput struct {
+	ID          *string                 `json:"id,omitempty"`
+	Color       *string                 `json:"color,omitempty"`
+	Description *ProjectFieldTextOutput `json:"description,omitempty"`
+	Name        *ProjectFieldTextOutput `json:"name,omitempty"`
+}
+
+type ProjectFieldTextOutput struct {
+	HTML *string `json:"html,omitempty"`
+	Raw  *string `json:"raw,omitempty"`
+}
+
+type ProjectFieldConfigurationOutput struct {
+	Duration   *int                          `json:"duration,omitempty"`
+	StartDay   *int                          `json:"start_day,omitempty"`
+	Iterations []ProjectFieldIterationOutput `json:"iterations,omitempty"`
+}
+
+type ProjectFieldIterationOutput struct {
+	ID        *string                 `json:"id,omitempty"`
+	Title     *ProjectFieldTextOutput `json:"title,omitempty"`
+	StartDate *string                 `json:"start_date,omitempty"`
+	Duration  *int                    `json:"duration,omitempty"`
 }
 
 type ProjectItemListOutput struct {
@@ -243,11 +282,12 @@ type ProjectGraphQLPageInfo struct {
 }
 
 type ProjectsGetOutput struct {
-	Project      *MinimalProject
-	Field        *github.ProjectV2Field
-	Item         *ProjectItemOutput
-	StatusUpdate *MinimalProjectStatusUpdate
-	View         *MinimalProjectView
+	Method       string                      `json:"method"`
+	Project      *MinimalProject             `json:"project,omitempty"`
+	Field        *ProjectFieldOutput         `json:"field,omitempty"`
+	Item         *ProjectItemOutput          `json:"item,omitempty"`
+	StatusUpdate *MinimalProjectStatusUpdate `json:"status_update,omitempty"`
+	View         *MinimalProjectView         `json:"view,omitempty"`
 }
 
 type ProjectItemOutput struct {
@@ -272,16 +312,22 @@ type ProjectFieldValueOutput struct {
 }
 
 type ProjectsWriteOutput struct {
-	Added          *ProjectAddedItemOutput
-	Item           *ProjectItemOutput
-	IssueFields    *MinimalResponse
-	Batch          *ProjectBatchOutput
-	DeletedItem    *RepositoryMessageOutput
-	StatusUpdate   *MinimalProjectStatusUpdate
-	View           *MinimalProjectView
-	DeletedView    *ProjectDeletedViewOutput
-	Project        *ProjectCreatedOutput
-	IterationField *ProjectIterationFieldOutput
+	Method         string                       `json:"method"`
+	Added          *ProjectAddedItemOutput      `json:"added,omitempty"`
+	Item           *ProjectItemOutput           `json:"item,omitempty"`
+	IssueFields    *ProjectIssueOutput          `json:"issue_fields,omitempty"`
+	Batch          *ProjectBatchOutput          `json:"batch,omitempty"`
+	DeletedItem    *RepositoryMessageOutput     `json:"deleted_item,omitempty"`
+	StatusUpdate   *MinimalProjectStatusUpdate  `json:"status_update,omitempty"`
+	View           *MinimalProjectView          `json:"view,omitempty"`
+	DeletedView    *ProjectDeletedViewOutput    `json:"deleted_view,omitempty"`
+	Project        *ProjectCreatedOutput        `json:"project,omitempty"`
+	IterationField *ProjectIterationFieldOutput `json:"iteration_field,omitempty"`
+}
+
+type ProjectIssueOutput struct {
+	ID      string `json:"id"`
+	HTMLURL string `json:"html_url"`
 }
 
 type ProjectAddedItemOutput struct {
@@ -296,10 +342,10 @@ type ProjectDeletedViewOutput struct {
 }
 
 type ProjectCreatedOutput struct {
-	ID     string `json:"id"`
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	URL    string `json:"url"`
+	ID      string `json:"id"`
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	HTMLURL string `json:"html_url"`
 }
 
 type ProjectIterationFieldOutput struct {
@@ -330,112 +376,52 @@ type ProjectBatchItemOutput struct {
 	Status batchItemStatus    `json:"status"`
 	Item   *batchItemIdentity `json:"item,omitempty"`
 	Error  *ProjectBatchError `json:"error,omitempty"`
-	// Batch failures echo even malformed reference objects verbatim.
+	// Batch entries echo user-supplied reference objects, including malformed
+	// references and extra keys, verbatim.
 	Ref json.RawMessage `json:"ref,omitempty"`
 }
 
 type ProjectBatchError struct {
-	Code       string          `json:"code"`
-	Message    string          `json:"message"`
-	Candidates json.RawMessage `json:"candidates,omitempty"`
-	Hint       string          `json:"hint,omitempty"`
+	Code       string                       `json:"code"`
+	Message    string                       `json:"message"`
+	Candidates []ProjectResolutionCandidate `json:"candidates,omitempty"`
+	Hint       string                       `json:"hint,omitempty"`
 }
 
-func (out ProjectsListOutput) MarshalJSON() ([]byte, error) {
-	switch {
-	case out.Projects != nil:
-		return json.Marshal(out.Projects)
-	case out.Fields != nil:
-		return json.Marshal(out.Fields)
-	case out.Items != nil:
-		return json.Marshal(out.Items)
-	case out.StatusUpdates != nil:
-		return json.Marshal(out.StatusUpdates)
-	default:
-		return json.Marshal(out.Views)
-	}
-}
-
-func (out ProjectsGetOutput) MarshalJSON() ([]byte, error) {
-	switch {
-	case out.Project != nil:
-		return json.Marshal(out.Project)
-	case out.Field != nil:
-		return json.Marshal(out.Field)
-	case out.Item != nil:
-		return json.Marshal(out.Item)
-	case out.StatusUpdate != nil:
-		return json.Marshal(out.StatusUpdate)
-	default:
-		return json.Marshal(out.View)
-	}
-}
-
-func (out ProjectsWriteOutput) MarshalJSON() ([]byte, error) {
-	switch {
-	case out.Added != nil:
-		return json.Marshal(out.Added)
-	case out.Item != nil:
-		return json.Marshal(out.Item)
-	case out.IssueFields != nil:
-		return json.Marshal(out.IssueFields)
-	case out.Batch != nil:
-		return json.Marshal(out.Batch)
-	case out.DeletedItem != nil:
-		return json.Marshal(out.DeletedItem)
-	case out.StatusUpdate != nil:
-		return json.Marshal(out.StatusUpdate)
-	case out.View != nil:
-		return json.Marshal(out.View)
-	case out.DeletedView != nil:
-		return json.Marshal(out.DeletedView)
-	case out.Project != nil:
-		return json.Marshal(out.Project)
-	default:
-		return json.Marshal(out.IterationField)
-	}
+type ProjectResolutionCandidate struct {
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	DataType string `json:"data_type,omitempty"`
 }
 
 func projectsListOutputSchema() *jsonschema.Schema {
-	return actionsUnionSchema(
-		&jsonschema.Schema{Type: "null"},
-		projectOutputSchema[ProjectListOutput](),
-		projectOutputSchema[ProjectFieldListOutput](),
-		projectOutputSchema[ProjectItemListOutput](),
-		projectOutputSchema[ProjectStatusUpdateListOutput](),
-		projectOutputSchema[ProjectViewListOutput](),
-	)
+	schema := projectOutputSchema[ProjectsListOutput]()
+	schema.Properties["method"].Enum = []any{projectsMethodListProjects, projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates, projectsMethodListProjectViews}
+	return schema
 }
 
 func projectsGetOutputSchema() *jsonschema.Schema {
-	return actionsUnionSchema(
-		&jsonschema.Schema{Type: "null"},
-		projectOutputSchema[MinimalProject](),
-		projectOutputSchema[github.ProjectV2Field](),
-		projectOutputSchema[ProjectItemOutput](),
-		projectOutputSchema[MinimalProjectStatusUpdate](),
-		projectOutputSchema[MinimalProjectView](),
-	)
+	schema := projectOutputSchema[ProjectsGetOutput]()
+	schema.Properties["method"].Enum = []any{projectsMethodGetProject, projectsMethodGetProjectField, projectsMethodGetProjectItem, projectsMethodGetProjectStatusUpdate, projectsMethodGetProjectView}
+	return schema
 }
 
 func projectsWriteOutputSchema() *jsonschema.Schema {
-	return actionsUnionSchema(
-		&jsonschema.Schema{Type: "null"},
-		projectOutputSchema[ProjectAddedItemOutput](),
-		projectOutputSchema[ProjectItemOutput](),
-		projectOutputSchema[MinimalResponse](),
-		projectOutputSchema[ProjectBatchOutput](),
-		projectOutputSchema[RepositoryMessageOutput](),
-		projectOutputSchema[MinimalProjectStatusUpdate](),
-		projectOutputSchema[MinimalProjectView](),
-		projectOutputSchema[ProjectDeletedViewOutput](),
-		projectOutputSchema[ProjectCreatedOutput](),
-		projectOutputSchema[ProjectIterationFieldOutput](),
-	)
+	schema := projectOutputSchema[ProjectsWriteOutput]()
+	schema.Properties["method"].Enum = []any{projectsMethodAddProjectItem, projectsMethodUpdateProjectItem, projectsMethodUpdateProjectItems, projectsMethodDeleteProjectItem, projectsMethodCreateProjectStatusUpdate, projectsMethodCreateProjectView, projectsMethodUpdateProjectView, projectsMethodDeleteProjectView, projectsMethodCreateProject, projectsMethodCreateIterationField}
+	return schema
 }
 
 func projectOutputSchema[T any]() *jsonschema.Schema {
-	schema := forbidOmittedNulls(repositoryOutputSchema[T]())
+	generated, err := inventory.CachedSchemaFor[T](&jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[github.Timestamp](): {Type: "string", Format: "date-time"},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate project output schema: %v", err))
+	}
+	schema := forbidOmittedNulls(inventory.CloneSchema(generated))
 	var patch func(*jsonschema.Schema)
 	patch = func(schema *jsonschema.Schema) {
 		if schema == nil {
@@ -447,11 +433,23 @@ func projectOutputSchema[T any]() *jsonschema.Schema {
 				schema.Properties[name] = &jsonschema.Schema{Description: "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."}
 			case "ref":
 				schema.Properties[name] = &jsonschema.Schema{Type: "object", Description: "Original batch reference, including malformed or extra fields.", AdditionalProperties: &jsonschema.Schema{}}
-			case "candidates":
-				schema.Properties[name] = &jsonschema.Schema{Type: "array", Items: &jsonschema.Schema{}, Description: "Resolution candidates supplied by the selected field or item resolver."}
 			case "visible_fields":
 				property.Type, property.Types = "array", nil
 				patch(property)
+			case "created_at", "updated_at", "closed_at", "deleted_at", "archived_at":
+				property.Description = "RFC3339 timestamp."
+			case "start_date", "target_date":
+				property.Description = "Date in YYYY-MM-DD format."
+			case "duration":
+				property.Description = "Iteration duration in days."
+			case "layout":
+				property.Enum = []any{"board", "table", "roadmap"}
+			case "status":
+				if _, batch := schema.Properties["index"]; batch {
+					property.Enum = []any{"succeeded", "failed", "unknown"}
+				} else {
+					property.Enum = []any{"INACTIVE", "ON_TRACK", "AT_RISK", "OFF_TRACK", "COMPLETE"}
+				}
 			default:
 				patch(property)
 			}
@@ -466,7 +464,7 @@ func projectOutputSchema[T any]() *jsonschema.Schema {
 }
 
 func decodeProjectsListOutput(method string, raw []byte) (*ProjectsListOutput, error) {
-	out := &ProjectsListOutput{}
+	out := &ProjectsListOutput{Method: method}
 	switch method {
 	case projectsMethodListProjects:
 		return out, json.Unmarshal(raw, &out.Projects)
@@ -484,7 +482,7 @@ func decodeProjectsListOutput(method string, raw []byte) (*ProjectsListOutput, e
 }
 
 func decodeProjectsGetOutput(method string, raw []byte) (*ProjectsGetOutput, error) {
-	out := &ProjectsGetOutput{}
+	out := &ProjectsGetOutput{Method: method}
 	switch method {
 	case projectsMethodGetProject:
 		return out, json.Unmarshal(raw, &out.Project)
@@ -502,7 +500,10 @@ func decodeProjectsGetOutput(method string, raw []byte) (*ProjectsGetOutput, err
 }
 
 func decodeProjectsWriteOutput(method string, raw []byte) (*ProjectsWriteOutput, error) {
-	out := &ProjectsWriteOutput{}
+	out := &ProjectsWriteOutput{Method: method}
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return out, nil
+	}
 	switch method {
 	case projectsMethodAddProjectItem:
 		return out, json.Unmarshal(raw, &out.Added)
@@ -514,7 +515,12 @@ func decodeProjectsWriteOutput(method string, raw []byte) (*ProjectsWriteOutput,
 			return nil, err
 		}
 		if discriminator.URL != nil {
-			return out, json.Unmarshal(raw, &out.IssueFields)
+			var issue MinimalResponse
+			if err := json.Unmarshal(raw, &issue); err != nil {
+				return nil, err
+			}
+			out.IssueFields = &ProjectIssueOutput{ID: issue.ID, HTMLURL: issue.URL}
+			return out, nil
 		}
 		return out, json.Unmarshal(raw, &out.Item)
 	case projectsMethodUpdateProjectItems:
@@ -529,7 +535,17 @@ func decodeProjectsWriteOutput(method string, raw []byte) (*ProjectsWriteOutput,
 	case projectsMethodDeleteProjectView:
 		return out, json.Unmarshal(raw, &out.DeletedView)
 	case projectsMethodCreateProject:
-		return out, json.Unmarshal(raw, &out.Project)
+		var project struct {
+			ID     string `json:"id"`
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+			URL    string `json:"url"`
+		}
+		if err := json.Unmarshal(raw, &project); err != nil {
+			return nil, err
+		}
+		out.Project = &ProjectCreatedOutput{ID: project.ID, Number: project.Number, Title: project.Title, HTMLURL: project.URL}
+		return out, nil
 	case projectsMethodCreateIterationField:
 		return out, json.Unmarshal(raw, &out.IterationField)
 	default:
@@ -570,24 +586,12 @@ func projectsTypedHandler[In, Out any](
 	}
 }
 
-// Projects' raw handlers historically validated only parameters consumed by
-// the selected method. Keep the suggested shape discoverable, but permit other
-// JSON values so the same method-specific errors and precedence are preserved.
-func projectsInputSchema(tool inventory.ServerTool) inventory.ServerTool {
-	schema := tool.Tool.InputSchema.(*jsonschema.Schema)
-	schema.Required = nil
-	for name, property := range schema.Properties {
-		if name == "owner" {
-			continue
-		}
-		schema.Properties[name] = &jsonschema.Schema{
-			Description: property.Description + " Validated by the selected method; otherwise ignored.",
-			AnyOf: []*jsonschema.Schema{property, {
-				Description: "Other JSON values are handled by the method-specific validator, preserving its errors and validation order.",
-			}},
-		}
+func projectsSchemaOptions() inventory.TypedSchemaOptions {
+	// Legacy Projects validators inspect only arguments consumed by the selected
+	// method, after routing and dependency acquisition. Discovery stays strict.
+	return inventory.TypedSchemaOptions{
+		ValidationInputSchema: &jsonschema.Schema{Type: "object"},
 	}
-	return tool
 }
 
 func normalizeProjectsRouting(kind string) inventory.InputNormalizer {
