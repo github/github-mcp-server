@@ -37,7 +37,7 @@
         "x-mcp-header": "repo"
       },
       "state": {
-        "description": "The new state for the pull request",
+        "description": "The new state for the pull request (open or closed)",
         "enum": [
           "open",
           "closed"

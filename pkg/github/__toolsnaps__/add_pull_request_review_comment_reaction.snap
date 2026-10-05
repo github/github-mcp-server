@@ -27,7 +27,7 @@
         "type": "number"
       },
       "content": {
-        "description": "The emoji reaction type",
+        "description": "The emoji reaction type (+1, -1, laugh, confused, heart, hooray, rocket, or eyes)",
         "enum": [
           "+1",
           "-1",
