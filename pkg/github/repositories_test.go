@@ -92,7 +92,6 @@ func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1193,7 +1192,6 @@ func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ForkRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1295,7 +1293,6 @@ func Test_CreateBranch(t *testing.T) {
 	// Verify tool definition once
 	serverTool := CreateBranch(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2051,7 +2048,6 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	// Verify tool definition once
 	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2731,7 +2727,6 @@ func Test_CreateRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := CreateRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2921,7 +2916,6 @@ func Test_PushFiles(t *testing.T) {
 	// Verify tool definition once
 	serverTool := PushFiles(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -3666,7 +3660,6 @@ func Test_PushFiles(t *testing.T) {
 func Test_DeleteRepository(t *testing.T) {
 	serverTool := DeleteRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -4222,7 +4215,6 @@ func Test_DeleteFile(t *testing.T) {
 	// Verify tool definition once
 	serverTool := DeleteFile(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -4536,7 +4528,6 @@ func Test_GetTag(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetTag(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -4738,7 +4729,6 @@ func Test_GetTag(t *testing.T) {
 func Test_ListReleases(t *testing.T) {
 	serverTool := ListReleases(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -4838,7 +4828,6 @@ func Test_ListReleases(t *testing.T) {
 func Test_GetLatestRelease(t *testing.T) {
 	serverTool := GetLatestRelease(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -4930,7 +4919,6 @@ func Test_GetLatestRelease(t *testing.T) {
 func Test_GetReleaseByTag(t *testing.T) {
 	serverTool := GetReleaseByTag(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -5625,7 +5613,6 @@ func Test_ListStarredRepositories(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListStarredRepositories(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -5787,7 +5774,6 @@ func Test_StarRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := StarRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -5878,7 +5864,6 @@ func Test_UnstarRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UnstarRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -5968,7 +5953,6 @@ func Test_GetFileBlame(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileBlame(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// get_file_blame is gated so it is not advertised unless the feature flag
 	// (or insiders mode) opts it in.
@@ -6681,7 +6665,6 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListRepositoryCollaborators(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")

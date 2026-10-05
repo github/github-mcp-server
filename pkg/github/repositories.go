@@ -1206,7 +1206,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
 				recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
-				var output []*github.RepositoryContent
+				var output []*RepositoryDirectoryEntryOutput
 				if err := json.Unmarshal(r, &output); err != nil {
 					return nil, nil, fmt.Errorf("failed to decode typed directory contents: %w", err)
 				}
@@ -1497,14 +1497,17 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create a response similar to what the DeleteFile API would return
-			response := &DeleteFileOutput{Commit: newCommit}
+			response := struct {
+				Commit  *github.Commit `json:"commit"`
+				Content *struct{}      `json:"content"`
+			}{Commit: newCommit}
 
 			r, err := json.Marshal(response)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), response, nil
+			return utils.NewToolResultText(string(r)), &DeleteFileOutput{Commit: repositoryGitCommitOutput(newCommit)}, nil
 		},
 	)
 	tool.ScopeAccess = scopes.DynamicChallenge(
@@ -1517,7 +1520,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateBranch creates a tool to create a new branch.
 func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[CreateBranchInput, *github.Reference](
+	return NewTool[CreateBranchInput, *RepositoryReferenceOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "create_branch",
@@ -1550,7 +1553,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CreateBranchInput) (*mcp.CallToolResult, *github.Reference, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CreateBranchInput) (*mcp.CallToolResult, *RepositoryReferenceOutput, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1620,14 +1623,14 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), createdRef, nil
+			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(createdRef), nil
 		},
 	)
 }
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool[PushFilesInput, *github.Reference](
+	tool := NewTool[PushFilesInput, *RepositoryReferenceOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "push_files",
@@ -1679,7 +1682,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input PushFilesInput) (*mcp.CallToolResult, *github.Reference, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input PushFilesInput) (*mcp.CallToolResult, *RepositoryReferenceOutput, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1846,7 +1849,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), updatedRef, nil
+			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(updatedRef), nil
 		},
 		normalizePushFilesArguments,
 	)
@@ -2029,7 +2032,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 				result := utils.NewToolResultText(string(r))
 				result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-				return result, &RepositoryTagOutput{Reference: ref}, nil
+				return result, &RepositoryTagOutput{Reference: repositoryReferenceOutput(ref)}, nil
 			}
 
 			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
@@ -2060,7 +2063,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// collaborator with push access. Confidentiality follows repo
 			// visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, &RepositoryTagOutput{Tag: tagObj}, nil
+			return result, &RepositoryTagOutput{Tag: repositoryAnnotatedTagOutput(tagObj)}, nil
 		},
 	)
 }
@@ -2190,11 +2193,11 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
 func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[RepositoryInput, *github.RepositoryRelease](
+	return NewTool[RepositoryInput, *MinimalRelease](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:         "get_latest_release",
-			OutputSchema: repositoryOutputSchema[*github.RepositoryRelease](),
+			OutputSchema: repositoryReleaseOutputSchema(),
 			Description:  t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
@@ -2216,7 +2219,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryInput) (*mcp.CallToolResult, *github.RepositoryRelease, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryInput) (*mcp.CallToolResult, *MinimalRelease, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -2260,17 +2263,18 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRelease(isPrivate, release.GetDraft())
 				})
-			return result, release, nil
+			output := convertToMinimalRelease(release)
+			return result, &output, nil
 		},
 	)
 }
 
 func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[RepositoryTagInput, *github.RepositoryRelease](
+	return NewTool[RepositoryTagInput, *MinimalRelease](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:         "get_release_by_tag",
-			OutputSchema: repositoryOutputSchema[*github.RepositoryRelease](),
+			OutputSchema: repositoryReleaseOutputSchema(),
 			Description:  t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
@@ -2296,7 +2300,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryTagInput) (*mcp.CallToolResult, *github.RepositoryRelease, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryTagInput) (*mcp.CallToolResult, *MinimalRelease, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -2348,7 +2352,8 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRelease(isPrivate, release.GetDraft())
 				})
-			return result, release, nil
+			output := convertToMinimalRelease(release)
+			return result, &output, nil
 		},
 	)
 }
@@ -2675,7 +2680,7 @@ type BlameAuthor struct {
 type BlameCommit struct {
 	SHA             string      `json:"sha"`
 	MessageHeadline string      `json:"message_headline"`
-	CommittedDate   string      `json:"committed_date"`
+	CommittedDate   string      `json:"committed_date" jsonschema:"Commit timestamp in RFC3339 format."`
 	Author          BlameAuthor `json:"author"`
 }
 
@@ -2685,9 +2690,9 @@ type BlameCommit struct {
 // touching the file (0 = newest), not an absolute time delta. See:
 // https://docs.github.com/en/graphql/reference/objects#blamerange
 type BlameRange struct {
-	StartingLine int    `json:"starting_line"`
-	EndingLine   int    `json:"ending_line"`
-	Age          int    `json:"age"`
+	StartingLine int    `json:"starting_line" jsonschema:"First line of the inclusive, one-based range."`
+	EndingLine   int    `json:"ending_line" jsonschema:"Last line of the inclusive, one-based range."`
+	Age          int    `json:"age" jsonschema:"Relative commit age among commits touching this file; 0 is newest."`
 	CommitSHA    string `json:"commit_sha"`
 }
 
@@ -2702,8 +2707,8 @@ type BlameResult struct {
 	Ranges      []BlameRange           `json:"ranges"`
 	Commits     map[string]BlameCommit `json:"commits"`
 	PageInfo    MinimalPageInfo        `json:"pageInfo"`
-	TotalRanges int                    `json:"total_ranges"`
-	Truncated   bool                   `json:"truncated,omitempty"`
+	TotalRanges int                    `json:"total_ranges" jsonschema:"Matching ranges before pagination or truncation."`
+	Truncated   bool                   `json:"truncated,omitempty" jsonschema:"Whether the 1000-range safety limit was reached."`
 }
 
 // blameCommitFragment is the GraphQL selection for a Commit's blame data.

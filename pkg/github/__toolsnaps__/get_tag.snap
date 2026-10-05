@@ -5,15 +5,29 @@
     "title": "Get tag details"
   },
   "description": "Get details about a specific git tag in a GitHub repository",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABTklEQVRIie2UPUvDUBSGn5PW2qnYwUXExWhNpY2CUKT+BB10E3R0dnbrppuKLgouHbr5X5qlKRIFB+cuguBHj4O05KYfNsVJ+m7n3Hue54ZcrhDKQqGQTX1YVwg7QIbx0gh8b7VTJMMrqS+5RtgD7oDX2GhhC6UcbhkCVLZVuX1sesex4YCdX6uAGgIrsicjlrTGgQ9KVPDnmQgmgongPwgkXNiOq8ADMAtkx4UGvtflJvus20ANeIlN/vW5/kkt8L3D2HD6P9dRgSI8dQcc9w1IR3acBE3vbFSp8ZMVnoFSqJ/unZDe3pAYXyDIJarn9opbDZrewaAh2y7Oy5S1r6h5QG2Xxbw3piDw6xe244oKyxFmC5ihc+tS1qaqngKJyAEBGmZvSGzHVYT790T7aPozsaFoFZGboFGvDJsbOYuOuxuuc7n1uaV8sRSH8Q1DUVLnYLty3gAAAABJRU5ErkJggg==",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAA+ElEQVRIie2WLU5DQRRGzwUEirQCQ9BsoSGtZQHgSFgIsg4JXQCGP8V2QCBIEATZkJDgOJi+MJnMo30TFHmfmzvzfeeKyZ2BROpQvVHfrddDmhkZ4BY4Ai6BD7prAowjIoq7i85nFcGNf6qa1tayM1vAvBZQUg74c/WAHtAD/gMgn6YCT8A2MKwOTaZpCfAF3AGvFdlLx7XqdUVw4186rgWeE8Nn4cU67QLNAS/ASG3qmwVPqdaqjWw9A86BK+CkzaTuAseFBse/AiLiQg1gLzs3Bwb8XIp94AxYL/Af2xordap6v/htHKhv6nTlgBUAh9l6Rx11yfgG8ne/zwh2OysAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "properties": {
       "owner": {
         "description": "Repository owner",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       },
       "tag": {
         "description": "Tag name",
@@ -36,110 +50,54 @@
       {
         "additionalProperties": false,
         "properties": {
-          "node_id": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "object": {
             "additionalProperties": false,
             "properties": {
               "sha": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               },
               "type": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "url": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "description": "Git object kind: commit, tag, tree, or blob.",
+                "type": "string"
               }
             },
             "required": [
               "type",
-              "sha",
-              "url"
+              "sha"
             ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "type": "object"
           },
           "ref": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "url": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "description": "Fully qualified reference, such as refs/heads/main.",
+            "type": "string"
           }
         },
         "required": [
           "ref",
-          "url",
           "object"
         ],
         "type": "object"
       },
       {
         "additionalProperties": false,
-        "not": {
-          "required": [
-            "ref"
-          ]
-        },
         "properties": {
           "message": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "node_id": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "object": {
             "additionalProperties": false,
             "properties": {
               "sha": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               },
               "type": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "url": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "description": "Git object kind: commit, tag, tree, or blob.",
+                "type": "string"
               }
             },
             "required": [
               "type",
-              "sha",
-              "url"
+              "sha"
             ],
             "type": [
               "null",
@@ -147,83 +105,23 @@
             ]
           },
           "sha": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "tag": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "tagger": {
             "additionalProperties": false,
             "properties": {
               "date": {
-                "format": "date-time",
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "description": "Tagger time in RFC3339 format.",
+                "type": "string"
               },
               "email": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               },
               "name": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "username": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              }
-            },
-            "type": [
-              "null",
-              "object"
-            ]
-          },
-          "url": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "verification": {
-            "additionalProperties": false,
-            "properties": {
-              "payload": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "signature": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "verified": {
-                "type": [
-                  "null",
-                  "boolean"
-                ]
+                "type": "string"
               }
             },
             "type": [
@@ -232,6 +130,10 @@
             ]
           }
         },
+        "required": [
+          "tag",
+          "sha"
+        ],
         "type": "object"
       }
     ]
