@@ -84,6 +84,41 @@ func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	assert.Equal(t, 1, handlerCalls, "SDK validation must reject invalid arguments before calling the handler")
 }
 
+func TestTypedToolLegacySchemaRetainsHeaderRoutingMetadata(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "legacy_routing_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, input typedTestInput) (*mcp.CallToolResult, typedTestOutput, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text result"}},
+			}, typedTestOutput{Query: input.Query}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	session := connectTypedTestClient(t, server, "2025-11-25")
+
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+	var inputSchema map[string]any
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, list.Tools[0].InputSchema)), &inputSchema))
+	properties := inputSchema["properties"].(map[string]any)
+	assert.Equal(t, "owner", properties["owner"].(map[string]any)["x-mcp-header"])
+	assert.Equal(t, "repo", properties["repo"].(map[string]any)["x-mcp-header"])
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "legacy_routing_tool",
+		Arguments: map[string]any{"owner": "octo", "repo": "hello", "query": "is:open"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Nil(t, result.StructuredContent)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "legacy text result", result.Content[0].(*mcp.TextContent).Text)
+}
+
 func TestTypedToolInferredInputSchemaUsesStablePointer(t *testing.T) {
 	type input struct {
 		Owner string `json:"owner"`
@@ -1723,11 +1758,18 @@ func TestTypedToolSupportsExplicitRootUnionOutputSchema(t *testing.T) {
 }
 
 func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
+	inputSchema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {Type: "string", Extra: map[string]any{"x-mcp-header": "owner"}},
+		},
+	}
 	modernTool := &mcp.Tool{
 		Name:         "typed_tool",
+		InputSchema:  inputSchema,
 		OutputSchema: json.RawMessage(`{"type":"object"}`),
 	}
-	legacyTool := &mcp.Tool{Name: "typed_tool"}
+	legacyTool := &mcp.Tool{Name: "typed_tool", InputSchema: inputSchema}
 	registration := &typedToolRegistration{
 		name:              "typed_tool",
 		modernTool:        modernTool,
@@ -1765,6 +1807,8 @@ func TestTypedOutputProtocolGateUsesStatelessRequestVersion(t *testing.T) {
 			list := listResult.(*mcp.ListToolsResult)
 			require.Len(t, list.Tools, 1)
 			assert.Same(t, tc.wantTool, list.Tools[0])
+			assert.Contains(t, mustMarshalJSON(t, list.Tools[0].InputSchema), `"x-mcp-header":"owner"`,
+				"legacy and unknown-version variants must retain routing metadata")
 		})
 	}
 

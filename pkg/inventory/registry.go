@@ -279,8 +279,9 @@ func (r *Inventory) registerTools(ctx context.Context, s *mcp.Server, deps any, 
 			sourceSchema = registered.InputSchema
 		}
 		schemas[registered.Name] = listedToolSchemas{
-			source:     sourceSchema,
-			registered: registered,
+			source:       sourceSchema,
+			outputSource: tool.Tool.OutputSchema,
+			registered:   registered,
 		}
 	}
 	s.AddReceivingMiddleware(encodedToolSchemasMiddleware(schemas))
