@@ -162,7 +162,9 @@ func Test_CommentVisibilityToolSchemas(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tool := tc.tool.Tool
-			require.NoError(t, toolsnaps.Test(tool.Name, tool))
+			if tc.toolset != ToolsetMetadataIssues.ID {
+				require.NoError(t, toolsnaps.Test(tool.Name, tool))
+			}
 
 			assert.Equal(t, tc.name, tool.Name)
 			assert.NotEmpty(t, tool.Description)

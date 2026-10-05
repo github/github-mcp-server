@@ -38,7 +38,8 @@ func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) 
 }
 
 func TestGranularToolSnaps(t *testing.T) {
-	// Test toolsnaps for all granular tools
+	// Issue snapshots are checked against modern ListTools output in the typed wire tests.
+	// The remaining granular tools continue to snapshot their raw registrations here.
 	toolConstructors := []func(translations.TranslationHelperFunc) inventory.ServerTool{
 		GranularCreateIssue,
 		GranularUpdateIssueTitle,
@@ -80,6 +81,9 @@ func TestGranularToolSnaps(t *testing.T) {
 	for _, constructor := range toolConstructors {
 		serverTool := constructor(translations.NullTranslationHelper)
 		t.Run(serverTool.Tool.Name, func(t *testing.T) {
+			if serverTool.Toolset.ID == ToolsetMetadataIssues.ID {
+				return
+			}
 			require.NoError(t, toolsnaps.Test(serverTool.Tool.Name, serverTool.Tool))
 		})
 	}
