@@ -93,6 +93,58 @@ type ProjectsWriteInput struct {
 	Iterations        ProjectParameter[[]ProjectIterationInput]  `json:"iterations"`
 }
 
+func (input ProjectsListInput) MarshalJSON() ([]byte, error) {
+	return marshalProjectInput(input)
+}
+
+func (input ProjectsGetInput) MarshalJSON() ([]byte, error) {
+	return marshalProjectInput(input)
+}
+
+func (input ProjectsWriteInput) MarshalJSON() ([]byte, error) {
+	return marshalProjectInput(input)
+}
+
+func marshalProjectInput(input any) ([]byte, error) {
+	args, err := projectArguments(input)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(args)
+}
+
+func (input *ProjectsListInput) UnmarshalJSON(raw []byte) error {
+	return unmarshalProjectInput(raw, input)
+}
+
+func (input *ProjectsGetInput) UnmarshalJSON(raw []byte) error {
+	return unmarshalProjectInput(raw, input)
+}
+
+func (input *ProjectsWriteInput) UnmarshalJSON(raw []byte) error {
+	return unmarshalProjectInput(raw, input)
+}
+
+// Legacy map handlers recognize only exact JSON keys; encoding/json's default
+// case-insensitive struct matching must not turn ignored keys into write targets.
+func unmarshalProjectInput(raw []byte, input any) error {
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return err
+	}
+	value := reflect.ValueOf(input).Elem()
+	value.SetZero()
+	inputType := value.Type()
+	for i := range value.NumField() {
+		if argument, ok := args[inputType.Field(i).Tag.Get("json")]; ok {
+			if err := json.Unmarshal(argument, value.Field(i).Addr().Interface()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 type ProjectUpdatedFieldInput struct {
 	ID    *int64          `json:"id,omitempty"`
 	Name  *string         `json:"name,omitempty"`

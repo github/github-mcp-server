@@ -269,6 +269,7 @@ func TestTypedProjectsWireErrors(t *testing.T) {
 		{"projects_write", map[string]any{"method": "create_project", "owner": "o"}, "owner_type is required for create_project"},
 		{"projects_write", map[string]any{"method": "create_project_status_update", "owner": "o", "owner_type": "org", "project_number": 2, "status": "BAD"}, `invalid status "BAD": must be one of INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE`},
 		{"projects_write", map[string]any{"method": "update_project_items", "owner": "o", "owner_type": "org", "project_number": 2, "items": []any{}}, "items must contain at least one entry"},
+		{"projects_write", map[string]any{"method": "delete_project_item", "owner": "o", "owner_type": "org", "project_number": 2, "ITEM_ID": 4}, "missing required parameter: item_id"},
 	}
 	for _, protocol := range typedGitGistProtocols {
 		t.Run("protocol="+protocol, func(t *testing.T) {
@@ -283,4 +284,56 @@ func TestTypedProjectsWireErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTypedProjectsInputRoundtrip(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input any
+		want  string
+	}{
+		{"list", ProjectsListInput{Method: ProjectParameter[string]{Value: "list_projects"}, Owner: ProjectParameter[string]{Value: "o"}}, `{"method":"list_projects","owner":"o"}`},
+		{"get", ProjectsGetInput{Method: ProjectParameter[string]{Value: "get_project_view"}, ViewID: ProjectParameter[string]{Value: "V"}}, `{"method":"get_project_view","view_id":"V"}`},
+		{"issue_reference", ProjectsWriteInput{
+			Method:    ProjectParameter[string]{Value: "update_project_item"},
+			ItemOwner: ProjectParameter[string]{Value: "o"}, ItemRepo: ProjectParameter[string]{Value: "r"},
+			IssueNumber: ProjectParameter[int]{Value: 7},
+		}, `{"method":"update_project_item","item_owner":"o","item_repo":"r","issue_number":7}`},
+		{"view_name_only", ProjectsWriteInput{Method: ProjectParameter[string]{Value: "update_project_view"}, Name: ProjectParameter[string]{Value: "New name"}}, `{"method":"update_project_view","name":"New name"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.JSONEq(t, tc.want, mustMarshalJSON(t, tc.input))
+		})
+	}
+	for _, input := range []any{&ProjectsListInput{}, &ProjectsGetInput{}, &ProjectsWriteInput{}} {
+		raw := `{"method":"example","owner":"o","project_number":0}`
+		require.NoError(t, json.Unmarshal([]byte(raw), input))
+		assert.JSONEq(t, raw, mustMarshalJSON(t, input))
+	}
+	raw := `{"method":"update_project_view","filter":null,"layout":"","item_id":0}`
+	var input ProjectsWriteInput
+	require.NoError(t, json.Unmarshal([]byte(raw), &input))
+	assert.JSONEq(t, raw, mustMarshalJSON(t, input))
+	require.NoError(t, json.Unmarshal([]byte(`{"method":"delete_project_item","ITEM_ID":4,"ItemID":5}`), &input))
+	args, err := projectArguments(input)
+	require.NoError(t, err)
+	assert.NotContains(t, args, "item_id")
+	assert.JSONEq(t, `{"method":"delete_project_item"}`, mustMarshalJSON(t, input))
+	require.NoError(t, json.Unmarshal([]byte(`{"method":"delete_project_item","item_id":3,"ITEM_ID":4}`), &input))
+	assert.JSONEq(t, `{"method":"delete_project_item","item_id":3}`, mustMarshalJSON(t, input))
+}
+
+func TestTypedProjectsCaseSensitiveMutationTarget(t *testing.T) {
+	deps := projectWireDeps(t, projectWireCase{})
+	request := createMCPRequest(map[string]any{
+		"method": "delete_project_item", "owner": "o", "owner_type": "org",
+		"project_number": 2, "ITEM_ID": 4,
+	})
+	tool := ProjectsWrite(translations.NullTranslationHelper)
+	result, err := tool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Equal(t, "missing required parameter: item_id", getTextResult(t, result).Text)
+	assert.Nil(t, result.StructuredContent)
 }
