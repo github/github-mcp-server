@@ -24,8 +24,8 @@ import (
 
 // The baseline uses the public single-tool registration path, which does not
 // install the tools/list encoder. Both paths select the same inventory first.
-func schemaListServer(ctx context.Context, inv *inventory.Inventory, optimized bool, pageSize int) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "schema-list"}, &mcp.ServerOptions{PageSize: pageSize})
+func schemaListServer(ctx context.Context, inv *inventory.Inventory, optimized bool, pageSize int, schemaCache *mcp.SchemaCache) *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{Name: "schema-list"}, &mcp.ServerOptions{PageSize: pageSize, SchemaCache: schemaCache})
 	if optimized {
 		inv.RegisterTools(ctx, server, nil)
 	} else {
@@ -49,12 +49,12 @@ type schemaListWire struct {
 	Error  json.RawMessage      `json:"error"`
 }
 
-func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory, optimized bool, transport, protocol string, pageSize int) ([][]byte, []string) {
+func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory, optimized bool, transport, protocol string, pageSize int, schemaCache *mcp.SchemaCache) ([][]byte, []string) {
 	t.Helper()
 	var request func(string) []byte
 	switch transport {
 	case "stdio":
-		server := schemaListServer(ctx, inv, optimized, pageSize)
+		server := schemaListServer(ctx, inv, optimized, pageSize, schemaCache)
 		serverConn, clientConn := net.Pipe()
 		ss, err := server.Connect(ctx, &mcp.IOTransport{Reader: serverConn, Writer: serverConn}, nil)
 		require.NoError(t, err)
@@ -74,8 +74,11 @@ func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory
 		require.NoError(t, err)
 		request = exchange
 	case "http":
+		// Reuse the fixed inventory's server across pages instead of repeating
+		// SDK annotation validation for every stateless request.
+		server := schemaListServer(ctx, inv, optimized, pageSize, schemaCache)
 		handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-			return schemaListServer(ctx, inv, optimized, pageSize)
+			return server
 		}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 		request = func(body string) []byte {
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
@@ -122,6 +125,9 @@ func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory
 }
 
 func TestEncodedSchemasWireParity(t *testing.T) {
+	// Share immutable resolved schemas without changing either registration
+	// path or the wire comparison.
+	schemaCache := mcp.NewSchemaCache()
 	type selection struct {
 		name     string
 		toolsets []string
@@ -189,8 +195,8 @@ func TestEncodedSchemasWireParity(t *testing.T) {
 					wantNames = slices.Compact(wantNames)
 					for _, transport := range []string{"stdio", "http"} {
 						t.Run(transport, func(t *testing.T) {
-							before, baselineNames := schemaListPages(ctx, t, inv, false, transport, protocol, 7)
-							after, encodedNames := schemaListPages(ctx, t, inv, true, transport, protocol, 7)
+							before, baselineNames := schemaListPages(ctx, t, inv, false, transport, protocol, 7, schemaCache)
+							after, encodedNames := schemaListPages(ctx, t, inv, true, transport, protocol, 7, schemaCache)
 							assert.Equal(t, before, after, "complete JSON-RPC wire responses, including cursors and errors")
 							assert.Equal(t, wantNames, baselineNames)
 							assert.Equal(t, wantNames, encodedNames)
@@ -228,7 +234,7 @@ func BenchmarkEncodedSchemas(b *testing.B) {
 		name := map[bool]string{false: "baseline", true: "encoded"}[optimized]
 		b.Run(name, func(b *testing.B) {
 			b.Run("ListTools", func(b *testing.B) {
-				cs := schemaListClient(b, schemaListServer(ctx, inv, optimized, 1000))
+				cs := schemaListClient(b, schemaListServer(ctx, inv, optimized, 1000, nil))
 				result, err := cs.ListTools(ctx, nil)
 				require.NoError(b, err)
 				payload, err := json.Marshal(result)
@@ -247,7 +253,7 @@ func BenchmarkEncodedSchemas(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
 					st, ct := mcp.NewInMemoryTransports()
-					server := schemaListServer(ctx, inv, optimized, 1000)
+					server := schemaListServer(ctx, inv, optimized, 1000, nil)
 					ss, err := server.Connect(ctx, st, nil)
 					if err != nil {
 						b.Fatal(err)
