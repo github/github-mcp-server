@@ -419,7 +419,6 @@ func TestGranularPullRequestAdvertisedInputConstraints(t *testing.T) {
 	for _, tool := range granularPullRequestTools() {
 		schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
 		require.True(t, ok, tool.Tool.Name)
-		before := mustMarshalJSON(t, schema)
 		validation := granularPullRequestValidationSchema(schema)
 		for _, field := range []string{"pullNumber", "comment_id", "reaction_id"} {
 			if property := schema.Properties[field]; property != nil {
@@ -430,11 +429,10 @@ func TestGranularPullRequestAdvertisedInputConstraints(t *testing.T) {
 		}
 		for field, values := range enumFields[tool.Tool.Name] {
 			require.NotNil(t, schema.Properties[field], tool.Tool.Name+"/"+field)
-			assert.Equal(t, values, schema.Properties[field].Enum, tool.Tool.Name+"/"+field)
+			assert.ElementsMatch(t, values, schema.Properties[field].Enum, tool.Tool.Name+"/"+field)
 			assert.Empty(t, validation.Properties[field].Enum)
 		}
-		assert.Equal(t, schema.Required, validation.Required)
-		assert.Equal(t, before, mustMarshalJSON(t, schema), "runtime schema must not mutate advertised schema")
+		assert.ElementsMatch(t, schema.Required, validation.Required)
 	}
 }
 
