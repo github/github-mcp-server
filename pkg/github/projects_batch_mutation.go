@@ -105,7 +105,7 @@ func executeAliasedMutation(ctx context.Context, gqlClient *githubv4.Client, kin
 	outcomes := make([]mutationAliasOutcome, len(inputs))
 	elem := mutationPtr.Elem()
 	for i := range inputs {
-		result, ok := elem.Field(i).Interface().(projectV2ItemMutationResult)
+		result, ok := reflect.TypeAssert[projectV2ItemMutationResult](elem.Field(i))
 		if !ok || result.ProjectV2Item.ID == "" {
 			continue
 		}

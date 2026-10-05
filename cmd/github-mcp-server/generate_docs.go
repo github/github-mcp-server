@@ -61,9 +61,8 @@ func generateReadmeDocs(readmePath string) error {
 
 	// The README documents the default user experience: tools that are
 	// enabled with no special flags set. Installing a checker that reports
-	// every flag as disabled excludes tools gated by FeatureFlagEnable and
-	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
-	// flag-gated duplicates don't appear twice.
+	// every flag as disabled keeps the default variants selected by functional
+	// feature rules, so flag-gated duplicates don't appear twice.
 	// Build() can only fail if WithTools specifies invalid tools - not used here
 	r, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).
@@ -223,9 +222,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		fmt.Fprintf(buf, "  - **OAuth Challenge Scopes**: `%s`\n", strings.Join(scopes, "`, `"))
 	}
 
-	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
-	// applied to the inventory; for the no-flags README this section is
-	// stripped by inventory.ToolsForRegistration before rendering).
+	// MCP App UI metadata.
 	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
 		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
 			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)

@@ -20,13 +20,12 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
-// protected-resource metadata advertises this full set so clients can step up
-// authorization for tools excluded from the default grant.
+// SupportedScopes lists every OAuth scope that an MCP tool may require.
 var SupportedScopes = scopes.SupportedOAuthScopes()
 
-// DefaultScopes are requested by stdio OAuth unless the operator explicitly
-// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
+// DefaultScopes are advertised in protected-resource metadata and requested by
+// stdio OAuth unless the operator explicitly supplies --oauth-scopes. Other
+// scopes require opt-in through a per-tool authorization challenge.
 var DefaultScopes = scopes.DefaultOAuthScopes()
 
 // Config holds the OAuth configuration for the MCP server.
@@ -128,7 +127,7 @@ func (h *AuthHandler) metadataHandler() http.Handler {
 			Resource:               resourceURL,
 			AuthorizationServers:   []string{authorizationServerURL},
 			ResourceName:           "GitHub MCP Server",
-			ScopesSupported:        SupportedScopes,
+			ScopesSupported:        DefaultScopes,
 			BearerMethodsSupported: []string{"header"},
 		}
 
@@ -199,7 +198,16 @@ func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) str
 	if !strings.HasPrefix(resourcePath, "/") {
 		resourcePath = "/" + resourcePath
 	}
-	return baseURL + resourcePath
+	return appendRawQuery(baseURL+resourcePath, r.URL.RawQuery)
+}
+
+// appendRawQuery avoids re-encoding the resource identifier that RFC 9728
+// clients compare as an exact string.
+func appendRawQuery(target, rawQuery string) string {
+	if rawQuery == "" {
+		return target
+	}
+	return target + "?" + rawQuery
 }
 
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
@@ -248,10 +256,13 @@ func BuildResourceMetadataURL(r *http.Request, cfg *Config, resourcePath string)
 			suffix = resourcePath
 		}
 	}
+	metadataURL := ""
 	if cfg != nil && cfg.BaseURL != "" {
-		return strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+		metadataURL = strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+	} else {
+		metadataURL = fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
 	}
-	return fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
+	return appendRawQuery(metadataURL, r.URL.RawQuery)
 }
 
 func normalizeBasePath(path string) string {

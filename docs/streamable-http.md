@@ -72,13 +72,23 @@ The OAuth protected resource metadata's `resource` attribute will be populated w
   ],
   "scopes_supported": [
     "repo",
-    ...
+    "read:org",
+    "read:user",
+    "user:email",
+    "read:packages",
+    "write:packages",
+    "read:project",
+    "project",
+    "gist",
+    "notifications"
   ],
   ...
 }
 ```
 
 This allows OAuth clients to discover authentication requirements and endpoint information automatically.
+Scopes excluded from this default set, such as `delete_repo`, are requested only
+through a per-tool OAuth authorization challenge when needed.
 
 The HTTP server is the OAuth protected resource, not the authorization server. It
 therefore serves `/.well-known/oauth-protected-resource` but does not serve

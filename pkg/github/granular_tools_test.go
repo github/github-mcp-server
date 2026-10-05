@@ -14,16 +14,23 @@ import (
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
+	flag := inventory.FeatureFlag(featureFlag)
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag && len(tool.FeatureFlagEnableAll) == 0 {
+		features := tool.FeatureRule.Features()
+		usesFeature := false
+		for _, feature := range features {
+			usesFeature = usesFeature || feature == flag
+		}
+		if tool.Toolset.ID == toolsetID && usesFeature &&
+			tool.FeatureRule.Enabled(func(feature inventory.FeatureFlag) bool { return feature == flag }) {
 			result = append(result, tool)
 		}
 	}
@@ -47,7 +54,11 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularReprioritizeSubIssue,
 		GranularSetIssueFields,
 		GranularAddIssueReaction,
+		GranularRemoveIssueReaction,
 		GranularAddIssueCommentReaction,
+		GranularRemoveIssueCommentReaction,
+		GranularHideIssueComment,
+		GranularUnhideIssueComment,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -60,6 +71,11 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularResolveReviewThread,
 		GranularUnresolveReviewThread,
 		GranularAddPullRequestReviewCommentReaction,
+		GranularRemovePullRequestReviewCommentReaction,
+		GranularHidePullRequestReviewComment,
+		GranularUnhidePullRequestReviewComment,
+		GranularHidePullRequestReview,
+		GranularUnhidePullRequestReview,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -94,7 +110,11 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"reprioritize_sub_issue",
 			"set_issue_fields",
 			"add_issue_reaction",
+			"remove_issue_reaction",
 			"add_issue_comment_reaction",
+			"remove_issue_comment_reaction",
+			"hide_issue_comment",
+			"unhide_issue_comment",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -104,7 +124,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, FeatureFlagIssuesGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagIssuesGranular)}, tool.FeatureRule.Features(), "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -131,6 +151,11 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"resolve_review_thread",
 			"unresolve_review_thread",
 			"add_pull_request_review_comment_reaction",
+			"remove_pull_request_review_comment_reaction",
+			"hide_pull_request_review_comment",
+			"unhide_pull_request_review_comment",
+			"hide_pull_request_review",
+			"unhide_pull_request_review",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -140,7 +165,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular) {
-			assert.Equal(t, FeatureFlagPullRequestsGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureRule.Features(), inventory.FeatureFlag(FeatureFlagPullRequestsGranular), "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -149,9 +174,9 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 
 func TestGranularCreateIssue(t *testing.T) {
 	mockIssue := &gogithub.Issue{
-		Number: gogithub.Ptr(1),
-		Title:  gogithub.Ptr("Test Issue"),
-		Body:   gogithub.Ptr("Test body"),
+		Number: new(1),
+		Title:  new("Test Issue"),
+		Body:   new("Test body"),
 	}
 
 	tests := []struct {
@@ -210,8 +235,8 @@ func TestGranularCreateIssue(t *testing.T) {
 func TestGranularUpdateIssueTitle(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &gogithub.Issue{
-			Number: gogithub.Ptr(42),
-			Title:  gogithub.Ptr("New Title"),
+			Number: new(42),
+			Title:  new("New Title"),
 		}),
 	}))
 	deps := BaseDeps{Client: client}
@@ -234,8 +259,8 @@ func TestGranularUpdateIssueBody(t *testing.T) {
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"body": "Updated body",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
-			Number: gogithub.Ptr(1),
-			Body:   gogithub.Ptr("Updated body"),
+			Number: new(1),
+			Body:   new("Updated body"),
 		})),
 	}))
 	deps := BaseDeps{Client: client}
@@ -257,7 +282,7 @@ func TestGranularUpdateIssueAssignees(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"assignees": []any{"user1", "user2"},
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
@@ -351,7 +376,7 @@ func TestGranularUpdateIssueAssigneesObjectForm(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
@@ -494,7 +519,7 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
@@ -572,7 +597,7 @@ func TestGranularUpdateIssueLabelsSuggest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
@@ -721,7 +746,7 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
@@ -739,7 +764,7 @@ func TestGranularUpdateIssueMilestone(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"milestone": float64(5),
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularUpdateIssueMilestone(translations.NullTranslationHelper)
@@ -808,7 +833,7 @@ func TestGranularUpdateIssueType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
@@ -907,7 +932,7 @@ func TestGranularUpdateIssueTypeSuggest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
@@ -1045,7 +1070,7 @@ func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
@@ -1144,8 +1169,8 @@ func TestGranularUpdateIssueState(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
 					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
-						Number: gogithub.Ptr(1),
-						State:  gogithub.Ptr(tc.requestArgs["state"].(string)),
+						Number: new(1),
+						State:  new(tc.requestArgs["state"].(string)),
 					})),
 			}))
 			deps := BaseDeps{Client: client}
@@ -1226,7 +1251,7 @@ func TestGranularUpdateIssueStateSuggest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueState(translations.NullTranslationHelper)
@@ -1290,11 +1315,11 @@ func TestGranularUpdateIssueStateDuplicate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &gogithub.Issue{
-					ID:     gogithub.Ptr(duplicateIssueID),
-					Number: gogithub.Ptr(42),
+					ID:     new(duplicateIssueID),
+					Number: new(42),
 				}),
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
-					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(1)})),
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueState(translations.NullTranslationHelper)
@@ -1405,8 +1430,8 @@ func TestGranularUpdatePullRequestTitle(t *testing.T) {
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"title": "New PR Title",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
-			Number: gogithub.Ptr(1),
-			Title:  gogithub.Ptr("New PR Title"),
+			Number: new(1),
+			Title:  new("New PR Title"),
 		})),
 	}))
 	deps := BaseDeps{Client: client}
@@ -1429,8 +1454,8 @@ func TestGranularUpdatePullRequestBody(t *testing.T) {
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"body": "Updated description",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
-			Number: gogithub.Ptr(1),
-			Body:   gogithub.Ptr("Updated description"),
+			Number: new(1),
+			Body:   new("Updated description"),
 		})),
 	}))
 	deps := BaseDeps{Client: client}
@@ -1453,8 +1478,8 @@ func TestGranularUpdatePullRequestState(t *testing.T) {
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"state": "closed",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
-			Number: gogithub.Ptr(1),
-			State:  gogithub.Ptr("closed"),
+			Number: new(1),
+			State:  new("closed"),
 		})),
 	}))
 	deps := BaseDeps{Client: client}
@@ -1477,7 +1502,7 @@ func TestGranularRequestPullRequestReviewers(t *testing.T) {
 		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"reviewers":      []any{"user1"},
 			"team_reviewers": []any{"team1"},
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)})),
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: new(1)})),
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularRequestPullRequestReviewers(translations.NullTranslationHelper)
@@ -1642,49 +1667,15 @@ func TestGranularUpdatePullRequestDraftState(t *testing.T) {
 
 func TestGranularAddPullRequestReviewComment(t *testing.T) {
 	mockedClient := githubv4mock.NewMockedHTTPClient(
-		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}{},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"viewer": map[string]any{"login": "testuser"},
-			}),
-		),
-		githubv4mock.NewQueryMatcher(
-			struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}{},
-			map[string]any{
-				"author": githubv4.String("testuser"),
-				"owner":  githubv4.String("owner"),
-				"name":   githubv4.String("repo"),
-				"prNum":  githubv4.Int(1),
+		viewerIDQuery("U_testuser"),
+		getPendingReviewsQuery(getPendingReviewsQueryParams{
+			owner: "owner",
+			repo:  "repo",
+			prNum: 1,
+			reviews: []pendingReviewQueryReview{
+				{id: "PRR_123", authorID: "U_testuser"},
 			},
-			githubv4mock.DataResponse(map[string]any{
-				"repository": map[string]any{
-					"pullRequest": map[string]any{
-						"reviews": map[string]any{
-							"nodes": []map[string]any{
-								{"id": "PRR_123", "state": "PENDING", "url": "https://github.com/owner/repo/pull/1#pullrequestreview-123"},
-							},
-						},
-					},
-				},
-			}),
-		),
+		}),
 		githubv4mock.NewMutationMatcher(
 			struct {
 				AddPullRequestReviewThread struct {
@@ -1694,7 +1685,7 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 				} `graphql:"addPullRequestReviewThread(input: $input)"`
 			}{},
 			githubv4.AddPullRequestReviewThreadInput{
-				Path:                githubv4.String("src/main.go"),
+				Path:                githubv4.NewString("src/main.go"),
 				Body:                githubv4.String("This needs a fix"),
 				SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
 				Line:                githubv4mock.Ptr(githubv4.Int(42)),
@@ -1739,10 +1730,10 @@ func TestGranularResolveReviewThread(t *testing.T) {
 		{
 			name:                 "enabled variant forwards resolution reason",
 			withResolutionReason: true,
-			resolutionReason:     gogithub.Ptr("addressed"),
-			expectedReason:       gogithub.Ptr("addressed"),
+			resolutionReason:     new("addressed"),
+			expectedReason:       new("addressed"),
 		},
-		{name: "default variant omits resolution reason", resolutionReason: gogithub.Ptr("addressed")},
+		{name: "default variant omits resolution reason", resolutionReason: new("addressed")},
 		{name: "without resolution reason"},
 	}
 
@@ -2399,8 +2390,8 @@ func TestGranularSetIssueFields(t *testing.T) {
 
 func TestGranularAddIssueReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
-		ID:      gogithub.Ptr(int64(12345)),
-		Content: gogithub.Ptr("+1"),
+		ID:      new(int64(12345)),
+		Content: new("+1"),
 	}
 
 	tests := []struct {
@@ -2467,10 +2458,76 @@ func TestGranularAddIssueReaction(t *testing.T) {
 	}
 }
 
+func TestGranularRemoveIssueReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from issue successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction_id":  float64(12345),
+			},
+		},
+		{
+			name:         "missing reaction_id returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedErrMsg: "missing required parameter: reaction_id",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction_id":  float64(12345),
+			},
+			expectedErrMsg: "failed to remove reaction from issue",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemoveIssueReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from issue", getTextResult(t, result).Text)
+		})
+	}
+}
+
 func TestGranularAddIssueCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
-		ID:      gogithub.Ptr(int64(67890)),
-		Content: gogithub.Ptr("heart"),
+		ID:      new(int64(67890)),
+		Content: new("heart"),
 	}
 
 	tests := []struct {
@@ -2527,10 +2584,76 @@ func TestGranularAddIssueCommentReaction(t *testing.T) {
 	}
 }
 
+func TestGranularRemoveIssueCommentReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from issue comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(999),
+				"reaction_id": float64(67890),
+			},
+		},
+		{
+			name:         "missing comment_id returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"reaction_id": float64(67890),
+			},
+			expectedErrMsg: "missing required parameter: comment_id",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(999),
+				"reaction_id": float64(67890),
+			},
+			expectedErrMsg: "failed to remove reaction from issue comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemoveIssueCommentReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from issue comment", getTextResult(t, result).Text)
+		})
+	}
+}
+
 func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
-		ID:      gogithub.Ptr(int64(54321)),
-		Content: gogithub.Ptr("rocket"),
+		ID:      new(int64(54321)),
+		Content: new("rocket"),
 	}
 
 	tests := []struct {
@@ -2583,6 +2706,72 @@ func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
 				assert.Equal(t, "54321", response.ID)
 				assert.Equal(t, "https://api.github.com/repos/owner/repo/pulls/comments/888/reactions/54321", response.URL)
 			}
+		})
+	}
+}
+
+func TestGranularRemovePullRequestReviewCommentReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from PR review comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+		},
+		{
+			name:         "missing repo returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":       "owner",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+			expectedErrMsg: "failed to remove reaction from pull request review comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemovePullRequestReviewCommentReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from pull request review comment", getTextResult(t, result).Text)
 		})
 	}
 }

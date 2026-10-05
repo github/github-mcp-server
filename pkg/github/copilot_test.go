@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +59,36 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		expectToolError    bool
 		expectedToolErrMsg string
 	}{
+		{
+			name: "missing owner is rejected",
+			requestArgs: map[string]any{
+				"repo":         "repo",
+				"issue_number": float64(123),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing repo is rejected",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"issue_number": float64(123),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "missing issue_number is rejected",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
 		{
 			name: "successful assignment when there are no existing assignees",
 			requestArgs: map[string]any{
@@ -870,20 +900,20 @@ func Test_RequestCopilotReview(t *testing.T) {
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Test PR"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		Number:  new(42),
+		Title:   new("Test PR"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/pull/42"),
 		Head: &github.PullRequestBranch{
-			SHA: github.Ptr("abcd1234"),
-			Ref: github.Ptr("feature-branch"),
+			SHA: new("abcd1234"),
+			Ref: new("feature-branch"),
 		},
 		Base: &github.PullRequestBranch{
-			Ref: github.Ptr("main"),
+			Ref: new("main"),
 		},
-		Body: github.Ptr("This is a test PR"),
+		Body: new("This is a test PR"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 	}
 
@@ -935,10 +965,10 @@ func Test_RequestCopilotReview(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusNotFound, map[string]any{"message": "Not Found"}),
 				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{
-					Name: github.Ptr("repo"),
+					Name: new("repo"),
 					Permissions: &github.RepositoryPermissions{
-						Pull: github.Ptr(true),
-						Push: github.Ptr(false),
+						Pull: new(true),
+						Push: new(false),
 					},
 				}),
 			}),
@@ -955,10 +985,10 @@ func Test_RequestCopilotReview(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusForbidden, map[string]any{"message": "Forbidden"}),
 				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{
-					Name: github.Ptr("repo"),
+					Name: new("repo"),
 					Permissions: &github.RepositoryPermissions{
-						Pull: github.Ptr(true),
-						Push: github.Ptr(false),
+						Pull: new(true),
+						Push: new(false),
 					},
 				}),
 			}),
@@ -975,10 +1005,10 @@ func Test_RequestCopilotReview(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusNotFound, map[string]any{"message": "Not Found"}),
 				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{
-					Name: github.Ptr("repo"),
+					Name: new("repo"),
 					Permissions: &github.RepositoryPermissions{
-						Pull: github.Ptr(true),
-						Push: github.Ptr(true),
+						Pull: new(true),
+						Push: new(true),
 					},
 				}),
 			}),
@@ -1228,6 +1258,19 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		expectedToolErrMsg string
 		expectSuggestion   bool
 	}{
+		{
+			name: "missing owner is rejected",
+			requestArgs: map[string]any{
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "Well-scoped task.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
 		{
 			name: "direct assignment with rationale and confidence preserves existing assignees",
 			requestArgs: map[string]any{

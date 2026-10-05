@@ -17,7 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -313,7 +313,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 						Description: "Page number for pagination (default: 1)",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
-					"per_page": {
+					"perPage": {
 						Type:        "number",
 						Description: "Results per page for pagination (default: 30, max: 100)",
 						Minimum:     jsonschema.Ptr(1.0),
@@ -1103,8 +1103,7 @@ func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo str
 func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
 	resp, err := client.Actions.CancelWorkflowRunByID(ctx, owner, repo, runID)
 	if err != nil {
-		var acceptedErr *github.AcceptedError
-		if !errors.As(err, &acceptedErr) {
+		if _, ok := errors.AsType[*github.AcceptedError](err); !ok {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to cancel workflow run", resp, err), nil, nil
 		}
 	}

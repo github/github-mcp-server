@@ -13,7 +13,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
-| Feature Flags | `X-MCP-Features` header | `--features` flag |
+| Feature Flags | `X-MCP-Features` header or `?features=` URL query parameter | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 
@@ -345,7 +345,7 @@ As an intentional exception, content authored by trusted bot accounts (currently
 
 **Best for:** Users who want early access to experimental features and new tools before they reach general availability.
 
-Insiders Mode unlocks experimental features, such as [MCP Apps](#mcp-apps) support. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
+Insiders Mode unlocks experimental features, such as [CSV output for list tools](./insiders-features.md#csv-output-for-list-tools). We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
 
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>
@@ -402,18 +402,18 @@ See [Insiders Features](./insiders-features.md) for a full list of what's availa
 
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat.
 
-MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the `remote_mcp_ui_apps` feature flag.
+MCP Apps is enabled by default. Tools with MCP Apps UIs advertise them via `_meta.ui` to clients that support the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps); the metadata is omitted for clients that do not advertise the `io.modelcontextprotocol/ui` capability.
 
 To keep MCP App result views enabled while making write tools execute directly
-instead of first opening an interactive form, also enable the
-`mcp_apps_disable_form_deferral` feature flag. For the remote server, send both
-flags in the request header:
+instead of first opening an interactive form, enable the
+`mcp_apps_disable_form_deferral` feature flag. For the remote server, send the
+flag in the request header:
 
 ```http
-X-MCP-Features: remote_mcp_ui_apps,mcp_apps_disable_form_deferral
+X-MCP-Features: mcp_apps_disable_form_deferral
 ```
 
-For the local server, pass both flags to `--features`.
+For the local server, pass it to `--features`.
 
 **Supported tools:**
 
@@ -422,46 +422,9 @@ For the local server, pass both flags to `--features`.
 | `get_me` | Displays your GitHub user profile with avatar, bio, and stats in a rich card |
 | `issue_write` | Opens an interactive form to create or update issues |
 | `create_pull_request` | Provides a full PR creation form to create a pull request (or a draft pull request) |
+| `update_pull_request` | Opens an interactive form to edit a pull request |
 
 **Client requirements:** MCP Apps requires a host that supports the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps). Currently tested with VS Code (`chat.mcp.apps.enabled` setting).
-
-<table>
-<tr><th>Remote Server</th><th>Local Server</th></tr>
-<tr valign="top">
-<td>
-
-```json
-{
-  "type": "http",
-  "url": "https://api.githubcopilot.com/mcp/",
-  "headers": {
-    "X-MCP-Features": "remote_mcp_ui_apps"
-  }
-}
-```
-
-</td>
-<td>
-
-```json
-{
-  "type": "stdio",
-  "command": "go",
-  "args": [
-    "run",
-    "./cmd/github-mcp-server",
-    "stdio",
-    "--features=remote_mcp_ui_apps"
-  ],
-  "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
-  }
-}
-```
-
-</td>
-</tr>
-</table>
 
 ---
 

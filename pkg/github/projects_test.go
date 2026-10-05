@@ -13,7 +13,7 @@ import (
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -393,6 +393,43 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "provide either 'fields' or 'field_names', not both")
 	})
+}
+
+func Test_optionalProjectsPerPage(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		want int
+	}{
+		{
+			name: "canonical perPage",
+			args: map[string]any{"perPage": float64(10)},
+			want: 10,
+		},
+		{
+			name: "per_page still read for clients on the previous name",
+			args: map[string]any{"per_page": float64(10)},
+			want: 10,
+		},
+		{
+			name: "perPage wins when both are sent",
+			args: map[string]any{"perPage": float64(10), "per_page": float64(25)},
+			want: 10,
+		},
+		{
+			name: "neither sent falls back to the maximum",
+			args: map[string]any{},
+			want: MaxProjectsPerPage,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := optionalProjectsPerPage(tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func Test_detectOwnerType(t *testing.T) {
@@ -1451,7 +1488,7 @@ func Test_BuildIssueFieldUpdate(t *testing.T) {
 func Test_ProjectItemIssueID_RejectsNonIssueItems(t *testing.T) {
 	for _, contentType := range []string{"PullRequest", "DraftIssue"} {
 		t.Run(contentType, func(t *testing.T) {
-			item := &gogithub.ProjectV2Item{ContentType: gogithub.Ptr(gogithub.ProjectV2ItemContentType(contentType))}
+			item := &gogithub.ProjectV2Item{ContentType: new(gogithub.ProjectV2ItemContentType(contentType))}
 			_, err := projectItemIssueID(item)
 			var structured *ghErrors.StructuredResolutionError
 			require.ErrorAs(t, err, &structured)

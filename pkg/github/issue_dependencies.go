@@ -12,7 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -103,7 +103,7 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagEnable = FeatureFlagIssueDependencies
+	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
 
@@ -321,7 +321,7 @@ Options are:
 			result, err := writeIssueDependency(ctx, client, method, blocked, blocking)
 			return result, nil, err
 		})
-	st.FeatureFlagEnable = FeatureFlagIssueDependencies
+	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
 

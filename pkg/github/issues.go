@@ -20,7 +20,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -1118,6 +1118,9 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		subIssues = filteredSubIssues
 	}
 
+	for _, subIssue := range subIssues {
+		sanitizeSubIssueTitleAndBody(subIssue)
+	}
 	r, err := json.Marshal(subIssues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1194,7 +1197,7 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	return MarshalledTextResult(map[string]any{
 		"parent": map[string]any{
 			"number":     int(parent.Number),
-			"title":      sanitize.Sanitize(string(parent.Title)),
+			"title":      sanitize.PlainText(string(parent.Title)),
 			"state":      string(parent.State),
 			"url":        string(parent.URL),
 			"repository": string(parent.Repository.NameWithOwner),
@@ -1403,7 +1406,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1504,8 +1507,8 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			var commentResponse *MinimalResponse
 			if hasBody {
-				comment := &github.IssueComment{
-					Body: github.Ptr(body),
+				comment := github.IssueCommentRequest{
+					Body: body,
 				}
 				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 				if err != nil {
@@ -1541,6 +1544,97 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		})
+}
+
+// UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
+func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "update_issue_comment",
+			Description: t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update issue comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "integer",
+						Description: "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"body": {
+						Type:        "string",
+						Description: "New comment content",
+						MinLength:   jsonschema.Ptr(1),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "body"},
+			},
+		},
+		publicRepositoryWriteScopeAccess(),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if commentID < 1 {
+				return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
+			}
+			body, hasBody, err := OptionalParamOK[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !hasBody {
+				return utils.NewToolResultError("missing required parameter: body"), nil, nil
+			}
+			if body == "" {
+				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			updatedComment, resp, err := client.Issues.UpdateComment(ctx, owner, repo, commentID, github.IssueCommentRequest{
+				Body: body,
+			})
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue comment", resp, err), nil, nil
+			}
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", updatedComment.GetID()),
+				URL: updatedComment.GetHTMLURL(),
+			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1679,14 +1773,14 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID:    int64(subIssueID),
-		ReplaceParent: github.Ptr(replaceParent),
+		ReplaceParent: new(replaceParent),
 	}
 
 	subIssue, resp, err := client.SubIssue.Add(ctx, owner, repo, int64(issueNumber), subIssueRequest)
@@ -1708,6 +1802,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1739,6 +1834,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1788,6 +1884,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1995,10 +2092,22 @@ func sanitizeIssueTitleAndBody(issue *github.Issue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+		issue.Title = new(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+		issue.Body = new(sanitize.Content(*issue.Body))
+	}
+}
+
+func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
+	if issue == nil {
+		return
+	}
+	if issue.Title != nil {
+		issue.Title = new(sanitize.PlainText(*issue.Title))
+	}
+	if issue.Body != nil {
+		issue.Body = new(sanitize.Content(*issue.Body))
 	}
 }
 
@@ -2524,7 +2633,7 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -2700,7 +2809,7 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 
@@ -2941,6 +3050,50 @@ func resolveIssueTypeID(ctx context.Context, client *github.Client, owner, repo,
 	return "", resp, fmt.Errorf("issue type %q was not found in %s/%s", issueTypeName, owner, repo)
 }
 
+func unappliedIssueLabelsError(requested []string, issue *github.Issue) error {
+	applied := make([]string, 0, len(issue.Labels))
+	for _, label := range issue.Labels {
+		if label != nil {
+			applied = append(applied, label.GetName())
+		}
+	}
+
+	missing := issueLabelDifference(requested, applied)
+	unexpected := issueLabelDifference(applied, requested)
+	if len(missing) == 0 && len(unexpected) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"requested=%q, applied=%q, missing=%q, unexpected=%q, issue_url=%q; the caller may lack AddLabelsToLabelable permission",
+		requested,
+		applied,
+		missing,
+		unexpected,
+		issue.GetHTMLURL(),
+	)
+}
+
+func issueLabelDifference(labels, other []string) []string {
+	var difference []string
+	for _, label := range labels {
+		if containsIssueLabel(other, label) || containsIssueLabel(difference, label) {
+			continue
+		}
+		difference = append(difference, label)
+	}
+	return difference
+}
+
+func containsIssueLabel(labels []string, target string) bool {
+	for _, label := range labels {
+		if strings.EqualFold(label, target) {
+			return true
+		}
+	}
+	return false
+}
+
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil
@@ -2949,7 +3102,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	// Create the issue request
 	issueRequest := github.CreateIssueRequest{
 		Title:            title,
-		Body:             github.Ptr(body),
+		Body:             new(body),
 		Assignees:        assignees,
 		Labels:           labels,
 		IssueFieldValues: issueFieldValues,
@@ -2960,7 +3113,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	if issueType != "" {
-		issueRequest.Type = github.Ptr(issueType)
+		issueRequest.Type = new(issueType)
 	}
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
@@ -2979,6 +3132,12 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
+	}
+
+	if len(labels) > 0 {
+		if err := unappliedIssueLabelsError(labels, issue); err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested labels were not fully applied", resp, err), nil
+		}
 	}
 
 	// Return minimal response with just essential information
@@ -3026,11 +3185,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Set optional parameters if provided
 	if title != "" {
-		issueRequest.Title = github.Ptr(title)
+		issueRequest.Title = new(title)
 	}
 
 	if body != "" {
-		issueRequest.Body = github.Ptr(body)
+		issueRequest.Body = new(body)
 	}
 
 	if updateOptions.LabelsProvided {
@@ -3046,7 +3205,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	if issueType != "" {
-		issueRequest.Type = github.Ptr(issueType)
+		issueRequest.Type = new(issueType)
 	}
 
 	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
@@ -3203,6 +3362,12 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue", err), nil
 			}
+		}
+	}
+
+	if updateOptions.LabelsProvided {
+		if err := unappliedIssueLabelsError(labels, updatedIssue); err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue updated but requested labels were not fully applied", resp, err), nil
 		}
 	}
 

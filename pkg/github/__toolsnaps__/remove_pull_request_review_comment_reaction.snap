@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Remove Pull Request Review Comment Reaction"
+  },
+  "description": "Remove a reaction from a pull request review comment.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "reaction_id": {
+        "description": "The reaction ID to remove",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "reaction_id"
+    ],
+    "type": "object"
+  },
+  "name": "remove_pull_request_review_comment_reaction"
+}

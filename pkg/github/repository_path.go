@@ -75,8 +75,12 @@ func workflowScopeChallengeForFiles(arguments map[string]any, activeScopes []str
 			containsWorkflow = true
 		}
 	}
-	if containsWorkflow {
-		return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.Workflow)
+	var challenge []string
+	if !scopes.HasAll(activeScopes, scopes.Repo) {
+		challenge = append(challenge, string(scopes.Repo))
 	}
-	return scopes.ChallengeAll(activeScopes, scopes.Repo)
+	if containsWorkflow && !scopes.HasAll(activeScopes, scopes.Workflow) {
+		challenge = append(challenge, string(scopes.Workflow))
+	}
+	return challenge
 }

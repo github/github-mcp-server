@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -108,7 +108,7 @@ func issueUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -234,7 +234,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -460,7 +460,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -678,7 +678,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -912,7 +912,7 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 			return result, nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1076,7 +1076,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1274,7 +1274,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1348,7 +1348,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1417,7 +1417,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1502,7 +1502,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1790,7 +1790,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1872,7 +1872,84 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}
+
+// GranularRemoveIssueReaction removes a reaction from an issue or pull request.
+func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "remove_issue_reaction",
+			Description: t("TOOL_REMOVE_ISSUE_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_ISSUE_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueReaction(ctx, owner, repo, issueNumber, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue", resp, err), nil, nil
+			}
+
+			return utils.NewToolResultText("reaction successfully removed from issue"), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1954,6 +2031,93 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
+}
+
+// GranularRemoveIssueCommentReaction removes a reaction from an issue or pull request comment.
+func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "remove_issue_comment_reaction",
+			Description: t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request comment."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The issue or pull request comment ID",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue comment", resp, err), nil, nil
+			}
+
+			return utils.NewToolResultText("reaction successfully removed from issue comment"), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}
+
+// GranularHideIssueComment hides (minimizes) an issue or pull request conversation comment.
+func GranularHideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, true)
+}
+
+// GranularUnhideIssueComment unhides (unminimizes) an issue or pull request conversation comment.
+func GranularUnhideIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return commentVisibilityTool(t, issueCommentVisibilityTarget, false)
 }

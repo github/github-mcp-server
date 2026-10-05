@@ -359,7 +359,7 @@ func scopeChallengeContext(ctx context.Context) context.Context {
 }
 
 func scopeChallengeContextWithScopes(ctx context.Context, activeScopes []string) context.Context {
-	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
+	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{ //nolint:gosec // G101: "oauth-token" is a synthetic context fixture, not an authentication credential.
 		Token:     "oauth-token",
 		TokenType: utils.TokenTypeOAuthAccessToken,
 	})

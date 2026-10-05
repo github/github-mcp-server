@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Update issue comment"
+  },
+  "description": "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "New comment content",
+        "minLength": 1,
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_comment"
+}

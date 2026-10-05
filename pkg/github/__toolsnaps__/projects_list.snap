@@ -52,7 +52,7 @@
         ],
         "type": "string"
       },
-      "per_page": {
+      "perPage": {
         "description": "Results per page (max 50)",
         "type": "number"
       },

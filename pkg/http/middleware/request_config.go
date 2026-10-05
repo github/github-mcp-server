@@ -9,10 +9,15 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/headers"
 )
 
+const queryParamFeatures = "features"
+
 // WithRequestConfig is a middleware that extracts MCP-related headers and sets them in the request context.
 // This includes readonly mode, toolsets, tools, lockdown mode, insiders mode, and feature flags.
 func WithRequestConfig(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Header-selected features can change the response for the same URL.
+		w.Header().Add(headers.VaryHeader, headers.MCPFeaturesHeader)
+
 		ctx := r.Context()
 
 		// Readonly mode
@@ -45,9 +50,13 @@ func WithRequestConfig(next http.Handler) http.Handler {
 			ctx = ghcontext.WithInsidersMode(ctx, true)
 		}
 
-		// Feature flags
-		if features := headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader)); len(features) > 0 {
-			ctx = ghcontext.WithHeaderFeatures(ctx, features)
+		query := r.URL.Query()
+		_, hasHeaderFeatures := r.Header[http.CanonicalHeaderKey(headers.MCPFeaturesHeader)]
+		_, hasQueryFeatures := query[queryParamFeatures]
+		if hasHeaderFeatures {
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader)))
+		} else if hasQueryFeatures {
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(query.Get(queryParamFeatures)))
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))

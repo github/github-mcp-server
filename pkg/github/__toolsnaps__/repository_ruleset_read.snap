@@ -1,0 +1,122 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Read repository rulesets"
+  },
+  "description": "Read rulesets at the repository, organization, or enterprise level, and rule suites at the repository or organization level. Select the level with the 'level' parameter and the operation with the 'method' parameter.",
+  "inputSchema": {
+    "properties": {
+      "actor_name": {
+        "description": "The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method.",
+        "type": "string"
+      },
+      "branch": {
+        "description": "Branch name. Required for the 'get_rules_for_branch' method.",
+        "type": "string"
+      },
+      "enterprise": {
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "evaluate_status": {
+        "description": "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "all",
+          "active",
+          "evaluate"
+        ],
+        "type": "string"
+      },
+      "includes_parents": {
+        "description": "Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level.",
+        "type": "boolean"
+      },
+      "level": {
+        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only.",
+        "enum": [
+          "get",
+          "list",
+          "get_rules_for_branch",
+          "list_rule_suites",
+          "get_rule_suite"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "ref": {
+        "description": "The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "repository_name": {
+        "description": "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level.",
+        "type": "string"
+      },
+      "rule_suite_id": {
+        "description": "Rule suite ID. Required for the 'get_rule_suite' method.",
+        "type": "number"
+      },
+      "rule_suite_result": {
+        "description": "The rule suite result to filter by. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "pass",
+          "fail",
+          "bypass",
+          "all"
+        ],
+        "type": "string"
+      },
+      "ruleset_id": {
+        "description": "Ruleset ID. Required for the 'get' method.",
+        "type": "number"
+      },
+      "time_period": {
+        "description": "The time period to filter rule suites by. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "level",
+      "method"
+    ],
+    "type": "object"
+  },
+  "name": "repository_ruleset_read"
+}

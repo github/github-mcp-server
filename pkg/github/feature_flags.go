@@ -1,9 +1,10 @@
 package github
 
-import "slices"
+import (
+	"slices"
 
-// MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
-const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // MCPAppsDisableFormDeferralFeatureFlag disables handing write-tool calls off
 // to MCP App forms while preserving MCP Apps UI metadata and result views.
@@ -38,11 +39,11 @@ const FeatureFlagDuplicateDetection = "duplicate_detection"
 const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
-// by users via --features CLI flag or X-MCP-Features HTTP header.
+// by users via --features CLI flag, X-MCP-Features HTTP header, or the
+// features URL query parameter.
 // Only flags in this list are accepted; unknown flags are silently ignored.
 // This is the single source of truth for which flags are user-controllable.
 var AllowedFeatureFlags = []string{
-	MCPAppsFeatureFlag,
 	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
@@ -59,7 +60,6 @@ var AllowedFeatureFlags = []string{
 // This is the single source of truth for what "insiders" means in terms of
 // feature flag expansion.
 var InsidersFeatureFlags = []string{
-	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
@@ -70,8 +70,36 @@ type FeatureFlags struct {
 	LockdownMode bool
 }
 
+func featureEnabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
+	return inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{flag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(flag)
+		},
+	)
+}
+
+func featureDisabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
+	return inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{flag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return !featureAsBool(flag)
+		},
+	)
+}
+
+var (
+	issuesGranularFeatureRule       = featureEnabledRule(FeatureFlagIssuesGranular)
+	issuesConsolidatedFeatureRule   = featureDisabledRule(FeatureFlagIssuesGranular)
+	pullRequestsGranularFeatureRule = featureEnabledRule(FeatureFlagPullRequestsGranular)
+	pullRequestsConsolidatedRule    = featureDisabledRule(FeatureFlagPullRequestsGranular)
+)
+
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
-//  1. Taking the user-supplied flags (from --features or X-MCP-Features) and
+//  1. Taking the user-supplied flags (from --features or HTTP request
+//     configuration) and
 //     keeping only those present in AllowedFeatureFlags. Unknown or unsafe
 //     flags from request input are silently dropped here.
 //  2. If insiders mode is on, unioning in every flag from InsidersFeatureFlags.
@@ -87,9 +115,9 @@ type FeatureFlags struct {
 // Returns a set (map) for O(1) lookup by the feature checker.
 func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string]bool {
 	effective := make(map[string]bool)
-	for _, f := range enabledFeatures {
-		if slices.Contains(AllowedFeatureFlags, f) {
-			effective[f] = true
+	for _, feature := range enabledFeatures {
+		if slices.Contains(AllowedFeatureFlags, feature) {
+			effective[feature] = true
 		}
 	}
 	if insidersMode {

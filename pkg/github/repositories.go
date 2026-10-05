@@ -20,7 +20,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -412,8 +412,7 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
-In order to obtain the SHA of original file version before updating, use the following git command:
-git rev-parse <branch>:<path to file>
+To obtain the current blob SHA before updating, call the get_file_contents tool with the same owner, repo, and path, and set its ref parameter to this tool's branch value. The first text result reports the blob SHA for the requested path.
 
 SHA MUST be provided for existing file updates.
 `),
@@ -450,7 +449,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"sha": {
 						Type:        "string",
-						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
+						Description: "The blob SHA of the file being replaced. Required if the file already exists. Retrieve it with get_file_contents using the same owner, repo, and path, with ref set to this tool's branch value.",
 					},
 					"allow_symlink_write": {
 						Type:        "boolean",
@@ -497,9 +496,9 @@ SHA MUST be provided for existing file updates.
 
 			// Create the file options
 			opts := &github.RepositoryContentFileOptions{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Content: contentBytes,
-				Branch:  github.Ptr(branch),
+				Branch:  new(branch),
 			}
 
 			// If SHA is provided, set it (for updates)
@@ -508,7 +507,7 @@ SHA MUST be provided for existing file updates.
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			if sha != "" {
-				opts.SHA = github.Ptr(sha)
+				opts.SHA = new(sha)
 			}
 
 			allowSymlinkWrite, err := OptionalParam[bool](args, "allow_symlink_write")
@@ -551,8 +550,10 @@ SHA MUST be provided for existing file updates.
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
-							sha, currentSHA, branch, path)), nil, nil
+								"The file changed since you read it. Call get_file_contents with owner=%q, repo=%q, path=%q, and ref=%q; "+
+								"its first text result reports the blob SHA for the requested path. "+
+								"Rebuild your content against what it returns, and retry with the sha parameter set to the SHA that call reports.",
+							sha, currentSHA, owner, repo, path, branch)), nil, nil
 					}
 					if !allowSymlinkWrite {
 						if existingFile.GetType() == "symlink" {
@@ -596,8 +597,10 @@ SHA MUST be provided for existing file updates.
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
-							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
-						path, branch, path)), nil, nil
+							"Call get_file_contents with owner=%q, repo=%q, path=%q, and ref=%q to read the file you are about to overwrite; "+
+							"its first text result reports the blob SHA for the requested path. "+
+							"Then retry with the sha parameter set to the blob SHA that call reports.",
+						path, owner, repo, path, branch)), nil, nil
 				}
 				// If file not found, no previous SHA needed (new file creation)
 			}
@@ -696,10 +699,10 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			repo := &github.Repository{
-				Name:        github.Ptr(name),
-				Description: github.Ptr(description),
-				Private:     github.Ptr(private),
-				AutoInit:    github.Ptr(autoInit),
+				Name:        new(name),
+				Description: new(description),
+				Private:     new(private),
+				AutoInit:    new(autoInit),
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -765,7 +768,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
 				ReadOnlyHint:    false,
-				DestructiveHint: github.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1229,7 +1232,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1307,7 +1310,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
 				ReadOnlyHint:    false,
-				DestructiveHint: github.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1397,9 +1400,9 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Create a tree entry for the file deletion by setting SHA to nil
 			treeEntries := []*github.TreeEntry{
 				{
-					Path: github.Ptr(path),
-					Mode: github.Ptr("100644"), // Regular file mode
-					Type: github.Ptr("blob"),
+					Path: new(path),
+					Mode: new("100644"), // Regular file mode
+					Type: new("blob"),
 					SHA:  nil, // Setting SHA to nil deletes the file
 				},
 			}
@@ -1425,7 +1428,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Create a new commit with the new tree
 			commit := github.Commit{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
@@ -1451,7 +1454,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			ref.Object.SHA = newCommit.SHA
 			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
+				Force: new(false),
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1526,7 +1529,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1658,7 +1661,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch", "files", "message"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1705,10 +1708,10 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 
 				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(filePath),
-					Mode:    github.Ptr("100644"),
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
+					Path:    new(filePath),
+					Mode:    new("100644"),
+					Type:    new("blob"),
+					Content: new(content),
 				})
 			}
 
@@ -1800,7 +1803,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Create a new commit (baseCommit always has a value now)
 			commit := github.Commit{
-				Message: github.Ptr(message),
+				Message: new(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
@@ -1820,7 +1823,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			ref.Object.SHA = newCommit.SHA
 			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
+				Force: new(false),
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -2230,6 +2233,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get latest release", resp, body), nil, nil
 			}
 
+			sanitizeReleaseNameAndBody(release)
 			r, err := json.Marshal(release)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -2316,6 +2320,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get release by tag", resp, body), nil, nil
 			}
 
+			sanitizeReleaseNameAndBody(release)
 			r, err := json.Marshal(release)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -2333,6 +2338,18 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return result, nil, nil
 		},
 	)
+}
+
+func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
+	if release == nil {
+		return
+	}
+	if release.Name != nil {
+		release.Name = new(sanitize.PlainText(*release.Name))
+	}
+	if release.Body != nil {
+		release.Body = new(sanitize.Content(*release.Body))
+	}
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
@@ -2978,7 +2995,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 					SHA: sha,
 					// Sanitized after truncation so the headline is cut at the author's real
 					// first line break rather than one introduced by sanitization.
-					MessageHeadline: sanitize.Sanitize(headline),
+					MessageHeadline: sanitize.PlainText(headline),
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
 						Name:  string(r.Commit.Author.Name),
@@ -3027,7 +3044,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(payload)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagFileBlame
+	st.FeatureRule = featureEnabledRule(FeatureFlagFileBlame)
 	return st
 }
 
