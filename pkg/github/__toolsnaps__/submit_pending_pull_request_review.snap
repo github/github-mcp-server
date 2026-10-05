@@ -26,7 +26,7 @@
         "type": "string"
       },
       "event": {
-        "description": "The review action to perform",
+        "description": "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT)",
         "enum": [
           "APPROVE",
           "REQUEST_CHANGES",
