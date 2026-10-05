@@ -5,7 +5,6 @@
     "additionalProperties": false,
     "properties": {
       "incomplete_results": {
-        "description": "Whether GitHub returned an incomplete result set.",
         "type": [
           "null",
           "boolean"
@@ -43,7 +42,6 @@
               ]
             },
             "closed_at": {
-              "description": "Closing time in RFC 3339 format.",
               "type": [
                 "null",
                 "string"
@@ -56,14 +54,12 @@
               ]
             },
             "comments": {
-              "description": "Number of comments on the issue.",
               "type": [
                 "null",
                 "integer"
               ]
             },
             "created_at": {
-              "description": "Creation time in RFC 3339 format.",
               "type": [
                 "null",
                 "string"
@@ -225,7 +221,6 @@
               ]
             },
             "state": {
-              "description": "Issue state, typically open or closed.",
               "type": [
                 "null",
                 "string"
@@ -250,7 +245,6 @@
               ]
             },
             "updated_at": {
-              "description": "Last update time in RFC 3339 format.",
               "type": [
                 "null",
                 "string"
@@ -359,7 +353,6 @@
         ]
       },
       "total_count": {
-        "description": "Total number of matching issues or pull requests.",
         "type": [
           "null",
           "integer"

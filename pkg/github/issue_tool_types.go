@@ -35,47 +35,6 @@ type SubIssueWriteInput struct {
 	BeforeID      int    `json:"before_id,omitempty"`
 }
 
-type IssueReadParentOutput struct {
-	Parent *MinimalIssueDependencyRef `json:"parent"`
-}
-
-type IssueReadLabelOutput struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Color       string `json:"color"`
-	Description string `json:"description"`
-}
-
-type IssueReadLabelsOutput struct {
-	Labels     []IssueReadLabelOutput `json:"labels"`
-	TotalCount int                    `json:"totalCount"`
-}
-
-type IssueReadOutput struct {
-	Issue     *MinimalIssue
-	Comments  []MinimalIssueComment
-	SubIssues []MinimalIssue
-	Parent    *IssueReadParentOutput
-	Labels    *IssueReadLabelsOutput
-}
-
-func (output IssueReadOutput) MarshalJSON() ([]byte, error) {
-	switch {
-	case output.Issue != nil:
-		return json.Marshal(output.Issue)
-	case output.Comments != nil:
-		return json.Marshal(output.Comments)
-	case output.SubIssues != nil:
-		return json.Marshal(output.SubIssues)
-	case output.Parent != nil:
-		return json.Marshal(output.Parent)
-	case output.Labels != nil:
-		return json.Marshal(output.Labels)
-	default:
-		return []byte("null"), nil
-	}
-}
-
 type IssueTypeOutput struct {
 	ID          *int64  `json:"id,omitempty"`
 	Name        *string `json:"name,omitempty"`
@@ -382,20 +341,6 @@ func issuePaginationValidationSchema(advertised *jsonschema.Schema) *jsonschema.
 	return validation
 }
 
-func issueReadOutputSchema() *jsonschema.Schema {
-	return &jsonschema.Schema{
-		Types: []string{"array", "object", "null"},
-		OneOf: []*jsonschema.Schema{
-			issueOutputSchema[*MinimalIssue](),
-			issueOutputSchema[[]MinimalIssueComment](),
-			issueOutputSchema[[]MinimalIssue](),
-			issueOutputSchema[*IssueReadParentOutput](),
-			issueOutputSchema[*IssueReadLabelsOutput](),
-			{Type: "null"},
-		},
-	}
-}
-
 func listIssueFieldsOutputSchema() *jsonschema.Schema {
 	schema := issueOutputSchema[[]IssueFieldOutput]()
 	schema.Items.Properties["id"].Description = "The node ID of the issue field."
@@ -554,24 +499,6 @@ func normalizeIssueIntegers(required, optional []string) inventory.InputNormaliz
 			args[field] = value
 		}
 		return json.Marshal(args)
-	}
-}
-
-func normalizeIssueBooleans(fields []string) inventory.InputNormalizer {
-	return func(raw json.RawMessage) (json.RawMessage, error) {
-		var args map[string]any
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, err
-		}
-		for _, field := range fields {
-			if _, exists := args[field]; !exists {
-				continue
-			}
-			if _, err := OptionalParam[bool](args, field); err != nil {
-				return nil, err
-			}
-		}
-		return raw, nil
 	}
 }
 

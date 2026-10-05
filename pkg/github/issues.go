@@ -1323,6 +1323,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				Required: []string{"owner"},
 			},
+			OutputSchema: issueTypeOutputSchema(),
 		},
 		repositoryOrOrganizationScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueMetadataInput) (*mcp.CallToolResult, []*IssueTypeOutput, error) {
@@ -1555,17 +1556,28 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				}
 			}
 
+			legacyResult := &AddIssueCommentLegacyOutput{}
 			result := &AddIssueCommentOutput{}
 			switch {
 			case hasBody && hasReaction:
-				result.Combined = &IssueCommentAndReactionOutput{Comment: *commentResponse, Reaction: *reactionResponse}
+				legacyResult.Combined = &IssueCommentAndReactionLegacyOutput{
+					Comment: *commentResponse, Reaction: *reactionResponse,
+				}
+				result.Combined = &IssueCommentAndReactionOutput{
+					Comment:  IssueCommentOutput{ID: commentResponse.ID, HTMLURL: commentResponse.URL},
+					Reaction: IssueReactionOutput{ID: reactionResponse.ID},
+				}
 			case hasReaction:
-				result.Single = reactionResponse
+				legacyResult.Single = reactionResponse
+				result.Single = &IssueCommentOutput{ID: reactionResponse.ID}
 			default:
-				result.Single = commentResponse
+				legacyResult.Single = commentResponse
+				if commentResponse != nil {
+					result.Single = &IssueCommentOutput{ID: commentResponse.ID, HTMLURL: commentResponse.URL}
+				}
 			}
 
-			r, err := json.Marshal(result)
+			r, err := json.Marshal(legacyResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1577,7 +1589,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
 func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[UpdateIssueCommentInput, *MinimalResponse](
+	return NewToolWithSchemaOptions[UpdateIssueCommentInput, *IssueCommentOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_comment",
@@ -1610,9 +1622,11 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				},
 				Required: []string{"owner", "repo", "comment_id", "body"},
 			},
+			OutputSchema: issueCommentOutputSchema(),
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueCommentInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueCommentInput) (*mcp.CallToolResult, *IssueCommentOutput, error) {
 			owner, repo, commentID := input.Owner, input.Repo, input.CommentID
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1649,11 +1663,12 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue comment", resp, err), nil, nil
 			}
 
-			output := &MinimalResponse{
+			legacyOutput := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", updatedComment.GetID()),
 				URL: updatedComment.GetHTMLURL(),
 			}
-			r, err := json.Marshal(output)
+			output := &IssueCommentOutput{ID: legacyOutput.ID, HTMLURL: legacyOutput.URL}
+			r, err := json.Marshal(legacyOutput)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

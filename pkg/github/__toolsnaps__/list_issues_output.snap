@@ -24,14 +24,12 @@
               ]
             },
             "comments": {
-              "description": "Number of comments on the issue.",
               "type": [
                 "null",
                 "integer"
               ]
             },
             "created_at": {
-              "description": "Creation time in RFC 3339 format.",
               "type": [
                 "null",
                 "string"
@@ -83,7 +81,6 @@
               ]
             },
             "state": {
-              "description": "Issue state: OPEN or CLOSED.",
               "type": [
                 "null",
                 "string"
@@ -96,7 +93,6 @@
               ]
             },
             "updated_at": {
-              "description": "Last update time in RFC 3339 format.",
               "type": [
                 "null",
                 "string"
@@ -208,19 +204,15 @@
         "additionalProperties": false,
         "properties": {
           "endCursor": {
-            "description": "Cursor for the last issue in this page.",
             "type": "string"
           },
           "hasNextPage": {
-            "description": "Whether another page of results is available.",
             "type": "boolean"
           },
           "hasPreviousPage": {
-            "description": "Whether a previous page of results is available.",
             "type": "boolean"
           },
           "startCursor": {
-            "description": "Cursor for the first issue in this page.",
             "type": "string"
           }
         },
@@ -231,7 +223,6 @@
         "type": "object"
       },
       "totalCount": {
-        "description": "Total number of issues matching the filters.",
         "type": "integer"
       }
     },

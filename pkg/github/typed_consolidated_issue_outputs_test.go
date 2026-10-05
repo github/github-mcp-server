@@ -123,14 +123,16 @@ func assertConsolidatedResult(t *testing.T, session *mcp.ClientSession, schemas 
 	require.NoError(t, err)
 	require.False(t, result.IsError, "%s: %s", name, mustMarshalJSON(t, result))
 	require.Len(t, result.Content, 1)
-	assert.Equal(t, text, getTextResult(t, result).Text)
 	if schema := schemas[name]; schema != nil {
 		// Nullable method data must still have a present object envelope.
 		require.NotNil(t, result.StructuredContent)
+		assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text,
+			"modern text must serialize the same compact DTO as structuredContent")
 		var value any
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &value))
 		require.NoError(t, schema.Validate(value))
 	} else {
+		assert.Equal(t, text, getTextResult(t, result).Text, "legacy text must preserve the original formatter output")
 		assert.Nil(t, result.StructuredContent)
 	}
 	return result

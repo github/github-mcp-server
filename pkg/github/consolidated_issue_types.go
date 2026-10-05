@@ -10,27 +10,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type IssueReadInput struct {
-	Method      string  `json:"method"`
-	Owner       string  `json:"owner"`
-	Repo        string  `json:"repo"`
-	IssueNumber int     `json:"issue_number"`
-	Page        *int    `json:"page,omitempty"`
-	PerPage     *int    `json:"perPage,omitempty"`
-	After       *string `json:"after,omitempty"`
-}
-
-type SubIssueWriteInput struct {
-	Method        string `json:"method"`
-	Owner         string `json:"owner"`
-	Repo          string `json:"repo"`
-	IssueNumber   int    `json:"issue_number"`
-	SubIssueID    int    `json:"sub_issue_id"`
-	ReplaceParent bool   `json:"replace_parent,omitempty"`
-	AfterID       *int   `json:"after_id,omitempty"`
-	BeforeID      *int   `json:"before_id,omitempty"`
-}
-
 type IssueWriteInput struct {
 	Method            string                 `json:"method"`
 	Owner             string                 `json:"owner"`
@@ -127,13 +106,13 @@ func issueFieldValue(value any) (*IssueFieldValue, error) {
 }
 
 type IssueReadOutput struct {
-	Method     string                `json:"method"`
-	Issue      *IssueDetailsOutput   `json:"issue,omitempty"`
-	Comments   *[]IssueCommentOutput `json:"comments,omitempty"`
-	SubIssues  *[]*SubIssueOutput    `json:"sub_issues,omitempty"`
-	Parent     *IssueParentRef       `json:"parent,omitempty"`
-	Labels     *[]IssueLabelOutput   `json:"labels,omitempty"`
-	TotalCount *int                  `json:"totalCount,omitempty"`
+	Method     string                    `json:"method"`
+	Issue      *IssueDetailsOutput       `json:"issue,omitempty"`
+	Comments   *[]IssueReadCommentOutput `json:"comments,omitempty"`
+	SubIssues  *[]*SubIssueOutput        `json:"sub_issues,omitempty"`
+	Parent     *IssueParentRef           `json:"parent,omitempty"`
+	Labels     *[]IssueLabelOutput       `json:"labels,omitempty"`
+	TotalCount *int                      `json:"totalCount,omitempty"`
 }
 
 func (out IssueReadOutput) MarshalJSON() ([]byte, error) {
@@ -209,7 +188,7 @@ func issueUserOutput(user *MinimalUser) *IssueUserOutput {
 	return &IssueUserOutput{Login: user.Login, ID: user.ID}
 }
 
-type IssueCommentOutput struct {
+type IssueReadCommentOutput struct {
 	ID                int64             `json:"id"`
 	Body              string            `json:"body,omitempty"`
 	HTMLURL           string            `json:"html_url" jsonschema:"Human-readable comment link."`
@@ -220,10 +199,10 @@ type IssueCommentOutput struct {
 	UpdatedAt         string            `json:"updated_at,omitempty" jsonschema:"Last update time (RFC 3339)."`
 }
 
-func issueCommentOutputs(comments []MinimalIssueComment) []IssueCommentOutput {
-	output := make([]IssueCommentOutput, 0, len(comments))
+func issueCommentOutputs(comments []MinimalIssueComment) []IssueReadCommentOutput {
+	output := make([]IssueReadCommentOutput, 0, len(comments))
 	for _, comment := range comments {
-		output = append(output, IssueCommentOutput{
+		output = append(output, IssueReadCommentOutput{
 			ID: comment.ID, Body: comment.Body, HTMLURL: comment.HTMLURL,
 			User: issueUserOutput(comment.User), AuthorAssociation: comment.AuthorAssociation,
 			Reactions: comment.Reactions, CreatedAt: comment.CreatedAt, UpdatedAt: comment.UpdatedAt,
