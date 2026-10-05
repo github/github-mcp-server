@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -193,7 +194,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 
 // ActionsList returns the tool and handler for listing GitHub Actions resources.
 func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:         "actions_list",
@@ -212,12 +213,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The action to perform",
-						Enum: []any{
-							actionsMethodListWorkflows,
-							actionsMethodListWorkflowRuns,
-							actionsMethodListWorkflowJobs,
-							actionsMethodListWorkflowArtifacts,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsListMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -375,12 +371,12 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 		},
 		normalizeActionsArguments("list"),
 	)
-	return actionsInputSchema(tool)
+	return tool
 }
 
 // ActionsGet returns the tool and handler for getting GitHub Actions resources.
 func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:         "actions_get",
@@ -398,14 +394,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodGetWorkflow,
-							actionsMethodGetWorkflowRun,
-							actionsMethodGetWorkflowJob,
-							actionsMethodDownloadWorkflowArtifact,
-							actionsMethodGetWorkflowRunUsage,
-							actionsMethodGetWorkflowRunLogsURL,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsGetMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -483,12 +472,12 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 		},
 		normalizeActionsArguments("get"),
 	)
-	return actionsInputSchema(tool)
+	return tool
 }
 
 // ActionsRunTrigger returns the tool and handler for triggering GitHub Actions workflows.
 func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:         "actions_run_trigger",
@@ -505,13 +494,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodRunWorkflow,
-							actionsMethodRerunWorkflowRun,
-							actionsMethodRerunFailedJobs,
-							actionsMethodCancelWorkflowRun,
-							actionsMethodDeleteWorkflowRunLogs,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsRunTriggerMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -581,12 +564,12 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 		},
 		normalizeActionsArguments("trigger"),
 	)
-	return actionsInputSchema(tool)
+	return tool
 }
 
 // ActionsGetJobLogs returns the tool and handler for getting workflow job logs.
 func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:         "get_job_logs",
@@ -675,7 +658,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 		},
 		normalizeActionsArguments("logs"),
 	)
-	return actionsInputSchema(tool)
+	return tool
 }
 
 // Helper functions for consolidated actions tools
@@ -701,7 +684,7 @@ func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resour
 		return nil, nil, fmt.Errorf("failed to marshal workflow: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Workflow: workflow}, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflow, Workflow: convertToActionsWorkflow(workflow)}, nil
 }
 
 func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
@@ -715,7 +698,7 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Run: &output}, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRun, Run: &output}, nil
 }
 
 func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
@@ -728,7 +711,12 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow job: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Job: workflowJob}, nil
+	var output *MinimalWorkflowJob
+	if workflowJob != nil {
+		job := convertToMinimalWorkflowJob(workflowJob)
+		output = &job
+	}
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowJob, Job: output}, nil
 }
 
 func listWorkflows(ctx context.Context, client *github.Client, owner, repo string, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
@@ -748,7 +736,7 @@ func listWorkflows(ctx context.Context, client *github.Client, owner, repo strin
 		return nil, nil, fmt.Errorf("failed to marshal workflows: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsListOutput{Workflows: workflows}, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflows, Workflows: convertToActionsWorkflows(workflows)}, nil
 }
 
 func listWorkflowRuns(ctx context.Context, client *github.Client, filter ActionsWorkflowRunsFilter, owner, repo, resourceID string, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
@@ -790,7 +778,7 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, filter Actions
 		return nil, nil, fmt.Errorf("failed to marshal workflow runs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsListOutput{Runs: &output}, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowRuns, Runs: &output}, nil
 }
 
 func listWorkflowJobs(ctx context.Context, client *github.Client, filter ActionsWorkflowJobsFilter, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
@@ -819,7 +807,7 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, filter Actions
 		return nil, nil, fmt.Errorf("failed to marshal workflow jobs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsListOutput{Jobs: response}, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowJobs, Jobs: &response.Jobs}, nil
 }
 
 func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
@@ -839,7 +827,7 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsListOutput{Artifacts: artifacts}, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowArtifacts, Artifacts: convertToActionsArtifacts(artifacts)}, nil
 }
 
 func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
@@ -863,7 +851,7 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Artifact: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodDownloadWorkflowArtifact, Artifact: result}, nil
 }
 
 func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
@@ -888,7 +876,7 @@ func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Logs: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRunLogsURL, Logs: result}, nil
 }
 
 func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
@@ -903,7 +891,7 @@ func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Usage: usage}, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRunUsage, Usage: convertToActionsRunUsage(usage)}, nil
 }
 
 func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]any) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
@@ -914,7 +902,7 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 
 	var resp *github.Response
 	var err error
-	var workflowType string
+	var workflowType ActionsWorkflowType
 
 	if workflowIDInt, parseErr := strconv.ParseInt(workflowID, 10, 64); parseErr == nil {
 		_, resp, err = client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowIDInt, event)
@@ -948,7 +936,7 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Dispatch: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRunWorkflow, Dispatch: result}, nil
 }
 
 func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
@@ -970,7 +958,7 @@ func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo st
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Run: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRerunWorkflowRun, Rerun: result}, nil
 }
 
 func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
@@ -992,7 +980,7 @@ func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo str
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Run: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRerunFailedJobs, RerunFailed: result}, nil
 }
 
 func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
@@ -1016,7 +1004,7 @@ func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo s
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Run: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodCancelWorkflowRun, Cancel: result}, nil
 }
 
 func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
@@ -1038,5 +1026,5 @@ func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Run: result}, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodDeleteWorkflowRunLogs, DeleteLogs: result}, nil
 }

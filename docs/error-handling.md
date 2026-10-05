@@ -60,10 +60,12 @@ return ghErrors.NewGitHubGraphQLErrorResponse(ctx, message, err), nil
 ### Typed Tool Results
 
 Tools registered with concrete `NewTool[In, Out]` types expose output schemas and
-`structuredContent` only when the negotiated protocol is `2026-07-28` or newer.
-Older or unknown protocols retain the original text responses without these
-typed-output additions. Ordinary API and validation errors never expose the
-SDK-generated zero-value structured output.
+`structuredContent` when the negotiated protocol version is a supported version
+`2026-07-28` or newer. Older, unknown, or omitted protocol versions retain the
+original text responses without these typed-output additions. Unknown versions
+are not treated as supported merely because they sort after `2026-07-28`.
+Ordinary API and validation errors never expose the SDK-generated zero-value
+structured output.
 
 Handler-provided structured statuses are distinct from generated error output.
 For example, `issue_write` can return `IsError: true` with
