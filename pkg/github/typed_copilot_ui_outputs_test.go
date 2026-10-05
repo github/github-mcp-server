@@ -5,13 +5,18 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -274,12 +279,12 @@ func TestTypedUIGetNonemptyWireOutputs(t *testing.T) {
 		structured string
 	}{
 		{method: "labels", args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo"}, structured: `{"method":"labels","labels":{"labels":[{"id":"LABEL_1","name":"bug","color":"d73a4a","description":"Something isn't working"}],"totalCount":1,"has_more":false}}`},
-		{method: "assignees", args: map[string]any{"method": "assignees", "owner": "owner", "repo": "repo"}, structured: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat"}],"totalCount":1,"has_more":false}}`},
+		{method: "assignees", args: map[string]any{"method": "assignees", "owner": "owner", "repo": "repo"}, structured: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}}`},
 		{method: "milestones", args: map[string]any{"method": "milestones", "owner": "owner", "repo": "repo"}, structured: `{"method":"milestones","milestones":{"milestones":[{"number":4,"title":"v1","description":"First release","state":"open","open_issues":2,"due_on":"2026-12-31"}],"totalCount":1,"has_more":false}}`},
 		{method: "issue_types", args: map[string]any{"method": "issue_types", "owner": "owner"}, structured: `{"method":"issue_types","issue_types":[{"id":12,"name":"Bug","description":"A bug","color":"red"},null]}`},
 		{method: "branches", args: map[string]any{"method": "branches", "owner": "owner", "repo": "repo"}, structured: `{"method":"branches","branches":{"branches":[{"name":"main","sha":"abc123","protected":true}],"totalCount":1,"has_more":false}}`},
 		{method: "issue_fields", args: map[string]any{"method": "issue_fields", "owner": "owner", "repo": "repo"}, structured: `{"method":"issue_fields","issue_fields":{"fields":[{"id":"FIELD_1","name":"Priority","data_type":"text","description":"Issue priority"}],"totalCount":1}}`},
-		{method: "reviewers", args: map[string]any{"method": "reviewers", "owner": "owner", "repo": "repo"}, structured: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat"}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
+		{method: "reviewers", args: map[string]any{"method": "reviewers", "owner": "owner", "repo": "repo"}, structured: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.method, func(t *testing.T) {
@@ -337,6 +342,8 @@ func TestTypedCopilotUIErrorsPreserveLegacyText(t *testing.T) {
 		{name: "request_copilot_review", args: map[string]any{"repo": "repo", "pullNumber": 7}, text: "missing required parameter: owner"},
 		{name: "ui_get", args: map[string]any{"method": "labels", "owner": "owner"}, text: "missing required parameter: repo"},
 		{name: "ui_get", args: map[string]any{"method": "unknown", "owner": "owner"}, text: "unknown method: unknown"},
+		{name: "ui_get", args: map[string]any{"method": "unknown", "owner": "owner", "repo": true}, text: "unknown method: unknown"},
+		{name: "ui_get", args: map[string]any{"method": "unknown"}, text: "missing required parameter: owner"},
 		{name: "ui_get", args: map[string]any{"method": true, "owner": "owner"}, text: "parameter method is not of type string"},
 	}
 	for _, protocol := range protocols {
@@ -354,6 +361,74 @@ func TestTypedCopilotUIErrorsPreserveLegacyText(t *testing.T) {
 	}
 }
 
+func TestTypedUIGetHTTPScopesAndDispatch(t *testing.T) {
+	registry, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{
+		UIGet(translations.NullTranslationHelper),
+	}).WithToolsets([]string{"all"}).Build()
+	require.NoError(t, err)
+	scopes.SetToolScopeMapFromInventory(registry)
+	t.Cleanup(func() { scopes.SetGlobalToolScopeMap(nil) })
+
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", "", "unknown"} {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			session, _ := typedCopilotUISession(t, typedCopilotUIClient(t), protocol)
+			for _, tc := range []struct {
+				name       string
+				args       map[string]any
+				scopes     []string
+				wantStatus int
+				wantError  string
+			}{
+				{name: "unknown method does not challenge", args: map[string]any{"method": "unknown", "owner": "owner", "repo": "repo"}, scopes: []string{"gist"}, wantStatus: http.StatusOK, wantError: "unknown method: unknown"},
+				{name: "unknown method validates owner first", args: map[string]any{"method": "unknown", "repo": "repo"}, scopes: []string{"gist"}, wantStatus: http.StatusOK, wantError: "missing required parameter: owner"},
+				{name: "labels cannot be overridden to issue types", args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo", "_compat_method": "issue_types"}, scopes: []string{"repo"}, wantStatus: http.StatusOK},
+				{name: "labels cannot be overridden to reviewers", args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo", "_compat_method": "reviewers"}, scopes: []string{"repo"}, wantStatus: http.StatusOK},
+				{name: "issue types still require read org", args: map[string]any{"method": "issue_types", "owner": "owner", "_compat_method": "labels"}, scopes: []string{"repo"}, wantStatus: http.StatusForbidden},
+				{name: "labels still require repo", args: map[string]any{"method": "labels", "owner": "owner", "repo": "repo"}, scopes: []string{"gist"}, wantStatus: http.StatusForbidden},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					raw, err := json.Marshal(tc.args)
+					require.NoError(t, err)
+					called := false
+					handler := middleware.WithScopeChallenge(&oauth.Config{}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						called = true
+						result, err := session.CallTool(r.Context(), &mcp.CallToolParams{Name: "ui_get", Arguments: tc.args})
+						require.NoError(t, err)
+						if tc.wantError != "" {
+							require.True(t, result.IsError)
+							assert.Equal(t, tc.wantError, getTextResult(t, result).Text)
+							assert.Nil(t, result.StructuredContent)
+						} else {
+							require.False(t, result.IsError)
+							if protocol == inventory.ProtocolVersionMultiRoundTrip {
+								assert.JSONEq(t, `{"method":"labels","labels":{"labels":[],"totalCount":0,"has_more":false}}`, getTextResult(t, result).Text)
+							} else {
+								assert.Equal(t, `{"has_more":false,"labels":[],"totalCount":0}`, getTextResult(t, result).Text)
+							}
+						}
+						require.NoError(t, json.NewEncoder(w).Encode(result))
+					}))
+					request := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+					ctx := ghcontext.WithTokenInfo(request.Context(), &ghcontext.TokenInfo{TokenType: utils.TokenTypeOAuthAccessToken})
+					ctx = ghcontext.WithTokenScopes(ctx, tc.scopes)
+					ctx = ghcontext.WithMCPMethodInfo(ctx, &ghcontext.MCPMethodInfo{
+						Method: "tools/call", ItemName: "ui_get", RawArguments: raw, ProtocolVersion: protocol,
+					})
+					response := httptest.NewRecorder()
+					handler.ServeHTTP(response, request.WithContext(ctx))
+					assert.Equal(t, tc.wantStatus, response.Code)
+					assert.Equal(t, tc.wantStatus == http.StatusOK, called)
+					if tc.wantStatus == http.StatusOK {
+						assert.Empty(t, response.Header().Get("WWW-Authenticate"))
+					} else {
+						assert.Contains(t, response.Header().Get("WWW-Authenticate"), "insufficient_scope")
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestTypedUIGetUnionOutputs(t *testing.T) {
 	cases := []struct {
 		method string
@@ -361,13 +436,13 @@ func TestTypedUIGetUnionOutputs(t *testing.T) {
 		typed  string
 	}{
 		{method: "labels", raw: `{"labels":[{"id":"L","name":"bug","color":"red","description":""}],"totalCount":1,"has_more":false}`, typed: `{"method":"labels","labels":{"labels":[{"id":"L","name":"bug","color":"red","description":""}],"totalCount":1,"has_more":false}}`},
-		{method: "assignees", raw: `{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}`, typed: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat"}],"totalCount":1,"has_more":false}}`},
+		{method: "assignees", raw: `{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}`, typed: `{"method":"assignees","assignees":{"assignees":[{"login":"octocat","avatar_url":"https://example.com/avatar.png"}],"totalCount":1,"has_more":false}}`},
 		{method: "milestones", raw: `{"milestones":[{"number":4,"title":"v1","description":"","state":"open","open_issues":2,"due_on":""}],"totalCount":1,"has_more":false}`, typed: `{"method":"milestones","milestones":{"milestones":[{"number":4,"title":"v1","description":"","state":"open","open_issues":2,"due_on":""}],"totalCount":1,"has_more":false}}`},
 		{method: "issue_types", raw: `[{"id":1,"name":"Bug"}]`, typed: `{"method":"issue_types","issue_types":[{"id":1,"name":"Bug"}]}`},
 		{method: "issue_types", raw: `null`, typed: `{"method":"issue_types","issue_types":null}`},
 		{method: "branches", raw: `{"branches":[{"name":"main","sha":"abc","protected":true}],"totalCount":1,"has_more":false}`, typed: `{"method":"branches","branches":{"branches":[{"name":"main","sha":"abc","protected":true}],"totalCount":1,"has_more":false}}`},
 		{method: "issue_fields", raw: `{"fields":[{"id":"F","name":"Priority","data_type":"single_select","description":"","options":[]}],"totalCount":1}`, typed: `{"method":"issue_fields","issue_fields":{"fields":[{"id":"F","name":"Priority","data_type":"single_select","description":"","options":[]}],"totalCount":1}}`},
-		{method: "reviewers", raw: `{"users":[{"login":"octocat","avatar_url":""}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}`, typed: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat"}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
+		{method: "reviewers", raw: `{"users":[{"login":"octocat","avatar_url":""}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}`, typed: `{"method":"reviewers","reviewers":{"users":[{"login":"octocat","avatar_url":""}],"teams":[{"slug":"docs","name":"Docs","org":"owner"}],"totalCount":2,"has_more":false}}`},
 	}
 	schema, err := uiGetOutputSchema().Resolve(nil)
 	require.NoError(t, err)

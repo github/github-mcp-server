@@ -74,10 +74,6 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: "labels"}, nil
 			}
-			if compatibilityMethod, ok := args["_compat_method"].(string); ok {
-				method = compatibilityMethod
-			}
-
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: uiGetSchemaMethod(method)}, nil

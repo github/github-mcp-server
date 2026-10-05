@@ -158,6 +158,7 @@ func normalizeUIGetArguments(raw json.RawMessage) (json.RawMessage, error) {
 	if err != nil || args == nil {
 		return raw, err
 	}
+	delete(args, "_compat_method")
 	method, err := RequiredParam[string](args, "method")
 	if err != nil {
 		return nil, &inventory.ToolInputError{Message: err.Error()}
@@ -179,13 +180,7 @@ func normalizeUIGetArguments(raw json.RawMessage) (json.RawMessage, error) {
 			}
 		}
 	default:
-		args["method"] = "labels"
-		args["_compat_method"] = method
-		if _, exists := args["repo"]; exists {
-			if _, err := RequiredParam[string](args, "repo"); err != nil {
-				args["repo"] = ""
-			}
-		}
+		return nil, &inventory.ToolInputError{Message: fmt.Sprintf("unknown method: %s", method)}
 	}
 	return json.Marshal(args)
 }
@@ -206,7 +201,8 @@ type UIGetLabelOutput struct {
 }
 
 type UIGetAssigneeOutput struct {
-	Login string `json:"login"`
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 type UIGetMilestoneOutput struct {

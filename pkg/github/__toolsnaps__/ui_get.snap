@@ -53,12 +53,16 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
                 "login": {
                   "type": "string"
                 }
               },
               "required": [
-                "login"
+                "login",
+                "avatar_url"
               ],
               "type": "object"
             },
@@ -394,12 +398,16 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
                 "login": {
                   "type": "string"
                 }
               },
               "required": [
-                "login"
+                "login",
+                "avatar_url"
               ],
               "type": "object"
             },
