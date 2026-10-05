@@ -366,11 +366,11 @@ func issueFieldOutputs(fields []IssueField) []IssueFieldOutput {
 }
 
 func issueOutputSchema[T any]() *jsonschema.Schema {
-	schema, err := jsonschema.For[T](nil)
+	schema, err := inventory.CachedSchemaFor[T](nil)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate issue output schema: %v", err))
 	}
-	return schema
+	return inventory.CloneSchema(schema)
 }
 
 func issuePaginationValidationSchema(advertised *jsonschema.Schema) *jsonschema.Schema {

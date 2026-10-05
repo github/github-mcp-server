@@ -83,7 +83,7 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			OutputSchema: findDuplicateOutputSchema(),
 		},
 		scopes.PublicRead(scopes.Repo),
-		inventory.TypedSchemaOptions{ValidationInputSchema: issuePaginationValidationSchema(schema)},
+		inventory.TypedSchemaOptions{ValidationInputSchema: issuePaginationValidationSchema(schema), PreserveHandlerContent: true},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input FindDuplicateInput) (*mcp.CallToolResult, []DuplicateCandidate, error) {
 			owner, repo, issueNumber := input.Owner, input.Repo, input.IssueNumber
 			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
