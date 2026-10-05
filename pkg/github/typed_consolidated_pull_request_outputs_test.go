@@ -278,6 +278,7 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 	cases := []typedPullRequestCase{
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": "1"}, minimalPR},
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 3}, `null`},
+		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 1, "after": 1}, minimalPR},
 		{"pull_request_read", map[string]any{"method": "get_diff", "pullNumber": 1.0}, typedPRDiff},
 		{"pull_request_read", map[string]any{"method": "get_status", "pullNumber": 1}, `{"state":"success","sha":"abc","total_count":1,"statuses":[{"state":"success","context":"ci","target_url":"https://ci"}]}`},
 		{"pull_request_read", map[string]any{"method": "get_files", "pullNumber": 1, "page": "1", "perPage": 5}, `[{"filename":"file","status":"modified","additions":1,"changes":1,"patch":"+added"}]`},
@@ -408,7 +409,9 @@ func TestTypedConsolidatedPullRequestErrors(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "unknown", "pullNumber": 1}, "unknown method: unknown"},
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 1.5}, "parameter pullNumber is not a valid number: non-integer numeric value: 1.5"},
 		{"create_pull_request", map[string]any{"title": "Subject", "head": "feature", "base": "main", "draft": "yes"}, "parameter draft is not of type bool, is string"},
+		{"create_pull_request", map[string]any{"head": "feature", "base": "main", "draft": "yes"}, "missing required parameter: title"},
 		{"update_pull_request", map[string]any{"pullNumber": 0, "title": "Subject"}, "missing required parameter: pullNumber"},
+		{"update_pull_request", map[string]any{"pullNumber": 1, "draft": "yes", "title": 1}, "parameter draft is not of type bool, is string"},
 		{"pull_request_review_write", map[string]any{"method": "nope", "pullNumber": 1}, "unknown method: nope"},
 		{"add_comment_to_pending_review", map[string]any{"pullNumber": 1, "body": "nit", "subjectType": "LINE"}, "missing required parameter: path"},
 		{"add_reply_to_pull_request_comment", map[string]any{"commentId": 0, "body": "reply"}, "missing required parameter: commentId"},
@@ -424,6 +427,8 @@ func TestTypedConsolidatedPullRequestErrors(t *testing.T) {
 		{"add_reply_to_pull_request_comment", map[string]any{"commentId": 42, "body": "reply"}, "missing required parameter: pullNumber"},
 		{"add_reply_to_pull_request_comment", map[string]any{"commentId": "1e30", "body": "reply"}, "parameter commentId is not a valid number: numeric value 1e+30 is too large to fit in int64"},
 		{"add_reply_to_pull_request_comment", map[string]any{"commentId": 42, "pullNumber": "x", "body": "reply"}, "parameter pullNumber is not a valid number: invalid numeric value: x"},
+		{"add_reply_to_pull_request_comment", map[string]any{"commentId": 42, "pullNumber": "x", "body": ""}, "body cannot be empty when provided"},
+		{"add_reply_to_pull_request_comment", map[string]any{"commentId": 42, "pullNumber": "x", "body": "reply", "reaction": 1}, "parameter reaction is not of type string, is float64"},
 	}
 	for _, protocol := range typedPullRequestProtocols {
 		t.Run("protocol="+protocol, func(t *testing.T) {
@@ -590,6 +595,16 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tc.value)), &value))
 		require.NoError(t, resolved.Validate(value), mustMarshalJSON(t, tc.value))
 	}
+}
+
+func TestPullRequestOutputDescriptionsAreShapeAware(t *testing.T) {
+	commitSchema := pullRequestOutputSchema[MinimalPullRequestCommit]()
+	require.Contains(t, commitSchema.Properties, "message")
+	assert.Empty(t, commitSchema.Properties["message"].Description)
+
+	branchUpdateSchema := pullRequestBranchUpdateOutputSchema()
+	require.Contains(t, branchUpdateSchema.Properties, "message")
+	assert.Equal(t, "Operation result message.", branchUpdateSchema.Properties["message"].Description)
 }
 
 func TestConsolidatedPullRequestOutputTypesAreCurated(t *testing.T) {

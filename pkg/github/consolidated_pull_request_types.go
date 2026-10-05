@@ -339,7 +339,9 @@ func describePullRequestOutputSchema(schema *jsonschema.Schema) {
 		case "total_count", "totalCount":
 			field.Description = "Total number of results."
 		case "message":
-			field.Description = "Operation result message."
+			if schema.Properties["author"] == nil {
+				field.Description = "Operation result message."
+			}
 		case "merged":
 			field.Description = "Whether the pull request was merged."
 		case "diff":
@@ -412,17 +414,17 @@ type pullRequestArgumentSpec struct {
 var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 	"read": {
 		required: []string{"method", "owner", "repo"}, requiredInts: []string{"pullNumber"},
-		ints: []string{"page", "perPage"}, strings: []string{"after"},
+		ints:    []string{"page", "perPage"},
 		methods: []string{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
 	},
 	"create": {
 		required: []string{"owner", "repo"}, deferred: []string{"title", "head", "base"},
-		strings: []string{"title", "head", "base", "body"}, bools: []string{"draft", "maintainer_can_modify", "_ui_submitted"},
+		strings: []string{"title", "head", "base", "body"}, bools: []string{"draft", "maintainer_can_modify"},
 		stringArrays: []string{"reviewers"},
 	},
 	"update": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
-		strings: []string{"title", "body", "state", "base"}, bools: []string{"draft", "maintainer_can_modify", "_ui_submitted"},
+		strings: []string{"title", "body", "state", "base"}, bools: []string{"draft", "maintainer_can_modify"},
 		stringArrays: []string{"reviewers"},
 	},
 	"merge": {
@@ -483,35 +485,83 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 				return nil, fmt.Errorf("commentId must be greater than 0")
 			}
 			args["commentId"] = commentID
-			// pullNumber is only read, and validated, when a reply body is sent.
-			if value, exists := args["pullNumber"]; exists {
-				pullNumber, err := toInt(value)
-				switch {
-				case err == nil:
-					args["pullNumber"] = pullNumber
-				case args["body"] != nil:
-					return nil, fmt.Errorf("parameter pullNumber is not a valid number: %w", err)
-				default:
-					delete(args, "pullNumber")
-				}
-			}
 		}
 		for _, field := range spec.deferred {
 			if _, exists := args[field]; !exists {
 				args[field] = ""
 			}
 		}
-		for _, field := range spec.strings {
+
+		stringFields := spec.strings
+		boolFields := spec.bools
+		stringArrayFields := spec.stringArrays
+		if kind == "create" {
+			stringFields = []string{"title", "head", "base"}
+			boolFields = []string{"draft", "maintainer_can_modify"}
+			stringArrayFields = []string{"reviewers"}
+		}
+		if kind == "update" {
+			boolFields = []string{"maintainer_can_modify"}
+		}
+		if kind == "reply" {
+			stringFields = []string{"body", "reaction"}
+		}
+		if kind == "update" {
+			// The update handler checks draft before title/body/state/base.
+			if _, err := OptionalParam[bool](args, "draft"); err != nil {
+				return nil, err
+			}
+		}
+		if kind == "create" || kind == "update" {
+			// This flag is inspected from the raw call only to control form
+			// deferral; legacy handlers never type-validated it.
+			if _, err := OptionalParam[bool](args, "_ui_submitted"); err != nil {
+				delete(args, "_ui_submitted")
+			}
+		}
+		for _, field := range stringFields {
 			if _, err := OptionalParam[string](args, field); err != nil {
 				return nil, err
 			}
 		}
-		for _, field := range spec.bools {
+		if kind == "create" {
+			missingRequired := ""
+			for _, field := range []string{"title", "head", "base"} {
+				if args[field] == "" && missingRequired == "" {
+					missingRequired = field
+				}
+			}
+			if missingRequired != "" {
+				// The handler may defer to the form before checking these later
+				// fields. Drop malformed values so strict typed decoding cannot
+				// change the earlier missing-field result.
+				if _, err := OptionalParam[string](args, "body"); err != nil {
+					delete(args, "body")
+				}
+				for _, field := range []string{"draft", "maintainer_can_modify", "_ui_submitted"} {
+					if _, err := OptionalParam[bool](args, field); err != nil {
+						delete(args, field)
+					}
+				}
+				if _, exists := args["reviewers"]; exists {
+					if _, err := OptionalStringArrayParam(args, "reviewers"); err != nil {
+						delete(args, "reviewers")
+					}
+				}
+				boolFields = nil
+				stringArrayFields = nil
+			} else {
+				if _, err := OptionalParam[string](args, "body"); err != nil {
+					return nil, err
+				}
+			}
+		}
+		for _, field := range boolFields {
 			if _, err := OptionalParam[bool](args, field); err != nil {
 				return nil, err
 			}
 		}
-		for _, field := range spec.stringArrays {
+		for _, field := range stringArrayFields {
 			if _, exists := args[field]; !exists {
 				continue
 			}
@@ -533,6 +583,40 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		}
 		if spec.methods != nil && !slices.Contains(spec.methods, args["method"].(string)) {
 			return nil, fmt.Errorf("unknown method: %s", args["method"])
+		}
+		if kind == "read" {
+			if args["method"] == "get_review_comments" {
+				if _, err := OptionalParam[string](args, "after"); err != nil {
+					return nil, err
+				}
+			} else {
+				delete(args, "after")
+			}
+		}
+		if kind == "reply" {
+			_, hasBody := args["body"]
+			_, hasReaction := args["reaction"]
+			if !hasBody && !hasReaction {
+				return nil, fmt.Errorf("at least one of body or reaction is required")
+			}
+			if hasBody && args["body"] == "" {
+				return nil, fmt.Errorf("body cannot be empty when provided")
+			}
+			if hasReaction && args["reaction"] == "" {
+				return nil, fmt.Errorf("reaction cannot be empty when provided")
+			}
+			// pullNumber is only read, and validated, when a reply body is sent.
+			if value, exists := args["pullNumber"]; exists {
+				pullNumber, err := toInt(value)
+				switch {
+				case err == nil && hasBody:
+					args["pullNumber"] = pullNumber
+				case err != nil && hasBody:
+					return nil, fmt.Errorf("parameter pullNumber is not a valid number: %w", err)
+				default:
+					delete(args, "pullNumber")
+				}
+			}
 		}
 		for _, field := range spec.ignoredStrings {
 			if _, isString := args[field].(string); !isString {
