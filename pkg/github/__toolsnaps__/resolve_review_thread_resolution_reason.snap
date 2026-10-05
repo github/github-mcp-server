@@ -4,9 +4,9 @@
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Request Pull Request Reviewers"
+    "title": "Resolve Review Thread"
   },
-  "description": "Request reviewers for a pull request.",
+  "description": "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -21,51 +21,34 @@
   ],
   "inputSchema": {
     "properties": {
-      "owner": {
-        "description": "Repository owner (username or organization)",
-        "type": "string",
-        "x-mcp-header": "owner"
+      "resolutionReason": {
+        "description": "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+        "type": "string"
       },
-      "pullNumber": {
-        "description": "The pull request number",
-        "type": "number"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string",
-        "x-mcp-header": "repo"
-      },
-      "reviewers": {
-        "description": "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
+      "threadID": {
+        "description": "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
+        "type": "string"
       }
     },
     "required": [
-      "owner",
-      "repo",
-      "pullNumber",
-      "reviewers"
+      "threadID"
     ],
     "type": "object"
   },
-  "name": "request_pull_request_reviewers",
+  "name": "resolve_review_thread",
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
-      "id": {
-        "type": "string"
-      },
-      "url": {
+      "message": {
         "type": "string"
       }
     },
     "required": [
-      "id",
-      "url"
+      "message"
     ],
-    "type": "object"
+    "type": [
+      "null",
+      "object"
+    ]
   }
 }

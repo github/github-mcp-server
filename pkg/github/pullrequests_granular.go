@@ -18,6 +18,29 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+func newGranularPullRequestTool[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	scopeAccess inventory.ScopeAccess,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
+) inventory.ServerTool {
+	inputSchema, ok := tool.InputSchema.(*jsonschema.Schema)
+	if !ok {
+		panic("granular pull request tool input schema must be a JSON Schema")
+	}
+	return NewToolWithSchemaOptions(
+		toolset,
+		tool,
+		scopeAccess,
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: granularPullRequestValidationSchema(inputSchema),
+		},
+		handler,
+		inputNormalizers...,
+	)
+}
+
 // prUpdateTool is a helper to create single-field pull request update tools via REST.
 func prUpdateTool[In interface {
 	pullRequestCoordinate() GranularPullRequestCoordinate
@@ -41,13 +64,14 @@ func prUpdateTool[In interface {
 		"pullNumber": {
 			Type:        "number",
 			Description: "The pull request number",
+			Minimum:     new(1.0),
 		},
 	}
 	maps.Copy(props, extraProps)
 
 	required := append([]string{"owner", "repo", "pullNumber"}, extraRequired...)
 
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        name,
@@ -140,12 +164,14 @@ func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) invent
 		map[string]*jsonschema.Schema{
 			"state": {
 				Type:        "string",
-				Description: "The new state for the pull request (open or closed)",
+				Description: "The new state for the pull request",
+				Enum:        GranularPullRequestState("").JSONSchema().Enum,
 			},
 		},
 		[]string{"state"},
 		func(args GranularPullRequestStateInput) *gogithub.PullRequest {
-			return &gogithub.PullRequest{State: &args.State}
+			state := string(args.State)
+			return &gogithub.PullRequest{State: &state}
 		},
 		normalizeGranularPullRequestArguments("state"),
 	)
@@ -153,7 +179,7 @@ func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) invent
 
 // GranularUpdatePullRequestDraftState creates a tool to toggle draft state.
 func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request_draft_state",
@@ -169,7 +195,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number"},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"draft":      {Type: "boolean", Description: "Set to true to convert to draft, false to mark as ready for review"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "draft"},
@@ -240,7 +266,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 
 // GranularRequestPullRequestReviewers creates a tool to request reviewers.
 func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "request_pull_request_reviewers",
@@ -256,7 +282,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number"},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"reviewers": {
 						Type:        "array",
 						Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
@@ -319,7 +345,7 @@ func splitPullRequestReviewers(reviewers []string) ([]string, []string) {
 
 // GranularCreatePullRequestReview creates a tool to create a PR review.
 func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "create_pull_request_review",
@@ -335,9 +361,9 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number"},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
-					"event":      {Type: "string", Description: "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT). If omitted, creates a pending review."},
+					"event":      {Type: "string", Description: "The review action to perform. If omitted, creates a pending review.", Enum: GranularPullRequestReviewEvent("").JSONSchema().Enum},
 					"commitID":   {Type: "string", Description: "The SHA of the commit to review (optional, defaults to latest)"},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
@@ -346,7 +372,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularCreatePullRequestReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
 			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
-			body, event, commitID := args.Body, args.Event, args.CommitID
+			body, event, commitID := args.Body, string(args.Event), args.CommitID
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -376,7 +402,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 
 // GranularSubmitPendingPullRequestReview creates a tool to submit a pending review.
 func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "submit_pending_pull_request_review",
@@ -392,8 +418,8 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number"},
-					"event":      {Type: "string", Description: "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT)"},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
+					"event":      {Type: "string", Description: "The review action to perform", Enum: GranularPullRequestReviewEvent("").JSONSchema().Enum},
 					"body":       {Type: "string", Description: "The review body text (optional)"},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "event"},
@@ -401,7 +427,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 		},
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularSubmitPullRequestReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
-			owner, repo, pullNumber, event, body := args.Owner, args.Repo, args.PullNumber, args.Event, args.Body
+			owner, repo, pullNumber, event, body := args.Owner, args.Repo, args.PullNumber, string(args.Event), args.Body
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -425,7 +451,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 
 // GranularDeletePendingPullRequestReview creates a tool to delete a pending review.
 func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "delete_pending_pull_request_review",
@@ -441,7 +467,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 				Properties: map[string]*jsonschema.Schema{
 					"owner":      {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":       {Type: "string", Description: "Repository name"},
-					"pullNumber": {Type: "number", Description: "The pull request number"},
+					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
@@ -470,7 +496,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 
 // GranularAddPullRequestReviewComment creates a tool to add a review comment.
 func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_pull_request_review_comment",
@@ -486,20 +512,20 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				Properties: map[string]*jsonschema.Schema{
 					"owner":       {Type: "string", Description: "Repository owner (username or organization)"},
 					"repo":        {Type: "string", Description: "Repository name"},
-					"pullNumber":  {Type: "number", Description: "The pull request number"},
+					"pullNumber":  {Type: "number", Description: "The pull request number", Minimum: new(1.0)},
 					"path":        {Type: "string", Description: "The relative path of the file to comment on"},
 					"body":        {Type: "string", Description: "The comment body"},
-					"subjectType": {Type: "string", Description: "The subject type of the comment (FILE or LINE)"},
+					"subjectType": {Type: "string", Description: "The subject type of the comment", Enum: GranularPullRequestCommentSubject("").JSONSchema().Enum},
 					"line":        {Type: "number", Description: "The line number in the diff to comment on (optional)"},
-					"side":        {Type: "string", Description: "The side of the diff to comment on (LEFT or RIGHT, optional)"},
+					"side":        {Type: "string", Description: "The side of the diff to comment on (optional)", Enum: GranularPullRequestDiffSide("").JSONSchema().Enum},
 					"startLine":   {Type: "number", Description: "The start line of a multi-line comment (optional)"},
-					"startSide":   {Type: "string", Description: "The start side of a multi-line comment (LEFT or RIGHT, optional)"},
+					"startSide":   {Type: "string", Description: "The start side of a multi-line comment (optional)", Enum: GranularPullRequestDiffSide("").JSONSchema().Enum},
 				},
 				Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args AddCommentToPendingReviewInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularPullRequestReviewCommentInput) (*mcp.CallToolResult, *RepositoryMessageOutput, error) {
 			owner, repo, pullNumber := args.Owner, args.Repo, args.PullNumber
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -521,10 +547,12 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			// Convert optional string params: pass nil (not empty string) when absent
 			var sidePtr, startSidePtr *string
 			if args.Side != nil && *args.Side != "" {
-				sidePtr = args.Side
+				side := string(*args.Side)
+				sidePtr = &side
 			}
 			if args.StartSide != nil && *args.StartSide != "" {
-				startSidePtr = args.StartSide
+				startSide := string(*args.StartSide)
+				startSidePtr = &startSide
 			}
 
 			result, err := AddCommentToPendingReviewCall(ctx, gqlClient, AddCommentToPendingReviewParams{
@@ -533,7 +561,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
 				Path:        args.Path,
 				Body:        args.Body,
-				SubjectType: args.SubjectType,
+				SubjectType: string(args.SubjectType),
 				Line:        linePtr,
 				Side:        sidePtr,
 				StartLine:   startLinePtr,
@@ -578,7 +606,7 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 		}
 	}
 
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "resolve_review_thread",
@@ -642,7 +670,7 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 
 // GranularUnresolveReviewThread creates a tool to unresolve a review thread.
 func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "unresolve_review_thread",
@@ -684,11 +712,12 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 
 // GranularAddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
 func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
-			Name:        "add_pull_request_review_comment_reaction",
-			Description: t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Add a reaction to a pull request review comment."),
+			Name:         "add_pull_request_review_comment_reaction",
+			OutputSchema: minimalPullRequestCommentReactionSchema(),
+			Description:  t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Add a reaction to a pull request review comment."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Add Pull Request Review Comment Reaction"),
 				ReadOnlyHint:    false,
@@ -709,17 +738,19 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+						Minimum:     new(1.0),
 					},
 					"content": {
 						Type:        "string",
-						Description: "The emoji reaction type (+1, -1, laugh, confused, heart, hooray, rocket, or eyes)",
+						Description: "The emoji reaction type",
+						Enum:        PullRequestCommentReactionType("").JSONSchema().Enum,
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "content"},
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularAddPullRequestCommentReactionInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularAddPullRequestCommentReactionInput) (*mcp.CallToolResult, *MinimalPullRequestCommentReaction, error) {
 			owner, repo, commentID, content := args.Owner, args.Repo, args.CommentID, args.Content
 
 			client, err := deps.GetClient(ctx)
@@ -727,7 +758,7 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			reaction, resp, err := client.Reactions.CreatePullRequestCommentReaction(ctx, owner, repo, commentID, content)
+			reaction, resp, err := client.Reactions.CreatePullRequestCommentReaction(ctx, owner, repo, commentID, string(content))
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request review comment", resp, err), nil, nil
 			}
@@ -741,7 +772,9 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), output, nil
+			return utils.NewToolResultText(string(r)), &MinimalPullRequestCommentReaction{
+				ID: reaction.GetID(), Content: PullRequestCommentReactionType(reaction.GetContent()),
+			}, nil
 		},
 		normalizeGranularPullRequestArguments("add_reaction"),
 	)
@@ -751,7 +784,7 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 
 // GranularRemovePullRequestReviewCommentReaction removes a reaction from a pull request review comment.
 func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := newGranularPullRequestTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "remove_pull_request_review_comment_reaction",
@@ -776,10 +809,12 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 					"comment_id": {
 						Type:        "number",
 						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+						Minimum:     new(1.0),
 					},
 					"reaction_id": {
 						Type:        "number",
 						Description: "The reaction ID to remove",
+						Minimum:     new(1.0),
 					},
 				},
 				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
