@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/go-github/v92/github"
@@ -16,15 +15,73 @@ type IssueMetadataInput struct {
 	Repo  string `json:"repo,omitempty"`
 }
 
+type IssueReadInput struct {
+	Method      string `json:"method"`
+	Owner       string `json:"owner"`
+	Repo        string `json:"repo"`
+	IssueNumber int    `json:"issue_number"`
+	Page        int    `json:"page,omitempty"`
+	PerPage     int    `json:"perPage,omitempty"`
+}
+
+type SubIssueWriteInput struct {
+	Method        string `json:"method"`
+	Owner         string `json:"owner"`
+	Repo          string `json:"repo"`
+	IssueNumber   int    `json:"issue_number"`
+	SubIssueID    int    `json:"sub_issue_id"`
+	ReplaceParent bool   `json:"replace_parent,omitempty"`
+	AfterID       int    `json:"after_id,omitempty"`
+	BeforeID      int    `json:"before_id,omitempty"`
+}
+
+type IssueReadParentOutput struct {
+	Parent *MinimalIssueDependencyRef `json:"parent"`
+}
+
+type IssueReadLabelOutput struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
+}
+
+type IssueReadLabelsOutput struct {
+	Labels     []IssueReadLabelOutput `json:"labels"`
+	TotalCount int                    `json:"totalCount"`
+}
+
+type IssueReadOutput struct {
+	Issue     *MinimalIssue
+	Comments  []MinimalIssueComment
+	SubIssues []MinimalIssue
+	Parent    *IssueReadParentOutput
+	Labels    *IssueReadLabelsOutput
+}
+
+func (output IssueReadOutput) MarshalJSON() ([]byte, error) {
+	switch {
+	case output.Issue != nil:
+		return json.Marshal(output.Issue)
+	case output.Comments != nil:
+		return json.Marshal(output.Comments)
+	case output.SubIssues != nil:
+		return json.Marshal(output.SubIssues)
+	case output.Parent != nil:
+		return json.Marshal(output.Parent)
+	case output.Labels != nil:
+		return json.Marshal(output.Labels)
+	default:
+		return []byte("null"), nil
+	}
+}
+
 type IssueTypeOutput struct {
-	ID          *int64     `json:"id,omitempty"`
-	NodeID      *string    `json:"node_id,omitempty"`
-	Name        *string    `json:"name,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	Color       *string    `json:"color,omitempty"`
-	IsEnabled   *bool      `json:"is_enabled,omitempty"`
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	ID          *int64  `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	IsEnabled   *bool   `json:"is_enabled,omitempty"`
 }
 
 func issueTypeOutputs(types []*github.IssueType) []*IssueTypeOutput {
@@ -35,9 +92,8 @@ func issueTypeOutputs(types []*github.IssueType) []*IssueTypeOutput {
 	for i, item := range types {
 		if item != nil {
 			output[i] = &IssueTypeOutput{
-				ID: item.ID, NodeID: item.NodeID, Name: item.Name,
-				Description: item.Description, Color: item.Color, IsEnabled: item.IsEnabled,
-				CreatedAt: githubTimestampTime(item.CreatedAt), UpdatedAt: githubTimestampTime(item.UpdatedAt),
+				ID: item.ID, Name: item.Name, Description: item.Description,
+				Color: item.Color, IsEnabled: item.IsEnabled,
 			}
 		}
 	}
@@ -60,52 +116,132 @@ type UpdateIssueCommentInput struct {
 	Body      *string `json:"body"`
 }
 
-// A single mutation returns id/url; a combined comment and reaction returns
-// both references. The explicit union schema excludes partial combinations.
-type AddIssueCommentOutput struct {
-	Single   *MinimalResponse
-	Combined *IssueCommentAndReactionOutput
+type IssueCommentOutput struct {
+	ID      string `json:"id"`
+	HTMLURL string `json:"html_url,omitempty"`
+}
+
+func (output IssueCommentOutput) MarshalJSON() ([]byte, error) {
+	if output.ID == "" && output.HTMLURL == "" {
+		return []byte("null"), nil
+	}
+	type wireOutput IssueCommentOutput
+	return json.Marshal(wireOutput(output))
+}
+
+type IssueReactionOutput struct {
+	ID string `json:"id"`
 }
 
 type IssueCommentAndReactionOutput struct {
-	Comment  MinimalResponse `json:"comment"`
-	Reaction MinimalResponse `json:"reaction"`
+	Comment  IssueCommentOutput  `json:"comment"`
+	Reaction IssueReactionOutput `json:"reaction"`
+}
+
+type AddIssueCommentOutput struct {
+	Single   *IssueCommentOutput
+	Combined *IssueCommentAndReactionOutput
 }
 
 func (output AddIssueCommentOutput) MarshalJSON() ([]byte, error) {
 	if output.Combined != nil {
 		return json.Marshal(output.Combined)
 	}
-	// The SDK serializes a nil typed pointer as its element's zero value even
-	// on errors. Represent an absent union as null, never as a partial object.
+	return json.Marshal(output.Single)
+}
+
+type AddIssueCommentLegacyOutput struct {
+	Single   *MinimalResponse
+	Combined *IssueCommentAndReactionLegacyOutput
+}
+
+type IssueCommentAndReactionLegacyOutput struct {
+	Comment  MinimalResponse `json:"comment"`
+	Reaction MinimalResponse `json:"reaction"`
+}
+
+func (output AddIssueCommentLegacyOutput) MarshalJSON() ([]byte, error) {
+	if output.Combined != nil {
+		return json.Marshal(output.Combined)
+	}
 	return json.Marshal(output.Single)
 }
 
 func addIssueCommentOutputSchema() *jsonschema.Schema {
-	ref := func() *jsonschema.Schema {
-		return &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"id": {Type: "string"}, "url": {Type: "string"},
-			},
-			Required:             []string{"id", "url"},
-			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
-		}
+	comment := func() *jsonschema.Schema {
+		return issueCommentOutputObjectSchema(true)
+	}
+	reaction := func() *jsonschema.Schema {
+		return &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
+			"id": {Type: "string", Description: "The ID of the created reaction."},
+		}, Required: []string{"id"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
 	}
 	return &jsonschema.Schema{
 		Types: []string{"object", "null"},
 		OneOf: []*jsonschema.Schema{
 			{Type: "null"},
-			ref(),
+			comment(),
 			{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
-					"comment": ref(), "reaction": ref(),
+					"id": {Type: "string", Description: "The ID of the created reaction."},
+				},
+				Required:             []string{"id"},
+				AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+			},
+			{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"comment": comment(), "reaction": reaction(),
 				},
 				Required:             []string{"comment", "reaction"},
 				AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 			},
 		},
+	}
+}
+
+func issueCommentOutputSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Types: []string{"object", "null"},
+		OneOf: []*jsonschema.Schema{
+			{Type: "null"},
+			issueCommentOutputObjectSchema(true),
+		},
+	}
+}
+
+func issueCommentOutputObjectSchema(includeURL bool) *jsonschema.Schema {
+	properties := map[string]*jsonschema.Schema{
+		"id": {Type: "string", Description: "The ID of the created comment or reaction."},
+	}
+	required := []string{"id"}
+	if includeURL {
+		properties["html_url"] = &jsonschema.Schema{
+			Type: "string", Description: "The web URL of the created issue comment.",
+		}
+		required = append(required, "html_url")
+	}
+	return &jsonschema.Schema{
+		Type: "object", Properties: properties, Required: required,
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+}
+
+type IssueDependencyState string
+
+type MinimalIssueDependencyRef struct {
+	Number     int                  `json:"number"`
+	Title      string               `json:"title"`
+	State      IssueDependencyState `json:"state"`
+	HTMLURL    string               `json:"html_url"`
+	Repository string               `json:"repository,omitempty"`
+}
+
+func dependencyRefOutput(ref MinimalIssueRef) MinimalIssueDependencyRef {
+	return MinimalIssueDependencyRef{
+		Number: ref.Number, Title: ref.Title, State: IssueDependencyState(ref.State),
+		HTMLURL: ref.URL, Repository: ref.Repository,
 	}
 }
 
@@ -124,6 +260,11 @@ type IssueDependencyPageInfo struct {
 }
 
 type IssueDependencyReadOutput struct {
+	Issues   []MinimalIssueDependencyRef `json:"issues"`
+	PageInfo IssueDependencyPageInfo     `json:"pageInfo"`
+}
+
+type IssueDependencyReadLegacyOutput struct {
 	Issues   []MinimalIssueRef       `json:"issues"`
 	PageInfo IssueDependencyPageInfo `json:"pageInfo"`
 }
@@ -140,9 +281,40 @@ type IssueDependencyWriteInput struct {
 }
 
 type IssueDependencyWriteOutput struct {
+	BlockedIssue  MinimalIssueDependencyRef `json:"blocked_issue"`
+	BlockingIssue MinimalIssueDependencyRef `json:"blocking_issue"`
+	Message       string                    `json:"message"`
+}
+
+type IssueDependencyWriteLegacyOutput struct {
 	BlockedIssue  MinimalIssueRef `json:"blocked_issue"`
 	BlockingIssue MinimalIssueRef `json:"blocking_issue"`
 	Message       string          `json:"message"`
+}
+
+type DuplicateIssueState string
+
+type MinimalDuplicateIssue struct {
+	Number  int                 `json:"number"`
+	Title   string              `json:"title"`
+	State   DuplicateIssueState `json:"state"`
+	HTMLURL string              `json:"html_url"`
+}
+
+type DuplicateConfidence string
+
+type DuplicateCandidate struct {
+	Issue           MinimalDuplicateIssue `json:"issue"`
+	Score           *float64              `json:"score"`
+	Confidence      DuplicateConfidence   `json:"confidence"`
+	LikelyDuplicate bool                  `json:"likely_duplicate"`
+}
+
+type LegacyDuplicateCandidate struct {
+	Issue           MinimalIssueRef     `json:"issue"`
+	Score           *float64            `json:"score"`
+	Confidence      DuplicateConfidence `json:"confidence"`
+	LikelyDuplicate bool                `json:"likely_duplicate"`
 }
 
 type FindDuplicateInput struct {
@@ -152,6 +324,145 @@ type FindDuplicateInput struct {
 	ConfidenceThreshold *float64 `json:"confidence_threshold,omitempty"`
 	Page                *int     `json:"page,omitempty"`
 	PerPage             *int     `json:"perPage,omitempty"`
+}
+
+type IssueFieldOutput struct {
+	ID          string                   `json:"id"`
+	DatabaseID  int64                    `json:"full_database_id,omitempty"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description,omitempty"`
+	DataType    string                   `json:"data_type"`
+	Visibility  string                   `json:"visibility"`
+	Options     []IssueFieldOptionOutput `json:"options,omitempty"`
+}
+
+type IssueFieldOptionOutput struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color"`
+	Priority    *int   `json:"priority,omitempty"`
+}
+
+func issueFieldOutputs(fields []IssueField) []IssueFieldOutput {
+	if fields == nil {
+		return nil
+	}
+	output := make([]IssueFieldOutput, len(fields))
+	for i, field := range fields {
+		output[i] = IssueFieldOutput{
+			ID: field.ID, DatabaseID: field.DatabaseID, Name: field.Name,
+			Description: field.Description, DataType: field.DataType,
+			Visibility: field.Visibility,
+		}
+		if field.Options != nil {
+			output[i].Options = make([]IssueFieldOptionOutput, len(field.Options))
+			for j, option := range field.Options {
+				output[i].Options[j] = IssueFieldOptionOutput(option)
+			}
+		}
+	}
+	return output
+}
+
+func issueOutputSchema[T any]() *jsonschema.Schema {
+	schema, err := jsonschema.For[T](nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate issue output schema: %v", err))
+	}
+	return schema
+}
+
+func issuePaginationValidationSchema(advertised *jsonschema.Schema) *jsonschema.Schema {
+	validation := inventory.CloneSchemaWithoutDefaults(advertised)
+	for _, name := range []string{"page", "perPage"} {
+		property := validation.Properties[name]
+		property.Minimum = new(0.0)
+	}
+	return validation
+}
+
+func issueReadOutputSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Types: []string{"array", "object", "null"},
+		OneOf: []*jsonschema.Schema{
+			issueOutputSchema[*MinimalIssue](),
+			issueOutputSchema[[]MinimalIssueComment](),
+			issueOutputSchema[[]MinimalIssue](),
+			issueOutputSchema[*IssueReadParentOutput](),
+			issueOutputSchema[*IssueReadLabelsOutput](),
+			{Type: "null"},
+		},
+	}
+}
+
+func listIssueFieldsOutputSchema() *jsonschema.Schema {
+	schema := issueOutputSchema[[]IssueFieldOutput]()
+	schema.Items.Properties["id"].Description = "The node ID of the issue field."
+	schema.Items.Properties["full_database_id"].Description = "The database ID of the issue field, when available."
+	schema.Items.Properties["name"].Description = "The field name."
+	schema.Items.Properties["description"].Description = "The field description, when available."
+	schema.Items.Properties["data_type"].Description = "The field value type."
+	schema.Items.Properties["visibility"].Description = "The visibility policy for the field."
+	schema.Items.Properties["options"].Description = "Available values for single-select fields."
+	schema.Items.Properties["data_type"].Enum = []any{"TEXT", "NUMBER", "DATE", "SINGLE_SELECT"}
+	schema.Items.Properties["options"].Items.Properties["id"].Description = "The option node ID."
+	schema.Items.Properties["options"].Items.Properties["name"].Description = "The option name."
+	schema.Items.Properties["options"].Items.Properties["description"].Description = "The option description, when available."
+	schema.Items.Properties["options"].Items.Properties["color"].Description = "The option color."
+	schema.Items.Properties["options"].Items.Properties["priority"].Description = "Display order of this option, when set."
+	return schema
+}
+
+func issueTypeOutputSchema() *jsonschema.Schema {
+	schema := issueOutputSchema[[]*IssueTypeOutput]()
+	schema.Items.Properties["id"].Description = "The issue type ID."
+	schema.Items.Properties["name"].Description = "The issue type name."
+	schema.Items.Properties["description"].Description = "The issue type description, when available."
+	schema.Items.Properties["color"].Description = "The issue type color, when set."
+	schema.Items.Properties["is_enabled"].Description = "Whether this issue type is enabled."
+	return schema
+}
+
+func issueDependencyReadOutputSchema() *jsonschema.Schema {
+	schema := issueOutputSchema[*IssueDependencyReadOutput]()
+	ref := schema.Properties["issues"].Items.Properties
+	ref["number"].Description = "The related issue number."
+	ref["title"].Description = "The sanitized title of the related issue."
+	ref["state"].Description = "The related issue state."
+	ref["html_url"].Description = "The web URL of the related issue."
+	ref["repository"].Description = "The related repository in owner/name form."
+	schema.Properties["issues"].Description = "Related issues in the requested dependency direction."
+	schema.Properties["pageInfo"].Properties["hasNextPage"].Description = "Whether another page of related issues is available."
+	schema.Properties["pageInfo"].Properties["nextPage"].Description = "The next page number, or 0 when no next page exists."
+	return schema
+}
+
+func issueDependencyWriteOutputSchema() *jsonschema.Schema {
+	schema := issueOutputSchema[*IssueDependencyWriteOutput]()
+	for _, field := range []string{"blocked_issue", "blocking_issue"} {
+		ref := schema.Properties[field].Properties
+		ref["number"].Description = "The issue number."
+		ref["title"].Description = "The sanitized issue title."
+		ref["state"].Description = "The issue state."
+		ref["html_url"].Description = "The web URL of the issue."
+		ref["repository"].Description = "The repository in owner/name form."
+	}
+	schema.Properties["message"].Description = "Whether the dependency relationship was added or removed."
+	return schema
+}
+
+func findDuplicateOutputSchema() *jsonschema.Schema {
+	schema := issueOutputSchema[[]DuplicateCandidate]()
+	issue := schema.Items.Properties["issue"].Properties
+	issue["number"].Description = "The candidate issue number."
+	issue["title"].Description = "The sanitized candidate issue title."
+	issue["state"].Description = "The candidate issue state."
+	issue["html_url"].Description = "The web URL of the candidate issue."
+	schema.Items.Properties["score"].Description = "Similarity score on the API-defined scale; null when the API does not return a score."
+	schema.Items.Properties["confidence"].Description = "The API-provided confidence category."
+	schema.Items.Properties["likely_duplicate"].Description = "Whether the API considers this candidate a likely duplicate."
+	return schema
 }
 
 func validateIssueCoordinate(owner, repo string, number int) error {
@@ -243,6 +554,24 @@ func normalizeIssueIntegers(required, optional []string) inventory.InputNormaliz
 			args[field] = value
 		}
 		return json.Marshal(args)
+	}
+}
+
+func normalizeIssueBooleans(fields []string) inventory.InputNormalizer {
+	return func(raw json.RawMessage) (json.RawMessage, error) {
+		var args map[string]any
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, err
+		}
+		for _, field := range fields {
+			if _, exists := args[field]; !exists {
+				continue
+			}
+			if _, err := OptionalParam[bool](args, field); err != nil {
+				return nil, err
+			}
+		}
+		return raw, nil
 	}
 }
 
