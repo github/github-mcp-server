@@ -7,72 +7,31 @@
   },
   "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
   "inputSchema": {
-    "additionalProperties": true,
     "properties": {
       "color": {
-        "anyOf": [
-          {
-            "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'.",
+        "type": "string"
       },
       "description": {
-        "anyOf": [
-          {
-            "description": "Label description text. Optional for 'create' and 'update'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Label description text. Optional for 'create' and 'update'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Label description text. Optional for 'create' and 'update'.",
+        "type": "string"
       },
       "method": {
-        "anyOf": [
-          {
-            "description": "Operation to perform: 'create', 'update', or 'delete'",
-            "enum": [
-              "create",
-              "update",
-              "delete"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "Operation to perform: 'create', 'update', or 'delete'",
+        "enum": [
+          "create",
+          "update",
+          "delete"
         ],
-        "description": "Operation to perform: 'create', 'update', or 'delete' Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "name": {
-        "anyOf": [
-          {
-            "description": "Label name - required for all operations",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Label name - required for all operations Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "description": "Label name - required for all operations",
+        "type": "string"
       },
       "new_name": {
-        "anyOf": [
-          {
-            "description": "New name for the label (used only with 'update' method to rename)",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "New name for the label (used only with 'update' method to rename) Validated by the legacy handler to preserve its error behavior."
+        "description": "New name for the label (used only with 'update' method to rename)",
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner (username or organization name)",
@@ -83,6 +42,12 @@
         "type": "string"
       }
     },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "name"
+    ],
     "type": "object"
   },
   "name": "label_write",
@@ -91,9 +56,18 @@
     "properties": {
       "message": {
         "type": "string"
+      },
+      "method": {
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "type": "string"
       }
     },
     "required": [
+      "method",
       "message"
     ],
     "type": "object"

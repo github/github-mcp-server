@@ -6,138 +6,82 @@
   },
   "description": "Create a new ruleset at the repository, organization, or enterprise level",
   "inputSchema": {
-    "additionalProperties": true,
+    "additionalProperties": false,
     "properties": {
       "bypass_actors": {
-        "anyOf": [
-          {
-            "description": "The actors that can bypass the rules in this ruleset",
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "actor_id": {
-                  "description": "The ID of the actor that can bypass a ruleset",
-                  "type": "number"
-                },
-                "actor_type": {
-                  "description": "The type of actor that can bypass a ruleset. 'EnterpriseOwner' and 'EnterpriseRole' are only valid for 'enterprise' level rulesets.",
-                  "enum": [
-                    "Integration",
-                    "OrganizationAdmin",
-                    "RepositoryRole",
-                    "Team",
-                    "DeployKey",
-                    "User",
-                    "EnterpriseOwner",
-                    "EnterpriseRole"
-                  ],
-                  "type": "string"
-                },
-                "bypass_mode": {
-                  "description": "When the specified actor can bypass the ruleset. 'pull_request' only applies to branch rulesets and is not valid for the 'DeployKey' actor type. 'exempt' means rules are not run for that actor and no bypass audit entry is created.",
-                  "enum": [
-                    "always",
-                    "pull_request",
-                    "exempt"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "actor_type",
-                "bypass_mode"
-              ],
-              "type": "object"
+        "description": "The actors that can bypass the rules in this ruleset",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "actor_id": {
+              "description": "The ID of the actor that can bypass a ruleset",
+              "type": "number"
             },
-            "type": "array"
+            "actor_type": {
+              "description": "The type of actor that can bypass a ruleset. 'EnterpriseOwner' and 'EnterpriseRole' are only valid for 'enterprise' level rulesets.",
+              "enum": [
+                "Integration",
+                "OrganizationAdmin",
+                "RepositoryRole",
+                "Team",
+                "DeployKey",
+                "User",
+                "EnterpriseOwner",
+                "EnterpriseRole"
+              ],
+              "type": "string"
+            },
+            "bypass_mode": {
+              "description": "When the specified actor can bypass the ruleset. 'pull_request' only applies to branch rulesets and is not valid for the 'DeployKey' actor type. 'exempt' means rules are not run for that actor and no bypass audit entry is created.",
+              "enum": [
+                "always",
+                "pull_request",
+                "exempt"
+              ],
+              "type": "string"
+            }
           },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "The actors that can bypass the rules in this ruleset Validated by the legacy handler to preserve its error behavior."
+          "required": [
+            "actor_type",
+            "bypass_mode"
+          ],
+          "type": "object"
+        },
+        "type": "array"
       },
       "conditions": {
-        "anyOf": [
-          {
-            "description": "Conditions for when this ruleset applies, e.g. {\"ref_name\": {\"include\": [\"refs/heads/main\"], \"exclude\": []}}",
-            "type": "object"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Conditions for when this ruleset applies, e.g. {\"ref_name\": {\"include\": [\"refs/heads/main\"], \"exclude\": []}} Validated by the legacy handler to preserve its error behavior."
+        "description": "Conditions for when this ruleset applies, e.g. {\"ref_name\": {\"include\": [\"refs/heads/main\"], \"exclude\": []}}",
+        "type": "object"
       },
       "enforcement": {
-        "anyOf": [
-          {
-            "description": "The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them",
-            "enum": [
-              "disabled",
-              "active",
-              "evaluate"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them",
+        "enum": [
+          "disabled",
+          "active",
+          "evaluate"
         ],
-        "description": "The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "enterprise": {
-        "anyOf": [
-          {
-            "description": "Enterprise slug. Required when level is 'enterprise'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
       },
       "level": {
-        "anyOf": [
-          {
-            "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
-            "enum": [
-              "repository",
-              "organization",
-              "enterprise"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
         ],
-        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "name": {
-        "anyOf": [
-          {
-            "description": "The name of the ruleset",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "The name of the ruleset Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "description": "The name of the ruleset",
+        "type": "string"
       },
       "org": {
-        "anyOf": [
-          {
-            "description": "Organization name. Required when level is 'organization'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner. Required when level is 'repository'.",
@@ -148,515 +92,307 @@
         "type": "string"
       },
       "rules": {
-        "anyOf": [
-          {
-            "description": "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object",
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "parameters": {
-                  "description": "Parameters for rule types that require additional configuration",
-                  "type": "object"
-                },
-                "type": {
-                  "description": "The type of rule, e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks'",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type"
-              ],
+        "description": "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "description": "Parameters for rule types that require additional configuration",
               "type": "object"
             },
-            "type": "array"
+            "type": {
+              "description": "The type of rule, e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks'",
+              "type": "string"
+            }
           },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
       },
       "target": {
-        "anyOf": [
-          {
-            "description": "The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets.",
-            "enum": [
-              "branch",
-              "tag",
-              "push",
-              "repository"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets.",
+        "enum": [
+          "branch",
+          "tag",
+          "push",
+          "repository"
         ],
-        "description": "The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       }
     },
+    "required": [
+      "level",
+      "name",
+      "enforcement",
+      "rules"
+    ],
     "type": "object"
   },
   "name": "create_repository_ruleset",
   "outputSchema": {
-    "additionalProperties": false,
-    "properties": {
-      "_links": {
+    "$defs": {
+      "idCondition": {
         "additionalProperties": false,
         "properties": {
-          "html": {
-            "additionalProperties": false,
-            "properties": {
-              "href": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              }
+          "organization_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "repository_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "nameCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
             },
             "type": [
               "null",
-              "object"
+              "array"
             ]
           },
-          "self": {
-            "additionalProperties": false,
-            "properties": {
-              "href": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              }
+          "include": {
+            "items": {
+              "type": "string"
             },
             "type": [
               "null",
-              "object"
+              "array"
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "propertyCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
             ]
           }
         },
-        "type": [
-          "null",
-          "object"
-        ]
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
       },
+      "rule": {
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "description": "User-configured parameters for this rule type.",
+            "type": "object"
+          },
+          "ruleset_id": {
+            "type": "integer"
+          },
+          "ruleset_source": {
+            "type": "string"
+          },
+          "ruleset_source_type": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
       "bypass_actors": {
         "items": {
           "additionalProperties": false,
           "properties": {
             "actor_id": {
-              "type": [
-                "null",
-                "integer"
-              ]
+              "type": "integer"
             },
             "actor_type": {
-              "type": [
-                "null",
-                "string"
-              ]
+              "type": "string"
             },
             "bypass_mode": {
-              "type": [
-                "null",
-                "string"
-              ]
+              "type": "string"
             }
           },
-          "type": [
-            "null",
-            "object"
-          ]
+          "required": [
+            "actor_type",
+            "bypass_mode"
+          ],
+          "type": "object"
         },
-        "type": [
-          "null",
-          "array"
-        ]
+        "type": "array"
       },
       "conditions": {
         "additionalProperties": false,
         "properties": {
           "organization_id": {
-            "additionalProperties": false,
-            "properties": {
-              "organization_ids": {
-                "items": {
-                  "type": "integer"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/idCondition",
+            "type": "object"
           },
           "organization_name": {
-            "additionalProperties": false,
-            "properties": {
-              "exclude": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "include": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "required": [
-              "include",
-              "exclude"
-            ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
           },
           "organization_property": {
-            "additionalProperties": false,
-            "properties": {
-              "exclude": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "property_values": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "source": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "property_values"
-                  ],
-                  "type": [
-                    "null",
-                    "object"
-                  ]
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "include": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "property_values": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "source": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "property_values"
-                  ],
-                  "type": [
-                    "null",
-                    "object"
-                  ]
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "required": [
-              "include",
-              "exclude"
-            ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/propertyCondition",
+            "type": "object"
           },
           "ref_name": {
-            "additionalProperties": false,
-            "properties": {
-              "exclude": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "include": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "required": [
-              "include",
-              "exclude"
-            ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
           },
           "repository_id": {
-            "additionalProperties": false,
-            "properties": {
-              "repository_ids": {
-                "items": {
-                  "type": "integer"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/idCondition",
+            "type": "object"
           },
           "repository_name": {
-            "additionalProperties": false,
-            "properties": {
-              "exclude": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "include": {
-                "items": {
-                  "type": "string"
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "protected": {
-                "type": [
-                  "null",
-                  "boolean"
-                ]
-              }
-            },
-            "required": [
-              "include",
-              "exclude"
-            ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
           },
           "repository_property": {
-            "additionalProperties": false,
-            "properties": {
-              "exclude": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "property_values": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "source": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "property_values"
-                  ],
-                  "type": [
-                    "null",
-                    "object"
-                  ]
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "include": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "property_values": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
-                    },
-                    "source": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "property_values"
-                  ],
-                  "type": [
-                    "null",
-                    "object"
-                  ]
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              }
-            },
-            "required": [
-              "include",
-              "exclude"
-            ],
-            "type": [
-              "null",
-              "object"
-            ]
+            "$ref": "#/$defs/propertyCondition",
+            "type": "object"
           }
         },
-        "type": [
-          "null",
-          "object"
-        ]
+        "type": "object"
       },
       "created_at": {
+        "description": "RFC3339 creation time.",
         "format": "date-time",
-        "type": [
-          "null",
-          "string"
-        ]
+        "type": "string"
       },
       "current_user_can_bypass": {
-        "type": [
-          "null",
-          "string"
-        ]
+        "type": "string"
       },
       "enforcement": {
+        "enum": [
+          "",
+          "disabled",
+          "active",
+          "evaluate"
+        ],
         "type": "string"
       },
       "id": {
-        "type": [
-          "null",
-          "integer"
-        ]
+        "type": "integer"
       },
       "name": {
         "type": "string"
       },
-      "node_id": {
-        "type": [
-          "null",
-          "string"
-        ]
-      },
       "rules": {
-        "anyOf": [
-          {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array"
-          },
-          {
-            "type": "null"
-          }
-        ]
+        "items": {
+          "$ref": "#/$defs/rule",
+          "type": "object"
+        },
+        "type": "array"
       },
       "source": {
         "type": "string"
       },
       "source_type": {
-        "type": [
-          "null",
-          "string"
-        ]
+        "enum": [
+          "Repository",
+          "Organization",
+          "Enterprise"
+        ],
+        "type": "string"
       },
       "target": {
-        "type": [
-          "null",
-          "string"
-        ]
+        "enum": [
+          "branch",
+          "tag",
+          "push",
+          "repository"
+        ],
+        "type": "string"
       },
       "updated_at": {
+        "description": "RFC3339 last update time.",
         "format": "date-time",
-        "type": [
-          "null",
-          "string"
-        ]
+        "type": "string"
       }
     },
     "required": [
@@ -664,9 +400,6 @@
       "source",
       "enforcement"
     ],
-    "type": [
-      "null",
-      "object"
-    ]
+    "type": "object"
   }
 }

@@ -6,19 +6,10 @@
   },
   "description": "Get a specific label from a repository.",
   "inputSchema": {
-    "additionalProperties": true,
     "properties": {
       "name": {
-        "anyOf": [
-          {
-            "description": "Label name.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Label name. Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "description": "Label name.",
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner (username or organization name)",
@@ -29,6 +20,11 @@
         "type": "string"
       }
     },
+    "required": [
+      "owner",
+      "repo",
+      "name"
+    ],
     "type": "object"
   },
   "name": "get_label",
@@ -36,12 +32,10 @@
     "additionalProperties": false,
     "properties": {
       "color": {
+        "description": "Hex RGB without leading #.",
         "type": "string"
       },
       "description": {
-        "type": "string"
-      },
-      "id": {
         "type": "string"
       },
       "name": {
@@ -49,7 +43,6 @@
       }
     },
     "required": [
-      "id",
       "name",
       "color",
       "description"

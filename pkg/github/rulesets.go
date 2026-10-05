@@ -93,7 +93,7 @@ func rulesetWriteScopeAccess() inventory.ScopeAccess {
 
 // RepositoryRulesetRead creates a tool for ruleset and rule-suite reads.
 func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return typedGovernanceTool(repositoryRulesetReadLegacy(t), rulesetReadOutputSchema(), decodeRawGovernanceJSON)
+	return typedGovernanceTool(repositoryRulesetReadLegacy(t), rulesetReadOutputSchema(), decodeRulesetRead, normalizeGovernanceLevelRouting)
 }
 
 func repositoryRulesetReadLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -646,7 +646,8 @@ func CreateRepositoryRuleset(t translations.TranslationHelperFunc) inventory.Ser
 	return typedGovernanceTool(
 		createRepositoryRulesetLegacy(t),
 		createdRulesetOutputSchema(),
-		decodeGovernanceJSON[*github.RepositoryRuleset],
+		decodeGovernanceJSON[RulesetOutput],
+		normalizeGovernanceLevelRouting,
 	)
 }
 

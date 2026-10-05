@@ -23,7 +23,7 @@ const customPropertiesLevelDescription = "The level at which custom properties a
 
 // CustomPropertiesRead creates the custom properties read tool.
 func CustomPropertiesRead(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return typedGovernanceTool(customPropertiesReadLegacy(t), customPropertiesReadOutputSchema(), decodeRawGovernanceJSON)
+	return typedGovernanceTool(customPropertiesReadLegacy(t), customPropertiesReadOutputSchema(), decodeCustomProperties("read"), normalizeGovernanceLevelRouting)
 }
 
 func customPropertiesReadLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -141,7 +141,7 @@ func customPropertiesReadEnterprise(ctx context.Context, client *github.Client, 
 
 // CustomPropertiesWrite creates the custom properties write tool.
 func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return typedGovernanceTool(customPropertiesWriteLegacy(t), customPropertiesWriteOutputSchema(), decodeCustomPropertiesWrite)
+	return typedGovernanceTool(customPropertiesWriteLegacy(t), customPropertiesWriteOutputSchema(), decodeCustomProperties("write"), normalizeGovernanceLevelRouting)
 }
 
 func customPropertiesWriteLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {

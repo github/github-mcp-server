@@ -28,9 +28,9 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.Empty(t, schema.Required)
-	assert.Contains(t, schema.Properties["level"].Description, "Required by the legacy handler")
-	assert.Contains(t, schema.Properties["method"].Description, "Required by the legacy handler")
+	assert.ElementsMatch(t, []string{"level", "method"}, schema.Required)
+	assert.Equal(t, "string", schema.Properties["level"].Type)
+	assert.Equal(t, "string", schema.Properties["method"].Type)
 
 	t.Run("repository level: get defaults includes_parents to true", func(t *testing.T) {
 		var capturedQuery url.Values
@@ -541,12 +541,9 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
-	assert.Empty(t, schema.Required)
-	for _, name := range []string{"level", "name", "enforcement", "rules"} {
-		assert.Contains(t, schema.Properties[name].Description, "Required by the legacy handler")
-	}
+	assert.ElementsMatch(t, []string{"level", "name", "enforcement", "rules"}, schema.Required)
 	require.NotNil(t, schema.AdditionalProperties)
-	assert.Nil(t, schema.AdditionalProperties.Not, "the legacy handler determines treatment of extra fields")
+	assert.NotNil(t, schema.AdditionalProperties.Not)
 
 	propertyNames := make([]string, 0, len(schema.Properties))
 	for name := range schema.Properties {
@@ -566,7 +563,7 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 		"bypass_actors",
 	}, propertyNames)
 
-	bypassActorSchema := schema.Properties["bypass_actors"].AnyOf[0].Items
+	bypassActorSchema := schema.Properties["bypass_actors"].Items
 	require.NotNil(t, bypassActorSchema)
 	assert.ElementsMatch(t, []string{"actor_type", "bypass_mode"}, bypassActorSchema.Required)
 	assert.ElementsMatch(t, []any{"always", "pull_request", "exempt"}, bypassActorSchema.Properties["bypass_mode"].Enum)

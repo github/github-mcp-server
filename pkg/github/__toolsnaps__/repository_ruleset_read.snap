@@ -6,553 +6,538 @@
   },
   "description": "Read rulesets at the repository, organization, or enterprise level, and rule suites at the repository or organization level. Select the level with the 'level' parameter and the operation with the 'method' parameter.",
   "inputSchema": {
-    "additionalProperties": true,
     "properties": {
       "actor_name": {
-        "anyOf": [
-          {
-            "description": "The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior."
+        "description": "The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method.",
+        "type": "string"
       },
       "branch": {
-        "anyOf": [
-          {
-            "description": "Branch name. Required for the 'get_rules_for_branch' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Branch name. Required for the 'get_rules_for_branch' method. Validated by the legacy handler to preserve its error behavior."
+        "description": "Branch name. Required for the 'get_rules_for_branch' method.",
+        "type": "string"
       },
       "enterprise": {
-        "anyOf": [
-          {
-            "description": "Enterprise slug. Required when level is 'enterprise'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Enterprise slug. Required when level is 'enterprise'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
       },
       "evaluate_status": {
-        "anyOf": [
-          {
-            "description": "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method.",
-            "enum": [
-              "all",
-              "active",
-              "evaluate"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "all",
+          "active",
+          "evaluate"
         ],
-        "description": "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "includes_parents": {
-        "anyOf": [
-          {
-            "description": "Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level.",
-            "type": "boolean"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. Validated by the legacy handler to preserve its error behavior."
+        "description": "Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level.",
+        "type": "boolean"
       },
       "level": {
-        "anyOf": [
-          {
-            "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
-            "enum": [
-              "repository",
-              "organization",
-              "enterprise"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
         ],
-        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "method": {
-        "anyOf": [
-          {
-            "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only.",
-            "enum": [
-              "get",
-              "list",
-              "get_rules_for_branch",
-              "list_rule_suites",
-              "get_rule_suite"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only.",
+        "enum": [
+          "get",
+          "list",
+          "get_rules_for_branch",
+          "list_rule_suites",
+          "get_rule_suite"
         ],
-        "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. Required by the legacy handler. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "org": {
-        "anyOf": [
-          {
-            "description": "Organization name. Required when level is 'organization'.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Organization name. Required when level is 'organization'. Validated by the legacy handler to preserve its error behavior."
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner. Required when level is 'repository'.",
         "type": "string"
       },
       "page": {
-        "anyOf": [
-          {
-            "description": "Page number for pagination (min 1)",
-            "minimum": 1,
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Page number for pagination (min 1) Validated by the legacy handler to preserve its error behavior."
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "anyOf": [
-          {
-            "description": "Results per page for pagination (min 1, max 100)",
-            "maximum": 100,
-            "minimum": 1,
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Results per page for pagination (min 1, max 100) Validated by the legacy handler to preserve its error behavior."
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
       },
       "ref": {
-        "anyOf": [
-          {
-            "description": "The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior."
+        "description": "The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method.",
+        "type": "string"
       },
       "repo": {
         "description": "Repository name. Required when level is 'repository'.",
         "type": "string"
       },
       "repository_name": {
-        "anyOf": [
-          {
-            "description": "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level.",
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. Validated by the legacy handler to preserve its error behavior."
+        "description": "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level.",
+        "type": "string"
       },
       "rule_suite_id": {
-        "anyOf": [
-          {
-            "description": "Rule suite ID. Required for the 'get_rule_suite' method.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Rule suite ID. Required for the 'get_rule_suite' method. Validated by the legacy handler to preserve its error behavior."
+        "description": "Rule suite ID. Required for the 'get_rule_suite' method.",
+        "type": "number"
       },
       "rule_suite_result": {
-        "anyOf": [
-          {
-            "description": "The rule suite result to filter by. Used by the 'list_rule_suites' method.",
-            "enum": [
-              "pass",
-              "fail",
-              "bypass",
-              "all"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The rule suite result to filter by. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "pass",
+          "fail",
+          "bypass",
+          "all"
         ],
-        "description": "The rule suite result to filter by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       },
       "ruleset_id": {
-        "anyOf": [
-          {
-            "description": "Ruleset ID. Required for the 'get' method.",
-            "type": "number"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
-        ],
-        "description": "Ruleset ID. Required for the 'get' method. Validated by the legacy handler to preserve its error behavior."
+        "description": "Ruleset ID. Required for the 'get' method.",
+        "type": "number"
       },
       "time_period": {
-        "anyOf": [
-          {
-            "description": "The time period to filter rule suites by. Used by the 'list_rule_suites' method.",
-            "enum": [
-              "hour",
-              "day",
-              "week",
-              "month"
-            ],
-            "type": "string"
-          },
-          {
-            "description": "Other JSON values are validated by the legacy handler."
-          }
+        "description": "The time period to filter rule suites by. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month"
         ],
-        "description": "The time period to filter rule suites by. Used by the 'list_rule_suites' method. Validated by the legacy handler to preserve its error behavior."
+        "type": "string"
       }
     },
+    "required": [
+      "level",
+      "method"
+    ],
     "type": "object"
   },
   "name": "repository_ruleset_read",
   "outputSchema": {
-    "anyOf": [
-      {
-        "additionalProperties": true,
-        "description": "A repository, organization, or enterprise ruleset.",
+    "$defs": {
+      "idCondition": {
+        "additionalProperties": false,
         "properties": {
-          "bypass_actors": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+          "organization_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "repository_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "nameCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "propertyCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
                 },
-                "type": "array"
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
               },
-              {
-                "type": "null"
-              }
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
             ]
           },
-          "conditions": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
+          "include": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
               },
-              {
-                "type": "null"
-              }
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
             ]
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "rule": {
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "description": "User-configured parameters for this rule type.",
+            "type": "object"
           },
-          "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "ruleset_id": {
+            "type": "integer"
           },
-          "enforcement": {
+          "ruleset_source": {
+            "type": "string"
+          },
+          "ruleset_source_type": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "ruleSuite": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "type": "integer"
+          },
+          "actor_name": {
+            "type": "string"
+          },
+          "after_sha": {
+            "type": "string"
+          },
+          "before_sha": {
             "type": "string"
           },
           "id": {
-            "anyOf": [
-              {
-                "type": "integer"
+            "type": "integer"
+          },
+          "pushed_at": {
+            "description": "RFC3339 push time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "repository_id": {
+            "type": "integer"
+          },
+          "repository_name": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "bypass"
+            ],
+            "type": "string"
+          },
+          "rule_evaluations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "details": {
+                  "type": "string"
+                },
+                "enforcement": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                },
+                "rule_source": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "rule_type": {
+                  "type": "string"
+                }
               },
-              {
-                "type": "null"
+              "required": [
+                "result",
+                "rule_type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "result"
+        ],
+        "type": "object"
+      },
+      "ruleset": {
+        "additionalProperties": false,
+        "properties": {
+          "bypass_actors": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "actor_id": {
+                  "type": "integer"
+                },
+                "actor_type": {
+                  "type": "string"
+                },
+                "bypass_mode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actor_type",
+                "bypass_mode"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "additionalProperties": false,
+            "properties": {
+              "organization_id": {
+                "$ref": "#/$defs/idCondition",
+                "type": "object"
+              },
+              "organization_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "organization_property": {
+                "$ref": "#/$defs/propertyCondition",
+                "type": "object"
+              },
+              "ref_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "repository_id": {
+                "$ref": "#/$defs/idCondition",
+                "type": "object"
+              },
+              "repository_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "repository_property": {
+                "$ref": "#/$defs/propertyCondition",
+                "type": "object"
               }
-            ]
+            },
+            "type": "object"
+          },
+          "created_at": {
+            "description": "RFC3339 creation time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "current_user_can_bypass": {
+            "type": "string"
+          },
+          "enforcement": {
+            "enum": [
+              "",
+              "disabled",
+              "active",
+              "evaluate"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
           },
           "name": {
             "type": "string"
           },
           "rules": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "items": {
+              "$ref": "#/$defs/rule",
+              "type": "object"
+            },
+            "type": "array"
           },
           "source": {
             "type": "string"
           },
+          "source_type": {
+            "enum": [
+              "Repository",
+              "Organization",
+              "Enterprise"
+            ],
+            "type": "string"
+          },
           "target": {
+            "enum": [
+              "branch",
+              "tag",
+              "push",
+              "repository"
+            ],
             "type": "string"
           },
           "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "description": "RFC3339 last update time.",
+            "format": "date-time",
+            "type": "string"
           }
         },
+        "required": [
+          "name",
+          "source",
+          "enforcement"
+        ],
         "type": "object"
-      },
-      {
-        "items": {
-          "additionalProperties": true,
-          "description": "A repository, organization, or enterprise ruleset.",
-          "properties": {
-            "bypass_actors": {
-              "anyOf": [
-                {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "conditions": {
-              "anyOf": [
-                {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "created_at": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "enforcement": {
-              "type": "string"
-            },
-            "id": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "name": {
-              "type": "string"
-            },
-            "rules": {
-              "anyOf": [
-                {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "source": {
-              "type": "string"
-            },
-            "target": {
-              "type": "string"
-            },
-            "updated_at": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "type": "object"
-        },
-        "type": "array"
-      },
-      {
-        "items": {
-          "additionalProperties": true,
-          "type": "object"
-        },
-        "type": "array"
-      },
-      {
-        "additionalProperties": true,
-        "description": "An enterprise ruleset listing response or rule suite.",
-        "properties": {
-          "rulesets": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "description": "A repository, organization, or enterprise ruleset.",
-                  "properties": {
-                    "bypass_actors": {
-                      "anyOf": [
-                        {
-                          "items": {
-                            "additionalProperties": true,
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "conditions": {
-                      "anyOf": [
-                        {
-                          "additionalProperties": true,
-                          "type": "object"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "created_at": {
-                      "anyOf": [
-                        {
-                          "format": "date-time",
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "enforcement": {
-                      "type": "string"
-                    },
-                    "id": {
-                      "anyOf": [
-                        {
-                          "type": "integer"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "rules": {
-                      "anyOf": [
-                        {
-                          "items": {
-                            "additionalProperties": true,
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "source": {
-                      "type": "string"
-                    },
-                    "target": {
-                      "type": "string"
-                    },
-                    "updated_at": {
-                      "anyOf": [
-                        {
-                          "format": "date-time",
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "total_count": {
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      {
-        "additionalProperties": true,
-        "type": "object"
-      },
-      {
-        "type": "null"
       }
-    ]
+    },
+    "additionalProperties": false,
+    "properties": {
+      "level": {
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "enum": [
+          "get",
+          "list",
+          "get_rules_for_branch",
+          "list_rule_suites",
+          "get_rule_suite"
+        ],
+        "type": "string"
+      },
+      "rule_suite": {
+        "$ref": "#/$defs/ruleSuite",
+        "type": "object"
+      },
+      "rule_suites": {
+        "items": {
+          "$ref": "#/$defs/ruleSuite",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "rules": {
+        "items": {
+          "$ref": "#/$defs/rule",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "ruleset": {
+        "$ref": "#/$defs/ruleset",
+        "type": "object"
+      },
+      "rulesets": {
+        "items": {
+          "$ref": "#/$defs/ruleset",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "method",
+      "level"
+    ],
+    "type": "object"
   }
 }

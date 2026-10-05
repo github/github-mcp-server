@@ -24,7 +24,7 @@ const labelOrderFieldIssueCount githubv4.LabelOrderField = "ISSUE_COUNT"
 
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return typedGovernanceTool(getLabelLegacy(t), labelOutputSchema(), decodeGovernanceJSON[LabelOutput])
+	return typedGovernanceTool(getLabelLegacy(t), labelOutputSchema(), decodeGovernanceJSON[MinimalLabel])
 }
 
 func getLabelLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -236,8 +236,8 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 
 // LabelWrite handles create, update, and delete operations for GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return typedGovernanceTool(labelWriteLegacy(t), labelWriteOutputSchema(), func(raw []byte) (LabelWriteOutput, error) {
-		return LabelWriteOutput{Message: string(raw)}, nil
+	return typedGovernanceTool(labelWriteLegacy(t), labelWriteOutputSchema(), func(raw []byte, args map[string]json.RawMessage) (LabelWriteOutput, error) {
+		return LabelWriteOutput{Method: strings.ToLower(governanceArgument(args, "method")), Message: string(raw)}, nil
 	})
 }
 
