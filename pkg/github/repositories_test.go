@@ -735,6 +735,22 @@ func Test_GetFileContents_ContentlessRequestCounts(t *testing.T) {
 		require.True(t, ok)
 	})
 
+	t.Run("large file with encoding none", func(t *testing.T) {
+		result, requests := runRepositoryReadFixture(t, repositoryReadFixture{
+			contents: &github.RepositoryContent{
+				Type: new("file"), Path: new("large.bin"), SHA: new(fileSHA), Size: new(largeSize),
+				Content: new(""), Encoding: new("none"),
+			},
+			trees: map[string]*github.Tree{commitSHA: {Entries: []*github.TreeEntry{
+				{Path: new("large.bin"), Mode: new("100644"), Type: new("blob"), SHA: new(fileSHA)},
+			}}},
+		}, args("large.bin"))
+		require.False(t, result.IsError)
+		assert.Equal(t, 2, requests)
+		_, ok := result.Content[1].(*mcp.ResourceLink)
+		require.True(t, ok)
+	})
+
 	t.Run("internal large link uses exact-path tree descent", func(t *testing.T) {
 		target := "../target.bin"
 		linkSHA := gitBlobSHA([]byte(target))
