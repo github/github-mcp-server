@@ -822,7 +822,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithSchemaOptions[IssueReadInput, IssueReadOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_read",
@@ -831,41 +831,29 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: issueReadOutputSchema(),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		inventory.TypedSchemaOptions{ValidationInputSchema: issuePaginationValidationSchema(schema), PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueReadInput) (*mcp.CallToolResult, IssueReadOutput, error) {
+			method, owner, repo, issueNumber := input.Method, input.Owner, input.Repo, input.IssueNumber
+			pagination := PaginationParams{Page: input.Page, PerPage: input.PerPage}
+			if pagination.Page == 0 {
+				pagination.Page = 1
 			}
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if pagination.PerPage == 0 {
+				pagination.PerPage = 30
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), IssueReadOutput{}, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), IssueReadOutput{}, nil
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
@@ -876,23 +864,91 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			switch method {
 			case "get":
 				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				return issueReadTypedResult(method, attachIFC(result), err)
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return attachIFC(result), nil, err
+				return issueReadTypedResult(method, attachIFC(result), err)
 			case "get_sub_issues":
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return attachIFC(result), nil, err
+				return issueReadTypedResult(method, attachIFC(result), err)
 			case "get_parent":
 				result, err := GetIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				return issueReadTypedResult(method, attachIFC(result), err)
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-				return attachIFC(result), nil, err
+				return issueReadTypedResult(method, attachIFC(result), err)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), IssueReadOutput{}, nil
 			}
-		})
+		},
+		normalizeIssueStrings([]string{"method", "owner", "repo"}, nil),
+		normalizeIssueIntegers([]string{"issue_number"}, []string{"page", "perPage"}))
+}
+
+func issueReadTypedResult(method string, result *mcp.CallToolResult, err error) (*mcp.CallToolResult, IssueReadOutput, error) {
+	if err != nil || result == nil || result.IsError {
+		return result, IssueReadOutput{}, err
+	}
+	if len(result.Content) != 1 {
+		return nil, IssueReadOutput{}, fmt.Errorf("issue read returned %d content items, expected one", len(result.Content))
+	}
+	text, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		return nil, IssueReadOutput{}, fmt.Errorf("issue read returned %T content, expected text", result.Content[0])
+	}
+
+	switch method {
+	case "get":
+		var issue MinimalIssue
+		if err := json.Unmarshal([]byte(text.Text), &issue); err != nil {
+			return nil, IssueReadOutput{}, fmt.Errorf("failed to decode issue read output: %w", err)
+		}
+		return result, IssueReadOutput{Issue: &issue}, nil
+	case "get_comments":
+		var comments []MinimalIssueComment
+		if err := json.Unmarshal([]byte(text.Text), &comments); err != nil {
+			return nil, IssueReadOutput{}, fmt.Errorf("failed to decode issue comments output: %w", err)
+		}
+		if comments == nil {
+			comments = make([]MinimalIssueComment, 0)
+		}
+		return result, IssueReadOutput{Comments: comments}, nil
+	case "get_sub_issues":
+		var subIssues []*github.SubIssue
+		if err := json.Unmarshal([]byte(text.Text), &subIssues); err != nil {
+			return nil, IssueReadOutput{}, fmt.Errorf("failed to decode sub-issues output: %w", err)
+		}
+		minimal := make([]MinimalIssue, 0, len(subIssues))
+		for _, subIssue := range subIssues {
+			if subIssue != nil {
+				minimal = append(minimal, convertToMinimalIssue((*github.Issue)(subIssue)))
+			}
+		}
+		return result, IssueReadOutput{SubIssues: minimal}, nil
+	case "get_parent":
+		var legacy struct {
+			Parent *MinimalIssueRef `json:"parent"`
+		}
+		if err := json.Unmarshal([]byte(text.Text), &legacy); err != nil {
+			return nil, IssueReadOutput{}, fmt.Errorf("failed to decode issue parent output: %w", err)
+		}
+		var parent *MinimalIssueDependencyRef
+		if legacy.Parent != nil {
+			parent = new(dependencyRefOutput(*legacy.Parent))
+		}
+		return result, IssueReadOutput{Parent: &IssueReadParentOutput{Parent: parent}}, nil
+	case "get_labels":
+		var labels IssueReadLabelsOutput
+		if err := json.Unmarshal([]byte(text.Text), &labels); err != nil {
+			return nil, IssueReadOutput{}, fmt.Errorf("failed to decode issue labels output: %w", err)
+		}
+		if labels.Labels == nil {
+			labels.Labels = make([]IssueReadLabelOutput, 0)
+		}
+		return result, IssueReadOutput{Labels: &labels}, nil
+	default:
+		return nil, IssueReadOutput{}, fmt.Errorf("unknown issue read method %q", method)
+	}
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -1261,7 +1317,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 // ListIssueTypes creates a tool to list defined issue types for an organization or repository.
 // This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool[IssueMetadataInput, []*IssueTypeOutput](
+	st := NewToolWithSchemaOptions[IssueMetadataInput, []*IssueTypeOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
@@ -1284,8 +1340,10 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				Required: []string{"owner"},
 			},
+			OutputSchema: issueTypeOutputSchema(),
 		},
 		repositoryOrOrganizationScopeAccess(),
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueMetadataInput) (*mcp.CallToolResult, []*IssueTypeOutput, error) {
 			owner, repo := input.Owner, input.Repo
 			if owner == "" {
@@ -1360,7 +1418,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // AddIssueComment creates a tool to add a comment or reaction to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[AddIssueCommentInput, *AddIssueCommentOutput](
+	return NewToolWithSchemaOptions[AddIssueCommentInput, *AddIssueCommentOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
@@ -1405,6 +1463,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			OutputSchema: addIssueCommentOutputSchema(),
 		},
 		publicRepositoryWriteScopeAccess(),
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input AddIssueCommentInput) (*mcp.CallToolResult, *AddIssueCommentOutput, error) {
 			owner, repo, issueNumber := input.Owner, input.Repo, input.IssueNumber
 			if err := validateIssueCoordinate(owner, repo, issueNumber); err != nil {
@@ -1516,17 +1575,24 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				}
 			}
 
+			legacyResult := &AddIssueCommentLegacyOutput{}
 			result := &AddIssueCommentOutput{}
 			switch {
 			case hasBody && hasReaction:
-				result.Combined = &IssueCommentAndReactionOutput{Comment: *commentResponse, Reaction: *reactionResponse}
+				legacyResult.Combined = &IssueCommentAndReactionLegacyOutput{Comment: *commentResponse, Reaction: *reactionResponse}
+				result.Combined = &IssueCommentAndReactionOutput{
+					Comment:  IssueCommentOutput{ID: commentResponse.ID, HTMLURL: commentResponse.URL},
+					Reaction: IssueReactionOutput{ID: reactionResponse.ID},
+				}
 			case hasReaction:
-				result.Single = reactionResponse
+				legacyResult.Single = reactionResponse
+				result.Single = &IssueCommentOutput{ID: reactionResponse.ID}
 			default:
-				result.Single = commentResponse
+				legacyResult.Single = commentResponse
+				result.Single = &IssueCommentOutput{ID: commentResponse.ID, HTMLURL: commentResponse.URL}
 			}
 
-			r, err := json.Marshal(result)
+			r, err := json.Marshal(legacyResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1538,7 +1604,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
 func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[UpdateIssueCommentInput, *MinimalResponse](
+	return NewToolWithSchemaOptions[UpdateIssueCommentInput, *IssueCommentOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_comment",
@@ -1571,9 +1637,11 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				},
 				Required: []string{"owner", "repo", "comment_id", "body"},
 			},
+			OutputSchema: issueCommentOutputSchema(),
 		},
 		publicRepositoryWriteScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueCommentInput) (*mcp.CallToolResult, *MinimalResponse, error) {
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueCommentInput) (*mcp.CallToolResult, *IssueCommentOutput, error) {
 			owner, repo, commentID := input.Owner, input.Repo, input.CommentID
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1610,11 +1678,12 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue comment", resp, err), nil, nil
 			}
 
-			output := &MinimalResponse{
+			legacyOutput := &MinimalResponse{
 				ID:  fmt.Sprintf("%d", updatedComment.GetID()),
 				URL: updatedComment.GetHTMLURL(),
 			}
-			r, err := json.Marshal(output)
+			output := &IssueCommentOutput{ID: legacyOutput.ID, HTMLURL: legacyOutput.URL}
+			r, err := json.Marshal(legacyOutput)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1643,7 +1712,7 @@ func issueNumberFromIssueURL(issueURL string) (int, error) {
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewToolWithSchemaOptions[SubIssueWriteInput, *MinimalIssue](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "sub_issue_write",
@@ -1695,43 +1764,13 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
+			OutputSchema: issueOutputSchema[*MinimalIssue](),
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			subIssueID, err := RequiredInt(args, "sub_issue_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			replaceParent, err := OptionalParam[bool](args, "replace_parent")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			afterID, err := OptionalIntParam(args, "after_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			beforeID, err := OptionalIntParam(args, "before_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SubIssueWriteInput) (*mcp.CallToolResult, *MinimalIssue, error) {
+			method, owner, repo := input.Method, input.Owner, input.Repo
+			issueNumber, subIssueID := input.IssueNumber, input.SubIssueID
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -1739,22 +1778,47 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch strings.ToLower(method) {
 			case "add":
-				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
-				return result, nil, err
+				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, input.ReplaceParent)
+				return subIssueWriteTypedResult(result, err)
 			case "remove":
 				// Call the remove sub-issue function
 				result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
-				return result, nil, err
+				return subIssueWriteTypedResult(result, err)
 			case "reprioritize":
 				// Call the reprioritize sub-issue function
-				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
-				return result, nil, err
+				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, input.AfterID, input.BeforeID)
+				return subIssueWriteTypedResult(result, err)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		},
+		normalizeIssueStrings([]string{"method", "owner", "repo"}, nil),
+		normalizeIssueIntegers([]string{"issue_number", "sub_issue_id"}, []string{"after_id", "before_id"}),
+		normalizeIssueBooleans([]string{"replace_parent"}))
 	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
+}
+
+func subIssueWriteTypedResult(result *mcp.CallToolResult, err error) (*mcp.CallToolResult, *MinimalIssue, error) {
+	if err != nil || result == nil || result.IsError {
+		return result, nil, err
+	}
+	if len(result.Content) != 1 {
+		return nil, nil, fmt.Errorf("sub-issue write returned %d content items, expected one", len(result.Content))
+	}
+	text, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		return nil, nil, fmt.Errorf("sub-issue write returned %T content, expected text", result.Content[0])
+	}
+	var subIssue *github.SubIssue
+	if err := json.Unmarshal([]byte(text.Text), &subIssue); err != nil {
+		return nil, nil, fmt.Errorf("failed to decode sub-issue write output: %w", err)
+	}
+	if subIssue == nil {
+		return result, nil, nil
+	}
+	minimal := convertToMinimalIssue((*github.Issue)(subIssue))
+	return result, &minimal, nil
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {

@@ -165,6 +165,7 @@ func Test_FindDuplicate_ZeroPaginationIsForwarded(t *testing.T) {
 	validation, err := issuePaginationValidationSchema(advertised).Resolve(nil)
 	require.NoError(t, err)
 	require.NoError(t, validation.Validate(map[string]any{
+		"owner": "owner", "repo": "repo", "issue_number": float64(123),
 		"page":    float64(0),
 		"perPage": float64(0),
 	}))

@@ -47,5 +47,75 @@
     ],
     "type": "object"
   },
-  "name": "issue_dependency_read"
+  "name": "issue_dependency_read",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "issues": {
+        "description": "Related issues in the requested dependency direction.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "html_url": {
+              "description": "The web URL of the related issue.",
+              "type": "string"
+            },
+            "number": {
+              "description": "The related issue number.",
+              "type": "integer"
+            },
+            "repository": {
+              "description": "The related repository in owner/name form.",
+              "type": "string"
+            },
+            "state": {
+              "description": "The related issue state.",
+              "type": "string"
+            },
+            "title": {
+              "description": "The sanitized title of the related issue.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "title",
+            "state",
+            "html_url"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "hasNextPage": {
+            "description": "Whether another page of related issues is available.",
+            "type": "boolean"
+          },
+          "nextPage": {
+            "description": "The next page number, or 0 when no next page exists.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "nextPage"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "issues",
+      "pageInfo"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

@@ -60,16 +60,31 @@
       {
         "additionalProperties": false,
         "properties": {
-          "id": {
+          "html_url": {
+            "description": "The web URL of the created issue comment.",
             "type": "string"
           },
-          "url": {
+          "id": {
+            "description": "The ID of the created comment or reaction.",
             "type": "string"
           }
         },
         "required": [
           "id",
-          "url"
+          "html_url"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "The ID of the created reaction.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -79,16 +94,18 @@
           "comment": {
             "additionalProperties": false,
             "properties": {
-              "id": {
+              "html_url": {
+                "description": "The web URL of the created issue comment.",
                 "type": "string"
               },
-              "url": {
+              "id": {
+                "description": "The ID of the created comment or reaction.",
                 "type": "string"
               }
             },
             "required": [
               "id",
-              "url"
+              "html_url"
             ],
             "type": "object"
           },
@@ -96,15 +113,12 @@
             "additionalProperties": false,
             "properties": {
               "id": {
-                "type": "string"
-              },
-              "url": {
+                "description": "The ID of the created reaction.",
                 "type": "string"
               }
             },
             "required": [
-              "id",
-              "url"
+              "id"
             ],
             "type": "object"
           }

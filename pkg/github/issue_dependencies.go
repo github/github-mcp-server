@@ -51,7 +51,7 @@ Options are:
 	}
 	WithPagination(schema)
 
-	st := NewTool[IssueDependencyReadInput, *IssueDependencyReadOutput](
+	st := NewToolWithSchemaOptions[IssueDependencyReadInput, *IssueDependencyReadOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_dependency_read",
@@ -60,9 +60,11 @@ Options are:
 				Title:        t("TOOL_ISSUE_DEPENDENCY_READ_USER_TITLE", "Read issue dependencies"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: issueDependencyReadOutputSchema(),
 		},
 		scopes.PublicRead(scopes.Repo),
+		inventory.TypedSchemaOptions{ValidationInputSchema: issuePaginationValidationSchema(schema), PreserveHandlerContent: true},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueDependencyReadInput) (*mcp.CallToolResult, *IssueDependencyReadOutput, error) {
 			method, owner, repo, issueNumber := input.Method, input.Owner, input.Repo, input.IssueNumber
 			if method == "" {
@@ -121,7 +123,7 @@ func getIssueBlockedByOutput(ctx context.Context, client *github.Client, owner, 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocked-by issues", resp, body), nil, nil
 	}
 	output := dependencyReadOutput(issues, resp)
-	return MarshalledTextResult(output), output, nil
+	return dependencyReadTextResult(issues, resp), output, nil
 }
 
 // GetIssueBlocking lists the issues that the given issue blocks.
@@ -145,18 +147,18 @@ func getIssueBlockingOutput(ctx context.Context, client *github.Client, owner, r
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list blocking issues", resp, body), nil, nil
 	}
 	output := dependencyReadOutput(issues, resp)
-	return MarshalledTextResult(output), output, nil
+	return dependencyReadTextResult(issues, resp), output, nil
 }
 
 // dependencyReadOutput projects a list of related issues into the minimal
 // dependency shape and attaches page-based pagination info.
 func dependencyReadOutput(issues []*github.Issue, resp *github.Response) *IssueDependencyReadOutput {
-	refs := make([]MinimalIssueRef, 0, len(issues))
+	refs := make([]MinimalIssueDependencyRef, 0, len(issues))
 	for _, issue := range issues {
 		if issue == nil {
 			continue
 		}
-		refs = append(refs, issueToDependencyRef(issue))
+		refs = append(refs, dependencyRefOutput(issueToDependencyRef(issue)))
 	}
 	return &IssueDependencyReadOutput{
 		Issues: refs,
@@ -165,6 +167,22 @@ func dependencyReadOutput(issues []*github.Issue, resp *github.Response) *IssueD
 			NextPage:    resp.NextPage,
 		},
 	}
+}
+
+func dependencyReadTextResult(issues []*github.Issue, resp *github.Response) *mcp.CallToolResult {
+	refs := make([]MinimalIssueRef, 0, len(issues))
+	for _, issue := range issues {
+		if issue != nil {
+			refs = append(refs, issueToDependencyRef(issue))
+		}
+	}
+	return MarshalledTextResult(IssueDependencyReadLegacyOutput{
+		Issues: refs,
+		PageInfo: IssueDependencyPageInfo{
+			HasNextPage: resp.NextPage != 0,
+			NextPage:    resp.NextPage,
+		},
+	})
 }
 
 // issueToDependencyRef converts a REST issue into the compact reference used by
@@ -194,7 +212,7 @@ func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
 // expressed as "the blocked issue is blocked_by the blocking issue", so both
 // directions are served by the same endpoint pair with the two issues swapped.
 func IssueDependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool[IssueDependencyWriteInput, *IssueDependencyWriteOutput](
+	st := NewToolWithSchemaOptions[IssueDependencyWriteInput, *IssueDependencyWriteOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name: "issue_dependency_write",
@@ -253,8 +271,10 @@ Options are:
 				},
 				Required: []string{"method", "type", "owner", "repo", "issue_number", "related_issue_number"},
 			},
+			OutputSchema: issueDependencyWriteOutputSchema(),
 		},
 		scopes.RequireAll(scopes.Repo),
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueDependencyWriteInput) (*mcp.CallToolResult, *IssueDependencyWriteOutput, error) {
 			method, relationshipType := input.Method, input.Type
 			if method == "" {
@@ -348,7 +368,7 @@ func writeIssueDependency(ctx context.Context, client *github.Client, method str
 			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", opResp, body), nil, nil
 		}
 		output := dependencyWriteOutput("dependency added", blockedIssue, blockingIssue, blocked, blocking)
-		return MarshalledTextResult(output), output, nil
+		return dependencyWriteTextResult("dependency added", blockedIssue, blockingIssue, blocked, blocking), output, nil
 	case "remove":
 		blockedIssue, opResp, err := client.Issues.RemoveBlockedBy(ctx, blocked.owner, blocked.repo, int64(blocked.number), blockingID)
 		if err != nil {
@@ -363,7 +383,7 @@ func writeIssueDependency(ctx context.Context, client *github.Client, method str
 			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", opResp, body), nil, nil
 		}
 		output := dependencyWriteOutput("dependency removed", blockedIssue, blockingIssue, blocked, blocking)
-		return MarshalledTextResult(output), output, nil
+		return dependencyWriteTextResult("dependency removed", blockedIssue, blockingIssue, blocked, blocking), output, nil
 	default:
 		return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 	}
@@ -383,6 +403,22 @@ func dependencyWriteOutput(message string, blockedIssue, blockingIssue *github.I
 		blockingRef.Repository = blocking.owner + "/" + blocking.repo
 	}
 	return &IssueDependencyWriteOutput{
-		BlockedIssue: blockedRef, BlockingIssue: blockingRef, Message: message,
+		BlockedIssue: dependencyRefOutput(blockedRef), BlockingIssue: dependencyRefOutput(blockingRef), Message: message,
 	}
+}
+
+func dependencyWriteTextResult(message string, blockedIssue, blockingIssue *github.Issue, blocked, blocking issueCoordinate) *mcp.CallToolResult {
+	return MarshalledTextResult(IssueDependencyWriteLegacyOutput{
+		BlockedIssue:  issueToLegacyDependencyRef(blockedIssue, blocked),
+		BlockingIssue: issueToLegacyDependencyRef(blockingIssue, blocking),
+		Message:       message,
+	})
+}
+
+func issueToLegacyDependencyRef(issue *github.Issue, coordinate issueCoordinate) MinimalIssueRef {
+	ref := issueToDependencyRef(issue)
+	if ref.Repository == "" {
+		ref.Repository = coordinate.owner + "/" + coordinate.repo
+	}
+	return ref
 }
