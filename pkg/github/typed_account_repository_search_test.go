@@ -142,7 +142,11 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 					require.NoError(t, err)
 					require.False(t, result.IsError, "%+v", result)
 					require.Len(t, result.Content, 1)
-					assert.Equal(t, expected, getTextResult(t, result).Text)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						assert.JSONEq(t, structured, getTextResult(t, result).Text)
+					} else {
+						assert.Equal(t, expected, getTextResult(t, result).Text)
+					}
 					require.NotNil(t, result.Meta)
 					label := unmarshalIFC(t, result.Meta["ifc"])
 					if tool.Tool.Name == "search_commits" && body == fixture.body {
@@ -158,6 +162,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 						require.NotNil(t, result.StructuredContent)
 						encoded := mustMarshalJSON(t, result.StructuredContent)
 						assert.JSONEq(t, structured, encoded)
+						assert.JSONEq(t, encoded, getTextResult(t, result).Text)
 						var output any
 						require.NoError(t, json.Unmarshal([]byte(encoded), &output))
 						require.NoError(t, resolved.Validate(output))
