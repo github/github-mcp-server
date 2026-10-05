@@ -71,16 +71,16 @@
       {
         "additionalProperties": false,
         "properties": {
-          "id": {
+          "html_url": {
+            "description": "Browser URL.",
             "type": "string"
           },
-          "url": {
+          "id": {
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "url"
+          "id"
         ],
         "type": "object"
       },

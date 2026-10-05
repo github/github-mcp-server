@@ -36,12 +36,7 @@
     "additionalProperties": false,
     "properties": {
       "message": {
-        "type": [
-          "null",
-          "string"
-        ]
-      },
-      "url": {
+        "description": "Operation result message.",
         "type": [
           "null",
           "string"

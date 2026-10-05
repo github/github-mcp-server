@@ -195,6 +195,10 @@ func getPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil, nil
 	}
 
+	if pr == nil {
+		return utils.NewToolResultText("null"), &PullRequestReadOutput{}, nil
+	}
+
 	if ff.LockdownMode {
 		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage); restricted != nil || err != nil {
 			return restricted, nil, err
@@ -909,7 +913,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), &PullRequestWriteOutput{PullRequest: &minimalResponse}, nil
+			return utils.NewToolResultText(string(r)), &PullRequestWriteOutput{PullRequest: pullRequestMutationReference(minimalResponse)}, nil
 		}, normalizePullRequestArguments("create"))
 }
 
@@ -1233,7 +1237,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultErrorFromErr("Failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), &PullRequestWriteOutput{PullRequest: &minimalResponse}, nil
+			return utils.NewToolResultText(string(r)), &PullRequestWriteOutput{PullRequest: pullRequestMutationReference(minimalResponse)}, nil
 		}, normalizePullRequestArguments("update"))
 	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
@@ -1374,19 +1378,22 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			}
 
 			var output PullRequestCommentReplyOutput
+			var r []byte
 			switch {
 			case hasBody && hasReaction:
 				output.ReplyAndReaction = &PullRequestReplyAndReactionOutput{
-					Comment:  *commentResponse,
-					Reaction: *reactionResponse,
+					Comment:  *pullRequestMutationReference(*commentResponse),
+					Reaction: PullRequestMutationReference{ID: reactionResponse.ID},
 				}
+				r, err = json.Marshal(map[string]*MinimalResponse{"comment": commentResponse, "reaction": reactionResponse})
 			case hasReaction:
-				output.Response = reactionResponse
+				output.Response = &PullRequestMutationReference{ID: reactionResponse.ID}
+				r, err = json.Marshal(reactionResponse)
 			default:
-				output.Response = commentResponse
+				output.Response = pullRequestMutationReference(*commentResponse)
+				r, err = json.Marshal(commentResponse)
 			}
 
-			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1783,7 +1790,11 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), &PullRequestMergeOutput{Result: result}, nil
+			output := &PullRequestMergeOutput{}
+			if result != nil {
+				output.Result = &PullRequestMergeResult{SHA: result.SHA, Merged: result.Merged, Message: result.Message}
+			}
+			return utils.NewToolResultText(string(r)), output, nil
 		}, normalizePullRequestArguments("merge"))
 }
 
@@ -1931,7 +1942,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 				// and it's not a real error.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
 					message := "Pull request branch update is in progress"
-					return utils.NewToolResultText(message), &PullRequestBranchUpdateOutput{Result: &github.PullRequestBranchUpdateResponse{Message: &message}}, nil
+					return utils.NewToolResultText(message), &PullRequestBranchUpdateOutput{Result: &PullRequestBranchUpdateResult{Message: &message}}, nil
 				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to update pull request branch",
@@ -1954,7 +1965,11 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), &PullRequestBranchUpdateOutput{Result: result}, nil
+			output := &PullRequestBranchUpdateOutput{}
+			if result != nil {
+				output.Result = &PullRequestBranchUpdateResult{Message: result.Message}
+			}
+			return utils.NewToolResultText(string(r)), output, nil
 		}, normalizePullRequestArguments("branch"))
 }
 
@@ -2041,7 +2056,7 @@ func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolution
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:         "pull_request_review_write",
-			OutputSchema: repositoryOutputSchema[RepositoryMessageOutput](),
+			OutputSchema: pullRequestOutputSchema[RepositoryMessageOutput](),
 			Description: t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
 
 Available methods:
@@ -2535,7 +2550,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:         "add_comment_to_pending_review",
-			OutputSchema: repositoryOutputSchema[RepositoryMessageOutput](),
+			OutputSchema: pullRequestOutputSchema[RepositoryMessageOutput](),
 			Description:  t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure)."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),

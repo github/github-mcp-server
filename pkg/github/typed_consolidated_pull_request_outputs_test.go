@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"maps"
 	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +32,19 @@ func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string
 		UpdatePullRequestBranch(tr), PullRequestReviewWrite(tr), PullRequestReviewWriteWithResolutionReason(tr),
 		AddCommentToPendingReview(tr), AddReplyToPullRequestComment(tr),
 	}
+	canonicalSchemas := make(map[string]string)
+	for _, tool := range tools {
+		if tool.Tool.Name == "pull_request_review_write" {
+			continue
+		}
+		canonicalSchemas[tool.Tool.Name] = mustMarshalJSON(t, tool.Tool.OutputSchema)
+	}
+	review := PullRequestReviewWrite(tr)
+	if slices.Contains(flags, FeatureFlagThreadResolutionReason) {
+		review = PullRequestReviewWriteWithResolutionReason(tr)
+		require.NoError(t, toolsnaps.Test("pull_request_review_write_resolution_reason", review.Tool))
+	}
+	canonicalSchemas[review.Tool.Name] = mustMarshalJSON(t, review.Tool.OutputSchema)
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
 		WithFeatureChecker(featureCheckerFor(flags...)).Build()
 	require.NoError(t, err)
@@ -46,7 +61,21 @@ func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string
 					req.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: ""}
 				}
 			}
-			return next(ghcontext.WithUISupport(ctx, ui), method, request)
+			result, err := next(ghcontext.WithUISupport(ctx, ui), method, request)
+			if protocol == inventory.ProtocolVersionMultiRoundTrip && method == "tools/call" && err == nil {
+				if call, ok := result.(*mcp.CallToolResult); ok && !call.IsError && len(call.Content) == 1 {
+					if text, ok := call.Content[0].(*mcp.TextContent); ok && text.Text == "null" {
+						// The client decodes explicit null and an omitted field as nil.
+						// Check the serialized response to distinguish them.
+						var wire map[string]json.RawMessage
+						require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, call)), &wire))
+						structured, present := wire["structuredContent"]
+						assert.True(t, present, "successful nullable output must include structuredContent")
+						assert.Equal(t, "null", string(structured))
+					}
+				}
+			}
+			return result, err
 		}
 	})
 	version := protocol
@@ -65,11 +94,7 @@ func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string
 			continue
 		}
 		require.NotNil(t, tool.OutputSchema, tool.Name)
-		name := tool.Name
-		if name == "pull_request_review_write" && len(flags) > 0 {
-			name += "_resolution_reason"
-		}
-		require.NoError(t, toolsnaps.Test(name+"_typed", *tool))
+		assert.JSONEq(t, canonicalSchemas[tool.Name], mustMarshalJSON(t, tool.OutputSchema), tool.Name)
 		var schema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
 		resolved, err := schema.Resolve(nil)
@@ -105,10 +130,17 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 		case path == "/repos/owner/repo/pulls/2":
 			// A sparse PR without a head SHA still yields a valid status payload.
 			write(http.StatusOK, `{"number":2,"head":{"sha":"abc"}}`)
+		case path == "/repos/owner/repo/pulls/3":
+			// A successful null API payload is normalized to the legacy zero-value PR.
+			write(http.StatusOK, `null`)
 		case path == "/repos/owner/repo/commits/abc/status":
 			write(http.StatusOK, `{"state":"success","sha":"abc","total_count":1,"statuses":[{"state":"success","context":"ci","target_url":"https://ci"}]}`)
 		case path == "/repos/owner/repo/commits/abc/check-runs":
-			write(http.StatusOK, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`)
+			if r.URL.Query().Get("page") == "2" {
+				write(http.StatusOK, `{"total_count":0,"check_runs":[]}`)
+			} else {
+				write(http.StatusOK, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`)
+			}
 		case path == "/repos/owner/repo/pulls/1/files":
 			write(http.StatusOK, `[{"filename":"file","status":"modified","additions":1,"changes":1,"patch":"+added"}]`)
 		case path == "/repos/owner/repo/pulls/2/files", path == "/repos/owner/repo/pulls/2/commits",
@@ -118,6 +150,9 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 			write(http.StatusOK, `[{"sha":"abc","html_url":"https://github.com/owner/repo/commit/abc","commit":{"message":"msg","author":{"name":"Octo","email":"octo@example.com","date":"2026-01-01T00:00:00Z"}}}]`)
 		case path == "/repos/owner/repo/pulls/1/reviews":
 			write(http.StatusOK, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`)
+		case path == "/repos/owner/repo/pulls/3/reviews":
+			// A successful null list payload is normalized to an empty list.
+			write(http.StatusOK, `null`)
 		case path == "/repos/owner/repo/issues/1/comments":
 			write(http.StatusOK, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/pull/1#issuecomment-42"}]`)
 		case path == "/repos/owner/repo/pulls/1/merge":
@@ -193,29 +228,46 @@ func runTypedPullRequestCases(t *testing.T, session *mcp.ClientSession, schemas 
 		require.False(t, result.IsError, "%s %v: %s", tc.tool, tc.args, mustMarshalJSON(t, result))
 		require.Len(t, result.Content, 1)
 		text := getTextResult(t, result).Text
-		assert.Equal(t, tc.text, text, "%s %v", tc.tool, tc.args)
 		schema := schemas[tc.tool]
 		if schema == nil {
+			assert.Equal(t, tc.text, text, "%s %v", tc.tool, tc.args)
 			assert.Nil(t, result.StructuredContent, "%s %v", tc.tool, tc.args)
 			continue
 		}
-		if text == "null" {
+		if tc.text == "null" {
+			assert.Equal(t, "null", text)
+			// Explicit wire presence is checked by the session middleware.
 			assert.Nil(t, result.StructuredContent, "%s %v", tc.tool, tc.args)
+			require.NoError(t, schema.Validate(nil))
 			continue
 		}
 		require.NotNil(t, result.StructuredContent, "%s %v", tc.tool, tc.args)
 		var value any
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &value))
 		require.NoError(t, schema.Validate(value), "%s %v", tc.tool, tc.args)
+		// The foundation wrapper serializes the compact DTO once for both
+		// modern JSON text and structuredContent, including diff and message DTOs.
+		assert.JSONEq(t, mustMarshalJSON(t, value), text, "%s %v", tc.tool, tc.args)
 		switch {
 		case tc.args["method"] == "get_diff":
-			assert.JSONEq(t, mustMarshalJSON(t, PullRequestDiffOutput{Diff: text}), mustMarshalJSON(t, value))
+			assert.JSONEq(t, mustMarshalJSON(t, PullRequestDiffOutput{Diff: tc.text}), mustMarshalJSON(t, value))
 		case tc.tool == "pull_request_review_write" || tc.tool == "add_comment_to_pending_review":
-			assert.JSONEq(t, mustMarshalJSON(t, RepositoryMessageOutput{Message: text}), mustMarshalJSON(t, value))
+			assert.JSONEq(t, mustMarshalJSON(t, RepositoryMessageOutput{Message: tc.text}), mustMarshalJSON(t, value))
 		case tc.tool == "update_pull_request_branch":
 			assert.JSONEq(t, `{"message":"Pull request branch update is in progress"}`, mustMarshalJSON(t, value))
+		case tc.tool == "create_pull_request" || tc.tool == "update_pull_request":
+			assert.JSONEq(t, `{"id":"0","html_url":"https://github.com/owner/repo/pull/1"}`, mustMarshalJSON(t, value))
+		case tc.tool == "add_reply_to_pull_request_comment":
+			switch {
+			case tc.args["body"] != nil && tc.args["reaction"] != nil:
+				assert.JSONEq(t, `{"comment":{"id":"43","html_url":"https://github.com/owner/repo/pull/1#discussion_r43"},"reaction":{"id":"77"}}`, mustMarshalJSON(t, value))
+			case tc.args["body"] != nil:
+				assert.JSONEq(t, `{"id":"43","html_url":"https://github.com/owner/repo/pull/1#discussion_r43"}`, mustMarshalJSON(t, value))
+			default:
+				assert.JSONEq(t, `{"id":"77"}`, mustMarshalJSON(t, value))
+			}
 		default:
-			assert.JSONEq(t, text, mustMarshalJSON(t, value))
+			assert.JSONEq(t, tc.text, mustMarshalJSON(t, value))
 		}
 	}
 }
@@ -225,6 +277,7 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 	const prRef = `{"id":"0","url":"https://github.com/owner/repo/pull/1"}`
 	cases := []typedPullRequestCase{
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": "1"}, minimalPR},
+		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 3}, `null`},
 		{"pull_request_read", map[string]any{"method": "get_diff", "pullNumber": 1.0}, typedPRDiff},
 		{"pull_request_read", map[string]any{"method": "get_status", "pullNumber": 1}, `{"state":"success","sha":"abc","total_count":1,"statuses":[{"state":"success","context":"ci","target_url":"https://ci"}]}`},
 		{"pull_request_read", map[string]any{"method": "get_files", "pullNumber": 1, "page": "1", "perPage": 5}, `[{"filename":"file","status":"modified","additions":1,"changes":1,"patch":"+added"}]`},
@@ -234,9 +287,11 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "get_review_comments", "pullNumber": 1, "perPage": 10, "after": "cursor"}, `{"review_threads":[{"id":"T_1","is_resolved":false,"is_outdated":false,"is_collapsed":false,"comments":[{"body":"nit","path":"file","line":3,"original_line":3,"author":"octocat","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","html_url":"https://github.com/owner/repo/pull/1#discussion_r1"}],"total_count":1}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"startCursor":"s","endCursor":"e"}}`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1}, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 2}, `[]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 3}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 1}, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/pull/1#issuecomment-42"}]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1}, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`},
+		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "page": 2}, `{"total_count":0,"check_runs":[]}`},
 		{"create_pull_request", map[string]any{"title": "Subject", "head": "feature", "base": "main", "draft": false}, prRef},
 		{"update_pull_request", map[string]any{"pullNumber": "1", "title": "Subject", "maintainer_can_modify": false}, prRef},
 		{"merge_pull_request", map[string]any{"pullNumber": 1, "merge_method": "squash", "expectedHeadSha": "abc"}, `{"sha":"abc","merged":true,"message":"Pull Request successfully merged"}`},
@@ -259,6 +314,40 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 		t.Run("protocol="+protocol, func(t *testing.T) {
 			session, schemas := consolidatedPullRequestSession(t, consolidatedPullRequestDeps(t), protocol, false)
 			runTypedPullRequestCases(t, session, schemas, cases)
+		})
+	}
+}
+
+func TestTypedPullRequestFilesLinkPagination(t *testing.T) {
+	for _, protocol := range typedPullRequestProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			var requestedPages []string
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/repos/owner/repo/pulls/1/files", strings.TrimPrefix(r.URL.Path, "/api/v3"))
+				require.Equal(t, "1", r.URL.Query().Get("per_page"))
+				page := r.URL.Query().Get("page")
+				requestedPages = append(requestedPages, page)
+				switch page {
+				case "1":
+					w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/pulls/1/files?page=2&per_page=1>; rel="next"`)
+					_, _ = w.Write([]byte(`[{"filename":"first","status":"modified","additions":1,"changes":1}]`))
+				case "2":
+					_, _ = w.Write([]byte(`[{"filename":"second","status":"added","additions":1,"changes":1}]`))
+				default:
+					t.Errorf("unexpected page query: %q", page)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			})}}
+			deps := BaseDeps{
+				Client: mustNewGHClient(t, rest), GQLClient: githubv4.NewClient(rest),
+				RepoAccessCache: stubRepoAccessCache(nil, time.Minute),
+			}
+			session, schemas := consolidatedPullRequestSession(t, deps, protocol, false)
+			runTypedPullRequestCases(t, session, schemas, []typedPullRequestCase{
+				{"pull_request_read", map[string]any{"method": "get_files", "pullNumber": 1, "page": 1, "perPage": 1}, `[{"filename":"first","status":"modified","additions":1,"changes":1}]`},
+				{"pull_request_read", map[string]any{"method": "get_files", "pullNumber": 1, "page": 2, "perPage": 1}, `[{"filename":"second","status":"added","additions":1,"changes":1}]`},
+			})
+			assert.Equal(t, []string{"1", "2"}, requestedPages, "explicit page calls must follow the API Link header's next-page target")
 		})
 	}
 }
@@ -392,6 +481,52 @@ func TestTypedConsolidatedPullRequestAPIErrors(t *testing.T) {
 	}
 }
 
+func TestTypedPullRequestContentParity(t *testing.T) {
+	for _, protocol := range typedPullRequestProtocols {
+		for _, permission := range []string{"read", "write"} {
+			t.Run(protocol+"/"+permission, func(t *testing.T) {
+				deps := consolidatedPullRequestDeps(t)
+				deps.Client = mustNewGHClient(t, &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch strings.TrimPrefix(r.URL.Path, "/api/v3") {
+					case "/repos/owner/repo":
+						_, _ = w.Write([]byte(`{"private":false}`))
+					case "/repos/owner/repo/pulls/1":
+						_, _ = w.Write([]byte(`{"number":1,"title":"Subject","body":"bo\u200bdy","state":"open","html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"}}`))
+					default:
+						t.Errorf("unexpected request: %s", r.URL.Path)
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				})}})
+				deps.Flags = stubFeatureFlags(map[string]bool{"lockdown-mode": true})
+				deps.RepoAccessCache = stubRepoAccessCache(mockRESTPermissionServer(t, permission, nil), time.Minute)
+				deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
+				session, schemas := consolidatedPullRequestSession(t, deps, protocol, false)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+					Name:      "pull_request_read",
+					Arguments: map[string]any{"method": "get", "owner": "owner", "repo": "repo", "pullNumber": 1},
+				})
+				require.NoError(t, err)
+				if permission == "read" {
+					require.True(t, result.IsError)
+					assert.Equal(t, "access to pull request is restricted by lockdown mode", getErrorResult(t, result).Text)
+					assert.Nil(t, result.StructuredContent)
+					return
+				}
+				require.False(t, result.IsError)
+				text := getTextResult(t, result).Text
+				require.NotNil(t, result.Meta["ifc"])
+				if protocol == inventory.ProtocolVersionMultiRoundTrip {
+					assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), text)
+					require.NoError(t, schemas["pull_request_read"].Validate(result.StructuredContent))
+				} else {
+					assert.Nil(t, result.StructuredContent)
+					assert.Equal(t, `{"number":1,"title":"Subject","body":"body","state":"open","draft":false,"merged":false,"html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"}}`, text)
+				}
+			})
+		}
+	}
+}
+
 func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 	for _, tc := range []struct {
 		schema  *jsonschema.Schema
@@ -401,17 +536,17 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 		{
 			pullRequestReadOutputSchema(),
 			[]string{`null`, `[]`, `{"diff":""}`, `{"number":1,"title":"","state":"","draft":false,"merged":false,"html_url":""}`, `{"state":"","sha":"","total_count":0,"statuses":[]}`, `{"total_count":0,"check_runs":[]}`, `{"review_threads":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, `[{"filename":"f"}]`, `[{"id":1,"html_url":""}]`},
-			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `{"number":1}`},
+			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `{"number":1}`, `{"number":1,"title":"","state":"unknown","draft":false,"merged":false,"html_url":""}`},
 		},
 		{
 			pullRequestWriteOutputSchema(),
-			[]string{`{"id":"","url":""}`, `{"status":"awaiting_user_submission","reason":"wait"}`},
+			[]string{`{"id":"","html_url":""}`, `{"status":"awaiting_user_submission","reason":"wait"}`},
 			[]string{`{}`, `null`, `{"status":"created","reason":"wait"}`},
 		},
 		{
 			pullRequestCommentReplyOutputSchema(),
-			[]string{`{"id":"1","url":"u"}`, `{"comment":{"id":"1","url":"u"},"reaction":{"id":"2","url":"v"}}`},
-			[]string{`{}`, `{"comment":{"id":"1","url":"u"}}`, `null`},
+			[]string{`{"id":"1","html_url":"u"}`, `{"comment":{"id":"1","html_url":"u"},"reaction":{"id":"2"}}`},
+			[]string{`{}`, `{"comment":{"id":"1","html_url":"u"}}`, `null`, `{"id":"1","url":"https://api.github.com/derivable"}`},
 		},
 		{
 			pullRequestMergeOutputSchema(),
@@ -420,8 +555,8 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 		},
 		{
 			pullRequestBranchUpdateOutputSchema(),
-			[]string{`null`, `{"message":"m"}`, `{"message":"m","url":"u"}`},
-			[]string{`[]`, `{"message":1}`},
+			[]string{`null`, `{"message":"m"}`},
+			[]string{`[]`, `{"message":1}`, `{"message":"m","url":"https://api.github.com/derivable"}`},
 		},
 	} {
 		resolved, err := tc.schema.Resolve(nil)
@@ -431,6 +566,7 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(raw), &value))
 			require.NoError(t, resolved.Validate(value), raw)
 		}
+
 		for _, raw := range tc.invalid {
 			var value any
 			require.NoError(t, json.Unmarshal([]byte(raw), &value))
@@ -453,5 +589,34 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 		var value any
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tc.value)), &value))
 		require.NoError(t, resolved.Validate(value), mustMarshalJSON(t, tc.value))
+	}
+}
+
+func TestConsolidatedPullRequestOutputTypesAreCurated(t *testing.T) {
+	visited := make(map[reflect.Type]bool)
+	var check func(reflect.Type)
+	check = func(typ reflect.Type) {
+		if visited[typ] {
+			return
+		}
+		visited[typ] = true
+		require.NotContains(t, typ.PkgPath(), "github.com/google/go-github", typ.String())
+		switch typ.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Array:
+			check(typ.Elem())
+		case reflect.Struct:
+			for field := range typ.Fields() {
+				check(field.Type)
+			}
+		case reflect.Map, reflect.Interface:
+			t.Errorf("non-concrete output field: %s", typ)
+		}
+	}
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[PullRequestReadOutput](), reflect.TypeFor[PullRequestWriteOutput](),
+		reflect.TypeFor[PullRequestMergeOutput](), reflect.TypeFor[PullRequestBranchUpdateOutput](),
+		reflect.TypeFor[PullRequestCommentReplyOutput](),
+	} {
+		check(typ)
 	}
 }
