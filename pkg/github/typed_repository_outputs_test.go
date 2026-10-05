@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"strings"
@@ -22,18 +23,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func typedRepositoryDeps(t *testing.T) BaseDeps {
-	t.Helper()
+func repositoryOutputFixtures() (*github.Reference, *github.Commit, *github.RepositoryRelease) {
 	ref := &github.Reference{Ref: new("refs/heads/main"), URL: new("ref-url"),
 		Object: &github.GitObject{Type: new("commit"), SHA: new("base"), URL: new("commit-url")}}
 	commit := &github.Commit{SHA: new("new"), Message: new("change"),
+		HTMLURL: new("https://github.com/owner/repo/commit/new"), URL: new("api-commit-url"),
 		Author: &github.CommitAuthor{Date: &github.Timestamp{Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}},
 		Tree:   &github.Tree{SHA: new("tree")}, Parents: []*github.Commit{{SHA: new("base")}}}
 	release := &github.RepositoryRelease{ID: 7, TagName: "v1", Name: new("<b>Release</b>"),
-		Body: new("Notes"), CreatedAt: github.Timestamp{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		HTMLURL: "https://github.com/owner/repo/releases/tag/v1",
+		URL:     "api-release-url", AssetsURL: "api-assets-url", UploadURL: "api-upload-url",
+		Body: new("No\u200btes"), CreatedAt: github.Timestamp{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
 		Author: &github.User{Login: new("octo")}, Assets: []*github.ReleaseAsset{{
 			Name: new("app.zip"), Size: new(3), Digest: new("sha256:abc"),
 		}}}
+	return ref, commit, release
+}
+
+func typedRepositoryDeps(t *testing.T) BaseDeps {
+	t.Helper()
+	ref, commit, release := repositoryOutputFixtures()
 	handlers := map[string]http.HandlerFunc{
 		"GET /repos/{owner}/{repo}": mockResponse(t, http.StatusOK, &github.Repository{ID: new(int64(1)), DefaultBranch: new("main")}),
 		"POST /user/repos": func(w http.ResponseWriter, r *http.Request) {
@@ -49,10 +58,22 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 		},
 		"GET /repos/{owner}/{repo}/contents/{path...}": func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case strings.HasSuffix(r.URL.Path, "/forbidden"):
+				mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/new"):
 				mockResponse(t, http.StatusNotFound, map[string]string{"message": "Not Found"})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/directory"):
-				mockResponse(t, http.StatusOK, []*github.RepositoryContent{{Name: new("file"), Type: new("file"), SHA: new("sha")}})(w, r)
+				mockResponse(t, http.StatusOK, []*github.RepositoryContent{{
+					Name: new("file"), Type: new("file"), SHA: new("sha"), Size: new(0),
+					URL: new("api-content-url"), GitURL: new("api-git-url"),
+					HTMLURL:     new("https://github.com/owner/repo/blob/main/file"),
+					DownloadURL: new("https://raw.githubusercontent.com/owner/repo/main/file"),
+				}})(w, r)
+			case strings.HasSuffix(r.URL.Path, "/submodule-directory"):
+				mockResponse(t, http.StatusOK, []*github.RepositoryContent{{
+					Name: new("lib"), Path: new("lib"), Type: new("file"), SHA: new("sha"),
+					SubmoduleGitURL: new("https://github.com/owner/lib.git"),
+				}})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/empty-directory"):
 				mockResponse(t, http.StatusOK, []*github.RepositoryContent{})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/submodule"):
@@ -105,7 +126,7 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 		},
 		"GET /repos/{owner}/{repo}/git/tags/{tag_sha}": mockResponse(t, http.StatusOK, &github.Tag{
 			Tag: new("annotated"), Message: new("Tag message"), SHA: new("tag-sha"),
-			Tagger: &github.CommitAuthor{Date: commit.Author.Date},
+			Tagger: &github.CommitAuthor{Date: commit.Author.Date}, URL: new("api-tag-url"),
 		}),
 		"GET /repos/{owner}/{repo}/git/commits/{commit_sha}": mockResponse(t, http.StatusOK, commit),
 		"POST /repos/{owner}/{repo}/git/trees": func(w http.ResponseWriter, r *http.Request) {
@@ -168,12 +189,17 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 		"GET /user/starred": mockResponse(t, http.StatusOK, []*github.StarredRepository{{Repository: &github.Repository{
 			ID: new(int64(1)), Name: new("repo"), FullName: new("owner/repo"),
 		}}}),
+		"GET /users/{user}/starred":           mockResponse(t, http.StatusOK, []*github.StarredRepository{}),
 		"PUT /user/starred/{owner}/{repo}":    mockResponse(t, http.StatusNoContent, nil),
 		"DELETE /user/starred/{owner}/{repo}": mockResponse(t, http.StatusNoContent, nil),
 		"GET /repos/{owner}/{repo}/collaborators": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2", r.URL.Query().Get("page"))
 			assert.Equal(t, "7", r.URL.Query().Get("per_page"))
 			assert.Equal(t, "outside", r.URL.Query().Get("affiliation"))
+			if strings.Contains(r.URL.Path, "/empty/") {
+				mockResponse(t, http.StatusOK, []*github.User{})(w, r)
+				return
+			}
 			w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/collaborators?page=3>; rel="next"`)
 			mockResponse(t, http.StatusOK, []*github.User{{Login: new("octo"), ID: new(int64(1)), RoleName: new("write")}})(w, r)
 		},
@@ -181,7 +207,10 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 	gql := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{"repository":{"defaultBranchRef":{"name":"main"},"object":{"__typename":"Commit","blame":{"ranges":[{"startingLine":1,"endingLine":3,"age":0,"commit":{"oid":"abc","message":"Message","committedDate":"2026-01-02T00:00:00Z","author":{"name":"Author","email":"author@example.com","user":null}}}]}}}}}`))
 	})}}
-	return BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)), GQLClient: githubv4.NewClient(gql)}
+	return BaseDeps{
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)), GQLClient: githubv4.NewClient(gql),
+		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+	}
 }
 
 func TestTypedRepositoryOutputs(t *testing.T) {
@@ -192,6 +221,10 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 		PushFiles(translate), GetTag(translate), ListReleases(translate), GetLatestRelease(translate),
 		GetReleaseByTag(translate), ListStarredRepositories(translate), StarRepository(translate),
 		UnstarRepository(translate), GetFileBlame(translate), ListRepositoryCollaborators(translate),
+	}
+	inputContracts := make(map[string]string, len(tools))
+	for _, tool := range tools {
+		inputContracts[tool.Tool.Name] = mustMarshalJSON(t, tool.Tool.InputSchema)
 	}
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
 		WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
@@ -224,13 +257,15 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 		{"get_latest_release", coord(nil)},
 		{"get_release_by_tag", coord(map[string]any{"tag": "v1"})},
 		{"list_starred_repositories", map[string]any{}},
+		{"list_starred_repositories", map[string]any{"username": "empty"}},
 		{"star_repository", coord(nil)},
 		{"unstar_repository", coord(nil)},
 		{"list_repository_collaborators", coord(map[string]any{"page": "2", "perPage": "7", "affiliation": "outside"})},
+		{"list_repository_collaborators", coord(map[string]any{"repo": "empty", "page": "2", "perPage": "7", "affiliation": "outside"})},
 		{"get_file_blame", coord(map[string]any{"path": "file", "start_line": "2", "end_line": "3", "perPage": "1"})},
 		{"get_file_blame", coord(map[string]any{"path": "file", "after": encodeBlameCursor(1)})},
 	}
-	for _, path := range []string{"text", "empty", "binary", "large", "submodule", "symlink", "directory", "empty-directory", "missing"} {
+	for _, path := range []string{"text", "empty", "binary", "large", "submodule", "symlink", "directory", "submodule-directory", "empty-directory", "missing"} {
 		calls = append(calls, struct {
 			name string
 			args map[string]any
@@ -240,10 +275,22 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 		name string
 		args map[string]any
 	}{"get_file_contents", coord(map[string]any{"path": "directory", "sha": strings.Repeat("a", 40), "fields": []any{"name"}})})
+	calls = append(calls, struct {
+		name string
+		args map[string]any
+	}{"get_file_contents", coord(map[string]any{"path": "directory", "sha": strings.Repeat("a", 40), "fields": []any{"size", "html_url", "url"}})})
 
-	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip, ""} {
-		t.Run("protocol="+protocol, func(t *testing.T) {
+	for _, test := range []struct {
+		protocol string
+		lockdown bool
+	}{
+		{"2025-11-25", false}, {inventory.ProtocolVersionMultiRoundTrip, false}, {"", false},
+		{"2025-11-25", true}, {inventory.ProtocolVersionMultiRoundTrip, true}, {"", true},
+	} {
+		protocol := test.protocol
+		t.Run(fmt.Sprintf("protocol=%s/lockdown=%t", protocol, test.lockdown), func(t *testing.T) {
 			deps := typedRepositoryDeps(t)
+			deps.Flags.LockdownMode = test.lockdown
 			server := mcp.NewServer(&mcp.Implementation{Name: "typed-repository-test", Version: "v1"}, nil)
 			server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 			inv.RegisterTools(context.Background(), server, deps)
@@ -270,12 +317,18 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 			require.Len(t, list.Tools, 16, "deletion remains hidden without form elicitation")
 			schemas := make(map[string]*jsonschema.Resolved)
 			for _, tool := range list.Tools {
+				var inputSchema jsonschema.Schema
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &inputSchema))
+				for _, property := range inputSchema.Properties {
+					delete(property.Extra, "x-mcp-header")
+				}
+				assert.JSONEq(t, inputContracts[tool.Name], mustMarshalJSON(t, inputSchema), "input metadata remains unchanged")
 				if protocol != inventory.ProtocolVersionMultiRoundTrip {
 					assert.Nil(t, tool.OutputSchema, tool.Name)
 					continue
 				}
 				require.NotNil(t, tool.OutputSchema, tool.Name)
-				require.NoError(t, toolsnaps.Test(tool.Name+"_typed", *tool))
+				require.NoError(t, toolsnaps.Test(tool.Name, *tool))
 				var schema jsonschema.Schema
 				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
 				schemas[tool.Name], err = schema.Resolve(nil)
@@ -299,15 +352,21 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: call.name, Arguments: call.args})
 					require.NoError(t, err)
 					require.False(t, result.IsError, result)
-					assert.Equal(t, mustMarshalJSON(t, legacy.Content), mustMarshalJSON(t, result.Content), "byte-exact content blocks")
-					if call.name == "list_repository_collaborators" {
-						assert.Equal(t, `{"firstPage":0,"items":[{"login":"octo","id":1,"role_name":"write"}],"lastPage":0,"nextPage":3,"prevPage":0}`, getTextResult(t, result).Text)
-					}
+					assert.JSONEq(t, mustMarshalJSON(t, legacy.Meta["ifc"]), mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels remain protocol-independent")
 					if protocol != inventory.ProtocolVersionMultiRoundTrip {
+						assert.Equal(t, mustMarshalJSON(t, legacy.Content), mustMarshalJSON(t, result.Content), "legacy content blocks remain byte-exact")
+						assertLegacyRepositoryText(t, call.name, call.args, result)
 						assert.Nil(t, result.StructuredContent)
 						return
 					}
 					require.NotNil(t, result.StructuredContent)
+					if hasOnlyTextContent(result.Content) {
+						assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text,
+							"modern JSON text is the compact structured output")
+					} else {
+						assert.Equal(t, mustMarshalJSON(t, legacy.Content), mustMarshalJSON(t, result.Content),
+							"non-text resource blocks preserve legacy content")
+					}
 					var output any
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 					require.NoError(t, schemas[call.name].Validate(output))
@@ -315,10 +374,35 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 					switch {
 					case call.name == "get_file_contents" && !strings.HasPrefix(first, "["):
 						assert.JSONEq(t, `{"content":`+mustMarshalJSON(t, legacy.Content)+`}`, mustMarshalJSON(t, result.StructuredContent))
-					case call.name == "star_repository" || call.name == "unstar_repository" || (call.name == "fork_repository" && first == "Fork is in progress"):
-						assert.JSONEq(t, mustMarshalJSON(t, RepositoryMessageOutput{Message: getTextResult(t, result).Text}), mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "get_file_contents":
+						var entries []*RepositoryDirectoryEntryOutput
+						require.NoError(t, json.Unmarshal([]byte(first), &entries))
+						assert.JSONEq(t, mustMarshalJSON(t, entries), mustMarshalJSON(t, result.StructuredContent))
+						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-content-url")
+						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-git-url")
+						if call.args["path"] == "submodule-directory" {
+							assert.JSONEq(t, `[{"name":"lib","path":"lib","type":"file","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]`, mustMarshalJSON(t, result.StructuredContent))
+						}
+						if call.args["path"] == "directory" && call.args["fields"] != nil && len(call.args["fields"].([]any)) == 3 {
+							assert.JSONEq(t, `[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file"}]`, mustMarshalJSON(t, result.StructuredContent))
+						}
+					case call.name == "create_branch" || call.name == "push_files":
+						assert.JSONEq(t, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"base"}}`, mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "get_tag" && call.args["tag"] == "lightweight":
+						assert.JSONEq(t, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"base"}}`, mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "get_tag":
+						assert.JSONEq(t, `{"tag":"annotated","sha":"tag-sha","message":"Tag message","tagger":{"date":"2026-01-02T03:04:05Z"}}`, mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "delete_file":
+						assert.JSONEq(t, `{"commit":{"sha":"new","message":"change","html_url":"https://github.com/owner/repo/commit/new","author":{"date":"2026-01-02T03:04:05Z"},"tree_sha":"tree","parents":["base"]},"content":null}`, mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "get_latest_release" || call.name == "get_release_by_tag":
+						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "\u200b")
+						assert.JSONEq(t, `{"id":7,"tag_name":"v1","name":"Release","body":"Notes","html_url":"https://github.com/owner/repo/releases/tag/v1","prerelease":false,"draft":false,"author":{"login":"octo"}}`, mustMarshalJSON(t, result.StructuredContent))
+					case call.name == "star_repository" || call.name == "unstar_repository" || (call.name == "fork_repository" && call.args["organization"] == "pending"):
+						assert.JSONEq(t, mustMarshalJSON(t, RepositoryMessageOutput{Message: getTextResult(t, legacy).Text}), mustMarshalJSON(t, result.StructuredContent))
 					default:
-						assert.JSONEq(t, getTextResult(t, result).Text, mustMarshalJSON(t, result.StructuredContent))
+					}
+					for _, tool := range tools {
+						assert.Equal(t, inputContracts[tool.Tool.Name], mustMarshalJSON(t, tool.Tool.InputSchema), "registration/calls must not mutate tool contracts")
 					}
 				})
 			}
@@ -329,6 +413,7 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 				{"create_repository", map[string]any{"name": ""}},
 				{"get_tag", coord(map[string]any{"tag": ""})},
 				{"get_tag", coord(map[string]any{"tag": "forbidden"})},
+				{"get_file_contents", coord(map[string]any{"path": "forbidden", "sha": strings.Repeat("a", 40)})},
 				{"get_file_blame", coord(map[string]any{"path": "../file"})},
 				{"push_files", coord(map[string]any{"branch": "main", "message": "change", "files": "invalid"})},
 				{"delete_file", coord(map[string]any{"branch": "main", "path": "../file", "message": "delete"})},
@@ -337,8 +422,54 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, result.IsError, result)
 				assert.Nil(t, result.StructuredContent, "errors never return success-shaped output")
+				assert.NotContains(t, result.Meta, "ifc", "errors never receive success IFC labels")
 			}
 		})
+	}
+}
+
+func hasOnlyTextContent(content []mcp.Content) bool {
+	for _, item := range content {
+		if _, ok := item.(*mcp.TextContent); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func assertLegacyRepositoryText(t *testing.T, name string, args map[string]any, result *mcp.CallToolResult) {
+	t.Helper()
+	switch name {
+	case "create_branch", "push_files":
+		ref, _, _ := repositoryOutputFixtures()
+		assert.Equal(t, mustMarshalJSON(t, ref), getTextResult(t, result).Text)
+	case "get_tag":
+		ref, commit, _ := repositoryOutputFixtures()
+		if args["tag"] == "lightweight" {
+			assert.Equal(t, mustMarshalJSON(t, ref), getTextResult(t, result).Text)
+			return
+		}
+		tag := &github.Tag{
+			Tag: new("annotated"), Message: new("Tag message"), SHA: new("tag-sha"),
+			Tagger: &github.CommitAuthor{Date: commit.Author.Date}, URL: new("api-tag-url"),
+		}
+		assert.Equal(t, mustMarshalJSON(t, tag), getTextResult(t, result).Text)
+	case "delete_file":
+		_, commit, _ := repositoryOutputFixtures()
+		assert.Equal(t, mustMarshalJSON(t, map[string]any{"commit": commit, "content": nil}), getTextResult(t, result).Text)
+	case "get_latest_release", "get_release_by_tag":
+		_, _, release := repositoryOutputFixtures()
+		sanitizeReleaseNameAndBody(release)
+		assert.Equal(t, mustMarshalJSON(t, release), getTextResult(t, result).Text)
+	case "list_repository_collaborators":
+		if args["repo"] != "empty" {
+			assert.Equal(t, `{"firstPage":0,"items":[{"login":"octo","id":1,"role_name":"write"}],"lastPage":0,"nextPage":3,"prevPage":0}`, getTextResult(t, result).Text)
+		}
+	case "get_file_contents":
+		fields, ok := args["fields"].([]any)
+		if args["path"] == "directory" && ok && len(fields) == 3 {
+			assert.Equal(t, `[{"html_url":"https://github.com/owner/repo/blob/main/file","size":0,"url":"api-content-url"}]`, getTextResult(t, result).Text)
+		}
 	}
 }
 
@@ -370,7 +501,7 @@ func TestTypedRepositoryDeletionOutput(t *testing.T) {
 	list, err := session.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, list.Tools, 1)
-	require.NoError(t, toolsnaps.Test("delete_repository_typed", *list.Tools[0]))
+	require.NoError(t, toolsnaps.Test("delete_repository", *list.Tools[0]))
 	request := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
 	pending, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
@@ -381,7 +512,7 @@ func TestTypedRepositoryDeletionOutput(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, result.IsError)
-	assert.Equal(t, "Repository owner/repo was deleted.", getTextResult(t, result).Text)
+	assert.Equal(t, `{"message":"Repository owner/repo was deleted."}`, getTextResult(t, result).Text)
 	assert.JSONEq(t, `{"message":"Repository owner/repo was deleted."}`, mustMarshalJSON(t, result.StructuredContent))
 	var schema jsonschema.Schema
 	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, list.Tools[0].OutputSchema)), &schema))
@@ -401,17 +532,17 @@ func TestRepositoryOutputUnions(t *testing.T) {
 	}{
 		{
 			"tag", repositoryTagOutputSchema(),
-			[]string{`{"ref":null,"url":null,"object":null}`, `{}`, `{"tag":"v1","tagger":{"date":"2026-01-02T00:00:00Z"}}`},
-			[]string{`{"ref":"refs/tags/v1"}`, `{"ref":null,"url":null,"object":null,"tag":"v1"}`, `{"message":1}`},
+			[]string{`null`, `{"ref":"refs/tags/v1","object":{"type":"commit","sha":"abc"}}`, `{"tag":"v1","sha":"tag-sha","tagger":{"date":"2026-01-02T00:00:00Z"}}`},
+			[]string{`{}`, `{"ref":"refs/tags/v1"}`, `{"ref":"refs/tags/v1","object":{"type":"commit","sha":"abc"},"tag":"v1"}`, `{"message":1}`},
 		},
 		{
 			"fork", forkRepositoryOutputSchema(),
-			[]string{`{"id":"9","url":"fork-url"}`, `{"message":"Fork is in progress"}`},
+			[]string{`null`, `{"id":"9","url":"fork-url"}`, `{"message":"Fork is in progress"}`},
 			[]string{`{}`, `{"id":"9"}`, `{"id":"9","url":"fork-url","message":"pending"}`},
 		},
 		{
 			"contents", repositoryContentsOutputSchema(),
-			[]string{`[]`, `[{"name":"file"}]`, `{"content":[{"type":"text","text":"status"}]}`,
+			[]string{`null`, `[]`, `[{"name":"file"}]`, `{"content":[]}`, `{"content":[{"type":"text","text":"status"}]}`,
 				`{"content":[{"type":"resource","resource":{"uri":"repo://file","mimeType":"text/plain"}}]}`,
 				`{"content":[{"type":"resource","resource":{"uri":"repo://file","blob":"AAEC"}}]}`,
 				`{"content":[{"type":"resource_link","uri":"repo://file","name":"file","size":1048576}]}`},

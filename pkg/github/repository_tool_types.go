@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"reflect"
-	"strings"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -149,22 +148,48 @@ type ReleaseListOutput struct {
 	Name        *string      `json:"name,omitempty"`
 	Body        *string      `json:"body,omitempty"`
 	HTMLURL     *string      `json:"html_url,omitempty"`
-	PublishedAt *string      `json:"published_at,omitempty"`
-	Prerelease  *bool        `json:"prerelease,omitempty"`
-	Draft       *bool        `json:"draft,omitempty"`
+	PublishedAt *string      `json:"published_at,omitempty" jsonschema:"Publication time in RFC3339 format."`
+	Prerelease  *bool        `json:"prerelease,omitempty" jsonschema:"Whether the release is a prerelease."`
+	Draft       *bool        `json:"draft,omitempty" jsonschema:"Whether the release is unpublished."`
 	Author      *MinimalUser `json:"author,omitempty"`
 }
 
-// Git commits contain recursive parent objects. Keep that real wire contract
-// rather than truncating parents or substituting a permissive object schema.
+type RepositoryGitObjectOutput struct {
+	Type string `json:"type" jsonschema:"Git object kind: commit, tag, tree, or blob."`
+	SHA  string `json:"sha"`
+}
+
+type RepositoryReferenceOutput struct {
+	Ref    string                    `json:"ref" jsonschema:"Fully qualified reference, such as refs/heads/main."`
+	Object RepositoryGitObjectOutput `json:"object"`
+}
+
+type RepositoryAnnotatedTagOutput struct {
+	Tag     string                     `json:"tag"`
+	SHA     string                     `json:"sha"`
+	Message string                     `json:"message,omitempty"`
+	Tagger  *MinimalCommitAuthor       `json:"tagger,omitempty"`
+	Object  *RepositoryGitObjectOutput `json:"object,omitempty"`
+}
+
+type RepositoryGitCommitOutput struct {
+	SHA       string               `json:"sha"`
+	Message   string               `json:"message,omitempty"`
+	HTMLURL   string               `json:"html_url,omitempty"`
+	Author    *MinimalCommitAuthor `json:"author,omitempty"`
+	Committer *MinimalCommitAuthor `json:"committer,omitempty"`
+	TreeSHA   string               `json:"tree_sha,omitempty"`
+	Parents   []string             `json:"parents,omitempty" jsonschema:"Parent commit SHAs in Git parent order."`
+}
+
 type DeleteFileOutput struct {
-	Commit  *github.Commit `json:"commit"`
-	Content *struct{}      `json:"content"`
+	Commit  *RepositoryGitCommitOutput `json:"commit"`
+	Content *struct{}                  `json:"content"`
 }
 
 type RepositoryTagOutput struct {
-	Reference *github.Reference
-	Tag       *github.Tag
+	Reference *RepositoryReferenceOutput
+	Tag       *RepositoryAnnotatedTagOutput
 }
 
 func (out RepositoryTagOutput) MarshalJSON() ([]byte, error) {
@@ -190,8 +215,76 @@ func (out ForkRepositoryOutput) MarshalJSON() ([]byte, error) {
 // MCP content response. The latter is represented losslessly as typed content
 // blocks, including the human-readable status and embedded text/blob or link.
 type RepositoryContentsOutput struct {
-	Directory []*github.RepositoryContent
+	Directory []*RepositoryDirectoryEntryOutput
 	Content   *RepositoryContentOutput
+}
+
+// Optional pointer fields retain projected zero values without reinstating
+// omitted fields. API routing/hypermedia URLs never enter structured output.
+type RepositoryDirectoryEntryOutput struct {
+	Type            *string `json:"type,omitempty"`
+	Name            *string `json:"name,omitempty"`
+	Path            *string `json:"path,omitempty"`
+	SHA             *string `json:"sha,omitempty"`
+	Size            *int    `json:"size,omitempty" jsonschema:"File size in bytes."`
+	HTMLURL         *string `json:"html_url,omitempty"`
+	DownloadURL     *string `json:"download_url,omitempty"`
+	Target          *string `json:"target,omitempty"`
+	SubmoduleGitURL *string `json:"submodule_git_url,omitempty" jsonschema:"Git remote URL for a submodule."`
+}
+
+func repositoryReferenceOutput(ref *github.Reference) *RepositoryReferenceOutput {
+	if ref == nil {
+		return nil
+	}
+	return &RepositoryReferenceOutput{
+		Ref: ref.GetRef(),
+		Object: RepositoryGitObjectOutput{
+			Type: ref.GetObject().GetType(), SHA: ref.GetObject().GetSHA(),
+		},
+	}
+}
+
+func repositoryCommitAuthorOutput(author *github.CommitAuthor) *MinimalCommitAuthor {
+	if author == nil {
+		return nil
+	}
+	out := &MinimalCommitAuthor{Name: author.GetName(), Email: author.GetEmail()}
+	if author.Date != nil {
+		out.Date = author.Date.Format("2006-01-02T15:04:05Z07:00")
+	}
+	return out
+}
+
+func repositoryGitCommitOutput(commit *github.Commit) *RepositoryGitCommitOutput {
+	if commit == nil {
+		return nil
+	}
+	out := &RepositoryGitCommitOutput{
+		SHA: commit.GetSHA(), Message: commit.GetMessage(), HTMLURL: commit.GetHTMLURL(),
+		Author: repositoryCommitAuthorOutput(commit.Author), Committer: repositoryCommitAuthorOutput(commit.Committer),
+		TreeSHA: commit.GetTree().GetSHA(),
+	}
+	for _, parent := range commit.Parents {
+		if parent != nil {
+			out.Parents = append(out.Parents, parent.GetSHA())
+		}
+	}
+	return out
+}
+
+func repositoryAnnotatedTagOutput(tag *github.Tag) *RepositoryAnnotatedTagOutput {
+	if tag == nil {
+		return nil
+	}
+	out := &RepositoryAnnotatedTagOutput{
+		Tag: tag.GetTag(), SHA: tag.GetSHA(), Message: tag.GetMessage(),
+		Tagger: repositoryCommitAuthorOutput(tag.Tagger),
+	}
+	if tag.Object != nil {
+		out.Object = &RepositoryGitObjectOutput{Type: tag.Object.GetType(), SHA: tag.Object.GetSHA()}
+	}
+	return out
 }
 
 func (out RepositoryContentsOutput) MarshalJSON() ([]byte, error) {
@@ -236,7 +329,7 @@ type RepositoryResourceOutput struct {
 	URI      string  `json:"uri"`
 	MIMEType string  `json:"mimeType,omitempty"`
 	Text     *string `json:"text,omitempty"`
-	Blob     *string `json:"blob,omitempty"`
+	Blob     *string `json:"blob,omitempty" jsonschema:"Base64-encoded file bytes."`
 }
 
 type RepositoryLinkBlock struct {
@@ -244,7 +337,7 @@ type RepositoryLinkBlock struct {
 	URI   string `json:"uri"`
 	Name  string `json:"name"`
 	Title string `json:"title,omitempty"`
-	Size  *int64 `json:"size,omitempty"`
+	Size  *int64 `json:"size,omitempty" jsonschema:"File size in bytes."`
 }
 
 func repositoryContentOutput(result *mcp.CallToolResult) (*RepositoryContentsOutput, error) {
@@ -372,53 +465,12 @@ func repositoryPagination(page, perPage *int) PaginationParams {
 	return out
 }
 
-// The SDK timestamp embeds time.Time but marshals as a string. Recursive Git
-// and user/team types also need named references, which SDK inference cannot
-// discover by itself. All other fields are inferred from the actual API DTOs.
 func repositoryOutputSchema[T any]() *jsonschema.Schema {
-	options := &jsonschema.ForOptions{TypeSchemas: map[reflect.Type]*jsonschema.Schema{
-		reflect.TypeFor[github.Timestamp]():  {Type: "string", Format: "date-time"},
-		reflect.TypeFor[github.Commit]():     {Type: "object", Ref: "#/$defs/commit"},
-		reflect.TypeFor[github.Team]():       {Type: "object", Ref: "#/$defs/team"},
-		reflect.TypeFor[github.Repository](): {Type: "object", Ref: "#/$defs/repository"},
-	}}
-	schema, err := jsonschema.For[T](options)
+	schema, err := inventory.CachedSchemaFor[T](nil)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("failed to generate repository output schema: %v", err))
 	}
-	schema.Defs = make(map[string]*jsonschema.Schema)
-	type commitSchema github.Commit
-	type teamSchema github.Team
-	type repoSchema github.Repository
-	definitions := map[string]reflect.Type{
-		"commit":     reflect.TypeFor[commitSchema](),
-		"team":       reflect.TypeFor[teamSchema](),
-		"repository": reflect.TypeFor[repoSchema](),
-	}
-	for {
-		added := false
-		encoded, err := json.Marshal(schema)
-		if err != nil {
-			panic(err)
-		}
-		for name, typ := range definitions {
-			if schema.Defs[name] != nil || !strings.Contains(string(encoded), `#/$defs/`+name) {
-				continue
-			}
-			definition, err := jsonschema.ForType(typ, options)
-			if err != nil {
-				panic(err)
-			}
-			definition.Type = ""
-			definition.Types = []string{"object", "null"}
-			schema.Defs[name] = definition
-			added = true
-		}
-		if !added {
-			break
-		}
-	}
-	return schema
+	return inventory.CloneSchema(schema)
 }
 
 func repositoryUnionSchema(variants ...*jsonschema.Schema) *jsonschema.Schema {
@@ -431,12 +483,18 @@ func repositoryUnionSchema(variants ...*jsonschema.Schema) *jsonschema.Schema {
 }
 
 func repositoryTagOutputSchema() *jsonschema.Schema {
-	ref := repositoryOutputSchema[github.Reference]()
-	tag := repositoryOutputSchema[github.Tag]()
-	// The reference keys are always serialized, even for sparse API responses;
-	// requiring an actual tag key would reject an empty annotated-tag response.
-	tag.Not = &jsonschema.Schema{Required: []string{"ref"}}
+	ref := repositoryOutputSchema[RepositoryReferenceOutput]()
+	tag := repositoryOutputSchema[RepositoryAnnotatedTagOutput]()
+	tag.Properties["tagger"].Properties["date"].Description = "Tagger time in RFC3339 format."
 	return repositoryUnionSchema(&jsonschema.Schema{Type: "null"}, ref, tag)
+}
+
+func repositoryReleaseOutputSchema() *jsonschema.Schema {
+	schema := repositoryOutputSchema[*MinimalRelease]()
+	schema.Properties["published_at"].Description = "Publication time in RFC3339 format."
+	schema.Properties["prerelease"].Description = "Whether the release is a prerelease."
+	schema.Properties["draft"].Description = "Whether the release is unpublished."
+	return schema
 }
 
 func forkRepositoryOutputSchema() *jsonschema.Schema {
@@ -450,6 +508,9 @@ func forkRepositoryOutputSchema() *jsonschema.Schema {
 func deleteFileOutputSchema() *jsonschema.Schema {
 	schema := repositoryOutputSchema[*DeleteFileOutput]()
 	schema.Properties["content"] = &jsonschema.Schema{Type: "null"}
+	for _, field := range []string{"author", "committer"} {
+		schema.Properties["commit"].Properties[field].Properties["date"].Description = "Commit timestamp in RFC3339 format."
+	}
 	return schema
 }
 
@@ -473,5 +534,7 @@ func repositoryContentsOutputSchema() *jsonschema.Schema {
 		Required:             []string{"content"},
 		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 	}
-	return repositoryUnionSchema(&jsonschema.Schema{Type: "null"}, repositoryOutputSchema[[]*github.RepositoryContent](), content)
+	directory := repositoryOutputSchema[[]*RepositoryDirectoryEntryOutput]()
+	directory.Type, directory.Types = "array", nil
+	return repositoryUnionSchema(&jsonschema.Schema{Type: "null"}, directory, content)
 }

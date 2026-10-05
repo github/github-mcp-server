@@ -25,11 +25,13 @@
       },
       "owner": {
         "description": "Repository owner",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       }
     },
     "required": [

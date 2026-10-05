@@ -6,6 +6,18 @@
     "title": "Delete file"
   },
   "description": "Delete a file from a GitHub repository",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABTklEQVRIie2UPUvDUBSGn5PW2qnYwUXExWhNpY2CUKT+BB10E3R0dnbrppuKLgouHbr5X5qlKRIFB+cuguBHj4O05KYfNsVJ+m7n3Hue54ZcrhDKQqGQTX1YVwg7QIbx0gh8b7VTJMMrqS+5RtgD7oDX2GhhC6UcbhkCVLZVuX1sesex4YCdX6uAGgIrsicjlrTGgQ9KVPDnmQgmgongPwgkXNiOq8ADMAtkx4UGvtflJvus20ANeIlN/vW5/kkt8L3D2HD6P9dRgSI8dQcc9w1IR3acBE3vbFSp8ZMVnoFSqJ/unZDe3pAYXyDIJarn9opbDZrewaAh2y7Oy5S1r6h5QG2Xxbw3piDw6xe244oKyxFmC5ihc+tS1qaqngKJyAEBGmZvSGzHVYT790T7aPozsaFoFZGboFGvDJsbOYuOuxuuc7n1uaV8sRSH8Q1DUVLnYLty3gAAAABJRU5ErkJggg==",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAA+ElEQVRIie2WLU5DQRRGzwUEirQCQ9BsoSGtZQHgSFgIsg4JXQCGP8V2QCBIEATZkJDgOJi+MJnMo30TFHmfmzvzfeeKyZ2BROpQvVHfrddDmhkZ4BY4Ai6BD7prAowjIoq7i85nFcGNf6qa1tayM1vAvBZQUg74c/WAHtAD/gMgn6YCT8A2MKwOTaZpCfAF3AGvFdlLx7XqdUVw4186rgWeE8Nn4cU67QLNAS/ASG3qmwVPqdaqjWw9A86BK+CkzaTuAseFBse/AiLiQg1gLzs3Bwb8XIp94AxYL/Af2xordap6v/htHKhv6nTlgBUAh9l6Rx11yfgG8ne/zwh2OysAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "properties": {
       "branch": {
@@ -18,7 +30,8 @@
       },
       "owner": {
         "description": "Repository owner (username or organization)",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "path": {
         "description": "Path to the file to delete",
@@ -26,7 +39,8 @@
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       }
     },
     "required": [
@@ -40,7 +54,8 @@
   },
   "name": "delete_file",
   "outputSchema": {
-    "$defs": {
+    "additionalProperties": false,
+    "properties": {
       "commit": {
         "additionalProperties": false,
         "properties": {
@@ -48,29 +63,14 @@
             "additionalProperties": false,
             "properties": {
               "date": {
-                "format": "date-time",
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "description": "Commit timestamp in RFC3339 format.",
+                "type": "string"
               },
               "email": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               },
               "name": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "username": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               }
             },
             "type": [
@@ -78,39 +78,18 @@
               "object"
             ]
           },
-          "comment_count": {
-            "type": [
-              "null",
-              "integer"
-            ]
-          },
           "committer": {
             "additionalProperties": false,
             "properties": {
               "date": {
-                "format": "date-time",
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "description": "Commit timestamp in RFC3339 format.",
+                "type": "string"
               },
               "email": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               },
               "name": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "username": {
-                "type": [
-                  "null",
-                  "string"
-                ]
+                "type": "string"
               }
             },
             "type": [
@@ -119,30 +98,15 @@
             ]
           },
           "html_url": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "message": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "node_id": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "parents": {
+            "description": "Parent commit SHAs in Git parent order.",
             "items": {
-              "$ref": "#/$defs/commit",
-              "type": [
-                "null",
-                "object"
-              ]
+              "type": "string"
             },
             "type": [
               "null",
@@ -150,139 +114,15 @@
             ]
           },
           "sha": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
-          "tree": {
-            "additionalProperties": false,
-            "properties": {
-              "sha": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "tree": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "content": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "mode": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "path": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "sha": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "size": {
-                      "type": [
-                        "null",
-                        "integer"
-                      ]
-                    },
-                    "type": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    },
-                    "url": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "type": [
-                    "null",
-                    "object"
-                  ]
-                },
-                "type": [
-                  "null",
-                  "array"
-                ]
-              },
-              "truncated": {
-                "type": [
-                  "null",
-                  "boolean"
-                ]
-              }
-            },
-            "type": [
-              "null",
-              "object"
-            ]
-          },
-          "url": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "verification": {
-            "additionalProperties": false,
-            "properties": {
-              "payload": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "signature": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              },
-              "verified": {
-                "type": [
-                  "null",
-                  "boolean"
-                ]
-              }
-            },
-            "type": [
-              "null",
-              "object"
-            ]
+          "tree_sha": {
+            "type": "string"
           }
         },
-        "type": [
-          "object",
-          "null"
-        ]
-      }
-    },
-    "additionalProperties": false,
-    "properties": {
-      "commit": {
-        "$ref": "#/$defs/commit",
+        "required": [
+          "sha"
+        ],
         "type": [
           "null",
           "object"
