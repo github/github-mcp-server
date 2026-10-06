@@ -70,5 +70,18 @@
     ],
     "type": "object"
   },
-  "name": "add_comment_to_pending_review"
+  "name": "add_comment_to_pending_review",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "description": "Operation result message.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": "object"
+  }
 }
