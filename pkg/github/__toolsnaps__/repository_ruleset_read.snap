@@ -282,6 +282,10 @@
           "before_sha": {
             "type": "string"
           },
+          "evaluation_result": {
+            "description": "Result of rules evaluated without enforcement, distinct from the enforced result.",
+            "type": "string"
+          },
           "id": {
             "type": "integer"
           },
@@ -324,7 +328,10 @@
                   "additionalProperties": false,
                   "properties": {
                     "id": {
-                      "type": "integer"
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
                     },
                     "name": {
                       "type": "string"

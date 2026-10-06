@@ -157,22 +157,23 @@ type RuleEvaluationOutput struct {
 
 type RuleSourceOutput struct {
 	Type string `json:"type"`
-	ID   int64  `json:"id"`
+	ID   *int64 `json:"id"`
 	Name string `json:"name,omitempty"`
 }
 
 type RuleSuiteOutput struct {
-	ID             int64                  `json:"id"`
-	ActorID        *int64                 `json:"actor_id,omitempty"`
-	ActorName      string                 `json:"actor_name,omitempty"`
-	BeforeSHA      string                 `json:"before_sha,omitempty"`
-	AfterSHA       string                 `json:"after_sha,omitempty"`
-	Ref            string                 `json:"ref,omitempty"`
-	PushedAt       string                 `json:"pushed_at,omitempty" jsonschema:"RFC3339 push time."`
-	Result         string                 `json:"result"`
-	RepositoryID   *int64                 `json:"repository_id,omitempty"`
-	RepositoryName string                 `json:"repository_name,omitempty"`
-	Evaluations    []RuleEvaluationOutput `json:"rule_evaluations,omitempty"`
+	ID               int64                  `json:"id"`
+	ActorID          *int64                 `json:"actor_id,omitempty"`
+	ActorName        string                 `json:"actor_name,omitempty"`
+	BeforeSHA        string                 `json:"before_sha,omitempty"`
+	AfterSHA         string                 `json:"after_sha,omitempty"`
+	Ref              string                 `json:"ref,omitempty"`
+	PushedAt         string                 `json:"pushed_at,omitempty" jsonschema:"RFC3339 push time."`
+	Result           string                 `json:"result"`
+	EvaluationResult *string                `json:"evaluation_result,omitempty" jsonschema:"Result of rules evaluated without enforcement, distinct from the enforced result."`
+	RepositoryID     *int64                 `json:"repository_id,omitempty"`
+	RepositoryName   string                 `json:"repository_name,omitempty"`
+	Evaluations      []RuleEvaluationOutput `json:"rule_evaluations,omitempty"`
 }
 
 type RulesetReadOutput struct {

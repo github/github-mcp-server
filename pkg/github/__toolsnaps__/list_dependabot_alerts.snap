@@ -130,6 +130,13 @@
             "security_advisory": {
               "additionalProperties": false,
               "properties": {
+                "classification": {
+                  "description": "GitHub advisory classification, such as malware or general.",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
                 "cve_id": {
                   "type": [
                     "null",

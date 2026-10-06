@@ -35,23 +35,7 @@
         ]
       },
       "reason": {
-        "enum": [
-          "approval_requested",
-          "assign",
-          "author",
-          "ci_activity",
-          "comment",
-          "invitation",
-          "manual",
-          "member_feature_requested",
-          "mention",
-          "review_requested",
-          "security_alert",
-          "security_advisory_credit",
-          "state_change",
-          "subscribed",
-          "team_mention"
-        ],
+        "description": "Notification reason reported by GitHub; new provider values are preserved.",
         "type": [
           "null",
           "string"
@@ -106,16 +90,14 @@
             ]
           },
           "type": {
-            "enum": [
-              "CheckSuite",
-              "Commit",
-              "Discussion",
-              "Issue",
-              "PullRequest",
-              "Release",
-              "RepositoryInvitation",
-              "SecurityAdvisory"
-            ],
+            "description": "Subject type reported by GitHub; new provider values are preserved.",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "url": {
+            "description": "API reference to the underlying notification subject.",
             "type": [
               "null",
               "string"
