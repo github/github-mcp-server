@@ -62,14 +62,6 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Required: []string{"owner", "repo", "issue_number"},
 	}
 	WithPagination(schema)
-	// Unlike most tools, find_duplicate does not substitute its own default
-	// for an explicit 0: it forwards whatever page/perPage value is supplied
-	// (including 0) to the API unchanged, letting the API apply its own
-	// default. Document that exception here instead of relying solely on the
-	// generic WithPagination wording.
-	schema.Properties["page"].Description = "Page number for pagination (min 1). An explicit 0 is forwarded to the API as-is rather than being replaced with 1."
-	schema.Properties["perPage"].Description = "Results per page for pagination (min 1, max 100). An explicit 0 is forwarded to the API as-is rather than being replaced with 30."
-
 	st := NewToolWithSchemaOptions[FindDuplicateInput, []DuplicateCandidate](
 		ToolsetMetadataIssues,
 		mcp.Tool{
