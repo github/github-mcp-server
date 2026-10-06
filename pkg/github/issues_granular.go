@@ -185,7 +185,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		normalizeGranularCreateIssueArguments,
+		granularIssueInputNormalizer(normalizeGranularCreateIssueArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -204,7 +204,7 @@ func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.Se
 		func(args GranularIssueTitleInput) github.UpdateIssueRequest {
 			return github.UpdateIssueRequest{Title: &args.Title}
 		},
-		normalizeGranularIssueUpdateArguments("title"),
+		granularIssueInputNormalizer(normalizeGranularIssueUpdateArguments("title")),
 	)
 }
 
@@ -221,7 +221,7 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 		func(args GranularIssueBodyInput) github.UpdateIssueRequest {
 			return github.UpdateIssueRequest{Body: &args.Body}
 		},
-		normalizeGranularIssueUpdateArguments("body"),
+		granularIssueInputNormalizer(normalizeGranularIssueUpdateArguments("body")),
 	)
 }
 
@@ -322,7 +322,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		normalizeGranularUpdateIssueAssigneesArguments,
+		granularIssueInputNormalizer(normalizeGranularUpdateIssueAssigneesArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -457,7 +457,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		normalizeGranularUpdateIssueLabelsArguments,
+		granularIssueInputNormalizer(normalizeGranularUpdateIssueLabelsArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -480,7 +480,7 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 		func(args GranularIssueMilestoneInput) github.UpdateIssueRequest {
 			return github.UpdateIssueRequest{Milestone: &args.Milestone}
 		},
-		normalizeGranularIssueUpdateArguments("milestone"),
+		granularIssueInputNormalizer(normalizeGranularIssueUpdateArguments("milestone")),
 	)
 }
 
@@ -600,7 +600,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		normalizeGranularUpdateIssueTypeArguments,
+		granularIssueInputNormalizer(normalizeGranularUpdateIssueTypeArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -745,7 +745,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		normalizeGranularUpdateIssueStateArguments,
+		granularIssueInputNormalizer(normalizeGranularUpdateIssueStateArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -805,7 +805,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			result, output, err := addSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
 			return subIssueWriteResult("add")(result, output, err)
 		},
-		normalizeGranularAddSubIssueArguments,
+		granularIssueInputNormalizer(normalizeGranularAddSubIssueArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -861,7 +861,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			result, output, err := removeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
 			return subIssueWriteResult("remove")(result, output, err)
 		},
-		normalizeGranularRemoveSubIssueArguments,
+		granularIssueInputNormalizer(normalizeGranularRemoveSubIssueArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -925,7 +925,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			result, output, err := reprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 			return subIssueWriteResult("reprioritize")(result, output, err)
 		},
-		normalizeGranularReprioritizeSubIssueArguments,
+		granularIssueInputNormalizer(normalizeGranularReprioritizeSubIssueArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -1087,7 +1087,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 
 			return granularIssueMinimalResult(&response)
 		},
-		normalizeGranularSetIssueFieldsArguments,
+		granularIssueInputNormalizer(normalizeGranularSetIssueFieldsArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -1151,7 +1151,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 				URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
 			})
 		},
-		normalizeGranularAddIssueReactionArguments,
+		granularIssueInputNormalizer(normalizeGranularAddIssueReactionArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -1214,7 +1214,7 @@ func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory
 
 			return utils.NewToolResultText("reaction successfully removed from issue"), &GranularIssueReactionMessage{Message: "reaction successfully removed from issue"}, nil
 		},
-		normalizeGranularRemoveIssueReactionArguments,
+		granularIssueInputNormalizer(normalizeGranularRemoveIssueReactionArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -1278,7 +1278,7 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				URL: fmt.Sprintf("%srepos/%s/%s/issues/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
 			})
 		},
-		normalizeGranularAddIssueCommentReactionArguments,
+		granularIssueInputNormalizer(normalizeGranularAddIssueCommentReactionArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
@@ -1341,7 +1341,7 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 
 			return utils.NewToolResultText("reaction successfully removed from issue comment"), &GranularIssueReactionMessage{Message: "reaction successfully removed from issue comment"}, nil
 		},
-		normalizeGranularRemoveIssueCommentReactionArguments,
+		granularIssueInputNormalizer(normalizeGranularRemoveIssueCommentReactionArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st

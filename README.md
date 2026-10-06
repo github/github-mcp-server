@@ -1518,7 +1518,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **search_repositories** - Search repositories
   - **OAuth Challenge Scopes**: `repo`
-  - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `minimal_output`: Return minimal repository information (default: true). When false, modern clients receive additional curated repository details, not the complete GitHub API object. Legacy clients retain full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

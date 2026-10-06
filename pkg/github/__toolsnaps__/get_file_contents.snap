@@ -83,6 +83,12 @@
                 "string"
               ]
             },
+            "git_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
             "html_url": {
               "type": [
                 "null",
@@ -128,6 +134,12 @@
               ]
             },
             "type": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "url": {
               "type": [
                 "null",
                 "string"

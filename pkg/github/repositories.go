@@ -36,7 +36,31 @@ type GetCommitInput struct {
 }
 
 func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool[GetCommitInput, MinimalCommit](
+	schema := WithPagination(&jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"sha": {
+				Type:        "string",
+				Description: "Commit SHA, branch name, or tag name",
+			},
+			"detail": {
+				Type:        "string",
+				Enum:        []any{"none", "stats", "full_patch"},
+				Description: "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+				Default:     json.RawMessage(`"stats"`),
+			},
+		},
+		Required: []string{"owner", "repo", "sha"},
+	})
+	return NewToolWithSchemaOptions[GetCommitInput, MinimalCommit](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_commit",
@@ -45,32 +69,10 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_COMMITS_USER_TITLE", "Get commit details"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"sha": {
-						Type:        "string",
-						Description: "Commit SHA, branch name, or tag name",
-					},
-					"detail": {
-						Type:        "string",
-						Enum:        []any{"none", "stats", "full_patch"},
-						Description: "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
-						Default:     json.RawMessage(`"stats"`),
-					},
-				},
-				Required: []string{"owner", "repo", "sha"},
-			}),
+			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
+		inventory.TypedSchemaOptions{ValidationInputSchema: relaxedPaginationValidationSchema(schema)},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetCommitInput) (*mcp.CallToolResult, MinimalCommit, error) {
 			if input.Owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), MinimalCommit{}, nil
@@ -231,7 +233,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 	WithPagination(schema)
 
-	return NewTool[ListCommitsInput, []ListCommitOutput](
+	return NewToolWithSchemaOptions[ListCommitsInput, []ListCommitOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_commits",
@@ -243,6 +245,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
+		inventory.TypedSchemaOptions{ValidationInputSchema: relaxedPaginationValidationSchema(schema)},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, []ListCommitOutput, error) {
 			if input.Owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -340,6 +343,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return result, structuredListCommitsOutput(minimalCommits, input.Fields), nil
 		},
 		normalizeTypedReadArguments(nil, false),
+		normalizeRepositoryFieldsArguments,
 	)
 }
 
@@ -1209,6 +1213,13 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				var output []*RepositoryDirectoryEntryOutput
 				if err := json.Unmarshal(r, &output); err != nil {
 					return nil, nil, fmt.Errorf("failed to decode typed directory contents: %w", err)
+				}
+				if len(fields) == 0 {
+					for _, entry := range output {
+						if entry != nil {
+							entry.URL, entry.GitURL = nil, nil
+						}
+					}
 				}
 				return attachIFC(utils.NewToolResultText(string(r))), &RepositoryContentsOutput{Directory: output}, nil
 			}
@@ -3039,7 +3050,9 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(payload)), &RepositoryBlameOutput{Result: &result}, nil
+			callResult := utils.NewToolResultText(string(payload))
+			callResult = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, callResult, ifc.LabelCommitContents)
+			return callResult, &RepositoryBlameOutput{Result: &result}, nil
 		},
 		normalizeRepositoryBlameArguments,
 	)

@@ -772,9 +772,7 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), &MinimalPullRequestCommentReaction{
-				ID: reaction.GetID(), Content: PullRequestCommentReactionType(reaction.GetContent()),
-			}, nil
+			return utils.NewToolResultText(string(r)), output, nil
 		},
 		normalizeGranularPullRequestArguments("add_reaction"),
 	)

@@ -20,14 +20,14 @@
         "type": "string"
       },
       "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
+        "description": "Page number for pagination (min 0). Zero is forwarded for the GitHub API default.",
+        "minimum": 0,
         "type": "number"
       },
       "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
+        "description": "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default.",
         "maximum": 100,
-        "minimum": 1,
+        "minimum": 0,
         "type": "number"
       },
       "repo": {

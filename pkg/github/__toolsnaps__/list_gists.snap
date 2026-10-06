@@ -63,6 +63,9 @@
                   "language": {
                     "type": "string"
                   },
+                  "raw_url": {
+                    "type": "string"
+                  },
                   "size": {
                     "description": "File size in bytes.",
                     "type": "integer"
@@ -75,6 +78,9 @@
                 "type": "object"
               },
               "type": "object"
+            },
+            "git_pull_url": {
+              "type": "string"
             },
             "html_url": {
               "type": "string"

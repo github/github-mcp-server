@@ -241,8 +241,8 @@ func granularPRSession(t *testing.T, deps ToolDependencies, protocol string, rea
 		require.NoError(t, err, name)
 		schemas[tool.Name] = resolved
 		if tool.Name == "add_pull_request_review_comment_reaction" {
-			require.NoError(t, resolved.Validate(map[string]any{"id": float64(77), "content": "heart"}))
-			require.Error(t, resolved.Validate(map[string]any{"id": float64(77), "url": "https://api.github.com/reaction"}))
+			require.NoError(t, resolved.Validate(map[string]any{"id": "77", "url": "https://api.github.com/reaction"}))
+			require.Error(t, resolved.Validate(map[string]any{"id": float64(77), "content": "heart"}))
 		}
 	}
 	return session, schemas
@@ -272,15 +272,7 @@ func assertGranularPRResult(t *testing.T, result *mcp.CallToolResult, schema *js
 	require.NoError(t, schema.Validate(output))
 	switch {
 	case strings.Contains(text, "/reactions/"):
-		var reference MinimalResponse
-		require.NoError(t, json.Unmarshal([]byte(text), &reference))
-		var reaction MinimalPullRequestCommentReaction
-		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, output)), &reaction))
-		assert.Equal(t, reference.ID, fmt.Sprint(reaction.ID))
-		if reaction.ID != 0 {
-			assert.Equal(t, PullRequestCommentReactionType("heart"), reaction.Content)
-		}
-		assert.NotContains(t, mustMarshalJSON(t, output), "url")
+		assert.JSONEq(t, text, mustMarshalJSON(t, output))
 		assert.JSONEq(t, mustMarshalJSON(t, output), wireText)
 	case strings.HasPrefix(text, "{"):
 		assert.JSONEq(t, mustMarshalJSON(t, output), wireText)
@@ -456,8 +448,8 @@ func TestTypedInputDescriptionsMatchMain(t *testing.T) {
 			"state": "The new state for the pull request",
 		},
 		"find_duplicate": {
-			"page":    "Page number for pagination (min 1)",
-			"perPage": "Results per page for pagination (min 1, max 100)",
+			"page":    "Page number for pagination (min 0). Zero is forwarded for the GitHub API default.",
+			"perPage": "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default.",
 		},
 	}
 	tools := append(granularPullRequestTools(), FindDuplicate(translations.NullTranslationHelper))
@@ -473,21 +465,20 @@ func TestTypedInputDescriptionsMatchMain(t *testing.T) {
 
 	findDuplicate, ok := FindDuplicate(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
-	assert.Equal(t, 1.0, *findDuplicate.Properties["page"].Minimum)
-	assert.Equal(t, 1.0, *findDuplicate.Properties["perPage"].Minimum)
+	assert.Equal(t, 0.0, *findDuplicate.Properties["page"].Minimum)
+	assert.Equal(t, 0.0, *findDuplicate.Properties["perPage"].Minimum)
 	assert.Equal(t, 100.0, *findDuplicate.Properties["perPage"].Maximum)
 }
 
 func TestGranularPullRequestReactionSchema(t *testing.T) {
 	schema, err := minimalPullRequestCommentReactionSchema().Resolve(nil)
 	require.NoError(t, err)
-	for _, content := range PullRequestCommentReactionType("").Values() {
-		require.NoError(t, schema.Validate(map[string]any{"id": float64(77), "content": content}))
-	}
-	require.NoError(t, schema.Validate(map[string]any{"id": float64(0)}))
+	require.NoError(t, schema.Validate(map[string]any{"id": "77", "url": "https://api.github.com/reaction"}))
+	require.NoError(t, schema.Validate(map[string]any{"id": "0", "url": ""}))
 	for _, raw := range []string{
 		`null`, `[]`, `{}`, `{"id":"77"}`, `{"id":77,"content":"other"}`,
 		`{"id":77,"content":null}`, `{"id":77,"url":"https://api.github.com/reaction"}`,
+		`{"id":"77","url":null}`, `{"id":"77","url":"https://api.github.com/reaction","content":"heart"}`,
 	} {
 		var output any
 		require.NoError(t, json.Unmarshal([]byte(raw), &output))

@@ -141,7 +141,7 @@ func gitGistDeps(t *testing.T, current **gitGistCase, apiError bool, private ...
 const (
 	gistBody       = `{"id":"abc","description":"d","public":true,"comments":2,"html_url":"https://gist.github.com/abc","created_at":"2026-01-01T00:00:00Z","owner":{"login":"octocat","id":1,"url":"https://api.github.com/users/octocat","html_url":"https://github.com/octocat","node_id":"user-node"},"files":{"a.txt":{"filename":"a.txt","size":3,"content":"hey","raw_url":"https://gist.githubusercontent.com/raw"}},"node_id":"gist-node","git_pull_url":"https://gist.github.com/abc.git","git_push_url":"https://gist.github.com/abc.git"}`
 	gistText       = `{"id":"abc","description":"d","public":true,"owner":{"login":"octocat","id":1,"node_id":"user-node","html_url":"https://github.com/octocat","url":"https://api.github.com/users/octocat"},"files":{"a.txt":{"size":3,"filename":"a.txt","raw_url":"https://gist.githubusercontent.com/raw","content":"hey"}},"comments":2,"html_url":"https://gist.github.com/abc","git_pull_url":"https://gist.github.com/abc.git","git_push_url":"https://gist.github.com/abc.git","created_at":"2026-01-01T00:00:00Z","node_id":"gist-node"}`
-	gistStructured = `{"id":"abc","description":"d","public":true,"owner":{"login":"octocat","id":1,"profile_url":"https://github.com/octocat"},"files":{"a.txt":{"size":3,"filename":"a.txt","content":"hey"}},"comments":2,"html_url":"https://gist.github.com/abc","created_at":"2026-01-01T00:00:00Z"}`
+	gistStructured = `{"id":"abc","description":"d","public":true,"owner":{"login":"octocat","id":1,"profile_url":"https://github.com/octocat"},"files":{"a.txt":{"size":3,"filename":"a.txt","content":"hey","raw_url":"https://gist.githubusercontent.com/raw"}},"comments":2,"html_url":"https://gist.github.com/abc","git_pull_url":"https://gist.github.com/abc.git","created_at":"2026-01-01T00:00:00Z"}`
 	treeBody       = `{"sha":"t1","truncated":false,"tree":[{"path":"src/a.go","mode":"100644","type":"blob","sha":"s1","size":5,"url":"u1"},{"path":"src","mode":"040000","type":"tree","sha":"s2","url":"u2"},{"path":"README.md","mode":"100644","type":"blob","sha":"s3","size":1,"url":"u3"}]}`
 	minimalOK      = `{"id":"abc","url":"https://gist.github.com/abc"}`
 )
@@ -267,9 +267,9 @@ func TestGitGistOutputSchemasRejectMismatches(t *testing.T) {
 		"gist":      {gistOutputSchema(), `{"id":null}`},
 		"list":      {gistListOutputSchema(), `[{"files":{"a":{"size":"3"}}}]`},
 		"create":    {gistMutationOutputSchema(), `{"id":"a"}`},
-		"api_url":   {gistOutputSchema(), `{"git_pull_url":"https://gist.github.com/abc.git"}`},
+		"api_url":   {gistOutputSchema(), `{"git_push_url":"https://gist.github.com/abc.git"}`},
 		"node_id":   {gistOutputSchema(), `{"owner":{"login":"octocat","node_id":"node"}}`},
-		"raw_url":   {gistOutputSchema(), `{"files":{"a":{"raw_url":"https://gist.githubusercontent.com/raw"}}}`},
+		"raw_url":   {gistOutputSchema(), `{"files":{"a":{"raw_url":null}}}`},
 		"timestamp": {gistOutputSchema(), `{"created_at":42}`},
 		"tree_type": {treeOutputSchema(), `{"sha":"s","truncated":false,"tree":[{"path":"p","type":"invalid","mode":"100644","sha":"s"}],"tree_sha":"t","owner":"o","repo":"r","recursive":false,"count":1}`},
 	} {

@@ -150,6 +150,7 @@ type GistOutput struct {
 	Files       map[string]GistFileOutput `json:"files,omitempty"`
 	Comments    *int                      `json:"comments,omitempty"`
 	HTMLURL     *string                   `json:"html_url,omitempty"`
+	GitPullURL  *string                   `json:"git_pull_url,omitempty"`
 	CreatedAt   string                    `json:"created_at,omitempty"`
 	UpdatedAt   string                    `json:"updated_at,omitempty"`
 }
@@ -168,6 +169,7 @@ type GistFileOutput struct {
 	Size     *int    `json:"size,omitempty"`
 	Language *string `json:"language,omitempty"`
 	Type     *string `json:"type,omitempty"`
+	RawURL   *string `json:"raw_url,omitempty"`
 }
 
 func projectGist(gist *github.Gist) *GistOutput {
@@ -176,13 +178,13 @@ func projectGist(gist *github.Gist) *GistOutput {
 	}
 	output := &GistOutput{
 		ID: gist.ID, Description: gist.Description, Public: gist.Public,
-		Owner: convertToMinimalUser(gist.Owner), Comments: gist.Comments, HTMLURL: gist.HTMLURL,
+		Owner: convertToMinimalUser(gist.Owner), Comments: gist.Comments, HTMLURL: gist.HTMLURL, GitPullURL: gist.GitPullURL,
 	}
 	if len(gist.Files) != 0 {
 		output.Files = make(map[string]GistFileOutput, len(gist.Files))
 		for name, file := range gist.Files {
 			output.Files[string(name)] = GistFileOutput{
-				Filename: file.Filename, Content: file.Content, Size: file.Size, Language: file.Language, Type: file.Type,
+				Filename: file.Filename, Content: file.Content, Size: file.Size, Language: file.Language, Type: file.Type, RawURL: file.RawURL,
 			}
 		}
 	}

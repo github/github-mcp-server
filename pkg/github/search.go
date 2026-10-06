@@ -40,7 +40,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 			"minimal_output": {
 				Type:        "boolean",
-				Description: "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+				Description: "Return minimal repository information (default: true). When false, modern clients receive additional curated repository details, not the complete GitHub API object. Legacy clients retain full GitHub API repository objects.",
 				Default:     json.RawMessage(`true`),
 			},
 		},

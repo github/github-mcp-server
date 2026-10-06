@@ -92,11 +92,7 @@ type GranularRemovePullRequestCommentReactionInput struct {
 	ReactionID int64  `json:"reaction_id"`
 }
 
-// MinimalPullRequestCommentReaction omits the derivable REST reaction URL.
-type MinimalPullRequestCommentReaction struct {
-	ID      int64                          `json:"id"`
-	Content PullRequestCommentReactionType `json:"content,omitempty"`
-}
+type MinimalPullRequestCommentReaction = MinimalResponse
 
 type PullRequestCommentReactionType string
 
@@ -149,8 +145,7 @@ func granularPullRequestEnumSchema(values []string) *jsonschema.Schema {
 func minimalPullRequestCommentReactionSchema() *jsonschema.Schema {
 	schema := repositoryOutputSchema[MinimalPullRequestCommentReaction]()
 	schema.Properties["id"].Description = "Reaction ID"
-	schema.Properties["content"].Description = "Reaction type"
-	schema.Properties["content"].Enum = PullRequestCommentReactionType("").JSONSchema().Enum
+	schema.Properties["url"].Description = "Reaction URL"
 	return schema
 }
 

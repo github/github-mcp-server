@@ -378,13 +378,15 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 						var entries []*RepositoryDirectoryEntryOutput
 						require.NoError(t, json.Unmarshal([]byte(first), &entries))
 						assert.JSONEq(t, mustMarshalJSON(t, entries), mustMarshalJSON(t, result.StructuredContent))
-						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-content-url")
+						if call.args["fields"] == nil {
+							assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-content-url")
+						}
 						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-git-url")
 						if call.args["path"] == "submodule-directory" {
 							assert.JSONEq(t, `[{"name":"lib","path":"lib","type":"file","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]`, mustMarshalJSON(t, result.StructuredContent))
 						}
 						if call.args["path"] == "directory" && call.args["fields"] != nil && len(call.args["fields"].([]any)) == 3 {
-							assert.JSONEq(t, `[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file"}]`, mustMarshalJSON(t, result.StructuredContent))
+							assert.JSONEq(t, `[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file","url":"api-content-url"}]`, mustMarshalJSON(t, result.StructuredContent))
 						}
 					case call.name == "create_branch" || call.name == "push_files":
 						assert.JSONEq(t, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"base"}}`, mustMarshalJSON(t, result.StructuredContent))

@@ -62,6 +62,10 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Required: []string{"owner", "repo", "issue_number"},
 	}
 	WithPagination(schema)
+	schema.Properties["page"].Minimum = new(0.0)
+	schema.Properties["page"].Description = "Page number for pagination (min 0). Zero is forwarded for the GitHub API default."
+	schema.Properties["perPage"].Minimum = new(0.0)
+	schema.Properties["perPage"].Description = "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default."
 	st := NewToolWithSchemaOptions[FindDuplicateInput, []DuplicateCandidate](
 		ToolsetMetadataIssues,
 		mcp.Tool{

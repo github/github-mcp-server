@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/url"
 	"testing"
@@ -40,11 +41,11 @@ func Test_FindDuplicate(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
 
-	assert.Equal(t, 1.0, *schema.Properties["page"].Minimum)
-	assert.Equal(t, 1.0, *schema.Properties["perPage"].Minimum)
+	assert.Equal(t, 0.0, *schema.Properties["page"].Minimum)
+	assert.Equal(t, 0.0, *schema.Properties["perPage"].Minimum)
 	assert.Equal(t, 100.0, *schema.Properties["perPage"].Maximum)
-	assert.Equal(t, "Page number for pagination (min 1)", schema.Properties["page"].Description)
-	assert.Equal(t, "Results per page for pagination (min 1, max 100)", schema.Properties["perPage"].Description)
+	assert.Equal(t, "Page number for pagination (min 0). Zero is forwarded for the GitHub API default.", schema.Properties["page"].Description)
+	assert.Equal(t, "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default.", schema.Properties["perPage"].Description)
 }
 
 func Test_FindDuplicate_RankedResults(t *testing.T) {
@@ -156,15 +157,57 @@ func Test_FindDuplicate_ZeroPaginationIsForwarded(t *testing.T) {
 	assert.Equal(t, "page=0&per_page=0&threshold=0", capturedRawQuery)
 
 	advertised := serverTool.Tool.InputSchema.(*jsonschema.Schema)
-	assert.Equal(t, 1.0, *advertised.Properties["page"].Minimum)
-	assert.Equal(t, 1.0, *advertised.Properties["perPage"].Minimum)
-	validation, err := issuePaginationValidationSchema(advertised).Resolve(nil)
+	validation, err := advertised.Resolve(nil)
 	require.NoError(t, err)
 	require.NoError(t, validation.Validate(map[string]any{
 		"owner": "owner", "repo": "repo", "issue_number": float64(123),
 		"page":    float64(0),
 		"perPage": float64(0),
 	}))
+}
+
+func Test_FindDuplicate_PaginationContracts(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+	advertised := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	for name, schema := range map[string]*jsonschema.Schema{
+		"advertised": advertised,
+		"runtime":    issuePaginationValidationSchema(advertised),
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolved, err := schema.Resolve(nil)
+			require.NoError(t, err)
+			for _, tc := range []struct {
+				name   string
+				params map[string]any
+				valid  bool
+			}{
+				{"omitted", map[string]any{}, true},
+				{"zero", map[string]any{"page": float64(0), "perPage": float64(0)}, true},
+				{"positive", map[string]any{"page": float64(1), "perPage": float64(30)}, true},
+				{"maximum perPage", map[string]any{"page": float64(101), "perPage": float64(100)}, true},
+				{"negative page", map[string]any{"page": float64(-1)}, false},
+				{"negative perPage", map[string]any{"perPage": float64(-1)}, false},
+				{"excessive perPage", map[string]any{"perPage": float64(101)}, false},
+				{"invalid page type", map[string]any{"page": "invalid"}, false},
+				{"invalid perPage type", map[string]any{"perPage": "invalid"}, false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": float64(123)}
+					maps.Copy(args, tc.params)
+					if tc.valid {
+						assert.NoError(t, resolved.Validate(args))
+					} else {
+						assert.Error(t, resolved.Validate(args))
+					}
+				})
+			}
+			for _, field := range schema.Required {
+				args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": float64(123)}
+				delete(args, field)
+				assert.Error(t, resolved.Validate(args), field)
+			}
+		})
+	}
 }
 
 // Test_FindDuplicate_SanitizesIssueTitle asserts that candidate issue titles, which are

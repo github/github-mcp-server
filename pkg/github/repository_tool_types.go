@@ -220,7 +220,7 @@ type RepositoryContentsOutput struct {
 }
 
 // Optional pointer fields retain projected zero values without reinstating
-// omitted fields. API routing/hypermedia URLs never enter structured output.
+// omitted fields. API URLs are included only when explicitly projected.
 type RepositoryDirectoryEntryOutput struct {
 	Type            *string `json:"type,omitempty"`
 	Name            *string `json:"name,omitempty"`
@@ -229,6 +229,8 @@ type RepositoryDirectoryEntryOutput struct {
 	Size            *int    `json:"size,omitempty" jsonschema:"File size in bytes."`
 	HTMLURL         *string `json:"html_url,omitempty"`
 	DownloadURL     *string `json:"download_url,omitempty"`
+	URL             *string `json:"url,omitempty"`
+	GitURL          *string `json:"git_url,omitempty"`
 	Target          *string `json:"target,omitempty"`
 	SubmoduleGitURL *string `json:"submodule_git_url,omitempty" jsonschema:"Git remote URL for a submodule."`
 }
