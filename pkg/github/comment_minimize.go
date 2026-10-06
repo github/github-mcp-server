@@ -23,7 +23,18 @@ import (
 type MinimizeCommentResult struct {
 	NodeID          string `json:"node_id"`
 	IsMinimized     bool   `json:"is_minimized"`
-	MinimizedReason string `json:"minimized_reason,omitempty"`
+	MinimizedReason string `json:"minimized_reason,omitempty" jsonschema:"GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden."`
+}
+
+// CommentVisibilityInput identifies the comment or review whose visibility changes.
+// The factory's target-specific schema determines which identifiers are required.
+type CommentVisibilityInput struct {
+	Owner      string `json:"owner"`
+	Repo       string `json:"repo"`
+	CommentID  int64  `json:"comment_id,omitempty"`
+	PullNumber int    `json:"pullNumber,omitempty"`
+	ReviewID   int64  `json:"review_id,omitempty"`
+	Classifier string `json:"classifier,omitempty"`
 }
 
 var commentClassifiers = []any{"SPAM", "ABUSE", "OFF_TOPIC", "OUTDATED", "DUPLICATE", "RESOLVED", "LOW_QUALITY"}
@@ -42,7 +53,7 @@ type commentVisibilityTarget struct {
 	unhideDescription string
 	properties        func() map[string]*jsonschema.Schema
 	required          []string
-	resolveNodeID     func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult)
+	resolveNodeID     func(ctx context.Context, client *github.Client, input CommentVisibilityInput) (string, *mcp.CallToolResult)
 }
 
 var issueCommentVisibilityTarget = commentVisibilityTarget{
@@ -62,12 +73,8 @@ var issueCommentVisibilityTarget = commentVisibilityTarget{
 		}
 	},
 	required: []string{"comment_id"},
-	resolveNodeID: func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult) {
-		commentID, err := requiredPositiveBigInt(args, "comment_id")
-		if err != nil {
-			return "", utils.NewToolResultError(err.Error())
-		}
-		comment, resp, err := client.Issues.GetComment(ctx, owner, repo, commentID)
+	resolveNodeID: func(ctx context.Context, client *github.Client, input CommentVisibilityInput) (string, *mcp.CallToolResult) {
+		comment, resp, err := client.Issues.GetComment(ctx, input.Owner, input.Repo, input.CommentID)
 		return nodeIDFromResponse(ctx, "failed to get issue comment", comment.GetNodeID(), resp, err)
 	},
 }
@@ -89,12 +96,8 @@ var pullRequestReviewCommentVisibilityTarget = commentVisibilityTarget{
 		}
 	},
 	required: []string{"comment_id"},
-	resolveNodeID: func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult) {
-		commentID, err := requiredPositiveBigInt(args, "comment_id")
-		if err != nil {
-			return "", utils.NewToolResultError(err.Error())
-		}
-		comment, resp, err := client.PullRequests.GetComment(ctx, owner, repo, commentID)
+	resolveNodeID: func(ctx context.Context, client *github.Client, input CommentVisibilityInput) (string, *mcp.CallToolResult) {
+		comment, resp, err := client.PullRequests.GetComment(ctx, input.Owner, input.Repo, input.CommentID)
 		return nodeIDFromResponse(ctx, "failed to get pull request review comment", comment.GetNodeID(), resp, err)
 	},
 }
@@ -121,19 +124,8 @@ var pullRequestReviewVisibilityTarget = commentVisibilityTarget{
 		}
 	},
 	required: []string{"pullNumber", "review_id"},
-	resolveNodeID: func(ctx context.Context, client *github.Client, owner, repo string, args map[string]any) (string, *mcp.CallToolResult) {
-		pullNumber, err := RequiredInt(args, "pullNumber")
-		if err != nil {
-			return "", utils.NewToolResultError(err.Error())
-		}
-		if pullNumber < 1 {
-			return "", utils.NewToolResultError("pullNumber must be greater than 0")
-		}
-		reviewID, err := requiredPositiveBigInt(args, "review_id")
-		if err != nil {
-			return "", utils.NewToolResultError(err.Error())
-		}
-		review, resp, err := client.PullRequests.GetReview(ctx, owner, repo, pullNumber, reviewID)
+	resolveNodeID: func(ctx context.Context, client *github.Client, input CommentVisibilityInput) (string, *mcp.CallToolResult) {
+		review, resp, err := client.PullRequests.GetReview(ctx, input.Owner, input.Repo, input.PullNumber, input.ReviewID)
 		return nodeIDFromResponse(ctx, "failed to get pull request review", review.GetNodeID(), resp, err)
 	},
 }
@@ -167,7 +159,11 @@ func commentVisibilityTool(t translations.TranslationHelperFunc, target commentV
 		required = append(required, "classifier")
 	}
 
-	st := NewTool(
+	outputSchema, err := inventory.CachedSchemaFor[MinimizeCommentResult](nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate comment visibility output schema: %v", err))
+	}
+	st := NewTool[CommentVisibilityInput, MinimizeCommentResult](
 		target.toolset,
 		mcp.Tool{
 			Name:        name,
@@ -183,72 +179,121 @@ func commentVisibilityTool(t translations.TranslationHelperFunc, target commentV
 				Properties: properties,
 				Required:   required,
 			},
+			OutputSchema: outputSchema,
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			return setCommentVisibility(ctx, deps, target, args, hide), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CommentVisibilityInput) (*mcp.CallToolResult, MinimizeCommentResult, error) {
+			result, output := setCommentVisibility(ctx, deps, target, input, hide)
+			return result, output, nil
 		},
+		normalizeCommentVisibilityArguments(target, hide),
 	)
 	st.FeatureRule = target.featureRule
 	return st
 }
 
-// setCommentVisibility resolves the object identified by args and hides or unhides it.
-func setCommentVisibility(ctx context.Context, deps ToolDependencies, target commentVisibilityTarget, args map[string]any, hide bool) *mcp.CallToolResult {
-	owner, err := RequiredParam[string](args, "owner")
-	if err != nil {
-		return utils.NewToolResultError(err.Error())
-	}
-	repo, err := RequiredParam[string](args, "repo")
-	if err != nil {
-		return utils.NewToolResultError(err.Error())
-	}
-	var classifier string
-	if hide {
-		classifier, err = RequiredParam[string](args, "classifier")
+func normalizeCommentVisibilityArguments(target commentVisibilityTarget, hide bool) inventory.InputNormalizer {
+	return func(raw json.RawMessage) (json.RawMessage, error) {
+		var args map[string]any
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, err
+		}
+		if args == nil {
+			return raw, nil
+		}
+		input, err := normalizeCommentVisibilityInput(args, target, hide)
 		if err != nil {
-			return utils.NewToolResultError(err.Error())
+			return nil, err
 		}
-		classifier = strings.ToUpper(classifier)
-		if !slices.Contains(commentClassifiers, any(classifier)) {
-			return utils.NewToolResultError(fmt.Sprintf("invalid classifier %q: must be one of %v", classifier, commentClassifiers))
+		normalized, err := json.Marshal(input)
+		if err != nil {
+			return nil, fmt.Errorf("marshal normalized comment visibility arguments: %w", err)
+		}
+		return normalized, nil
+	}
+}
+
+func normalizeCommentVisibilityInput(args map[string]any, target commentVisibilityTarget, hide bool) (CommentVisibilityInput, error) {
+	var input CommentVisibilityInput
+	var err error
+	input.Owner, err = RequiredParam[string](args, "owner")
+	if err != nil {
+		return input, err
+	}
+	input.Repo, err = RequiredParam[string](args, "repo")
+	if err != nil {
+		return input, err
+	}
+	if hide {
+		input.Classifier, err = RequiredParam[string](args, "classifier")
+		if err != nil {
+			return input, err
+		}
+		input.Classifier = strings.ToUpper(input.Classifier)
+		if !slices.Contains(commentClassifiers, any(input.Classifier)) {
+			return input, fmt.Errorf("invalid classifier %q: must be one of %v", input.Classifier, commentClassifiers)
 		}
 	}
+	for _, name := range target.required {
+		if name == "pullNumber" {
+			value, err := RequiredInt(args, name)
+			if err != nil {
+				return input, err
+			}
+			if value < 1 {
+				return input, fmt.Errorf("pullNumber must be greater than 0")
+			}
+			input.PullNumber = value
+			continue
+		}
+		value, err := requiredPositiveBigInt(args, name)
+		if err != nil {
+			return input, err
+		}
+		if name == "comment_id" {
+			input.CommentID = value
+		} else {
+			input.ReviewID = value
+		}
+	}
+	return input, nil
+}
 
+// setCommentVisibility resolves the object identified by input and hides or unhides it.
+func setCommentVisibility(ctx context.Context, deps ToolDependencies, target commentVisibilityTarget, input CommentVisibilityInput, hide bool) (*mcp.CallToolResult, MinimizeCommentResult) {
 	client, err := deps.GetClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err)
+		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), MinimizeCommentResult{}
 	}
 
-	nodeID, errResult := target.resolveNodeID(ctx, client, owner, repo, args)
+	nodeID, errResult := target.resolveNodeID(ctx, client, input)
 	if errResult != nil {
-		return errResult
+		return errResult, MinimizeCommentResult{}
 	}
 
 	gqlClient, err := deps.GetGQLClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err)
+		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), MinimizeCommentResult{}
 	}
 
 	var result MinimizeCommentResult
 	if hide {
-		result, errResult = minimizeComment(ctx, gqlClient, nodeID, classifier)
+		result, errResult = minimizeComment(ctx, gqlClient, nodeID, input.Classifier)
 	} else {
 		result, errResult = unminimizeComment(ctx, gqlClient, nodeID)
 	}
 	if errResult != nil {
-		return errResult
+		return errResult, MinimizeCommentResult{}
 	}
 
 	r, err := json.Marshal(result)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal response", err)
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), MinimizeCommentResult{}
 	}
-	return utils.NewToolResultText(string(r))
+	return utils.NewToolResultText(string(r)), result
 }
 
-// requiredPositiveBigInt reads a required ID argument. The schema's minimum is not enforced
-// when arguments are unmarshalled, so negative values are rejected here before any API call.
+// requiredPositiveBigInt validates legacy numeric IDs before SDK schema validation.
 func requiredPositiveBigInt(args map[string]any, p string) (int64, error) {
 	v, err := RequiredBigInt(args, p)
 	if err != nil {
