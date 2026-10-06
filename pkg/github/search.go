@@ -48,7 +48,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchRepositoriesInput, *SearchRepositoriesOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_repositories",
@@ -57,33 +57,21 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: searchRepositoriesOutputSchema(),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			query, err := RequiredParam[string](args, "query")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchRepositoriesInput) (*mcp.CallToolResult, *SearchRepositoriesOutput, error) {
+			var output *SearchRepositoriesOutput
+			if input.Query == "" {
+				return utils.NewToolResultError("missing required parameter: query"), output, nil
 			}
-			sort, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			order, err := OptionalParam[string](args, "order")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			minimalOutput, err := OptionalBoolParamWithDefault(args, "minimal_output", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			query := input.Query
+			pagination := repositoryPagination(input.Page, input.PerPage)
+			minimalOutput := input.MinimalOutput == nil || *input.MinimalOutput
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:  input.Sort,
+				Order: input.Order,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: pagination.PerPage,
@@ -92,7 +80,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), output, nil
 			}
 			result, resp, err := client.Search.Repositories(ctx, query, opts)
 			if err != nil {
@@ -100,50 +88,31 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 					fmt.Sprintf("failed to search repositories with query '%s'", query),
 					resp,
 					err,
-				), nil, nil
+				), output, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), output, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search repositories", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search repositories", resp, body), output, nil
 			}
 
 			// Return either minimal or full response based on parameter
 			var r []byte
+			output = &SearchRepositoriesOutput{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             make([]SearchRepository, 0, len(result.Repositories)),
+			}
 			if minimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
-					minimalRepo := MinimalRepository{
-						ID:            repo.GetID(),
-						Name:          repo.GetName(),
-						FullName:      repo.GetFullName(),
-						Description:   repo.GetDescription(),
-						HTMLURL:       repo.GetHTMLURL(),
-						Language:      repo.GetLanguage(),
-						Stars:         repo.GetStargazersCount(),
-						Forks:         repo.GetForksCount(),
-						OpenIssues:    repo.GetOpenIssuesCount(),
-						Private:       repo.GetPrivate(),
-						Fork:          repo.GetFork(),
-						Archived:      repo.GetArchived(),
-						DefaultBranch: repo.GetDefaultBranch(),
-					}
-
-					if repo.UpdatedAt != nil {
-						minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.CreatedAt != nil {
-						minimalRepo.CreatedAt = repo.CreatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.Topics != nil {
-						minimalRepo.Topics = repo.Topics
-					}
-
+					minimalRepo := minimalSearchRepository(repo)
 					minimalRepos = append(minimalRepos, minimalRepo)
+					output.Items = append(output.Items, SearchRepository{MinimalRepository: minimalRepo})
 				}
 
 				minimalResult := &MinimalSearchRepositoriesResult{
@@ -161,12 +130,16 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal full response", err), nil, nil
 				}
+				for _, repo := range result.Repositories {
+					output.Items = append(output.Items, fullSearchRepository(repo))
+				}
 			}
 
 			callResult := utils.NewToolResultText(string(r))
 			attachSearchRepositoriesIFCLabel(ctx, deps, result.Repositories, callResult)
-			return callResult, nil, nil
+			return callResult, output, nil
 		},
+		normalizeSearchArguments(true),
 	)
 }
 
@@ -437,27 +410,16 @@ func recordSearchCodeFieldsUsage(ctx context.Context, deps ToolDependencies, ful
 	recordFieldsUsageFor(ctx, deps, "search_code", full, filtered, sentBytes)
 }
 
-func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {
-	query, err := RequiredParam[string](args, "query")
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, input SearchAccountsInput) (*mcp.CallToolResult, *MinimalSearchUsersResult, error) {
+	if input.Query == "" {
+		return utils.NewToolResultError("missing required parameter: query"), nil, nil
 	}
-	sort, err := OptionalParam[string](args, "sort")
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-	order, err := OptionalParam[string](args, "order")
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-	pagination, err := OptionalPaginationParams(args)
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
+	query := input.Query
+	pagination := repositoryPagination(input.Page, input.PerPage)
 
 	opts := &github.SearchOptions{
-		Sort:  sort,
-		Order: order,
+		Sort:  input.Sort,
+		Order: input.Order,
 		ListOptions: github.ListOptions{
 			PerPage: pagination.PerPage,
 			Page:    pagination.Page,
@@ -524,7 +486,7 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 	// User and organization search returns public profile information that is
 	// authored by the account holders themselves, so it is public-untrusted.
 	callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.PublicUntrusted())
-	return callResult, nil, nil
+	return callResult, minimalResp, nil
 }
 
 // SearchUsers creates a tool to search for GitHub users.
@@ -551,7 +513,7 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchAccountsInput, *MinimalSearchUsersResult](
 		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "search_users",
@@ -563,9 +525,10 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			return userOrOrgHandler(ctx, "user", deps, args)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchAccountsInput) (*mcp.CallToolResult, *MinimalSearchUsersResult, error) {
+			return userOrOrgHandler(ctx, "user", deps, input)
 		},
+		normalizeSearchArguments(false),
 	)
 }
 
@@ -593,7 +556,7 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchAccountsInput, *MinimalSearchUsersResult](
 		ToolsetMetadataOrgs,
 		mcp.Tool{
 			Name:        "search_orgs",
@@ -605,9 +568,10 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.ReadOrg),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			return userOrOrgHandler(ctx, "org", deps, args)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchAccountsInput) (*mcp.CallToolResult, *MinimalSearchUsersResult, error) {
+			return userOrOrgHandler(ctx, "org", deps, input)
 		},
+		normalizeSearchArguments(false),
 	)
 }
 
@@ -635,7 +599,7 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchCommitsInput, *MinimalSearchCommitsResult](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_commits",
@@ -647,27 +611,16 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			query, err := RequiredParam[string](args, "query")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchCommitsInput) (*mcp.CallToolResult, *MinimalSearchCommitsResult, error) {
+			if input.Query == "" {
+				return utils.NewToolResultError("missing required parameter: query"), nil, nil
 			}
-			sort, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			order, err := OptionalParam[string](args, "order")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			query := input.Query
+			pagination := repositoryPagination(input.Page, input.PerPage)
 
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:  input.Sort,
+				Order: input.Order,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: pagination.PerPage,
@@ -723,7 +676,8 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 			callResult = attachJoinedIFCLabel(ctx, deps, callResult, visibilities, ifc.LabelSearchIssues)
-			return callResult, nil, nil
+			return callResult, minimalResult, nil
 		},
+		normalizeSearchArguments(false),
 	)
 }
