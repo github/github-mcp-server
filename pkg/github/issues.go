@@ -801,8 +801,9 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"2. get_comments - Get issue comments.\n" +
 					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
 					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
-					"5. get_labels - Get labels assigned to the issue.\n",
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
+					"5. get_labels - Get labels assigned to the issue.\n" +
+					"6. get_timeline - Get timeline events for the issue or pull request, including review request timestamps. Use with pagination parameters and optional event_types filtering.\n",
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels", "get_timeline"},
 			},
 			"owner": {
 				Type:        "string",
@@ -815,6 +816,11 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			"issue_number": {
 				Type:        "number",
 				Description: "The number of the issue",
+			},
+			"event_types": {
+				Type:        "array",
+				Description: "Optional timeline event types to include, such as review_requested or review_request_removed. Used only by get_timeline.",
+				Items:       &jsonschema.Schema{Type: "string"},
 			},
 		},
 		Required: []string{"method", "owner", "repo", "issue_number"},
@@ -888,10 +894,45 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
+			case "get_timeline":
+				eventTypes, err := OptionalStringArrayParam(args, "event_types")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetIssueTimeline(ctx, client, owner, repo, issueNumber, pagination, eventTypes)
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
+}
+
+func GetIssueTimeline(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, pagination PaginationParams, eventTypes []string) (*mcp.CallToolResult, error) {
+	events, resp, err := client.Issues.ListIssueTimeline(ctx, owner, repo, issueNumber, &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
+	})
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get issue timeline", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	wanted := make(map[string]struct{}, len(eventTypes))
+	for _, eventType := range eventTypes {
+		wanted[eventType] = struct{}{}
+	}
+
+	minimalEvents := make([]MinimalTimelineEvent, 0, len(events))
+	for _, event := range events {
+		if len(wanted) > 0 {
+			if _, ok := wanted[event.GetEvent()]; !ok {
+				continue
+			}
+		}
+		minimalEvents = append(minimalEvents, convertToMinimalTimelineEvent(event))
+	}
+
+	return MarshalledTextResult(minimalEvents), nil
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {

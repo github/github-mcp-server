@@ -980,6 +980,7 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - **OAuth Challenge Scopes**: `repo`
+  - `event_types`: Optional timeline event types to include, such as review_requested or review_request_removed. Used only by get_timeline. (string[], optional)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:
@@ -988,6 +989,7 @@ The following sets of tools are available:
     3. get_sub_issues - Get sub-issues (children) of the issue.
     4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
     5. get_labels - Get labels assigned to the issue.
+    6. get_timeline - Get timeline events for the issue or pull request, including review request timestamps. Use with pagination parameters and optional event_types filtering.
      (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1289,6 +1291,7 @@ The following sets of tools are available:
 - **pull_request_read** - Get details for a single pull request
   - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page. (string, optional)
+  - `event_types`: Optional timeline event types to include, such as review_requested or review_request_removed. Used only by get_timeline. (string[], optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
      1. get - Get details of a specific pull request.
@@ -1300,6 +1303,7 @@ The following sets of tools are available:
      7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
      9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+     10. get_timeline - Get pull request timeline events, including review request and review request removal timestamps. Use with pagination parameters and optional event_types filtering.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
