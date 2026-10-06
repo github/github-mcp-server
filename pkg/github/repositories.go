@@ -312,8 +312,15 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
+type RepositoryListInput struct {
+	Owner   string `json:"owner"`
+	Repo    string `json:"repo"`
+	Page    *int   `json:"page,omitempty"`
+	PerPage *int   `json:"perPage,omitempty"`
+}
+
 func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryListInput, []MinimalBranch](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_branches",
@@ -338,18 +345,19 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryListInput) (*mcp.CallToolResult, []MinimalBranch, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{Page: 1, PerPage: 30}
+			if input.Page != nil {
+				pagination.Page = *input.Page
+			}
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 
 			opts := &github.BranchListOptions{
@@ -364,7 +372,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
+			branches, resp, err := client.Repositories.ListBranches(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list branches",
@@ -397,9 +405,10 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Branches are structural repo metadata that only collaborators
 			// with push access can create, so integrity is trusted.
 			// Confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelRepoMetadata)
+			return result, minimalBranches, nil
 		},
+		normalizeTypedReadArguments(nil, false),
 	)
 }
 
@@ -1852,7 +1861,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // ListTags creates a tool to list tags in a GitHub repository.
 func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryListInput, []MinimalTag](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_tags",
@@ -1877,18 +1886,19 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryListInput) (*mcp.CallToolResult, []MinimalTag, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{Page: 1, PerPage: 30}
+			if input.Page != nil {
+				pagination.Page = *input.Page
+			}
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 
 			opts := &github.ListOptions{
@@ -1901,7 +1911,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			tags, resp, err := client.Repositories.ListTags(ctx, owner, repo, opts)
+			tags, resp, err := client.Repositories.ListTags(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list tags",
@@ -1935,9 +1945,10 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Tags are structural repo metadata created by collaborators with
 			// push access, so integrity is trusted. Confidentiality follows
 			// repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, input.Owner, input.Repo, result, ifc.LabelRepoMetadata)
+			return result, minimalTags, nil
 		},
+		normalizeTypedReadArguments(nil, false),
 	)
 }
 

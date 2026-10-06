@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1970,7 +1971,7 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 	)
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[SearchIssuesInput, SearchIssuesOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
@@ -1982,16 +1983,14 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input SearchIssuesInput) (*mcp.CallToolResult, SearchIssuesOutput, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			options = append(options, withFieldsFiltering(deps, "search_issues", fields))
-			result, err := searchIssuesHandler(ctx, deps, args, mode, options...)
-			return result, nil, err
-		})
+			options = append(options, withFieldsFiltering(deps, "search_issues", input.Fields))
+			result, response, err := searchIssuesHandler(ctx, deps, input, mode, options...)
+			return result, structuredSearchIssuesOutput(response, input.Fields), err
+		},
+		normalizeTypedReadArguments(nil, false),
+	)
 }
 
 // searchIssuesIFCPostProcess returns a searchPostProcessFn that attaches the
@@ -2144,6 +2143,150 @@ type SearchIssuesResponse struct {
 	Total             *int                `json:"total_count,omitempty"`
 	IncompleteResults *bool               `json:"incomplete_results,omitempty"`
 	Items             []SearchIssueResult `json:"items"`
+}
+
+type SearchIssuesOutput struct {
+	Total             *int                    `json:"total_count,omitempty" jsonschema:"Total number of matching issues or pull requests."`
+	IncompleteResults *bool                   `json:"incomplete_results,omitempty" jsonschema:"Whether GitHub returned an incomplete result set."`
+	Items             []SearchIssueOutputItem `json:"items"`
+}
+
+type SearchIssueOutputItem struct {
+	Number            *int                    `json:"number,omitempty"`
+	Title             *string                 `json:"title,omitempty"`
+	Body              *string                 `json:"body,omitempty"`
+	State             *string                 `json:"state,omitempty" jsonschema:"Issue state, typically open or closed."`
+	StateReason       *string                 `json:"state_reason,omitempty"`
+	Draft             *bool                   `json:"draft,omitempty"`
+	Locked            *bool                   `json:"locked,omitempty"`
+	HTMLURL           *string                 `json:"html_url,omitempty"`
+	User              *MinimalUser            `json:"user,omitempty"`
+	AuthorAssociation *string                 `json:"author_association,omitempty"`
+	Labels            []string                `json:"labels,omitempty"`
+	Assignee          *string                 `json:"assignee,omitempty"`
+	Assignees         []string                `json:"assignees,omitempty"`
+	Milestone         *string                 `json:"milestone,omitempty"`
+	Comments          *int                    `json:"comments,omitempty" jsonschema:"Number of comments on the issue."`
+	Reactions         *MinimalReactions       `json:"reactions,omitempty"`
+	CreatedAt         *string                 `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt         *string                 `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
+	ClosedAt          *string                 `json:"closed_at,omitempty" jsonschema:"Closing time in RFC 3339 format."`
+	ClosedBy          *string                 `json:"closed_by,omitempty"`
+	Type              *string                 `json:"type,omitempty"`
+	RepositoryURL     *string                 `json:"repository_url,omitempty"`
+	PullRequest       *SearchIssuePullRequest `json:"pull_request,omitempty"`
+	FieldValues       *[]MinimalFieldValue    `json:"field_values,omitempty"`
+}
+
+type SearchIssuePullRequest struct {
+	URL      *string `json:"url,omitempty"`
+	HTMLURL  *string `json:"html_url,omitempty"`
+	DiffURL  *string `json:"diff_url,omitempty"`
+	PatchURL *string `json:"patch_url,omitempty"`
+}
+
+func structuredSearchIssuesOutput(response SearchIssuesResponse, fields []string) SearchIssuesOutput {
+	output := SearchIssuesOutput{
+		Total:             response.Total,
+		IncompleteResults: response.IncompleteResults,
+		Items:             make([]SearchIssueOutputItem, 0, len(response.Items)),
+	}
+	for _, item := range response.Items {
+		output.Items = append(output.Items, searchIssueOutputItem(item, fields))
+	}
+	return output
+}
+
+func searchIssueOutputItem(result SearchIssueResult, fields []string) SearchIssueOutputItem {
+	var output SearchIssueOutputItem
+	issue := result.Issue
+	if issue == nil {
+		return output
+	}
+	selected := func(field string) bool {
+		return len(fields) == 0 || slices.Contains(fields, field)
+	}
+	minimal := convertToMinimalIssue(issue)
+	if selected("number") && issue.Number != nil {
+		output.Number = new(minimal.Number)
+	}
+	if selected("title") && issue.Title != nil {
+		output.Title = new(minimal.Title)
+	}
+	if selected("body") && issue.Body != nil {
+		output.Body = new(minimal.Body)
+	}
+	if selected("state") && issue.State != nil {
+		output.State = new(minimal.State)
+	}
+	if selected("state_reason") && issue.StateReason != nil {
+		output.StateReason = new(minimal.StateReason)
+	}
+	if selected("draft") && issue.Draft != nil {
+		output.Draft = new(minimal.Draft)
+	}
+	if selected("locked") && issue.Locked != nil {
+		output.Locked = new(minimal.Locked)
+	}
+	if selected("html_url") && issue.HTMLURL != nil {
+		output.HTMLURL = new(minimal.HTMLURL)
+	}
+	if selected("user") && issue.User != nil {
+		output.User = minimal.User
+	}
+	if selected("author_association") && issue.AuthorAssociation != nil { //nolint:staticcheck // Keep the legacy search projection available.
+		output.AuthorAssociation = new(minimal.AuthorAssociation)
+	}
+	if selected("labels") && issue.Labels != nil {
+		output.Labels = minimal.Labels
+	}
+	if selected("assignee") && issue.Assignee != nil { //nolint:staticcheck // Keep the legacy search projection available.
+		login := issue.Assignee.GetLogin() //nolint:staticcheck // Keep the legacy search projection available.
+		output.Assignee = &login
+	}
+	if selected("assignees") && issue.Assignees != nil {
+		output.Assignees = minimal.Assignees
+	}
+	if selected("milestone") && issue.Milestone != nil {
+		output.Milestone = new(minimal.Milestone)
+	}
+	if selected("comments") && issue.Comments != nil {
+		output.Comments = new(minimal.Comments)
+	}
+	if selected("reactions") && issue.Reactions != nil {
+		output.Reactions = minimal.Reactions
+	}
+	if selected("created_at") && issue.CreatedAt != nil {
+		output.CreatedAt = new(minimal.CreatedAt)
+	}
+	if selected("updated_at") && issue.UpdatedAt != nil {
+		output.UpdatedAt = new(minimal.UpdatedAt)
+	}
+	if selected("closed_at") && issue.ClosedAt != nil {
+		output.ClosedAt = new(minimal.ClosedAt)
+	}
+	if selected("closed_by") && issue.ClosedBy != nil {
+		output.ClosedBy = new(minimal.ClosedBy)
+	}
+	if selected("type") && issue.Type != nil {
+		output.Type = new(issue.Type.GetName())
+	}
+	if selected("repository_url") && issue.RepositoryURL != nil {
+		output.RepositoryURL = new(issue.GetRepositoryURL())
+	}
+	if selected("pull_request") && issue.PullRequestLinks != nil {
+		links := issue.PullRequestLinks
+		output.PullRequest = &SearchIssuePullRequest{
+			URL:      links.URL,
+			HTMLURL:  links.HTMLURL,
+			DiffURL:  links.DiffURL,
+			PatchURL: links.PatchURL,
+		}
+	}
+	if selected("field_values") && result.FieldValues != nil {
+		output.FieldValues = &result.FieldValues
+	}
+	return output
 }
 
 // searchIssuesNodesQuery batches a nodes(ids:) lookup over the REST search results to retrieve
@@ -2337,43 +2480,44 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 // searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
 // fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
 // (e.g. IFC labelling).
-func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, error) {
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, input SearchIssuesInput, mode searchMode, options ...searchOption) (*mcp.CallToolResult, SearchIssuesResponse, error) {
 	const errorPrefix = "failed to search issues"
 
-	query, opts, err := prepareSearchArgs(args, "issue", mode)
+	var output SearchIssuesResponse
+	query, opts, err := prepareSearchArgs(input, "issue", mode)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), output, nil
 	}
 
 	client, err := deps.GetClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), output, nil
 	}
 	result, resp, err := client.Search.Issues(ctx, query, opts)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), output, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), output, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), output, nil
 	}
 
 	var fieldValuesByID map[string][]MinimalFieldValue
 	if len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), output, nil
 		}
 		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
 		if err != nil {
 			const enrichmentError = errorPrefix + ": failed to fetch issue field values"
 			if !isUnsupportedIssueFieldValuesSchemaError(err) {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), output, nil
 			}
 			// Older GHES schemas can lack this optional enrichment. Preserve the REST
 			// search results while retaining the compatibility failure for observability.
@@ -2401,12 +2545,13 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		opt(&cfg)
 	}
 
+	output = response
 	filtered := false
 	var payload any = response
 	if len(cfg.fields) > 0 {
 		filteredItems, err := filterEachField(response.Items, cfg.fields)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), SearchIssuesResponse{}, nil
 		}
 		payload = map[string]any{
 			"total_count":        response.Total,
@@ -2418,7 +2563,7 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 
 	r, err := json.Marshal(payload)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), SearchIssuesResponse{}, nil
 	}
 
 	if cfg.fieldsTool != "" {
@@ -2429,7 +2574,7 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 	if cfg.postProcess != nil {
 		cfg.postProcess(ctx, result, callResult)
 	}
-	return callResult, nil
+	return callResult, output, nil
 }
 
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
@@ -3415,6 +3560,107 @@ func patchIssue(ctx context.Context, client *github.Client, owner, repo string, 
 }
 
 // ListIssues creates a tool to list issues in a GitHub repository.
+type ListIssuesInput struct {
+	Owner        string                  `json:"owner"`
+	Repo         string                  `json:"repo"`
+	State        string                  `json:"state,omitempty"`
+	Labels       []string                `json:"labels,omitempty"`
+	OrderBy      string                  `json:"orderBy,omitempty"`
+	Direction    string                  `json:"direction,omitempty"`
+	Since        string                  `json:"since,omitempty"`
+	FieldFilters []IssueFieldFilterInput `json:"field_filters,omitempty"`
+	Fields       []string                `json:"fields,omitempty"`
+	After        string                  `json:"after,omitempty"`
+	PerPage      *int                    `json:"perPage,omitempty"`
+	Page         json.RawMessage         `json:"page,omitempty"`
+}
+
+type IssueFieldFilterInput struct {
+	FieldName string `json:"field_name"`
+	Value     string `json:"value"`
+}
+
+type ListIssuesOutput struct {
+	Issues     []ListIssueOutput `json:"issues"`
+	TotalCount int               `json:"totalCount" jsonschema:"Total number of issues matching the filters."`
+	PageInfo   ListIssuePageInfo `json:"pageInfo"`
+}
+
+type ListIssueOutput struct {
+	Number      *int                 `json:"number,omitempty"`
+	Title       *string              `json:"title,omitempty"`
+	Body        *string              `json:"body,omitempty"`
+	State       *string              `json:"state,omitempty" jsonschema:"Issue state: OPEN or CLOSED."`
+	User        *MinimalUser         `json:"user,omitempty"`
+	Labels      *[]string            `json:"labels,omitempty"`
+	Assignees   *[]string            `json:"assignees,omitempty"`
+	Comments    *int                 `json:"comments,omitempty" jsonschema:"Number of comments on the issue."`
+	CreatedAt   *string              `json:"created_at,omitempty" jsonschema:"Creation time in RFC 3339 format."`
+	UpdatedAt   *string              `json:"updated_at,omitempty" jsonschema:"Last update time in RFC 3339 format."`
+	FieldValues *[]MinimalFieldValue `json:"field_values,omitempty"`
+}
+
+type ListIssuePageInfo struct {
+	HasNextPage     bool   `json:"hasNextPage" jsonschema:"Whether another page of results is available."`
+	HasPreviousPage bool   `json:"hasPreviousPage" jsonschema:"Whether a previous page of results is available."`
+	StartCursor     string `json:"startCursor,omitempty" jsonschema:"Cursor for the first issue in this page."`
+	EndCursor       string `json:"endCursor,omitempty" jsonschema:"Cursor for the last issue in this page."`
+}
+
+func structuredListIssuesOutput(response MinimalIssuesResponse, fields []string) ListIssuesOutput {
+	output := ListIssuesOutput{
+		Issues:     make([]ListIssueOutput, 0, len(response.Issues)),
+		TotalCount: response.TotalCount,
+		PageInfo: ListIssuePageInfo{
+			HasNextPage:     response.PageInfo.HasNextPage,
+			HasPreviousPage: response.PageInfo.HasPreviousPage,
+			StartCursor:     response.PageInfo.StartCursor,
+			EndCursor:       response.PageInfo.EndCursor,
+		},
+	}
+	selected := func(field string) bool {
+		return len(fields) == 0 || slices.Contains(fields, field)
+	}
+	for _, issue := range response.Issues {
+		item := ListIssueOutput{}
+		if selected("number") {
+			item.Number = new(issue.Number)
+		}
+		if selected("title") {
+			item.Title = new(issue.Title)
+		}
+		if selected("body") && issue.Body != "" {
+			item.Body = new(issue.Body)
+		}
+		if selected("state") {
+			item.State = new(issue.State)
+		}
+		if selected("user") && issue.User != nil {
+			item.User = issue.User
+		}
+		if selected("labels") && len(issue.Labels) > 0 {
+			item.Labels = &issue.Labels
+		}
+		if selected("assignees") {
+			item.Assignees = &issue.Assignees
+		}
+		if selected("comments") && issue.Comments != 0 {
+			item.Comments = new(issue.Comments)
+		}
+		if selected("created_at") && issue.CreatedAt != "" {
+			item.CreatedAt = new(issue.CreatedAt)
+		}
+		if selected("updated_at") && issue.UpdatedAt != "" {
+			item.UpdatedAt = new(issue.UpdatedAt)
+		}
+		if selected("field_values") && len(issue.FieldValues) > 0 {
+			item.FieldValues = &issue.FieldValues
+		}
+		output.Issues = append(output.Issues, item)
+	}
+	return output
+}
+
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -3480,7 +3726,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 	WithCursorPagination(schema)
 
-	st := NewTool(
+	st := NewTool[ListIssuesInput, ListIssuesOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issues",
@@ -3492,26 +3738,19 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListIssuesInput) (*mcp.CallToolResult, ListIssuesOutput, error) {
+			var output ListIssuesOutput
+			var err error
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), output, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), output, nil
 			}
-
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			owner, repo := input.Owner, input.Repo
 
 			// Set optional parameters if provided
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			state := input.State
 
 			// Normalize and filter by state
 			state = strings.ToUpper(state)
@@ -3525,20 +3764,9 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			orderBy, err := OptionalParam[string](args, "orderBy")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			labels := input.Labels
+			orderBy := input.OrderBy
+			direction := input.Direction
 
 			// Normalize and validate orderBy
 			orderBy = strings.ToUpper(orderBy)
@@ -3558,10 +3786,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				direction = "DESC"
 			}
 
-			since, err := OptionalParam[string](args, "since")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			since := input.Since
 
 			// There are two optional parameters: since and labels.
 			var sinceTime time.Time
@@ -3569,35 +3794,40 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), output, nil
 				}
 				hasSince = true
 			}
 			hasLabels := len(labels) > 0
 
-			rawFilters, err := parseRawFieldFilters(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			rawFilters := make([]rawFieldFilter, 0, len(input.FieldFilters))
+			for _, filter := range input.FieldFilters {
+				if filter.FieldName == "" {
+					return utils.NewToolResultError("field_filters entry: missing required parameter: field_name"), output, nil
+				}
+				if filter.Value == "" {
+					return utils.NewToolResultError(fmt.Sprintf("field_filters entry %q: missing required parameter: value", filter.FieldName)), output, nil
+				}
+				rawFilters = append(rawFilters, rawFieldFilter{Name: filter.FieldName, Value: filter.Value})
 			}
 
 			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(args)
-			if err != nil {
-				return nil, nil, err
+			pagination := CursorPaginationParams{PerPage: 30, After: input.After}
+			if input.PerPage != nil {
+				pagination.PerPage = *input.PerPage
 			}
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
-			if _, pageProvided := args["page"]; pageProvided {
-				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+			if len(input.Page) > 0 {
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), output, nil
 			}
 
 			// Check if pagination parameters were explicitly provided
-			_, perPageProvided := args["perPage"]
-			paginationExplicit := perPageProvided
+			paginationExplicit := input.PerPage != nil
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, nil, err
+				return nil, output, err
 			}
 
 			// Use default of 30 if pagination was not explicitly provided
@@ -3608,7 +3838,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), output, nil
 			}
 
 			// Resolve field filters by looking up the repo's issue fields so we can
@@ -3617,11 +3847,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if len(rawFilters) > 0 {
 				fields, err := fetchIssueFields(ctx, client, owner, repo)
 				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), nil, nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), output, nil
 				}
 				fieldFilters, err = resolveFieldFilters(rawFilters, fields)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return utils.NewToolResultError(err.Error()), output, nil
 				}
 			}
 
@@ -3674,7 +3904,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 						ctx,
 						"failed to list issues",
 						issueFieldsErr,
-					), nil, nil
+					), output, nil
 				}
 
 				issueQueryWithoutFieldValues := getIssueQueryTypeWithoutFieldValues(hasLabels, hasSince)
@@ -3689,7 +3919,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 						ctx,
 						"failed to list issues",
 						fmt.Errorf("issue-fields query failed: %w; fallback query failed: %w", issueFieldsErr, fallbackErr),
-					), nil, nil
+					), output, nil
 				}
 
 				resp = convertToMinimalIssuesResponseWithoutFieldValues(issueQueryWithoutFieldValues.getIssueFragmentWithoutFieldValues())
@@ -3698,10 +3928,10 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			filtered := false
 			var payload any = resp
-			if len(fields) > 0 {
-				filteredIssues, err := filterEachField(resp.Issues, fields)
+			if len(input.Fields) > 0 {
+				filteredIssues, err := filterEachField(resp.Issues, input.Fields)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to filter issues", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to filter issues", err), output, nil
 				}
 				payload = map[string]any{
 					"issues":     filteredIssues,
@@ -3713,15 +3943,17 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			r, err := json.Marshal(payload)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), output, nil
 			}
 
 			recordFieldsUsageFor(ctx, deps, "list_issues", resp, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
-			return result, nil, nil
-		})
+			return result, structuredListIssuesOutput(resp, input.Fields), nil
+		},
+		normalizeTypedReadArguments([]string{"state", "orderBy", "direction"}, true),
+	)
 	return st
 }
 
@@ -3729,46 +3961,6 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 type rawFieldFilter struct {
 	Name  string
 	Value string
-}
-
-// parseRawFieldFilters extracts the optional field_filters parameter into a list of
-// {name, value} pairs. The value is always a string here; type-aware coercion happens
-// later in resolveFieldFilters once we know each field's data_type.
-func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
-	raw, ok := args["field_filters"]
-	if !ok {
-		return nil, nil
-	}
-
-	var entries []map[string]any
-	switch v := raw.(type) {
-	case []any:
-		for _, f := range v {
-			entry, ok := f.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("each field_filters entry must be an object")
-			}
-			entries = append(entries, entry)
-		}
-	case []map[string]any:
-		entries = v
-	default:
-		return nil, fmt.Errorf("field_filters must be an array")
-	}
-
-	filters := make([]rawFieldFilter, 0, len(entries))
-	for _, entry := range entries {
-		fieldName, err := RequiredParam[string](entry, "field_name")
-		if err != nil {
-			return nil, fmt.Errorf("field_filters entry: %s", err.Error())
-		}
-		value, err := RequiredParam[string](entry, "value")
-		if err != nil {
-			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
-		}
-		filters = append(filters, rawFieldFilter{Name: fieldName, Value: value})
-	}
-	return filters, nil
 }
 
 // resolveFieldFilters matches each raw filter against a known field definition and
