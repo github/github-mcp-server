@@ -19,7 +19,7 @@ import (
 )
 
 func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[GetSecurityAlertInput, *DependabotAlertOutput](
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "get_dependabot_alert",
@@ -48,18 +48,15 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetSecurityAlertInput) (*mcp.CallToolResult, *DependabotAlertOutput, error) {
+			if args.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if args.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			alertNumber, err := RequiredInt(args, "alertNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if args.AlertNumber == 0 {
+				return utils.NewToolResultError("missing required parameter: alertNumber"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -67,10 +64,10 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
 			}
 
-			alert, resp, err := client.Dependabot.GetRepoAlert(ctx, owner, repo, alertNumber)
+			alert, resp, err := client.Dependabot.GetRepoAlert(ctx, args.Owner, args.Repo, args.AlertNumber)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					dependabotErrMsg(fmt.Sprintf("failed to get alert with number '%d'", alertNumber), owner, repo, resp),
+					dependabotErrMsg(fmt.Sprintf("failed to get alert with number '%d'", args.AlertNumber), args.Owner, args.Repo, resp),
 					resp,
 					err,
 				), nil, nil
@@ -95,8 +92,9 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			// visibility and embed attacker-influenceable advisory text, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, nil, nil
+			return result, dependabotAlertOutput(alert), nil
 		},
+		normalizeSecurityIntegerArguments("alertNumber"),
 	)
 }
 
@@ -128,7 +126,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 	}
 	WithCursorPagination(schema)
 
-	return NewTool(
+	return NewToolWithSchemaOptions[ListDependabotAlertsInput, DependabotAlertsOutput](
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "list_dependabot_alerts",
@@ -140,37 +138,26 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: inventory.CloneSchemaWithoutDefaults(schema),
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListDependabotAlertsInput) (*mcp.CallToolResult, DependabotAlertsOutput, error) {
+			if args.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), DependabotAlertsOutput{}, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			severity, err := OptionalParam[string](args, "severity")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if args.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), DependabotAlertsOutput{}, nil
 			}
 
-			pagination, err := OptionalCursorPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+			pagination := securityCursorPagination(args.PerPage, args.After)
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), DependabotAlertsOutput{}, err
 			}
 
-			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
-				State:    ToStringPtr(state),
-				Severity: ToStringPtr(severity),
+			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, args.Owner, args.Repo, &github.ListAlertsOptions{
+				State:    ToStringPtr(args.State),
+				Severity: ToStringPtr(args.Severity),
 				ListCursorOptions: github.ListCursorOptions{
 					PerPage: pagination.PerPage,
 					After:   pagination.After,
@@ -178,29 +165,37 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					dependabotErrMsg(fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo), owner, repo, resp),
+					dependabotErrMsg(fmt.Sprintf("failed to list alerts for repository '%s/%s'", args.Owner, args.Repo), args.Owner, args.Repo, resp),
 					resp,
 					err,
-				), nil, nil
+				), DependabotAlertsOutput{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), DependabotAlertsOutput{}, err
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), DependabotAlertsOutput{}, nil
 			}
 
-			response := map[string]any{
-				"alerts":   alerts,
-				"pageInfo": buildPageInfo(resp),
+			apiPageInfo := buildPageInfo(resp)
+			output := DependabotAlertsOutput{
+				Alerts:   mapSecurityOutputs(alerts, dependabotAlertOutput),
+				PageInfo: SecurityPageInfo(apiPageInfo),
 			}
 
+			response := struct {
+				Alerts   []*github.DependabotAlert `json:"alerts"`
+				PageInfo pageInfo                  `json:"pageInfo"`
+			}{
+				Alerts:   alerts,
+				PageInfo: apiPageInfo,
+			}
 			r, err := json.Marshal(response)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), DependabotAlertsOutput{}, err
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -208,8 +203,9 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			// visibility and embed attacker-influenceable advisory text, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, nil, nil
+			return result, output, nil
 		},
+		normalizeTypedReadArguments(nil, false),
 	)
 }
 
