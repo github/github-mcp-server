@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -126,6 +127,114 @@ func TestCSVOutputPreservesOriginalJSONWhenFlagOff(t *testing.T) {
 	assert.JSONEq(t, jsonResponse, text.Text)
 }
 
+func TestCSVOutputMiddlewareAppliesToTypedToolRegistration(t *testing.T) {
+	type row struct {
+		Number int `json:"number"`
+	}
+	tools := withCSVOutput([]inventory.ServerTool{
+		inventory.NewServerToolWithContextHandler(
+			mcp.Tool{Name: "list_typed_things"},
+			ToolsetMetadataRepos,
+			func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, []row, error) {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: `[{"number":1}]`}},
+				}, []row{{Number: 1}}, nil
+			},
+		),
+	})
+	deps := newCSVOutputTestDeps(true)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tools[0].RegisterFunc(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_typed_things"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `[{"number":1}]`, mustMarshalCSVJSON(t, result.StructuredContent))
+	assert.Contains(t, textResult(t, result), "number\n1")
+}
+
+func TestCSVOutputTypedArrayPreservesLegacyProtocolResult(t *testing.T) {
+	type row struct {
+		Number int `json:"number"`
+	}
+	type object struct {
+		Number int `json:"number"`
+	}
+	tools := withCSVOutput([]inventory.ServerTool{
+		inventory.NewServerToolWithContextHandler(
+			mcp.Tool{Name: "list_typed_things"},
+			ToolsetMetadataRepos,
+			func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, []row, error) {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: `[{"number":1}]`}},
+				}, []row{{Number: 1}}, nil
+			},
+		),
+		inventory.NewServerToolWithContextHandler(
+			mcp.Tool{Name: "get_typed_thing"},
+			ToolsetMetadataRepos,
+			func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, object, error) {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: `{"number":1}`}},
+				}, object{Number: 1}, nil
+			},
+		),
+	})
+	deps := newCSVOutputTestDeps(true)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+			if method == "server/discover" {
+				return nil, errors.New("legacy client uses initialize")
+			}
+			return next(ctx, method, request)
+		}
+	})
+	for _, tool := range tools {
+		tool.RegisterFunc(server, deps)
+	}
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+	require.Equal(t, "2025-11-25", clientSession.InitializeResult().ProtocolVersion)
+
+	list, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 2)
+	for _, tool := range list.Tools {
+		assert.Nil(t, tool.OutputSchema, "legacy tools/list must hide typed output schemas")
+	}
+
+	listResult, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_typed_things"})
+	require.NoError(t, err)
+	require.False(t, listResult.IsError)
+	assert.Nil(t, listResult.StructuredContent)
+	require.Len(t, listResult.Content, 1, "CSV text must not be duplicated by the SDK's JSON array fallback")
+	assert.Equal(t, "number\n1\n", textResult(t, listResult))
+
+	objectResult, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_typed_thing"})
+	require.NoError(t, err)
+	require.False(t, objectResult.IsError)
+	assert.Nil(t, objectResult.StructuredContent)
+	require.Len(t, objectResult.Content, 1)
+	assert.Equal(t, `{"number":1}`, textResult(t, objectResult))
+}
+
 func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
 	csvText, err := jsonTextToCSV(`{
 		"issues": [
@@ -150,6 +259,13 @@ func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
 	assert.Equal(t, "First issue", row["title"])
 	assert.NotContains(t, row, "pageInfo.endCursor")
 	assert.NotContains(t, row, "totalCount")
+}
+
+func mustMarshalCSVJSON(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(data)
 }
 
 func TestJSONTextToCSVFlattensPrimaryRows(t *testing.T) {

@@ -11,8 +11,9 @@ import (
 )
 
 type listedToolSchemas struct {
-	source     any
-	registered *mcp.Tool
+	source       any
+	outputSource any
+	registered   *mcp.Tool
 }
 
 type encodedSchemaKey struct {
@@ -76,7 +77,11 @@ func encodedToolSchemasMiddleware(schemas map[string]listedToolSchemas) mcp.Midd
 				if err != nil {
 					return nil, fmt.Errorf("encode input schema for %q: %w", tool.Name, err)
 				}
-				toolCopy.OutputSchema, err = encodeListedSchema(definition.registered.OutputSchema, definition.registered.OutputSchema, tool.OutputSchema, false)
+				outputSource := definition.outputSource
+				if outputSource == nil {
+					outputSource = definition.registered.OutputSchema
+				}
+				toolCopy.OutputSchema, err = encodeListedSchema(outputSource, definition.registered.OutputSchema, tool.OutputSchema, false)
 				if err != nil {
 					return nil, fmt.Errorf("encode output schema for %q: %w", tool.Name, err)
 				}

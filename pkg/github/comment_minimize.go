@@ -57,7 +57,7 @@ var issueCommentVisibilityTarget = commentVisibilityTarget{
 			"comment_id": {
 				Type:        "number",
 				Description: "The numeric ID of the issue or pull request conversation comment",
-				Minimum:     jsonschema.Ptr(1.0),
+				Minimum:     new(1.0),
 			},
 		}
 	},
@@ -84,7 +84,7 @@ var pullRequestReviewCommentVisibilityTarget = commentVisibilityTarget{
 			"comment_id": {
 				Type:        "number",
 				Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
-				Minimum:     jsonschema.Ptr(1.0),
+				Minimum:     new(1.0),
 			},
 		}
 	},
@@ -111,12 +111,12 @@ var pullRequestReviewVisibilityTarget = commentVisibilityTarget{
 			"pullNumber": {
 				Type:        "number",
 				Description: "The pull request number",
-				Minimum:     jsonschema.Ptr(1.0),
+				Minimum:     new(1.0),
 			},
 			"review_id": {
 				Type:        "number",
 				Description: "The numeric ID of the pull request review",
-				Minimum:     jsonschema.Ptr(1.0),
+				Minimum:     new(1.0),
 			},
 		}
 	},
@@ -175,8 +175,8 @@ func commentVisibilityTool(t translations.TranslationHelperFunc, target commentV
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", titleAction+" "+target.title),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
-				OpenWorldHint:   jsonschema.Ptr(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type:       "object",

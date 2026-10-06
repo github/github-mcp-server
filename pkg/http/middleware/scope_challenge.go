@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -102,8 +103,27 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				return
 			}
 
-			arguments, err := methodInfo.DecodeArguments()
-			if err != nil {
+			rawArguments := methodInfo.RawArguments
+			if len(rawArguments) == 0 {
+				rawArguments = []byte(`{}`)
+			}
+			argumentsJSON, didNormalize, normalizeErr := scopeAccess.NormalizeArguments(rawArguments)
+			if normalizeErr != nil {
+				// Preserve normal tool validation for arguments the normalizer rejects.
+				next.ServeHTTP(w, r)
+				return
+			}
+			if !didNormalize {
+				argumentsJSON = rawArguments
+			} else {
+				normalizedInfo := *methodInfo
+				normalizedInfo.NormalizedArguments = argumentsJSON
+				normalizedInfo.ArgumentsNormalized = true
+				ctx = ghcontext.WithMCPMethodInfo(ctx, &normalizedInfo)
+				r = r.WithContext(ctx)
+			}
+			arguments := make(map[string]any)
+			if err := json.Unmarshal(argumentsJSON, &arguments); err != nil {
 				// Preserve normal MCP handler validation for invalid arguments.
 				next.ServeHTTP(w, r)
 				return
