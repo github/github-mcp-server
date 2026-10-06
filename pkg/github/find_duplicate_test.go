@@ -39,6 +39,16 @@ func Test_FindDuplicate(t *testing.T) {
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+
+	// Unlike most paginated tools, find_duplicate forwards an explicit 0 to
+	// the API unchanged instead of substituting the usual default. The
+	// advertised minimum stays canonical (matching WithPagination), but the
+	// description must say so to avoid misleading callers.
+	assert.Equal(t, 1.0, *schema.Properties["page"].Minimum)
+	assert.Equal(t, 1.0, *schema.Properties["perPage"].Minimum)
+	assert.Equal(t, 100.0, *schema.Properties["perPage"].Maximum)
+	assert.Contains(t, schema.Properties["page"].Description, "An explicit 0 is forwarded to the API as-is")
+	assert.Contains(t, schema.Properties["perPage"].Description, "An explicit 0 is forwarded to the API as-is")
 }
 
 func Test_FindDuplicate_RankedResults(t *testing.T) {
@@ -104,11 +114,11 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 	assert.Equal(t, "1", capturedURL.Query().Get("page"))
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []LegacyDuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 2)
 
-	assert.Equal(t, "high", candidates[0].Confidence)
+	assert.Equal(t, "high", string(candidates[0].Confidence))
 	assert.True(t, candidates[0].LikelyDuplicate)
 	require.NotNil(t, candidates[0].Score)
 	assert.InDelta(t, 0.95, *candidates[0].Score, 0.0001)
@@ -119,8 +129,46 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 
 	// A null score must decode successfully.
 	assert.Nil(t, candidates[1].Score)
-	assert.Equal(t, "low", candidates[1].Confidence)
+	assert.Equal(t, "low", string(candidates[1].Confidence))
 	assert.False(t, candidates[1].LikelyDuplicate)
+}
+
+func Test_FindDuplicate_ZeroPaginationIsForwarded(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+	var capturedRawQuery string
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(
+		endpointSemanticallySimilar,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedRawQuery = r.URL.RawQuery
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("[]"))
+		}),
+	)))
+	deps := BaseDeps{Client: client}
+
+	request := createMCPRequest(map[string]any{
+		"owner":                "owner",
+		"repo":                 "repo",
+		"issue_number":         float64(123),
+		"confidence_threshold": float64(0),
+		"page":                 float64(0),
+		"perPage":              float64(0),
+	})
+	result, err := serverTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, "page=0&per_page=0&threshold=0", capturedRawQuery)
+
+	advertised := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, 1.0, *advertised.Properties["page"].Minimum)
+	assert.Equal(t, 1.0, *advertised.Properties["perPage"].Minimum)
+	validation, err := issuePaginationValidationSchema(advertised).Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, validation.Validate(map[string]any{
+		"owner": "owner", "repo": "repo", "issue_number": float64(123),
+		"page":    float64(0),
+		"perPage": float64(0),
+	}))
 }
 
 // Test_FindDuplicate_SanitizesIssueTitle asserts that candidate issue titles, which are
@@ -162,7 +210,7 @@ func Test_FindDuplicate_SanitizesIssueTitle(t *testing.T) {
 	require.False(t, result.IsError, "expected result to not be an error")
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []DuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 1)
 	assert.Equal(t, sanitizedText, candidates[0].Issue.Title)
@@ -218,7 +266,7 @@ func Test_FindDuplicate_EmptyResults(t *testing.T) {
 	require.False(t, result.IsError, "empty results is a successful search")
 
 	text := getTextResult(t, result)
-	var candidates []duplicateCandidate
+	var candidates []DuplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	assert.Empty(t, candidates)
 }

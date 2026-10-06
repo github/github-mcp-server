@@ -104,7 +104,7 @@ type issueFieldsOrgQuery struct {
 
 // ListIssueFields creates a tool to list issue field definitions for a repository or organization.
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewToolWithSchemaOptions[IssueMetadataInput, []IssueFieldOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
@@ -127,16 +127,14 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				},
 				Required: []string{"owner"},
 			},
+			OutputSchema: listIssueFieldsOutputSchema(),
 		},
 		repositoryOrOrganizationScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := OptionalParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueMetadataInput) (*mcp.CallToolResult, []IssueFieldOutput, error) {
+			owner, repo := input.Owner, input.Repo
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -164,8 +162,8 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			} else {
 				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			}
-			return result, nil, nil
-		})
+			return result, issueFieldOutputs(fields), nil
+		}, normalizeIssueStrings([]string{"owner"}, []string{"repo"}))
 	return st
 }
 

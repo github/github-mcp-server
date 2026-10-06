@@ -49,5 +49,416 @@
     ],
     "type": "object"
   },
-  "name": "sub_issue_write"
+  "name": "sub_issue_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "assignees": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "author_association": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "closed_at": {
+        "type": "string"
+      },
+      "closed_by": {
+        "type": "string"
+      },
+      "closed_by_pull_requests": {
+        "additionalProperties": false,
+        "properties": {
+          "references": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "repository": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "title",
+                "state",
+                "url"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "total_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "references"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "comments": {
+        "type": "integer"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "draft": {
+        "type": "boolean"
+      },
+      "field_values": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            },
+            "values": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            }
+          },
+          "required": [
+            "field"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "has_children": {
+        "type": [
+          "null",
+          "boolean"
+        ]
+      },
+      "has_parent": {
+        "type": [
+          "null",
+          "boolean"
+        ]
+      },
+      "html_url": {
+        "type": "string"
+      },
+      "issue_field_values": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "data_type": {
+              "type": "string"
+            },
+            "issue_field_id": {
+              "type": "integer"
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "single_select_option": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "color"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "value": true
+          },
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "issue_type": {
+        "type": "string"
+      },
+      "labels": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "locked": {
+        "type": "boolean"
+      },
+      "milestone": {
+        "type": "string"
+      },
+      "number": {
+        "type": "integer"
+      },
+      "parent": {
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "url"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "reactions": {
+        "additionalProperties": false,
+        "properties": {
+          "+1": {
+            "type": "integer"
+          },
+          "-1": {
+            "type": "integer"
+          },
+          "confused": {
+            "type": "integer"
+          },
+          "eyes": {
+            "type": "integer"
+          },
+          "heart": {
+            "type": "integer"
+          },
+          "hooray": {
+            "type": "integer"
+          },
+          "laugh": {
+            "type": "integer"
+          },
+          "rocket": {
+            "type": "integer"
+          },
+          "total_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "state": {
+        "type": "string"
+      },
+      "state_reason": {
+        "type": "string"
+      },
+      "sub_issues_summary": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "type": "integer"
+          },
+          "percent_completed": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "completed",
+          "percent_completed"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "user": {
+        "additionalProperties": false,
+        "properties": {
+          "avatar_url": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": false,
+            "properties": {
+              "bio": {
+                "type": "string"
+              },
+              "blog": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "created_at": {
+                "description": "Account creation time in RFC3339 format.",
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "followers": {
+                "type": "integer"
+              },
+              "following": {
+                "type": "integer"
+              },
+              "hireable": {
+                "type": "boolean"
+              },
+              "location": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "owned_private_repos": {
+                "type": "integer"
+              },
+              "private_gists": {
+                "type": "integer"
+              },
+              "public_gists": {
+                "type": "integer"
+              },
+              "public_repos": {
+                "type": "integer"
+              },
+              "total_private_repos": {
+                "type": "integer"
+              },
+              "twitter_username": {
+                "type": "string"
+              },
+              "updated_at": {
+                "description": "Last profile update time in RFC3339 format.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "public_repos",
+              "public_gists",
+              "followers",
+              "following",
+              "created_at",
+              "updated_at"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "login": {
+            "type": "string"
+          },
+          "profile_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "login"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "required": [
+      "number",
+      "title",
+      "state",
+      "assignees"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }
