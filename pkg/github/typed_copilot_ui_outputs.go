@@ -15,10 +15,12 @@ type CopilotPullRequestOutput struct {
 	Number int    `json:"number"`
 	State  string `json:"state"`
 	Title  string `json:"title"`
+	URL    string `json:"url"`
 }
 
 type AssignCopilotToIssueOutput struct {
 	IssueNumber int                       `json:"issue_number"`
+	IssueURL    string                    `json:"issue_url"`
 	Message     string                    `json:"message"`
 	Note        string                    `json:"note,omitempty"`
 	Owner       string                    `json:"owner"`
@@ -29,6 +31,7 @@ type AssignCopilotToIssueOutput struct {
 type AssignCopilotToIssueWithIntentOutput struct {
 	IsSuggestion bool                      `json:"is_suggestion"`
 	IssueNumber  int                       `json:"issue_number"`
+	IssueURL     string                    `json:"issue_url"`
 	Message      string                    `json:"message"`
 	Note         string                    `json:"note,omitempty"`
 	Owner        string                    `json:"owner"`
@@ -39,18 +42,22 @@ type AssignCopilotToIssueWithIntentOutput struct {
 func assignCopilotToIssueOutputSchema() *jsonschema.Schema {
 	schema := forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueOutput]())
 	schema.Properties["issue_number"].Description = "The assigned issue's number."
+	schema.Properties["issue_url"].Description = "Canonical browser URL of the assigned issue."
 	schema.Properties["message"].Description = "Assignment outcome or tool error message."
 	schema.Properties["note"].Description = "Additional status detail when Copilot has not created a pull request yet."
 	schema.Properties["pull_request"].Properties["state"].Enum = []any{"OPEN", "CLOSED", "MERGED"}
+	schema.Properties["pull_request"].Properties["url"].Description = "Canonical browser URL of the linked pull request."
 	return schema
 }
 
 func assignCopilotToIssueWithIntentOutputSchema() *jsonschema.Schema {
 	schema := forbidOmittedNulls(repositoryOutputSchema[AssignCopilotToIssueWithIntentOutput]())
 	schema.Properties["issue_number"].Description = "The assigned issue's number."
+	schema.Properties["issue_url"].Description = "Canonical browser URL of the assigned issue."
 	schema.Properties["message"].Description = "Assignment outcome or tool error message."
 	schema.Properties["note"].Description = "Additional status detail when Copilot has not created a pull request yet."
 	schema.Properties["pull_request"].Properties["state"].Enum = []any{"OPEN", "CLOSED", "MERGED"}
+	schema.Properties["pull_request"].Properties["url"].Description = "Canonical browser URL of the linked pull request."
 	return schema
 }
 
@@ -356,6 +363,10 @@ func uiGetOutputSchema() *jsonschema.Schema {
 	schema.Properties["issue_fields"].Properties["totalCount"].Description = "Number of supported issue fields returned."
 	schema.Properties["branches"].Properties["totalCount"].Description = "Number of branches returned."
 	schema.Properties["branches"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
+	constrainMethodOutput(schema, map[string]string{
+		"labels": "labels", "assignees": "assignees", "milestones": "milestones",
+		"issue_types": "issue_types", "branches": "branches", "issue_fields": "issue_fields", "reviewers": "reviewers",
+	})
 	return schema
 }
 

@@ -231,6 +231,10 @@ type ActionsJobsOutput struct {
 
 var actionsListOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	schema := actionsOutputSchema[ActionsListOutput]()
+	constrainMethodOutput(schema, map[string]string{
+		actionsMethodListWorkflows: "workflows", actionsMethodListWorkflowRuns: "workflow_runs",
+		actionsMethodListWorkflowJobs: "workflow_jobs", actionsMethodListWorkflowArtifacts: "artifacts",
+	}, "workflows", "artifacts")
 	return schema
 })
 
@@ -359,6 +363,11 @@ type ActionsRunLogsOutput struct {
 
 var actionsGetOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	schema := actionsOutputSchema[ActionsGetOutput]()
+	constrainMethodOutput(schema, map[string]string{
+		actionsMethodGetWorkflow: "workflow", actionsMethodGetWorkflowRun: "workflow_run",
+		actionsMethodGetWorkflowJob: "workflow_job", actionsMethodGetWorkflowRunUsage: "usage",
+		actionsMethodDownloadWorkflowArtifact: "artifact", actionsMethodGetWorkflowRunLogsURL: "logs",
+	}, "workflow", "workflow_job", "usage")
 	return schema
 })
 
@@ -401,6 +410,11 @@ var actionsRunTriggerOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	for _, field := range []string{"rerun", "rerun_failed", "cancel", "delete_logs"} {
 		schema.Properties[field] = &jsonschema.Schema{Ref: "#/$defs/run_operation"}
 	}
+	constrainMethodOutput(schema, map[string]string{
+		actionsMethodRunWorkflow: "dispatch", actionsMethodRerunWorkflowRun: "rerun",
+		actionsMethodRerunFailedJobs: "rerun_failed", actionsMethodCancelWorkflowRun: "cancel",
+		actionsMethodDeleteWorkflowRunLogs: "delete_logs",
+	})
 	return schema
 })
 

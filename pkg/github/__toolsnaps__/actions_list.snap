@@ -128,6 +128,110 @@
   "name": "actions_list",
   "outputSchema": {
     "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "list_workflows"
+            ]
+          },
+          "workflow_jobs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "list_workflow_runs"
+            ]
+          },
+          "workflow_jobs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflows": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "workflow_runs"
+        ]
+      },
+      {
+        "properties": {
+          "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "list_workflow_jobs"
+            ]
+          },
+          "workflow_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflows": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "workflow_jobs"
+        ]
+      },
+      {
+        "properties": {
+          "method": {
+            "enum": [
+              "list_workflow_run_artifacts"
+            ]
+          },
+          "workflow_jobs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflows": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        }
+      }
+    ],
     "properties": {
       "artifacts": {
         "additionalProperties": false,
@@ -856,6 +960,9 @@
         ]
       }
     },
+    "required": [
+      "method"
+    ],
     "type": "object"
   }
 }

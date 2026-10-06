@@ -82,6 +82,168 @@
       }
     },
     "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "run_workflow"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "dispatch"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "rerun_workflow_run"
+            ]
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "rerun"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "rerun_failed_jobs"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "rerun_failed"
+        ]
+      },
+      {
+        "properties": {
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "cancel_workflow_run"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "cancel"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "delete_workflow_run_logs"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "delete_logs"
+        ]
+      }
+    ],
     "properties": {
       "cancel": {
         "$ref": "#/$defs/run_operation"
@@ -155,6 +317,9 @@
         "$ref": "#/$defs/run_operation"
       }
     },
+    "required": [
+      "method"
+    ],
     "type": "object"
   }
 }

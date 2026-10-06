@@ -10,6 +10,9 @@ if [ ! -d "node_modules" ]; then
   npm install
 fi
 
+echo "Testing UI..."
+npm test
+
 echo "Building UI..."
 npm run build
 

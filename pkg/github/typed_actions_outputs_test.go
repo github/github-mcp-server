@@ -449,7 +449,7 @@ func TestActionsConcreteSchemas(t *testing.T) {
 			if name != "logs" {
 				assert.Equal(t, "object", schema.Type)
 				assert.Empty(t, schema.AnyOf)
-				assert.Empty(t, schema.OneOf)
+				assert.Len(t, schema.OneOf, len(schema.Properties["method"].Enum))
 				require.NotEmpty(t, schema.Properties["method"].Enum)
 			}
 			resolved, err := schema.Resolve(nil)

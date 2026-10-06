@@ -448,6 +448,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			output := &AssignCopilotToIssueOutput{
 				IssueNumber: int(updateIssueMutation.UpdateIssue.Issue.Number),
+				IssueURL:    string(updateIssueMutation.UpdateIssue.Issue.URL),
 				Message:     result["message"].(string),
 				Owner:       params.Owner,
 				Repo:        params.Repo,
@@ -460,6 +461,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					Number: linkedPR.Number,
 					State:  linkedPR.State,
 					Title:  linkedPR.Title,
+					URL:    linkedPR.URL,
 				}
 			}
 			return utils.NewToolResultText(string(r)), output, nil
@@ -781,6 +783,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				}
 				return utils.NewToolResultText(string(r)), &AssignCopilotToIssueWithIntentOutput{
 					IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
+					IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
 					IsSuggestion: params.IsSuggestion,
 					Message:      result["message"].(string),
 					Owner:        params.Owner,
@@ -842,6 +845,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 			output := &AssignCopilotToIssueWithIntentOutput{
 				IssueNumber:  int(updateIssueMutation.UpdateIssue.Issue.Number),
+				IssueURL:     string(updateIssueMutation.UpdateIssue.Issue.URL),
 				IsSuggestion: params.IsSuggestion,
 				Message:      result["message"].(string),
 				Owner:        params.Owner,
@@ -855,6 +859,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 					Number: linkedPR.Number,
 					State:  linkedPR.State,
 					Title:  linkedPR.Title,
+					URL:    linkedPR.URL,
 				}
 			}
 			return utils.NewToolResultText(string(r)), output, nil
