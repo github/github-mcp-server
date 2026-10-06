@@ -1899,10 +1899,10 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 // caller's literal keywords and handles OR fine. The description has to describe
 // the engine the host will actually use.
 const (
-	searchIssuesSemanticDescription = "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue."
+	searchIssuesSemanticDescription = "Search issues on GitHub. Uses lexical GitHub issues search for keyword or search-syntax queries, and when owner/repo scope is set. Uses natural-language semantic matching for open-ended conceptual queries. Already scoped to is:issue. Pass search_type to force lexical or semantic."
 	searchIssuesLexicalDescription  = "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"
 
-	searchIssuesSemanticQueryDescription = "The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR."
+	searchIssuesSemanticQueryDescription = "Search query. Prefer GitHub issues search syntax for keywords and filters. For open-ended conceptual questions, plain natural language is fine. Pass search_type=lexical to force keyword search."
 	searchIssuesLexicalQueryDescription  = "Search query using GitHub issues search syntax"
 )
 
@@ -1961,8 +1961,17 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
 			},
+			"search_type": {
+				Type:        "string",
+				Description: "Search engine. lexical matches GitHub issues search keywords and filters. semantic uses natural-language matching. When omitted, scoped or search-syntax queries use lexical; open-ended conceptual queries use semantic on github.com.",
+				Enum:        []any{"lexical", "semantic"},
+			},
 		},
 		Required: []string{"query"},
+	}
+	if mode == searchModeLexical {
+		schema.Properties["search_type"].Enum = []any{"lexical"}
+		schema.Properties["search_type"].Description = "Search engine. Only lexical search is supported on this host."
 	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
 		"Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
@@ -1983,13 +1992,17 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 		},
 		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			resolvedMode, err := resolveIssuesSearchMode(mode, args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
 			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			options = append(options, withFieldsFiltering(deps, "search_issues", fields))
-			result, err := searchIssuesHandler(ctx, deps, args, mode, options...)
+			result, err := searchIssuesHandler(ctx, deps, args, resolvedMode, options...)
 			return result, nil, err
 		})
 }
