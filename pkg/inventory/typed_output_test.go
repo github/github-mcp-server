@@ -31,6 +31,92 @@ type typedTestOutput struct {
 	Query string `json:"query"`
 }
 
+func TestTypedExplicitErrorOutputProtocolGate(t *testing.T) {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"query": {Type: "string"},
+		},
+		Required: []string{"query"},
+	}
+	registration := &typedToolRegistration{
+		name:           "pending",
+		modernTool:     &mcp.Tool{Name: "pending", OutputSchema: schema},
+		legacyTool:     &mcp.Tool{Name: "pending"},
+		hasTypedOutput: true,
+	}
+	middleware := typedOutputMiddleware(&typedToolRegistrationSet{
+		byName: map[string]*typedToolRegistration{"pending": registration},
+	})
+
+	for _, tc := range []struct {
+		name              string
+		protocol          string
+		result            *mcp.CallToolResult
+		wantStructured    any
+		wantInputRequests bool
+	}{
+		{
+			name:     "modern explicit awaiting status",
+			protocol: ProtocolVersionMultiRoundTrip,
+			result: &mcp.CallToolResult{
+				IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "wait for input"}},
+				StructuredContent: typedTestOutput{Query: "awaiting"},
+			},
+			wantStructured: typedTestOutput{Query: "awaiting"},
+		},
+		{
+			name:     "legacy omits awaiting status",
+			protocol: "2025-11-25",
+			result: &mcp.CallToolResult{
+				IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "wait for input"}},
+				StructuredContent: typedTestOutput{Query: "awaiting"},
+			},
+		},
+		{
+			name:     "ordinary typed error",
+			protocol: ProtocolVersionMultiRoundTrip,
+			result: &mcp.CallToolResult{
+				IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "request failed"}},
+			},
+		},
+		{
+			name:     "modern elicitation retains status and request",
+			protocol: ProtocolVersionMultiRoundTrip,
+			result: &mcp.CallToolResult{
+				Content:           []mcp.Content{&mcp.TextContent{Text: "wait for input"}},
+				StructuredContent: typedTestOutput{Query: "awaiting"},
+				InputRequests:     mcp.InputRequestMap{"form": &mcp.ElicitParams{Mode: "form"}},
+			},
+			wantStructured:    typedTestOutput{Query: "awaiting"},
+			wantInputRequests: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := middleware(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+				return tc.result, nil
+			})
+			result, err := handler(context.Background(), MCPMethodToolsCall, &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name: "pending",
+					Meta: mcp.Meta{mcp.MetaKeyProtocolVersion: tc.protocol},
+				},
+			})
+			require.NoError(t, err)
+			callResult, ok := result.(*mcp.CallToolResult)
+			require.True(t, ok)
+			require.True(t, callResult.IsError || callResult.InputRequests != nil)
+			assert.Equal(t, tc.wantStructured, callResult.StructuredContent)
+			if tc.wantInputRequests {
+				assert.Equal(t, tc.result.InputRequests, callResult.InputRequests)
+			} else {
+				assert.Nil(t, callResult.InputRequests)
+			}
+			assert.Equal(t, tc.result.Content, callResult.Content)
+		})
+	}
+}
+
 func TestTypedToolRegistrationInfersSchemasAndValidates(t *testing.T) {
 	handlerCalls := 0
 	tool := NewServerToolWithContextHandler(

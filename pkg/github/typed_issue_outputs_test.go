@@ -107,7 +107,7 @@ func TestTypedIssueOutputs(t *testing.T) {
 		text       string
 		structured string
 	}{
-		{name: "issue_read", args: map[string]any{"method": "get", "owner": "owner", "repo": "repo", "issue_number": "7.0", "page": "0", "perPage": "0"}, text: `{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}`, structured: `{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}`},
+		{name: "issue_read", args: map[string]any{"method": "get", "owner": "owner", "repo": "repo", "issue_number": "7.0", "page": "0", "perPage": "0"}, text: `{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}`, structured: `{"method":"get","issue":{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}}`},
 		{name: "list_issue_types", args: map[string]any{"owner": "owner"}, text: `[{"id":1,"name":"Bug","is_enabled":false}]`, structured: `[{"id":1,"name":"Bug","is_enabled":false}]`},
 		{name: "list_issue_types", args: map[string]any{"owner": "owner", "repo": "repo"}, text: `[{"id":1,"name":"Bug","is_enabled":false}]`, structured: `[{"id":1,"name":"Bug","is_enabled":false}]`},
 		{name: "list_issue_fields", args: map[string]any{"owner": "owner"}, text: `[{"id":"IF_1","full_database_id":99,"name":"Priority","description":"Importance","data_type":"SINGLE_SELECT","visibility":"ALL","options":[{"id":"OPT_1","name":"High","color":"red","priority":0}]}]`, structured: `[{"id":"IF_1","full_database_id":99,"name":"Priority","description":"Importance","data_type":"SINGLE_SELECT","visibility":"ALL","options":[{"id":"OPT_1","name":"High","color":"red","priority":0}]}]`},
@@ -186,14 +186,17 @@ func TestTypedIssueOutputs(t *testing.T) {
 				require.NoError(t, err, call.name)
 				require.False(t, result.IsError, "%s: %s", call.name, result)
 				require.Len(t, result.Content, 1, call.name)
-				assert.Equal(t, call.text, getTextResult(t, result).Text, call.name)
 				if protocol != inventory.ProtocolVersionMultiRoundTrip {
+					assert.Equal(t, call.text, getTextResult(t, result).Text, call.name)
 					assert.Nil(t, result.StructuredContent, call.name)
 					continue
 				}
 				require.NotNil(t, result.StructuredContent, call.name)
 				structured := mustMarshalJSON(t, result.StructuredContent)
 				assert.JSONEq(t, call.structured, structured)
+				if call.name == "issue_read" || call.name == "add_issue_comment" {
+					assert.JSONEq(t, structured, getTextResult(t, result).Text, call.name)
+				}
 				var output any
 				require.NoError(t, json.Unmarshal([]byte(structured), &output))
 				require.NoError(t, schemas[call.name].Validate(output), call.name)
@@ -352,8 +355,9 @@ func TestTypedSubIssueWriteProtocols(t *testing.T) {
 	}
 	legacy, err := json.Marshal(expectedIssue)
 	require.NoError(t, err)
-	minimal := convertToMinimalIssue((*github.Issue)(expectedIssue))
-	structured, err := json.Marshal(minimal)
+	subIssue, err := subIssueOutput(expectedIssue)
+	require.NoError(t, err)
+	structured, err := json.Marshal(SubIssueWriteOutput{Method: "add", Issue: subIssue})
 	require.NoError(t, err)
 
 	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
@@ -389,13 +393,14 @@ func TestTypedSubIssueWriteProtocols(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.False(t, result.IsError)
-			assert.Equal(t, string(legacy), getTextResult(t, result).Text)
 			if protocol != inventory.ProtocolVersionMultiRoundTrip {
+				assert.Equal(t, string(legacy), getTextResult(t, result).Text)
 				assert.Nil(t, result.StructuredContent)
 				return
 			}
 			require.NotNil(t, result.StructuredContent)
 			assert.JSONEq(t, string(structured), mustMarshalJSON(t, result.StructuredContent))
+			assert.JSONEq(t, string(structured), getTextResult(t, result).Text)
 
 			invalid, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 				Name: "sub_issue_write",

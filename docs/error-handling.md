@@ -57,6 +57,29 @@ This function:
 return ghErrors.NewGitHubGraphQLErrorResponse(ctx, message, err), nil
 ```
 
+### Typed Tool Results
+
+Tools registered with concrete `NewTool[In, Out]` types expose output schemas and
+`structuredContent` only when the negotiated protocol is `2026-07-28` or newer.
+Older or unknown protocols retain the original text responses without these
+typed-output additions. Ordinary API and validation errors never expose the
+SDK-generated zero-value structured output.
+
+Handler-provided structured statuses are distinct from generated error output.
+For example, `issue_write` can return `IsError: true` with
+`status: "awaiting_user_submission"` while an MCP App form is pending. Modern
+clients retain that explicit status and its reason; legacy clients retain the
+stop message and error flag without structured content. This status does not
+mean the issue was created or updated. The output schema includes a strict
+status variant alongside the mutation's `id`/`url` variant. Multi-round-trip
+`InputRequests` continue to pass through unchanged.
+
+The consolidated issue tools use method-discriminated object outputs for modern
+successes. Issue and comment data are projected from the API responses into
+compact DTOs, excluding API, node, and hypermedia URLs while retaining human
+links. Legacy text is marshalled separately and keeps its original format and
+fields.
+
 ### Context Management
 
 The error handling system uses context to store errors for later inspection:

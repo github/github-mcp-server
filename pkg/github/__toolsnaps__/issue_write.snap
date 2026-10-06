@@ -149,5 +149,84 @@
     ],
     "type": "object"
   },
-  "name": "issue_write"
+  "name": "issue_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "reason": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "status": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "method",
+          "issue"
+        ]
+      },
+      {
+        "properties": {
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ]
+      }
+    ],
+    "properties": {
+      "issue": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "method": {
+        "enum": [
+          "create",
+          "update"
+        ],
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "awaiting_user_submission"
+        ],
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
 }
