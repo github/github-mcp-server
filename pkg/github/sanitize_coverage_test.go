@@ -230,6 +230,49 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 				}).Title
 			},
 		},
+		{
+			name: "issue event renamed title",
+			got: func() string {
+				return convertToMinimalIssueEvent(&github.IssueEvent{
+					Rename: &github.Rename{From: new(maliciousText)},
+				}).RenamedFrom
+			},
+		},
+		{
+			name:    "issue event dismissal message",
+			content: true,
+			got: func() string {
+				return convertToMinimalIssueEvent(&github.IssueEvent{
+					DismissedReview: &github.DismissedReview{DismissalMessage: new(maliciousText)},
+				}).DismissedReview.DismissalMessage
+			},
+		},
+		{
+			name: "timeline renamed title",
+			got: func() string {
+				return convertToMinimalTimelineItem(&github.Timeline{
+					Rename: &github.Rename{To: new(maliciousText)},
+				}).RenamedTo
+			},
+		},
+		{
+			name:    "timeline comment body",
+			content: true,
+			got: func() string {
+				return convertToMinimalTimelineItem(&github.Timeline{
+					Body: new(maliciousText),
+				}).Body
+			},
+		},
+		{
+			name:    "timeline commit message",
+			content: true,
+			got: func() string {
+				return convertToMinimalTimelineItem(&github.Timeline{
+					Message: new(maliciousText),
+				}).Message
+			},
+		},
 	}
 
 	for _, tt := range tests {
