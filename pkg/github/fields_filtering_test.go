@@ -9,7 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,16 +20,16 @@ import (
 func mockListCommits() []*github.RepositoryCommit {
 	return []*github.RepositoryCommit{
 		{
-			SHA:     github.Ptr("abc123def456"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			SHA:     new("abc123def456"),
+			HTMLURL: new("https://github.com/owner/repo/commit/abc123def456"),
 			Commit: &github.Commit{
-				Message: github.Ptr("First commit with a reasonably long message to add bytes"),
+				Message: new("First commit with a reasonably long message to add bytes"),
 				Author: &github.CommitAuthor{
-					Name:  github.Ptr("Test User"),
-					Email: github.Ptr("test@example.com"),
+					Name:  new("Test User"),
+					Email: new("test@example.com"),
 				},
 			},
-			Author: &github.User{Login: github.Ptr("testuser")},
+			Author: &github.User{Login: new("testuser")},
 		},
 	}
 }
@@ -79,8 +79,8 @@ func mockListReleases() []*github.RepositoryRelease {
 		{
 			ID:      1,
 			TagName: "v1.0.0",
-			Name:    github.Ptr("First Release"),
-			Body:    github.Ptr("Release notes with a reasonably long body to add bytes"),
+			Name:    new("First Release"),
+			Body:    new("Release notes with a reasonably long body to add bytes"),
 			HTMLURL: "https://github.com/owner/repo/releases/tag/v1.0.0",
 		},
 	}
@@ -130,12 +130,12 @@ func Test_ListReleases_FieldsTelemetry(t *testing.T) {
 func mockListPullRequests() []*github.PullRequest {
 	return []*github.PullRequest{
 		{
-			Number:  github.Ptr(42),
-			Title:   github.Ptr("First PR"),
-			Body:    github.Ptr("PR body with a reasonably long description to add bytes"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
-			User:    &github.User{Login: github.Ptr("user1")},
+			Number:  new(42),
+			Title:   new("First PR"),
+			Body:    new("PR body with a reasonably long description to add bytes"),
+			State:   new("open"),
+			HTMLURL: new("https://github.com/owner/repo/pull/42"),
+			User:    &github.User{Login: new("user1")},
 		},
 	}
 }
@@ -187,16 +187,16 @@ func Test_ListPullRequests_FieldsTelemetry(t *testing.T) {
 // does not attempt the follow-up GraphQL field-values enrichment.
 func mockIssueSearchResult() *github.IssuesSearchResult {
 	return &github.IssuesSearchResult{
-		Total:             github.Ptr(1),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(1),
+		IncompleteResults: new(false),
 		Issues: []*github.Issue{
 			{
-				Number:  github.Ptr(42),
-				Title:   github.Ptr("A result"),
-				Body:    github.Ptr("Body with a reasonably long description to add bytes"),
-				State:   github.Ptr("open"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
-				User:    &github.User{Login: github.Ptr("user1")},
+				Number:  new(42),
+				Title:   new("A result"),
+				Body:    new("Body with a reasonably long description to add bytes"),
+				State:   new("open"),
+				HTMLURL: new("https://github.com/owner/repo/pull/42"),
+				User:    &github.User{Login: new("user1")},
 			},
 		},
 	}

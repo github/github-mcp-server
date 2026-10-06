@@ -21,6 +21,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +60,41 @@ func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]strin
 }
 
 var _ scopes.FetcherInterface = allScopesFetcher{}
+
+func TestDefaultInventoryFactoryReusesSchemaDefinitions(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"https://github.com", "https://example.ghe.com", "https://github.example.com"} {
+		t.Run(host, func(t *testing.T) {
+			factory, err := NewDefaultInventoryFactory(&ServerConfig{Host: host}, translations.NullTranslationHelper, nil, allScopesFetcher{})
+			require.NoError(t, err)
+			request := httptest.NewRequest(http.MethodPost, "/", nil)
+			request = request.WithContext(ghcontext.WithToolsets(request.Context(), []string{"all"}))
+			first, err := factory(request)
+			require.NoError(t, err)
+			definitions := first.AllTools()
+			require.NotEmpty(t, definitions)
+			for range 10 {
+				next, err := factory(request)
+				require.NoError(t, err)
+				tools := next.AllTools()
+				require.Len(t, tools, len(definitions))
+				for i, tool := range tools {
+					assert.Equal(t, definitions[i].Tool.Name, tool.Tool.Name)
+					if _, ok := definitions[i].Tool.InputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					}
+					if _, ok := definitions[i].Tool.OutputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					}
+				}
+			}
+		})
+	}
+}
 
 func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag inventory.FeatureFlag) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
@@ -1299,62 +1335,36 @@ func TestSubscriptionsListenIsRejected(t *testing.T) {
 	}
 }
 
-// TestInsidersRoutePreservesUIMeta is a regression test for the bug where
-// _meta.ui was stripped from tools/list responses on the HTTP /insiders route.
-//
-// Before the fix:
-//   - buildStaticInventory called Build() on a builder configured with the
-//     HTTP feature checker (which reads insiders mode from the request ctx).
-//   - Build() invoked checkFeatureFlag(context.Background()) — bg ctx has no
-//     insiders mode, so the FF reported MCP Apps off, and stripMCPAppsMetadata
-//     ran eagerly against the static tool slice at server startup.
-//   - Per-request inventory factories then served pre-stripped tools regardless
-//     of whether the request actually came in via /insiders.
-//
-// After the fix:
-//   - Build() no longer touches MCP Apps metadata.
-//   - RegisterTools applies the strip per-request, using the request context
-//     where the HTTP feature checker correctly observes insiders mode.
-func TestInsidersRoutePreservesUIMeta(t *testing.T) {
+// TestUIMetaPreservedByDefault verifies that _meta.ui is preserved in the
+// registered tool surface on both the /insiders route and the default route:
+// MCP Apps UI metadata is no longer gated behind a feature flag.
+func TestUIMetaPreservedByDefault(t *testing.T) {
 	const uiURI = "ui://test/widget"
 	uiTool := mockTool("with_ui", "repos", true)
 	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
 
-	checker := createHTTPFeatureChecker(nil, false)
-	build := func() *inventory.Inventory {
-		inv, err := inventory.NewBuilder().
-			SetTools([]inventory.ServerTool{uiTool}).
-			WithFeatureChecker(checker).
-			WithToolsets([]string{"all"}).
-			Build()
-		require.NoError(t, err)
-		return inv
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{uiTool}).
+		WithFeatureChecker(createHTTPFeatureChecker(nil, false)).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	for name, ctx := range map[string]context.Context{
+		"insiders": ghcontext.WithInsidersMode(context.Background(), true),
+		"default":  context.Background(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			tools := inv.ToolsForRegistration(ctx)
+			require.Len(t, tools, 1)
+			require.NotNil(t, tools[0].Tool.Meta, "_meta should be present")
+			require.Equal(t, uiURI, tools[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
+		})
 	}
-
-	// Simulate a /insiders request: ctx has insiders mode set.
-	insidersCtx := ghcontext.WithInsidersMode(context.Background(), true)
-
-	// AvailableTools no longer strips _meta.ui (post-fix), regardless of ctx.
-	// The strip lives in RegisterTools, gated on the per-request FF check.
-	insidersTools := build().AvailableTools(insidersCtx)
-	plainTools := build().AvailableTools(context.Background())
-
-	// On the /insiders path, the FF check returns true → no strip → _meta preserved.
-	enabled, _ := checker(insidersCtx, "remote_mcp_ui_apps")
-	require.True(t, enabled, "FF should be on for /insiders ctx")
-	require.Len(t, insidersTools, 1)
-	require.NotNil(t, insidersTools[0].Tool.Meta, "_meta should be present on /insiders")
-	require.Equal(t, uiURI, insidersTools[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
-
-	// On the non-insiders path, RegisterTools strips _meta.ui.
-	plainEnabled, _ := checker(context.Background(), "remote_mcp_ui_apps")
-	require.False(t, plainEnabled, "FF should be off for non-insiders ctx")
-	require.Len(t, plainTools, 1)
 }
 
-// TestUIMetaStrippedWhenClientLacksCapability verifies that even on the
-// /insiders path (where the feature flag is on), UI metadata is stripped from
-// tools/list responses when the client did NOT advertise the
+// TestUIMetaStrippedWhenClientLacksCapability verifies that UI metadata is
+// stripped from tools/list responses when the client did NOT advertise the
 // io.modelcontextprotocol/ui extension capability. Per the 2026-01-26 MCP
 // Apps spec, servers SHOULD check client capabilities before exposing
 // UI-enabled tools.
@@ -1387,10 +1397,9 @@ func TestUIMetaStrippedWhenClientLacksCapability(t *testing.T) {
 	require.NotNil(t, preserved[0].Tool.Meta["ui"], "_meta.ui should be preserved when client advertises UI capability")
 	require.Equal(t, uiURI, preserved[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
 
-	// Unknown capability falls through to the FF gate (insiders ctx → kept).
 	unknown := build().ToolsForRegistration(insidersCtx)
 	require.Len(t, unknown, 1)
-	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown and FF is on")
+	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown")
 }
 
 // TestMaxRequestBodyBytes checks the effective limit and, critically, that it

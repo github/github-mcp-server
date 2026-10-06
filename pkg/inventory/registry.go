@@ -179,25 +179,18 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // diagnostics that need the same view of the tool surface the server would
 // register.
 //
-// The strip applies when EITHER of the following is true:
-//
-//   - The remote_mcp_ui_apps feature flag is not enabled in ctx (server-side gate).
-//   - The client explicitly did not advertise the io.modelcontextprotocol/ui
-//     extension capability (per the 2026-01-26 MCP Apps spec, servers SHOULD
-//     check client capabilities before exposing UI-enabled tools). When the
-//     capability is unknown (e.g. stdio paths that do not populate the
-//     context flag) the feature-flag gate is the sole source of truth.
+// MCP Apps UI metadata is stripped only when the client explicitly did not
+// advertise the io.modelcontextprotocol/ui extension capability (per the
+// 2026-01-26 MCP Apps spec, servers SHOULD check client capabilities before
+// exposing UI-enabled tools). In that case app-only tools (whose
+// _meta.ui.visibility excludes "model") are omitted entirely. When the
+// capability is unknown (e.g. stdio paths that do not populate the context
+// flag) the metadata is kept.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
-	if present, checkFeature := mcpAppsMetadataStatus(ctx, tools); present {
-		featureEnabled := false
-		if checkFeature {
-			featureEnabled = r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)
-		}
-		if shouldStripMCPAppsMetadata(ctx, featureEnabled) {
-			tools = stripMCPAppsMetadata(tools)
-		}
+	if shouldStripMCPAppsMetadata(ctx) {
+		tools = stripMCPAppsMetadata(tools)
 	}
 	return tools
 }
@@ -215,9 +208,6 @@ func (r *Inventory) RequiredFeatures() []FeatureFlag {
 	for i := range r.prompts {
 		features = appendFeatureDeclaration(features, r.prompts[i].FeatureRule)
 	}
-	if r.usesMCPAppsMetadata() {
-		features = appendUniqueFeature(features, mcpAppsFeatureFlag)
-	}
 	slices.Sort(features)
 	return features
 }
@@ -228,37 +218,6 @@ func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
 	return WithFeatureState(ctx, r.featureChecker)
 }
 
-func (r *Inventory) usesMCPAppsMetadata() bool {
-	for i := range r.tools {
-		if toolUsesMCPAppsMetadata(&r.tools[i]) {
-			return true
-		}
-	}
-	return false
-}
-
-func mcpAppsMetadataStatus(ctx context.Context, tools []ServerTool) (present, checkFeature bool) {
-	for i := range tools {
-		if !toolUsesMCPAppsMetadata(&tools[i]) {
-			continue
-		}
-		present = true
-		if featureDecisionForToolAvailability(ctx, tools[i].availability()) != includeToolWithoutFeatureRule {
-			return true, true
-		}
-	}
-	return present, false
-}
-
-func toolUsesMCPAppsMetadata(tool *ServerTool) bool {
-	for _, key := range mcpAppsMetaKeys {
-		if _, ok := tool.Tool.Meta[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []FeatureFlag {
 	for _, feature := range rule.features {
 		features = appendUniqueFeature(features, feature)
@@ -267,35 +226,35 @@ func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []Featur
 }
 
 // shouldStripMCPAppsMetadata centralises the strip decision so the same logic
-// is exercised by tests and by RegisterTools.
-func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bool {
-	if !featureFlagEnabled {
-		return true
-	}
-	// Feature flag is on. Respect the client capability if it is known.
-	if supported, ok := ghcontext.HasUISupport(ctx); ok && !supported {
-		return true
-	}
-	return false
+// is exercised by tests and by RegisterTools. Metadata is stripped only when
+// the client is known not to support MCP Apps UI.
+func shouldStripMCPAppsMetadata(ctx context.Context) bool {
+	supported, ok := ghcontext.HasUISupport(ctx)
+	return ok && !supported
 }
 
 // RegisterTools registers all available tools with the server using the provided dependencies.
 // The context is used for feature flag evaluation and client capability checks.
 //
 // MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools when
-// either the MCP Apps feature flag is not enabled for this request, or the
-// client did not advertise the io.modelcontextprotocol/ui extension. The
+// the client did not advertise the io.modelcontextprotocol/ui extension. The
 // strip happens here (rather than at Build() time) so the per-request
-// context is in scope — HTTP feature checkers that read insiders mode or
-// user identity from ctx would otherwise see context.Background() and
-// falsely report the flag off, even when the actual request arrived on the
-// /insiders route.
+// context, which carries the client capability, is in scope.
+//
+// Schema definitions must remain immutable and be reused across registrations.
+// Their encodings are retained process-wide, keyed by source schema identity.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	schemas := make(map[string]listedToolSchemas, len(tools))
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		registered := tool.register(s, deps, middleware...)
+		schemas[registered.Name] = listedToolSchemas{
+			source:     tool.Tool.InputSchema,
+			registered: registered,
+		}
 	}
+	s.AddReceivingMiddleware(encodedToolSchemasMiddleware(schemas))
 }
 
 // RegisterResourceTemplates registers all available resource templates with the server.
