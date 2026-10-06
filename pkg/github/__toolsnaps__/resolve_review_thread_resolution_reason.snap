@@ -1,12 +1,12 @@
 {
   "annotations": {
-    "destructiveHint": true,
+    "destructiveHint": false,
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
-    "title": "Delete Pending Pull Request Review"
+    "title": "Resolve Review Thread"
   },
-  "description": "Delete a pending pull request review.",
+  "description": "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -21,30 +21,21 @@
   ],
   "inputSchema": {
     "properties": {
-      "owner": {
-        "description": "Repository owner (username or organization)",
-        "type": "string",
-        "x-mcp-header": "owner"
+      "resolutionReason": {
+        "description": "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+        "type": "string"
       },
-      "pullNumber": {
-        "description": "The pull request number",
-        "minimum": 1,
-        "type": "number"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string",
-        "x-mcp-header": "repo"
+      "threadID": {
+        "description": "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
+        "type": "string"
       }
     },
     "required": [
-      "owner",
-      "repo",
-      "pullNumber"
+      "threadID"
     ],
     "type": "object"
   },
-  "name": "delete_pending_pull_request_review",
+  "name": "resolve_review_thread",
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
