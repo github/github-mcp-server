@@ -277,5 +277,576 @@
     ],
     "type": "object"
   },
-  "name": "projects_write"
+  "name": "projects_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "added": {
+        "additionalProperties": false,
+        "properties": {
+          "full_database_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "item_id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message"
+        ],
+        "type": "object"
+      },
+      "batch": {
+        "additionalProperties": false,
+        "properties": {
+          "failed": {
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "error": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "candidates": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "data_type": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "item": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "full_database_id": {
+                      "type": "string"
+                    },
+                    "item_id": {
+                      "type": "integer"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "ref": {
+                  "additionalProperties": true,
+                  "description": "Original batch reference, including malformed or extra fields.",
+                  "type": "object"
+                },
+                "status": {
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "unknown"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "succeeded": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "unknown": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "unknown",
+          "results"
+        ],
+        "type": "object"
+      },
+      "deleted_item": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "deleted_view": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted_view_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deleted_view_id"
+        ],
+        "type": "object"
+      },
+      "issue_fields": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "item": {
+        "additionalProperties": false,
+        "properties": {
+          "archived_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": false,
+            "properties": {
+              "assignees": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "author": {
+                "type": "string"
+              },
+              "closed_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              },
+              "comments": {
+                "type": "integer"
+              },
+              "created_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              },
+              "draft": {
+                "type": "boolean"
+              },
+              "html_url": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "labels": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "merged": {
+                "type": "boolean"
+              },
+              "merged_at": {
+                "type": "string"
+              },
+              "milestone": {
+                "type": "string"
+              },
+              "node_id": {
+                "type": "string"
+              },
+              "number": {
+                "type": "integer"
+              },
+              "repository": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "state_reason": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "updated_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data_type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "iteration_field": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "additionalProperties": false,
+            "properties": {
+              "iterations": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duration": {
+                      "description": "Iteration duration in days.",
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "start_date": {
+                      "description": "Date in YYYY-MM-DD format.",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "start_date",
+                    "duration"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "iterations"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "configuration"
+        ],
+        "type": "object"
+      },
+      "method": {
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "update_project_items",
+          "delete_project_item",
+          "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
+          "create_project",
+          "create_iteration_field"
+        ],
+        "type": "string"
+      },
+      "project": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "status_update": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "creator": {
+            "additionalProperties": false,
+            "properties": {
+              "avatar_url": {
+                "type": "string"
+              },
+              "details": {
+                "additionalProperties": false,
+                "properties": {
+                  "bio": {
+                    "type": "string"
+                  },
+                  "blog": {
+                    "type": "string"
+                  },
+                  "company": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "description": "RFC3339 timestamp.",
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "followers": {
+                    "type": "integer"
+                  },
+                  "following": {
+                    "type": "integer"
+                  },
+                  "hireable": {
+                    "type": "boolean"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "owned_private_repos": {
+                    "type": "integer"
+                  },
+                  "private_gists": {
+                    "type": "integer"
+                  },
+                  "public_gists": {
+                    "type": "integer"
+                  },
+                  "public_repos": {
+                    "type": "integer"
+                  },
+                  "total_private_repos": {
+                    "type": "integer"
+                  },
+                  "twitter_username": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "description": "RFC3339 timestamp.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "public_repos",
+                  "public_gists",
+                  "followers",
+                  "following",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              },
+              "profile_url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "start_date": {
+            "description": "Date in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "INACTIVE",
+              "ON_TRACK",
+              "AT_RISK",
+              "OFF_TRACK",
+              "COMPLETE"
+            ],
+            "type": "string"
+          },
+          "target_date": {
+            "description": "Date in YYYY-MM-DD format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "view": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "layout": {
+            "enum": [
+              "board",
+              "table",
+              "roadmap"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "visible_fields": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "name",
+          "layout",
+          "filter",
+          "visible_fields"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  }
 }

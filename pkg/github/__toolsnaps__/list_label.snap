@@ -22,5 +22,46 @@
     ],
     "type": "object"
   },
-  "name": "list_label"
+  "name": "list_label",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "description": "Hex RGB without leading #.",
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "color",
+            "description"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "totalCount": {
+        "description": "Total labels in the repository.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "labels",
+      "totalCount"
+    ],
+    "type": "object"
+  }
 }

@@ -30,7 +30,7 @@
         "type": "string"
       },
       "event": {
-        "description": "The review action to perform (APPROVE, REQUEST_CHANGES, or COMMENT). If omitted, creates a pending review.",
+        "description": "The review action to perform. If omitted, creates a pending review.",
         "enum": [
           "APPROVE",
           "REQUEST_CHANGES",

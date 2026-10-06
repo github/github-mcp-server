@@ -37,7 +37,7 @@ func Test_ProjectsList(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "query")
 	assert.Contains(t, inputSchema.Properties, "fields")
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodListProjectViews)
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
+	assert.ElementsMatch(t, []string{"method", "owner"}, inputSchema.Required)
 }
 
 func Test_ProjectsList_ListProjects(t *testing.T) {
@@ -638,7 +638,7 @@ func Test_ProjectsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodGetProjectView)
 	assert.Contains(t, inputSchema.Properties, "field_id")
 	assert.Contains(t, inputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method"})
+	assert.ElementsMatch(t, []string{"method"}, inputSchema.Required)
 }
 
 func Test_ProjectsGet_GetProject(t *testing.T) {
@@ -934,7 +934,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodCreateProjectView)
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodUpdateProjectView)
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodDeleteProjectView)
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
+	assert.ElementsMatch(t, []string{"method", "owner"}, inputSchema.Required)
 
 	// Verify DestructiveHint is set
 	assert.NotNil(t, toolDef.Tool.Annotations)

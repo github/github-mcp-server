@@ -436,6 +436,48 @@ func TestGranularPullRequestAdvertisedInputConstraints(t *testing.T) {
 	}
 }
 
+func TestTypedInputDescriptionsMatchMain(t *testing.T) {
+	descriptions := map[string]map[string]string{
+		"add_pull_request_review_comment": {
+			"side":        "The side of the diff to comment on (optional)",
+			"startSide":   "The start side of a multi-line comment (optional)",
+			"subjectType": "The subject type of the comment",
+		},
+		"add_pull_request_review_comment_reaction": {
+			"content": "The emoji reaction type",
+		},
+		"create_pull_request_review": {
+			"event": "The review action to perform. If omitted, creates a pending review.",
+		},
+		"submit_pending_pull_request_review": {
+			"event": "The review action to perform",
+		},
+		"update_pull_request_state": {
+			"state": "The new state for the pull request",
+		},
+		"find_duplicate": {
+			"page":    "Page number for pagination (min 1)",
+			"perPage": "Results per page for pagination (min 1, max 100)",
+		},
+	}
+	tools := append(granularPullRequestTools(), FindDuplicate(translations.NullTranslationHelper))
+	for _, tool := range tools {
+		for field, description := range descriptions[tool.Tool.Name] {
+			schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
+			require.True(t, ok, tool.Tool.Name)
+			property := schema.Properties[field]
+			require.NotNil(t, property, tool.Tool.Name+"/"+field)
+			assert.Equal(t, description, property.Description, tool.Tool.Name+"/"+field)
+		}
+	}
+
+	findDuplicate, ok := FindDuplicate(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok)
+	assert.Equal(t, 1.0, *findDuplicate.Properties["page"].Minimum)
+	assert.Equal(t, 1.0, *findDuplicate.Properties["perPage"].Minimum)
+	assert.Equal(t, 100.0, *findDuplicate.Properties["perPage"].Maximum)
+}
+
 func TestGranularPullRequestReactionSchema(t *testing.T) {
 	schema, err := minimalPullRequestCommentReactionSchema().Resolve(nil)
 	require.NoError(t, err)

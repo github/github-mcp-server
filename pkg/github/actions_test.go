@@ -571,10 +571,8 @@ func Test_ActionsGetJobLogs(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
-	// Note: consolidated ActionsGetJobLogs has same tool name "get_job_logs" as the individual tool
-	// but with different descriptions. We skip toolsnap validation here since the individual
-	// tool's toolsnap already exists and is tested in Test_GetJobLogs.
-	// The functional feature rules ensure only one variant is active at a time.
+	// The legacy individual tool has a different contract under the same name.
+	require.NoError(t, toolsnaps.Test("get_job_logs_actions", toolDef.Tool))
 	assert.Equal(t, "get_job_logs", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
 	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)

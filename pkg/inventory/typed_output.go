@@ -11,6 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	sdkjson "github.com/segmentio/encoding/json"
 )
 
 type inputNormalizationContextKey struct{}
@@ -29,6 +30,8 @@ type typedCallState struct {
 	contentLengthBeforeSDK int
 	preserveContent        bool
 	structuredOutput       any
+	sdkCalled              bool
+	shortCircuit           *mcp.CallToolResult
 }
 
 type typedToolRegistration struct {
@@ -45,8 +48,27 @@ type typedToolRegistration struct {
 	handlerMiddleware []ToolHandlerMiddleware
 }
 
-func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware ...ToolHandlerMiddleware) mcp.ToolHandlerFor[In, any] {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input In) (*mcp.CallToolResult, any, error) {
+func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], inputSchema *jsonschema.Resolved) mcp.ToolHandlerFor[any, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, value any) (*mcp.CallToolResult, any, error) {
+		if state, ok := ctx.Value(typedCallStateKey{}).(*typedCallState); ok && state.shortCircuit != nil {
+			return state.shortCircuit, nil, nil
+		}
+		if err := inputSchema.ApplyDefaults(&value); err != nil {
+			return typedInputErrorResult(fmt.Errorf("validating \"arguments\": applying schema defaults:\n%w", err)), nil, nil
+		}
+		if err := inputSchema.Validate(&value); err != nil {
+			return typedInputErrorResult(fmt.Errorf("validating \"arguments\": %w", err)), nil, nil
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return typedInputErrorResult(fmt.Errorf("validating \"arguments\": marshalling with defaults: %w", err)), nil, nil
+		}
+		var input In
+		decoder := sdkjson.NewDecoder(bytes.NewReader(encoded))
+		decoder.DontMatchCaseInsensitiveStructFields()
+		if err := decoder.Decode(&input); err != nil {
+			return typedInputErrorResult(err), nil, nil
+		}
 		var output any
 		handlerCalled := false
 		next := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -57,8 +79,6 @@ func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middlewa
 			}
 			return result, err
 		}
-		next = applyToolHandlerMiddleware(next, middleware...)
-
 		result, err := next(ctx, req)
 		if err != nil {
 			if rpcErr, ok := errors.AsType[*jsonrpc.Error](err); ok {
@@ -79,6 +99,12 @@ func wrapTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middlewa
 		}
 		return result, output, nil
 	}
+}
+
+func typedInputErrorResult(err error) *mcp.CallToolResult {
+	result := &mcp.CallToolResult{}
+	result.SetError(err)
+	return result
 }
 
 // typedOutputMiddleware selects immutable advertised schema variants and
@@ -196,6 +222,7 @@ func typedOutputMiddleware(registrationSet *typedToolRegistrationSet) mcp.Middle
 						ctx = context.WithValue(ctx, inputNormalizationContextKey{}, req.Params.Name)
 					}
 
+					state.sdkCalled = true
 					result, err := next(ctx, method, request)
 					if err != nil {
 						return nil, err
@@ -231,6 +258,24 @@ func typedOutputMiddleware(registrationSet *typedToolRegistrationSet) mcp.Middle
 				callResult, err := applyToolHandlerMiddleware(dispatch, registration.handlerMiddleware...)(ctx, req)
 				if err != nil {
 					return nil, err
+				}
+				if registration.hasTypedOutput && !state.sdkCalled && callResult != nil {
+					// Guards and preflight run before decoding, but their results
+					// must still pass through the SDK's tool-call finalization.
+					state.shortCircuit = callResult
+					requestCopy := *req
+					paramsCopy := *req.Params
+					paramsCopy.Arguments = json.RawMessage(`{}`)
+					requestCopy.Params = &paramsCopy
+					result, err := next(ctx, method, &requestCopy)
+					if err != nil {
+						return nil, err
+					}
+					var ok bool
+					callResult, ok = result.(*mcp.CallToolResult)
+					if !ok {
+						return nil, fmt.Errorf("unexpected tools/call result type %T", result)
+					}
 				}
 				era := requestEra(ctx, requestVersion)
 				if registration.fixedEra != ProtocolEraDynamic {

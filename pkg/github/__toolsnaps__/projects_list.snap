@@ -71,5 +71,937 @@
     ],
     "type": "object"
   },
-  "name": "projects_list"
+  "name": "projects_list",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "fields": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "configuration": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duration": {
+                      "description": "Iteration duration in days.",
+                      "type": "integer"
+                    },
+                    "iterations": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "duration": {
+                            "description": "Iteration duration in days.",
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "start_date": {
+                            "description": "Date in YYYY-MM-DD format.",
+                            "type": "string"
+                          },
+                          "title": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "html": {
+                                "type": "string"
+                              },
+                              "raw": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "start_day": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "data_type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "html": {
+                            "type": "string"
+                          },
+                          "raw": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "html": {
+                            "type": "string"
+                          },
+                          "raw": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "updated_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "fields",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "archived_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                },
+                "content": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "assignees": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "author": {
+                      "type": "string"
+                    },
+                    "closed_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    },
+                    "comments": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "boolean"
+                    },
+                    "html_url": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "labels": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "merged": {
+                      "type": "boolean"
+                    },
+                    "merged_at": {
+                      "type": "string"
+                    },
+                    "milestone": {
+                      "type": "string"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "integer"
+                    },
+                    "repository": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "state_reason": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "description": "RFC3339 timestamp.",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "content_type": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                },
+                "creator": {
+                  "type": "string"
+                },
+                "fields": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "data_type": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "description": "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "method": {
+        "enum": [
+          "list_projects",
+          "list_project_fields",
+          "list_project_items",
+          "list_project_status_updates",
+          "list_project_views"
+        ],
+        "type": "string"
+      },
+      "projects": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "type": "string"
+          },
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          },
+          "projects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "closed_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "creator": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "avatar_url": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bio": {
+                          "type": "string"
+                        },
+                        "blog": {
+                          "type": "string"
+                        },
+                        "company": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "followers": {
+                          "type": "integer"
+                        },
+                        "following": {
+                          "type": "integer"
+                        },
+                        "hireable": {
+                          "type": "boolean"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owned_private_repos": {
+                          "type": "integer"
+                        },
+                        "private_gists": {
+                          "type": "integer"
+                        },
+                        "public_gists": {
+                          "type": "integer"
+                        },
+                        "public_repos": {
+                          "type": "integer"
+                        },
+                        "total_private_repos": {
+                          "type": "integer"
+                        },
+                        "twitter_username": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "public_repos",
+                        "public_gists",
+                        "followers",
+                        "following",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    },
+                    "profile_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": "object"
+                },
+                "deleted_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "deleted_by": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "avatar_url": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bio": {
+                          "type": "string"
+                        },
+                        "blog": {
+                          "type": "string"
+                        },
+                        "company": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "followers": {
+                          "type": "integer"
+                        },
+                        "following": {
+                          "type": "integer"
+                        },
+                        "hireable": {
+                          "type": "boolean"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owned_private_repos": {
+                          "type": "integer"
+                        },
+                        "private_gists": {
+                          "type": "integer"
+                        },
+                        "public_gists": {
+                          "type": "integer"
+                        },
+                        "public_repos": {
+                          "type": "integer"
+                        },
+                        "total_private_repos": {
+                          "type": "integer"
+                        },
+                        "twitter_username": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "public_repos",
+                        "public_gists",
+                        "followers",
+                        "following",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    },
+                    "profile_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": "object"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "owner": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "avatar_url": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bio": {
+                          "type": "string"
+                        },
+                        "blog": {
+                          "type": "string"
+                        },
+                        "company": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "followers": {
+                          "type": "integer"
+                        },
+                        "following": {
+                          "type": "integer"
+                        },
+                        "hireable": {
+                          "type": "boolean"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owned_private_repos": {
+                          "type": "integer"
+                        },
+                        "private_gists": {
+                          "type": "integer"
+                        },
+                        "public_gists": {
+                          "type": "integer"
+                        },
+                        "public_repos": {
+                          "type": "integer"
+                        },
+                        "total_private_repos": {
+                          "type": "integer"
+                        },
+                        "twitter_username": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "public_repos",
+                        "public_gists",
+                        "followers",
+                        "following",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    },
+                    "profile_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": "object"
+                },
+                "owner_type": {
+                  "type": "string"
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "short_description": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "description": "RFC3339 timestamp.",
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "projects"
+        ],
+        "type": "object"
+      },
+      "status_updates": {
+        "additionalProperties": false,
+        "properties": {
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage",
+              "nextCursor",
+              "prevCursor"
+            ],
+            "type": "object"
+          },
+          "statusUpdates": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC3339 timestamp.",
+                  "type": "string"
+                },
+                "creator": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "avatar_url": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bio": {
+                          "type": "string"
+                        },
+                        "blog": {
+                          "type": "string"
+                        },
+                        "company": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "followers": {
+                          "type": "integer"
+                        },
+                        "following": {
+                          "type": "integer"
+                        },
+                        "hireable": {
+                          "type": "boolean"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owned_private_repos": {
+                          "type": "integer"
+                        },
+                        "private_gists": {
+                          "type": "integer"
+                        },
+                        "public_gists": {
+                          "type": "integer"
+                        },
+                        "public_repos": {
+                          "type": "integer"
+                        },
+                        "total_private_repos": {
+                          "type": "integer"
+                        },
+                        "twitter_username": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "description": "RFC3339 timestamp.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "public_repos",
+                        "public_gists",
+                        "followers",
+                        "following",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    },
+                    "profile_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": "object"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "start_date": {
+                  "description": "Date in YYYY-MM-DD format.",
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "INACTIVE",
+                    "ON_TRACK",
+                    "AT_RISK",
+                    "OFF_TRACK",
+                    "COMPLETE"
+                  ],
+                  "type": "string"
+                },
+                "target_date": {
+                  "description": "Date in YYYY-MM-DD format.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "statusUpdates",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "views": {
+        "additionalProperties": false,
+        "properties": {
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "prevCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage",
+              "nextCursor",
+              "prevCursor"
+            ],
+            "type": "object"
+          },
+          "views": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "filter": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "layout": {
+                  "enum": [
+                    "board",
+                    "table",
+                    "roadmap"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "visible_fields": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "number",
+                "name",
+                "layout",
+                "filter",
+                "visible_fields"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "views",
+          "pageInfo"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  }
 }

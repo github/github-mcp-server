@@ -40,15 +40,11 @@ func Test_FindDuplicate(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
 
-	// Unlike most paginated tools, find_duplicate forwards an explicit 0 to
-	// the API unchanged instead of substituting the usual default. The
-	// advertised minimum stays canonical (matching WithPagination), but the
-	// description must say so to avoid misleading callers.
 	assert.Equal(t, 1.0, *schema.Properties["page"].Minimum)
 	assert.Equal(t, 1.0, *schema.Properties["perPage"].Minimum)
 	assert.Equal(t, 100.0, *schema.Properties["perPage"].Maximum)
-	assert.Contains(t, schema.Properties["page"].Description, "An explicit 0 is forwarded to the API as-is")
-	assert.Contains(t, schema.Properties["perPage"].Description, "An explicit 0 is forwarded to the API as-is")
+	assert.Equal(t, "Page number for pagination (min 1)", schema.Properties["page"].Description)
+	assert.Equal(t, "Results per page for pagination (min 1, max 100)", schema.Properties["perPage"].Description)
 }
 
 func Test_FindDuplicate_RankedResults(t *testing.T) {

@@ -68,5 +68,64 @@
     ],
     "type": "object"
   },
-  "name": "assign_copilot_to_issue_with_intent"
+  "name": "assign_copilot_to_issue_with_intent",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_suggestion": {
+        "type": "boolean"
+      },
+      "issue_number": {
+        "description": "The assigned issue's number.",
+        "type": "integer"
+      },
+      "message": {
+        "description": "Assignment outcome or tool error message.",
+        "type": "string"
+      },
+      "note": {
+        "description": "Additional status detail when Copilot has not created a pull request yet.",
+        "type": "string"
+      },
+      "owner": {
+        "type": "string"
+      },
+      "pull_request": {
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "CLOSED",
+              "MERGED"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "state",
+          "title"
+        ],
+        "type": "object"
+      },
+      "repo": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "is_suggestion",
+      "issue_number",
+      "message",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  }
 }

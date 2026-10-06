@@ -465,13 +465,19 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 				preserveContent:   schemaOptions.PreserveHandlerContent,
 			}
 		}
-		serverTool.registerTyped = func(server *mcp.Server, registration *typedToolRegistration, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
-			switch era {
-			case ProtocolEraLegacy:
-				mcp.AddTool[In, any](server, registration.legacyRuntimeTool, wrapTypedHandler(handler, middleware...))
-			default:
-				mcp.AddTool[In, any](server, registration.modernRuntimeTool, wrapTypedHandler(handler, middleware...))
+		serverTool.registerTyped = func(server *mcp.Server, registration *typedToolRegistration, era ProtocolEra, _ ...ToolHandlerMiddleware) {
+			tool := *registration.runtimeTool(era)
+			inputSchema, err := cachedResolvedInputSchema(tool.InputSchema)
+			if err != nil {
+				panic(fmt.Sprintf("failed to resolve input schema for tool %q: %v", tool.Name, err))
 			}
+			// Input validation is deferred until guards have allowed the call.
+			// The advertised and validation schemas remain the original schemas.
+			tool.InputSchema, err = cachedObjectInputSchema()
+			if err != nil {
+				panic(fmt.Sprintf("failed to prepare input schema for tool %q: %v", tool.Name, err))
+			}
+			mcp.AddTool[any, any](server, &tool, wrapTypedHandler(handler, inputSchema))
 		}
 	}
 	return serverTool
