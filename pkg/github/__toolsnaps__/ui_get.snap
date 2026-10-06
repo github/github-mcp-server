@@ -45,6 +45,302 @@
   "name": "ui_get",
   "outputSchema": {
     "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "labels"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "labels"
+        ]
+      },
+      {
+        "properties": {
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "assignees"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "assignees"
+        ]
+      },
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "milestones"
+            ]
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "milestones"
+        ]
+      },
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "issue_types"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "issue_types"
+        ]
+      },
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "branches"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "branches"
+        ]
+      },
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "issue_fields"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "reviewers": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "issue_fields"
+        ]
+      },
+      {
+        "properties": {
+          "assignees": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "branches": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_fields": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "issue_types": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "labels": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "reviewers"
+            ]
+          },
+          "milestones": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "reviewers"
+        ]
+      }
+    ],
     "properties": {
       "assignees": {
         "additionalProperties": false,

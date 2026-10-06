@@ -175,6 +175,8 @@ type SecretScanningAlertOutput struct {
 	Validity               *string                       `json:"validity,omitempty" jsonschema:"Credential validity reported by GitHub: active, inactive, or unknown."`
 	ResolutionComment      *string                       `json:"resolution_comment,omitempty"`
 	PushProtectionBypassed *bool                         `json:"push_protection_bypassed,omitempty" jsonschema:"Whether push protection was bypassed for this secret."`
+	IsBase64Encoded        *bool                         `json:"is_base64_encoded,omitempty" jsonschema:"Whether the detected secret is base64 encoded."`
+	HasMoreLocations       *bool                         `json:"has_more_locations,omitempty" jsonschema:"Whether additional secret locations exist beyond the first location."`
 }
 
 type SecurityPackageOutput struct {
@@ -196,11 +198,12 @@ type DependabotDependencyOutput struct {
 }
 
 type DependabotAdvisoryOutput struct {
-	GHSAID      *string `json:"ghsa_id,omitempty"`
-	CVEID       *string `json:"cve_id,omitempty"`
-	Summary     *string `json:"summary,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Severity    *string `json:"severity,omitempty"`
+	GHSAID         *string `json:"ghsa_id,omitempty"`
+	CVEID          *string `json:"cve_id,omitempty"`
+	Summary        *string `json:"summary,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	Severity       *string `json:"severity,omitempty"`
+	Classification *string `json:"classification,omitempty" jsonschema:"GitHub advisory classification, such as malware or general."`
 }
 
 type DependabotAlertOutput struct {
@@ -381,6 +384,7 @@ func secretScanningAlertOutput(alert *github.SecretScanningAlert) *SecretScannin
 		Secret: alert.Secret, HTMLURL: alert.HTMLURL,
 		Validity: alert.Validity, ResolutionComment: alert.ResolutionComment,
 		PushProtectionBypassed: alert.PushProtectionBypassed,
+		IsBase64Encoded:        alert.IsBase64Encoded, HasMoreLocations: alert.HasMoreLocations,
 	}
 	if location := alert.FirstLocationDetected; location != nil {
 		output.FirstLocationDetected = &SecretScanningLocationOutput{
@@ -430,6 +434,7 @@ func dependabotAlertOutput(alert *github.DependabotAlert) *DependabotAlertOutput
 		output.SecurityAdvisory = &DependabotAdvisoryOutput{
 			GHSAID: advisory.GHSAID, CVEID: advisory.CVEID, Summary: advisory.Summary,
 			Description: advisory.Description, Severity: advisory.Severity,
+			Classification: advisory.Classification,
 		}
 	}
 	output.SecurityVulnerability = securityVulnerabilityOutput(alert.SecurityVulnerability)
@@ -475,6 +480,13 @@ func globalSecurityAdvisoryOutput(advisory *github.GlobalSecurityAdvisory) *Glob
 	output := &GlobalSecurityAdvisoryOutput{
 		SecurityAdvisoryOutput: *securityAdvisoryOutput(&advisory.SecurityAdvisory),
 		Type:                   advisory.Type, SourceCodeLocation: advisory.SourceCodeLocation,
+	}
+	if len(output.CWEIDs) == 0 {
+		for _, cwe := range advisory.CWEs {
+			if cwe != nil && cwe.CWEID != nil {
+				output.CWEIDs = append(output.CWEIDs, *cwe.CWEID)
+			}
+		}
 	}
 	if advisory.Vulnerabilities != nil {
 		output.Vulnerabilities = mapSecurityOutputs(advisory.Vulnerabilities, globalAdvisoryVulnerabilityOutput)

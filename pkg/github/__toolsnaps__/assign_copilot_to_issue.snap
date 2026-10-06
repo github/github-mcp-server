@@ -55,6 +55,10 @@
         "description": "The assigned issue's number.",
         "type": "integer"
       },
+      "issue_url": {
+        "description": "Canonical browser URL of the assigned issue.",
+        "type": "string"
+      },
       "message": {
         "description": "Assignment outcome or tool error message.",
         "type": "string"
@@ -82,12 +86,17 @@
           },
           "title": {
             "type": "string"
+          },
+          "url": {
+            "description": "Canonical browser URL of the linked pull request.",
+            "type": "string"
           }
         },
         "required": [
           "number",
           "state",
-          "title"
+          "title",
+          "url"
         ],
         "type": "object"
       },
@@ -97,6 +106,7 @@
     },
     "required": [
       "issue_number",
+      "issue_url",
       "message",
       "owner",
       "repo"

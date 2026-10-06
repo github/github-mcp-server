@@ -538,6 +538,13 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		if spec.methods != nil && !slices.Contains(spec.methods, args["method"].(string)) {
 			return nil, fmt.Errorf("unknown method: %s", args["method"])
 		}
+		if kind == "read" {
+			if args["method"] != "get_review_comments" {
+				delete(args, "after")
+			} else if _, err := OptionalParam[string](args, "after"); err != nil {
+				return nil, err
+			}
+		}
 		if kind == "reply" {
 			_, hasBody := args["body"]
 			_, hasReaction := args["reaction"]

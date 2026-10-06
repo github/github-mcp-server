@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
@@ -44,12 +45,17 @@ func typedCopilotUIClient(t *testing.T, fixture ...string) ToolDependencies {
 			query, err := io.ReadAll(request.Body)
 			require.NoError(t, err)
 			switch {
+			case strings.Contains(string(query), "timelineItems"):
+				body = `{"data":{"repository":{"issue":{"timelineItems":{"nodes":[{"__typename":"CrossReferencedEvent","source":{"number":8,"url":"https://github.enterprise.example/owner/repo/pull/8","title":"Fix","state":"OPEN","createdAt":"` + time.Now().Add(time.Minute).UTC().Format(time.RFC3339) + `","author":{"login":"copilot-swe-agent"}}}]}}}}}`
 			case strings.Contains(string(query), "suggestedActors"):
 				body = `{"data":{"repository":{"suggestedActors":{"nodes":[{"id":"BOT","login":"copilot-swe-agent","__typename":"Bot"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
 			case strings.Contains(string(query), "issue(number:"):
 				body = `{"data":{"repository":{"id":"REPO","issue":{"id":"ISSUE","assignees":{"nodes":[]}}}}}`
 			case strings.Contains(string(query), "updateIssue(input:"):
 				body = `{"data":{"updateIssue":{"issue":{"id":"ISSUE","number":7,"url":"https://github.com/owner/repo/issues/7"}}}}`
+				if fixtureMode == "linked-enterprise" {
+					body = strings.ReplaceAll(body, "https://github.com/", "https://github.enterprise.example/")
+				}
 			case strings.Contains(string(query), "issueFields"):
 				if fixtureMode == "nonempty" {
 					body = `{"data":{"repository":{"issueFields":{"nodes":[{"__typename":"IssueFieldText","id":"FIELD_1","name":"Priority","description":"Issue priority","dataType":"text","visibility":"ALL"}]}}}}`
@@ -110,7 +116,7 @@ func typedCopilotUIClient(t *testing.T, fixture ...string) ToolDependencies {
 	}
 }
 
-func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
+func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string, pollConfigs ...PollConfig) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
 	t.Helper()
 	translation := translations.NullTranslationHelper
 	tools := []inventory.ServerTool{
@@ -137,7 +143,11 @@ func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string)
 					request.Params = &mcp.CallToolParamsRaw{}
 				}
 				request.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: protocol}
-				ctx = ContextWithPollConfig(ctx, PollConfig{})
+				pollConfig := PollConfig{}
+				if len(pollConfigs) > 0 {
+					pollConfig = pollConfigs[0]
+				}
+				ctx = ContextWithPollConfig(ctx, pollConfig)
 				ctx = ghcontext.WithMCPMethodInfo(ctx, &ghcontext.MCPMethodInfo{ProtocolVersion: protocol})
 			}
 			return next(ctx, method, request)
@@ -179,19 +189,19 @@ func TestTypedCopilotAndUIWireOutputs(t *testing.T) {
 			name:       "assign_copilot_to_issue",
 			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7"},
 			text:       `{"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
-			structured: `{"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
+			structured: `{"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
 		},
 		{
 			name:       "assign_copilot_to_issue_with_intent",
 			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7", "rationale": "  Clear acceptance criteria  ", "confidence": "medium", "is_suggestion": "true"},
 			text:       `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
-			structured: `{"is_suggestion":true,"issue_number":7,"message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
+			structured: `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"recorded pending copilot assignment suggestion","owner":"owner","repo":"repo"}`,
 		},
 		{
 			name:       "assign_copilot_to_issue_with_intent",
 			args:       map[string]any{"owner": "owner", "repo": "repo", "issue_number": "7", "rationale": "Clear acceptance criteria", "confidence": "HIGH", "is_suggestion": false},
 			text:       `{"is_suggestion":false,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
-			structured: `{"is_suggestion":false,"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
+			structured: `{"is_suggestion":false,"issue_number":7,"issue_url":"https://github.com/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates.","owner":"owner","repo":"repo"}`,
 		},
 		{
 			name:       "request_copilot_review",
@@ -298,6 +308,50 @@ func TestTypedUIGetNonemptyWireOutputs(t *testing.T) {
 			require.NoError(t, schema.Validate(output))
 			assert.JSONEq(t, tc.structured, mustMarshalJSON(t, output))
 			assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+		})
+	}
+}
+
+func TestTypedCopilotAssignmentCanonicalURLs(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			session, schemas := typedCopilotUISession(t, typedCopilotUIClient(t, "linked-enterprise"), protocol, PollConfig{MaxAttempts: 1})
+			for _, tc := range []struct {
+				name       string
+				suggestion bool
+			}{
+				{name: "assign_copilot_to_issue"},
+				{name: "assign_copilot_to_issue_with_intent"},
+				{name: "assign_copilot_to_issue_with_intent", suggestion: true},
+			} {
+				t.Run(tc.name+"/"+mustMarshalJSON(t, tc.suggestion), func(t *testing.T) {
+					args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": 7}
+					if tc.name == "assign_copilot_to_issue_with_intent" {
+						args["is_suggestion"] = tc.suggestion
+						args["rationale"] = "Clear acceptance criteria"
+						args["confidence"] = "HIGH"
+					}
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: args})
+					require.NoError(t, err)
+					require.False(t, result.IsError, mustMarshalJSON(t, result))
+					var output map[string]any
+					require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &output))
+					assert.Equal(t, "https://github.enterprise.example/owner/repo/issues/7", output["issue_url"])
+					if tc.suggestion {
+						assert.NotContains(t, output, "pull_request")
+					} else {
+						pr, ok := output["pull_request"].(map[string]any)
+						require.True(t, ok, "%v", output)
+						assert.Equal(t, "https://github.enterprise.example/owner/repo/pull/8", pr["url"])
+					}
+					if schema := schemas[tc.name]; schema != nil {
+						require.NoError(t, schema.Validate(output))
+						assert.JSONEq(t, mustMarshalJSON(t, output), mustMarshalJSON(t, result.StructuredContent))
+					} else {
+						assert.Nil(t, result.StructuredContent)
+					}
+				})
+			}
 		})
 	}
 }
@@ -477,12 +531,12 @@ func TestTypedCopilotOutputSchemas(t *testing.T) {
 		{
 			name:   "assign_copilot_to_issue",
 			schema: assignCopilotToIssueOutputSchema(),
-			raw:    `{"issue_number":7,"message":"successfully assigned copilot to issue - pull request pending","note":"pending","owner":"owner","pull_request":{"number":8,"state":"OPEN","title":"Fix"},"repo":"repo"}`,
+			raw:    `{"issue_number":7,"issue_url":"https://github.enterprise.example/owner/repo/issues/7","message":"successfully assigned copilot to issue - pull request pending","note":"pending","owner":"owner","pull_request":{"number":8,"state":"OPEN","title":"Fix","url":"https://github.enterprise.example/owner/repo/pull/8"},"repo":"repo"}`,
 		},
 		{
 			name:   "assign_copilot_to_issue_with_intent",
 			schema: assignCopilotToIssueWithIntentOutputSchema(),
-			raw:    `{"is_suggestion":true,"issue_number":7,"message":"suggested","owner":"owner","repo":"repo"}`,
+			raw:    `{"is_suggestion":true,"issue_number":7,"issue_url":"https://github.enterprise.example/owner/repo/issues/7","message":"suggested","owner":"owner","repo":"repo"}`,
 		},
 		{
 			name:   "request_copilot_review",
@@ -503,8 +557,8 @@ func TestTypedCopilotOutputSchemas(t *testing.T) {
 			require.NoError(t, resolved.Validate(value))
 		})
 	}
-	assert.NotContains(t, mustMarshalJSON(t, assignCopilotToIssueOutputSchema()), `"url"`)
-	assert.NotContains(t, mustMarshalJSON(t, assignCopilotToIssueWithIntentOutputSchema()), `"url"`)
+	assert.Contains(t, mustMarshalJSON(t, assignCopilotToIssueOutputSchema()), `"url"`)
+	assert.Contains(t, mustMarshalJSON(t, assignCopilotToIssueWithIntentOutputSchema()), `"url"`)
 	reviewSchema, err := copilotReviewOutputSchema().Resolve(nil)
 	require.NoError(t, err)
 	require.NoError(t, reviewSchema.Validate(map[string]any{"status": "requested"}))
@@ -517,7 +571,7 @@ func TestTypedUIGetOutputSchemaDiscriminator(t *testing.T) {
 	require.Equal(t, "object", schema.Type)
 	require.Equal(t, []string{"method"}, schema.Required)
 	assert.Nil(t, schema.AnyOf)
-	assert.Nil(t, schema.OneOf)
+	assert.Len(t, schema.OneOf, len(schema.Properties["method"].Enum))
 	require.Contains(t, schema.Properties, "method")
 	assert.Equal(t, []any{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"}, schema.Properties["method"].Enum)
 	for _, property := range []string{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"} {

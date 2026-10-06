@@ -89,6 +89,8 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 		Validity:               new("active"),
 		ResolutionComment:      new("Rotate this credential"),
 		PushProtectionBypassed: new(true),
+		IsBase64Encoded:        new(true),
+		HasMoreLocations:       new(true),
 		FirstLocationDetected: &github.SecretScanningAlertLocationDetails{
 			Path: new("config.env"), CommitSHA: new("abc123"), StartColumn: new(5),
 			CommitURL: new("https://api.github.com/repos/owner/repo/commits/abc123"),
@@ -131,6 +133,7 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 			VulnerableFunctions: []string{"unsafeQuery"},
 		}},
 	}
+	globalAdvisory.CWEs = []*github.AdvisoryCWEs{{CWEID: new("CWE-79"), Name: new("Cross-site scripting")}}
 	codeQualityJSON := json.RawMessage(`{"unknown_legacy_field":"preserved in text","url":"https://api.github.com/repos/owner/repo/code-quality/findings/42","state":"open","rule":{"id":"test-rule","description":"Test rule"},"number":42}`)
 	legacyOutputs := map[string]any{
 		"get_code_quality_finding":    codeQualityFinding,
@@ -269,16 +272,20 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 					assert.Contains(t, string(structuredJSON), "Use parameterized queries")
 					assert.Contains(t, string(structuredJSON), `"security_severity_level":"high"`)
 				case "get_secret_scanning_alert", "list_secret_scanning_alerts":
+					assert.Contains(t, string(structuredJSON), `"is_base64_encoded":true`)
+					assert.Contains(t, string(structuredJSON), `"has_more_locations":true`)
 					assert.Contains(t, text, `"secret":"test-secret"`)
 					assert.Contains(t, string(structuredJSON), `"secret":"test-secret"`, "preserve the same intentionally scoped secret as text")
 					assert.Contains(t, string(structuredJSON), `"validity":"active"`)
 					assert.Contains(t, string(structuredJSON), "Rotate this credential")
 					assert.Contains(t, string(structuredJSON), `"start_column":5`)
 				case "get_dependabot_alert", "list_dependabot_alerts":
+					assert.Contains(t, string(structuredJSON), `"classification":"malware"`)
 					assert.Contains(t, string(structuredJSON), `"first_patched_version":"2.0"`)
 					assert.Contains(t, string(structuredJSON), `"dismissed_reason":"tolerable_risk"`)
 					assert.NotContains(t, string(structuredJSON), `"vulnerabilities"`, "use the alert's affected package instead of repeating advisory-wide packages")
 				case "get_global_security_advisory", "list_global_security_advisories":
+					assert.Contains(t, string(structuredJSON), `"cwe_ids":["CWE-79"]`)
 					assert.Contains(t, string(structuredJSON), `"first_patched_version":"2.0"`)
 					assert.Contains(t, string(structuredJSON), "unsafeQuery")
 				case "list_repository_security_advisories", "list_org_repository_security_advisories":
@@ -296,13 +303,57 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				if call.Name == "get_secret_scanning_alert" {
 					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "legacy response detail")
 				}
-				if call.Name == "list_dependabot_alerts" {
-					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "classification")
-				}
 				if call.Name == "get_code_scanning_alert" {
 					assert.NotNil(t, result.Meta["ifc"], "typed output must retain the security alert IFC label")
 				}
 			}
+		})
+	}
+}
+
+func TestGlobalSecurityAdvisoryCWEIDs(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cweIDs   []string
+		cwes     []*github.AdvisoryCWEs
+		expected []string
+	}{
+		{name: "absent"},
+		{name: "global CWEs", cwes: []*github.AdvisoryCWEs{{CWEID: new("CWE-79")}, {CWEID: new("CWE-89")}}, expected: []string{"CWE-79", "CWE-89"}},
+		{name: "missing CWE ID", cwes: []*github.AdvisoryCWEs{nil, {Name: new("No ID")}, {CWEID: new("CWE-79")}}, expected: []string{"CWE-79"}},
+		{name: "explicit IDs", cweIDs: []string{"CWE-89"}, cwes: []*github.AdvisoryCWEs{{CWEID: new("CWE-79")}}, expected: []string{"CWE-89"}},
+		{name: "empty IDs", cweIDs: []string{}, cwes: []*github.AdvisoryCWEs{{CWEID: new("CWE-79")}}, expected: []string{"CWE-79"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			advisory := github.GlobalSecurityAdvisory{
+				SecurityAdvisory: github.SecurityAdvisory{CWEIDs: tc.cweIDs, CWEs: tc.cwes},
+			}
+			assert.Equal(t, tc.expected, globalSecurityAdvisoryOutput(&advisory).CWEIDs)
+			assert.Equal(t, tc.cweIDs, advisory.CWEIDs, "projection must not mutate the API model")
+		})
+	}
+}
+
+func TestSecretScanningOutputQualifiers(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		value    *bool
+		expected string
+	}{
+		{"absent", nil, `{}`},
+		{"false", new(false), `{"is_base64_encoded":false,"has_more_locations":false}`},
+		{"true", new(true), `{"is_base64_encoded":true,"has_more_locations":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			output := secretScanningAlertOutput(&github.SecretScanningAlert{
+				IsBase64Encoded: tc.value, HasMoreLocations: tc.value,
+			})
+			assert.JSONEq(t, tc.expected, mustMarshalJSON(t, output))
+			resolved, err := securityOutputSchema(t, "get_secret_scanning_alert").Resolve(nil)
+			require.NoError(t, err)
+			var value any
+			require.NoError(t, json.Unmarshal([]byte(tc.expected), &value))
+			require.NoError(t, resolved.Validate(value))
 		})
 	}
 }

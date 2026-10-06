@@ -63,27 +63,18 @@
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
-      "content": {
-        "description": "Reaction type",
-        "enum": [
-          "+1",
-          "-1",
-          "laugh",
-          "confused",
-          "heart",
-          "hooray",
-          "rocket",
-          "eyes"
-        ],
-        "type": "string"
-      },
       "id": {
         "description": "Reaction ID",
-        "type": "integer"
+        "type": "string"
+      },
+      "url": {
+        "description": "Reaction URL",
+        "type": "string"
       }
     },
     "required": [
-      "id"
+      "id",
+      "url"
     ],
     "type": "object"
   }

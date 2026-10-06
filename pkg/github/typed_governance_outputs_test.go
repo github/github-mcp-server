@@ -346,6 +346,56 @@ func TestTypedGovernanceWireOutputs(t *testing.T) {
 	}
 }
 
+func TestRuleSuiteOutputFidelity(t *testing.T) {
+	for _, sourceID := range []string{"null", "0", "7"} {
+		for _, method := range []string{"get_rule_suite", "list_rule_suites"} {
+			for _, level := range []string{"repository", "organization"} {
+				t.Run(level+"/"+method+"/"+sourceID, func(t *testing.T) {
+					suite := `{"id":11,"result":"pass","evaluation_result":"fail","rule_evaluations":[{"rule_source":{"type":"protected_branch","id":` + sourceID + `},"result":"pass","rule_type":"pull_request"}]}`
+					body, field := suite, "rule_suite"
+					if method == "list_rule_suites" {
+						body, field = "["+suite+"]", "rule_suites"
+					}
+					tc := governanceWireCase{
+						tool: RepositoryRulesetRead(translations.NullTranslationHelper),
+						args: map[string]any{"method": method, "level": level, "owner": "o", "repo": "r", "org": "o", "rule_suite_id": 11},
+						route: func(t *testing.T, r *http.Request) string {
+							t.Helper()
+							assert.Equal(t, http.MethodGet, r.Method)
+							path := "/repos/o/r/rulesets/rule-suites"
+							if level == "organization" {
+								path = "/orgs/o/rulesets/rule-suites"
+							}
+							if method == "get_rule_suite" {
+								path += "/11"
+							}
+							assert.Equal(t, path, r.URL.Path)
+							return body
+						},
+					}
+					for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+						session, schema := governanceTypedSession(t, tc.tool, governanceWireDeps(t, tc), protocol)
+						result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool.Tool.Name, Arguments: tc.args})
+						require.NoError(t, err)
+						require.False(t, result.IsError)
+						var legacy any
+						require.NoError(t, json.Unmarshal([]byte(body), &legacy))
+						assertGovernanceWireText(t, schema != nil, mustMarshalJSON(t, legacy), result)
+						if schema == nil {
+							assert.Nil(t, result.StructuredContent)
+							continue
+						}
+						var output any
+						require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+						require.NoError(t, schema.Validate(output))
+						assert.JSONEq(t, `{"method":"`+method+`","level":"`+level+`","`+field+`":`+body+`}`, mustMarshalJSON(t, output))
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestTypedGovernanceLegacyInputErrors(t *testing.T) {
 	cases := []struct {
 		tool inventory.ServerTool

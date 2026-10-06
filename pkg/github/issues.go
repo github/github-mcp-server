@@ -2228,7 +2228,7 @@ type SearchIssueOutputItem struct {
 	Type              *string                 `json:"type,omitempty"`
 	RepositoryURL     *string                 `json:"repository_url,omitempty"`
 	PullRequest       *SearchIssuePullRequest `json:"pull_request,omitempty"`
-	FieldValues       []MinimalFieldValue     `json:"field_values,omitempty"`
+	FieldValues       *[]MinimalFieldValue    `json:"field_values,omitempty"`
 }
 
 type SearchIssuePullRequest struct {
@@ -2337,7 +2337,7 @@ func searchIssueOutputItem(result SearchIssueResult, fields []string) SearchIssu
 		}
 	}
 	if selected("field_values") && result.FieldValues != nil {
-		output.FieldValues = result.FieldValues
+		output.FieldValues = &result.FieldValues
 	}
 	return output
 }

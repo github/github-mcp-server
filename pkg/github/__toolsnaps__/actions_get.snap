@@ -43,6 +43,221 @@
   "name": "actions_get",
   "outputSchema": {
     "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_workflow"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_workflow_run"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "workflow_run"
+        ]
+      },
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_workflow_job"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "download_workflow_run_artifact"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "artifact"
+        ]
+      },
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_workflow_run_usage"
+            ]
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_workflow_run_logs_url"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "logs"
+        ]
+      }
+    ],
     "properties": {
       "artifact": {
         "additionalProperties": false,
@@ -742,6 +957,9 @@
         ]
       }
     },
+    "required": [
+      "method"
+    ],
     "type": "object"
   }
 }

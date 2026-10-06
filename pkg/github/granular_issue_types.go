@@ -728,6 +728,9 @@ func normalizeGranularUpdateIssueStateArguments(raw json.RawMessage) (json.RawMe
 	if isSuggestion && stateReason == "duplicate" && duplicateOf == 0 {
 		return nil, fmt.Errorf("duplicate_of is required when suggesting a close as duplicate")
 	}
+	if duplicateOf == 0 {
+		delete(args, "duplicate_of")
+	}
 
 	return marshalGranularIssueArguments(args, GranularIssueStateInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, State: state, StateReason: stateReason, Rationale: rationale, Confidence: confidence, IsSuggestion: isSuggestion, DuplicateOf: duplicateOf})
 }
@@ -819,8 +822,24 @@ func normalizeGranularReprioritizeSubIssueArguments(raw json.RawMessage) (json.R
 	if err != nil {
 		return nil, err
 	}
+	if afterID == 0 {
+		delete(args, "after_id")
+	}
+	if beforeID == 0 {
+		delete(args, "before_id")
+	}
 
 	return marshalGranularIssueArguments(args, GranularReprioritizeSubIssueInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, SubIssueID: subIssueID, AfterID: afterID, BeforeID: beforeID})
+}
+
+func granularIssueInputNormalizer(normalize inventory.InputNormalizer) inventory.InputNormalizer {
+	return func(raw json.RawMessage) (json.RawMessage, error) {
+		normalized, err := normalize(raw)
+		if err != nil {
+			return nil, &inventory.ToolInputError{Message: err.Error()}
+		}
+		return normalized, nil
+	}
 }
 
 func normalizeGranularSetIssueFieldsArguments(raw json.RawMessage) (json.RawMessage, error) {

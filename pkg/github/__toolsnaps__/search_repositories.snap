@@ -9,7 +9,7 @@
     "properties": {
       "minimal_output": {
         "default": true,
-        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+        "description": "Return minimal repository information (default: true). When false, modern clients receive additional curated repository details, not the complete GitHub API object. Legacy clients retain full GitHub API repository objects.",
         "type": "boolean"
       },
       "order": {

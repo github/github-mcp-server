@@ -173,10 +173,9 @@ func TestNotificationProjectionTrimsHypermedia(t *testing.T) {
 			LatestCommentURL: new("https://api.github.com/repos/owner/repo/issues/comments/2"),
 		},
 	}
-	// The pre-quality DTO exposed these API links; legacy output still does.
 	before := `{"id":"123","subject":{"title":"Title","url":"https://api.github.com/repos/owner/repo/issues/1","latest_comment_url":"https://api.github.com/repos/owner/repo/issues/comments/2","type":"Issue"},"url":"https://api.github.com/notifications/threads/123"}`
 	after := mustMarshalJSON(t, notificationOutput(notification))
-	assert.JSONEq(t, `{"id":"123","subject":{"title":"Title","type":"Issue"}}`, after)
+	assert.JSONEq(t, `{"id":"123","subject":{"title":"Title","type":"Issue","url":"https://api.github.com/repos/owner/repo/issues/1"}}`, after)
 	assert.Less(t, len(after), len(before))
 	assert.Contains(t, mustMarshalJSON(t, notification), "latest_comment_url", "legacy formatter must retain its existing links")
 	t.Logf("populated notification projection: %d -> %d JSON bytes", len(before), len(after))
@@ -240,17 +239,32 @@ func TestDiscussionEmptyCollections(t *testing.T) {
 	}
 }
 
-func TestNotificationOutputEnumsAndHypermediaSchemas(t *testing.T) {
+func TestNotificationOutputProviderValuesAndReferenceSchema(t *testing.T) {
 	schema := notificationOutputSchema(false)
 	assert.NotContains(t, schema.Properties, "url")
-	assert.NotContains(t, schema.Properties["subject"].Properties, "url")
+	assert.Contains(t, schema.Properties["subject"].Properties, "url")
 	assert.NotContains(t, schema.Properties["subject"].Properties, "latest_comment_url")
 	assert.Contains(t, schema.Properties["repository"].Properties, "html_url")
 	resolved, err := schema.Resolve(nil)
 	require.NoError(t, err)
-	assert.NoError(t, resolved.Validate(map[string]any{"reason": "mention", "subject": map[string]any{"type": "Discussion"}}))
-	assert.Error(t, resolved.Validate(map[string]any{"reason": "invalid"}))
-	assert.Error(t, resolved.Validate(map[string]any{"subject": map[string]any{"type": "invalid"}}))
+	assert.Empty(t, schema.Properties["reason"].Enum)
+	assert.Empty(t, schema.Properties["subject"].Properties["type"].Enum)
+	for _, reason := range []string{
+		"agent_session_finished", "approval_requested", "assign", "author", "ci_activity",
+		"comment", "invitation", "manual", "member_feature_requested", "mention",
+		"review_requested", "security_advisory_credit", "security_alert",
+		"state_change", "subscribed", "team_mention", "future_reason",
+	} {
+		assert.NoError(t, resolved.Validate(map[string]any{"reason": reason}), reason)
+	}
+	for _, subjectType := range []string{
+		"CheckSuite", "Commit", "Discussion", "Issue", "PullRequest", "Release",
+		"RepositoryInvitation", "SecurityAdvisory", "FutureSubject",
+	} {
+		assert.NoError(t, resolved.Validate(map[string]any{"subject": map[string]any{"type": subjectType}}), subjectType)
+	}
+	assert.Error(t, resolved.Validate(map[string]any{"reason": 42}))
+	assert.Error(t, resolved.Validate(map[string]any{"subject": map[string]any{"type": 42}}))
 	subscription := discussionNotificationOutputSchema[NotificationSubscriptionOutput]()
 	for _, field := range []string{"url", "thread_url", "repository_url"} {
 		assert.NotContains(t, subscription.Properties, field)

@@ -10,7 +10,8 @@ import (
 
 type NotificationSubjectOutput struct {
 	Title *string `json:"title,omitempty"`
-	Type  *string `json:"type,omitempty"`
+	Type  *string `json:"type,omitempty" jsonschema:"Subject type reported by GitHub; new provider values are preserved."`
+	URL   *string `json:"url,omitempty" jsonschema:"API reference to the underlying notification subject."`
 }
 
 type NotificationRepositoryOutput struct {
@@ -25,7 +26,7 @@ type NotificationOutput struct {
 	ID         *string                       `json:"id,omitempty"`
 	Repository *NotificationRepositoryOutput `json:"repository,omitempty"`
 	Subject    *NotificationSubjectOutput    `json:"subject,omitempty"`
-	Reason     *string                       `json:"reason,omitempty"`
+	Reason     *string                       `json:"reason,omitempty" jsonschema:"Notification reason reported by GitHub; new provider values are preserved."`
 	Unread     *bool                         `json:"unread,omitempty"`
 	UpdatedAt  *time.Time                    `json:"updated_at,omitempty" jsonschema:"Last update time (RFC3339)."`
 	LastReadAt *time.Time                    `json:"last_read_at,omitempty" jsonschema:"Last acknowledgement time (RFC3339)."`
@@ -46,7 +47,7 @@ func notificationOutput(n *github.Notification) *NotificationOutput {
 	}
 	if n.Subject != nil {
 		out.Subject = &NotificationSubjectOutput{
-			Title: n.Subject.Title, Type: n.Subject.Type,
+			Title: n.Subject.Title, Type: n.Subject.Type, URL: n.Subject.URL,
 		}
 	}
 	if n.Repository != nil {
@@ -128,16 +129,6 @@ func discussionNotificationOutputSchema[Out any]() *jsonschema.Schema {
 
 func notificationOutputSchema(list bool) *jsonschema.Schema {
 	schema := discussionNotificationOutputSchema[NotificationOutput]()
-	schema.Properties["subject"].Properties["type"].Enum = []any{
-		"CheckSuite", "Commit", "Discussion", "Issue", "PullRequest", "Release",
-		"RepositoryInvitation", "SecurityAdvisory",
-	}
-	schema.Properties["reason"].Enum = []any{
-		"approval_requested", "assign", "author", "ci_activity", "comment",
-		"invitation", "manual", "member_feature_requested", "mention",
-		"review_requested", "security_alert", "security_advisory_credit",
-		"state_change", "subscribed", "team_mention",
-	}
 	if list {
 		schema.Type = ""
 		schema.Types = []string{"object", "null"}

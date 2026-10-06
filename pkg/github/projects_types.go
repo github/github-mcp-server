@@ -413,9 +413,12 @@ func projectsWriteOutputSchema() *jsonschema.Schema {
 }
 
 func projectOutputSchema[T any]() *jsonschema.Schema {
+	user := repositoryOutputSchema[MinimalUser]()
+	delete(user.Properties, "details")
 	generated, err := inventory.CachedSchemaFor[T](&jsonschema.ForOptions{
 		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
 			reflect.TypeFor[github.Timestamp](): {Type: "string", Format: "date-time"},
+			reflect.TypeFor[MinimalUser]():      user,
 		},
 	})
 	if err != nil {
