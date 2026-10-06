@@ -628,10 +628,11 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
-    - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
+    - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', 'get_workflow_run_logs_url', and 'watch_workflow_run' methods.
     - Provide an artifact ID for 'download_workflow_run_artifact' method.
     - Provide a job ID for 'get_workflow_job' method.
      (string, required)
+  - `timeout_seconds`: How long to wait for the workflow run to complete before returning its current status. **ONLY** used when method is 'watch_workflow_run'. Default 45, maximum 600. (number, optional)
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - **OAuth Challenge Scopes**: `repo`
