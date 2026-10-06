@@ -93,6 +93,10 @@ func rulesetWriteScopeAccess() inventory.ScopeAccess {
 
 // RepositoryRulesetRead creates a tool for ruleset and rule-suite reads.
 func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(repositoryRulesetReadLegacy(t), rulesetReadOutputSchema(), decodeRulesetRead, normalizeGovernanceLevelRouting)
+}
+
+func repositoryRulesetReadLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
 		mcp.Tool{
@@ -639,6 +643,15 @@ func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client
 // at the repository, organization, or enterprise level. The level is
 // selected with the "level" parameter.
 func CreateRepositoryRuleset(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(
+		createRepositoryRulesetLegacy(t),
+		createdRulesetOutputSchema(),
+		decodeGovernanceJSON[RulesetOutput],
+		normalizeGovernanceLevelRouting,
+	)
+}
+
+func createRepositoryRulesetLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	properties := rulesetWriteProperties()
 	properties["level"] = &jsonschema.Schema{
 		Type:        "string",

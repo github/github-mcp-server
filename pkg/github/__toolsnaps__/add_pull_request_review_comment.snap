@@ -49,7 +49,7 @@
         "x-mcp-header": "repo"
       },
       "side": {
-        "description": "The side of the diff to comment on (LEFT or RIGHT, optional)",
+        "description": "The side of the diff to comment on (optional)",
         "enum": [
           "LEFT",
           "RIGHT"
@@ -61,7 +61,7 @@
         "type": "number"
       },
       "startSide": {
-        "description": "The start side of a multi-line comment (LEFT or RIGHT, optional)",
+        "description": "The start side of a multi-line comment (optional)",
         "enum": [
           "LEFT",
           "RIGHT"
@@ -69,7 +69,7 @@
         "type": "string"
       },
       "subjectType": {
-        "description": "The subject type of the comment (FILE or LINE)",
+        "description": "The subject type of the comment",
         "enum": [
           "FILE",
           "LINE"

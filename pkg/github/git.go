@@ -44,8 +44,9 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 	return NewTool(
 		ToolsetMetadataGit,
 		mcp.Tool{
-			Name:        "get_repository_tree",
-			Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
+			Name:         "get_repository_tree",
+			OutputSchema: treeOutputSchema(),
+			Description:  t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_REPOSITORY_TREE_USER_TITLE", "Get repository tree"),
 				ReadOnlyHint: true,
@@ -79,7 +80,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *RepositoryTreeOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -178,7 +179,8 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			// repos only collaborators can (trusted). Confidentiality follows
 			// repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
-			return result, nil, nil
+			return result, projectRepositoryTree(response), nil
 		},
+		gitGistNormalizer(validateTreeArguments),
 	)
 }

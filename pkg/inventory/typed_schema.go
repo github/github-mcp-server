@@ -113,6 +113,41 @@ var ownedSchemaPointers sync.Map
 var annotatedSchemaCache sync.Map
 var defaultObjectInputSchemaEntry inferredSchemaEntry
 
+type resolvedInputSchemaEntry struct {
+	once     sync.Once
+	resolved *jsonschema.Resolved
+	err      error
+}
+
+var resolvedInputSchemaCache sync.Map
+
+func cachedResolvedInputSchema(value any) (*jsonschema.Resolved, error) {
+	schema, ok := value.(*jsonschema.Schema)
+	if !ok {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		schema = new(jsonschema.Schema)
+		if err := json.Unmarshal(encoded, schema); err != nil {
+			return nil, err
+		}
+	}
+	schema, err := CachedSchema(schema)
+	if err != nil {
+		return nil, err
+	}
+	if schema.Type != "object" {
+		return nil, fmt.Errorf("input schema must have type \"object\"")
+	}
+	entryValue, _ := resolvedInputSchemaCache.LoadOrStore(schema, &resolvedInputSchemaEntry{})
+	entry := entryValue.(*resolvedInputSchemaEntry)
+	entry.once.Do(func() {
+		entry.resolved, entry.err = schema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
+	})
+	return entry.resolved, entry.err
+}
+
 func cachedObjectInputSchema() (*jsonschema.Schema, error) {
 	defaultObjectInputSchemaEntry.once.Do(func() {
 		defaultObjectInputSchemaEntry.schema, defaultObjectInputSchemaEntry.err = CachedSchema(&jsonschema.Schema{Type: "object"})

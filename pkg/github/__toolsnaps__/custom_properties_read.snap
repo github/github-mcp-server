@@ -38,5 +38,128 @@
     ],
     "type": "object"
   },
-  "name": "custom_properties_read"
+  "name": "custom_properties_read",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "definitions": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "allowed_values": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "default_value": {
+              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "property_name": {
+              "type": "string"
+            },
+            "require_explicit_values": {
+              "type": "boolean"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "value_type": {
+              "enum": [
+                "",
+                "string",
+                "single_select",
+                "multi_select",
+                "true_false",
+                "url"
+              ],
+              "type": "string"
+            },
+            "values_editable_by": {
+              "enum": [
+                "org_actors",
+                "org_and_repo_actors"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "property_name",
+            "value_type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "level": {
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "enum": [
+          "read"
+        ],
+        "type": "string"
+      },
+      "values": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "property_name": {
+              "type": "string"
+            },
+            "value": {
+              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "property_name",
+            "value"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "method",
+      "level"
+    ],
+    "type": "object"
+  }
 }
