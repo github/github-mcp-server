@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
 )
 
 // Metric names for the optional `fields` response-filtering feature. They let a
@@ -40,6 +42,10 @@ func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, 
 		return
 	}
 
+	recordFieldsUsageWithMetrics(m, tool, filtered, fullBytes, sentBytes)
+}
+
+func recordFieldsUsageWithMetrics(m metrics.Metrics, tool string, filtered bool, fullBytes, sentBytes int) {
 	m.Increment(metricFieldsToolCall, map[string]string{
 		"tool":     tool,
 		"filtered": strconv.FormatBool(filtered),
@@ -61,11 +67,19 @@ func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, 
 // measured; full should be the complete, unfiltered payload. It centralizes the
 // full-size computation shared by every fields-enabled tool.
 func recordFieldsUsageFor(ctx context.Context, deps ToolDependencies, tool string, full any, filtered bool, sentBytes int) {
+	m := deps.Metrics(ctx)
+	if m == nil {
+		return
+	}
+	if _, ok := m.(*metrics.NoopMetrics); ok {
+		return
+	}
+
 	fullBytes := sentBytes
 	if filtered {
 		if data, err := json.Marshal(full); err == nil {
 			fullBytes = len(data)
 		}
 	}
-	recordFieldsUsage(ctx, deps, tool, filtered, fullBytes, sentBytes)
+	recordFieldsUsageWithMetrics(m, tool, filtered, fullBytes, sentBytes)
 }
