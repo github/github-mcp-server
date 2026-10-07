@@ -3,7 +3,7 @@ package scopes
 import (
 	"encoding/json"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 )
 
 // ToolScopeMap maps tool names to their complete scope access policies.
