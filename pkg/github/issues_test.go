@@ -13,15 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/v2/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,38 +140,38 @@ func Test_GetIssue(t *testing.T) {
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Test Issue"),
-		Body:    github.Ptr("This is a test issue"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("Test Issue"),
+		Body:    new("This is a test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		Assignees: []*github.User{
-			{Login: github.Ptr("octocat")},
-			{Login: github.Ptr("mona")},
+			{Login: new("octocat")},
+			{Login: new("mona")},
 		},
 		Repository: &github.Repository{
-			Name: github.Ptr("repo"),
+			Name: new("repo"),
 			Owner: &github.User{
-				Login: github.Ptr("owner"),
+				Login: new("owner"),
 			},
 		},
 	}
 	mockIssue2 := &github.Issue{
-		Number:  github.Ptr(422),
-		Title:   github.Ptr("Test Issue 2"),
-		Body:    github.Ptr("This is a test issue 2"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(422),
+		Title:   new("Test Issue 2"),
+		Body:    new("This is a test issue 2"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
-			Login: github.Ptr("testuser2"),
+			Login: new("testuser2"),
 		},
 		Repository: &github.Repository{
-			Name: github.Ptr("repo2"),
+			Name: new("repo2"),
 			Owner: &github.User{
-				Login: github.Ptr("owner2"),
+				Login: new("owner2"),
 			},
 		},
 	}
@@ -317,16 +318,16 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(1),
-		Title:   github.Ptr("Test"),
-		Body:    github.Ptr("body"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/octocat/repo/issues/1"),
-		User:    &github.User{Login: github.Ptr("u")},
+		Number:  new(1),
+		Title:   new("Test"),
+		Body:    new("body"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/octocat/repo/issues/1"),
+		User:    &github.User{Login: new("u")},
 	}
 
 	mockComments := []*github.IssueComment{
-		{Body: github.Ptr("hello"), User: &github.User{Login: github.Ptr("u")}},
+		{Body: new("hello"), User: &github.User{Login: new("u")}},
 	}
 
 	makeMockClient := func(isPrivate bool, repoStatus int) *http.Client {
@@ -434,13 +435,13 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
-		Number:  github.Ptr(99),
-		Title:   github.Ptr("Issue with field values"),
-		Body:    github.Ptr("body"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		Number:  new(99),
+		Title:   new("Issue with field values"),
+		Body:    new("body"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/99"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		IssueFieldValues: []*github.IssueFieldValue{
 			{
@@ -505,14 +506,14 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
-		Number:  github.Ptr(99),
-		NodeID:  github.Ptr("I_node_99"),
-		Title:   github.Ptr("Issue with field values"),
-		Body:    github.Ptr("body"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		Number:  new(99),
+		NodeID:  new("I_node_99"),
+		Title:   new("Issue with field values"),
+		Body:    new("body"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/99"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		IssueFieldValues: []*github.IssueFieldValue{
 			{
@@ -592,20 +593,20 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 
 	// With no parent and no sub-issues, the routing booleans are explicit false and the
 	// optional relationship payloads are omitted.
-	assert.Equal(t, github.Ptr(false), returnedIssue.HasParent, "has_parent should be false without a parent")
-	assert.Equal(t, github.Ptr(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
+	assert.Equal(t, new(false), returnedIssue.HasParent, "has_parent should be false without a parent")
+	assert.Equal(t, new(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
 	assert.Nil(t, returnedIssue.Parent, "parent should be omitted when there is no parent")
 	assert.Nil(t, returnedIssue.SubIssuesSummary, "sub_issues_summary should be omitted with no sub-issues")
 }
 
 func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(2990),
-		NodeID:  github.Ptr("I_node_2990"),
-		Title:   github.Ptr("Child issue"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
-		User:    &github.User{Login: github.Ptr("author")},
+		Number:  new(2990),
+		NodeID:  new("I_node_2990"),
+		Title:   new("Child issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: new("author")},
 	}
 
 	parentNode := map[string]any{
@@ -631,8 +632,8 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  parentNode,
 			summary: map[string]any{"total": 4, "completed": 1, "percentCompleted": 25},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.Equal(t, github.Ptr(true), issue.HasParent)
-				assert.Equal(t, github.Ptr(true), issue.HasChildren)
+				assert.Equal(t, new(true), issue.HasParent)
+				assert.Equal(t, new(true), issue.HasChildren)
 				require.NotNil(t, issue.Parent)
 				assert.Equal(t, 2820, issue.Parent.Number)
 				assert.Equal(t, "Parent issue", issue.Parent.Title)
@@ -649,7 +650,7 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  nil,
 			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.Equal(t, github.Ptr(false), issue.HasParent)
+				assert.Equal(t, new(false), issue.HasParent)
 				assert.Nil(t, issue.Parent)
 			},
 		},
@@ -658,7 +659,7 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  nil,
 			summary: map[string]any{"total": 0, "completed": 1, "percentCompleted": 0},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.Equal(t, github.Ptr(false), issue.HasChildren)
+				assert.Equal(t, new(false), issue.HasChildren)
 				assert.Nil(t, issue.SubIssuesSummary)
 			},
 		},
@@ -712,12 +713,12 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 
 func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(2990),
-		NodeID:  github.Ptr("I_node_2990"),
-		Title:   github.Ptr("Child issue"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
-		User:    &github.User{Login: github.Ptr("author")},
+		Number:  new(2990),
+		NodeID:  new("I_node_2990"),
+		Title:   new("Child issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: new("author")},
 	}
 
 	parentNode := map[string]any{
@@ -779,17 +780,17 @@ func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
 
 	require.Nil(t, returnedIssue.Parent, "parent reference should be omitted under lockdown when it cannot be verified safe")
-	assert.Equal(t, github.Ptr(true), returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
+	assert.Equal(t, new(true), returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
 }
 
 func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T) {
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(2990),
-		NodeID:  github.Ptr("I_node_2990"),
-		Title:   github.Ptr("Child issue"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
-		User:    &github.User{Login: github.Ptr("author")},
+		Number:  new(2990),
+		NodeID:  new("I_node_2990"),
+		Title:   new("Child issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: new("author")},
 	}
 
 	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -832,12 +833,12 @@ func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T
 
 func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(2990),
-		NodeID:  github.Ptr("I_node_2990"),
-		Title:   github.Ptr("Broken thing"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
-		User:    &github.User{Login: github.Ptr("author")},
+		Number:  new(2990),
+		NodeID:  new("I_node_2990"),
+		Title:   new("Broken thing"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: new("author")},
 	}
 
 	tests := []struct {
@@ -993,12 +994,12 @@ func closingPullRequestFixtures(n int) []map[string]any {
 
 func Test_GetIssue_ClosedByPullRequests_Lockdown(t *testing.T) {
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(2990),
-		NodeID:  github.Ptr("I_node_2990"),
-		Title:   github.Ptr("Broken thing"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
-		User:    &github.User{Login: github.Ptr("author")},
+		Number:  new(2990),
+		NodeID:  new("I_node_2990"),
+		Title:   new("Broken thing"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: new("author")},
 	}
 
 	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -1092,29 +1093,29 @@ func Test_SearchIssues(t *testing.T) {
 
 	// Setup mock search results
 	mockSearchResult := &github.IssuesSearchResult{
-		Total:             github.Ptr(2),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(2),
+		IncompleteResults: new(false),
 		Issues: []*github.Issue{
 			{
-				Number:   github.Ptr(42),
-				Title:    github.Ptr("Bug: Something is broken"),
-				Body:     github.Ptr("This is a bug report"),
-				State:    github.Ptr("open"),
-				HTMLURL:  github.Ptr("https://github.com/owner/repo/issues/42"),
-				Comments: github.Ptr(5),
+				Number:   new(42),
+				Title:    new("Bug: Something is broken"),
+				Body:     new("This is a bug report"),
+				State:    new("open"),
+				HTMLURL:  new("https://github.com/owner/repo/issues/42"),
+				Comments: new(5),
 				User: &github.User{
-					Login: github.Ptr("user1"),
+					Login: new("user1"),
 				},
 			},
 			{
-				Number:   github.Ptr(43),
-				Title:    github.Ptr("Feature: Add new functionality"),
-				Body:     github.Ptr("This is a feature request"),
-				State:    github.Ptr("open"),
-				HTMLURL:  github.Ptr("https://github.com/owner/repo/issues/43"),
-				Comments: github.Ptr(3),
+				Number:   new(43),
+				Title:    new("Feature: Add new functionality"),
+				Body:     new("This is a feature request"),
+				State:    new("open"),
+				HTMLURL:  new("https://github.com/owner/repo/issues/43"),
+				Comments: new(3),
 				User: &github.User{
-					Login: github.Ptr("user2"),
+					Login: new("user2"),
 				},
 			},
 		},
@@ -1438,11 +1439,11 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 
 	makeIssue := func(owner, repo string, number int) *github.Issue {
 		return &github.Issue{
-			Number:        github.Ptr(number),
-			Title:         github.Ptr("issue"),
-			State:         github.Ptr("open"),
-			RepositoryURL: github.Ptr("https://api.github.com/repos/" + owner + "/" + repo),
-			User:          &github.User{Login: github.Ptr("u")},
+			Number:        new(number),
+			Title:         new("issue"),
+			State:         new("open"),
+			RepositoryURL: new("https://api.github.com/repos/" + owner + "/" + repo),
+			User:          &github.User{Login: new("u")},
 		}
 	}
 
@@ -1719,17 +1720,17 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSearchResult := &github.IssuesSearchResult{
-				Total:             github.Ptr(1),
-				IncompleteResults: github.Ptr(false),
+				Total:             new(1),
+				IncompleteResults: new(false),
 				Issues: []*github.Issue{
 					{
-						Number:  github.Ptr(42),
-						Title:   github.Ptr("Bug: Something is broken"),
-						Body:    github.Ptr("Details"),
-						State:   github.Ptr("open"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
-						NodeID:  github.Ptr("I_node_42"),
-						User:    &github.User{Login: github.Ptr("user1")},
+						Number:  new(42),
+						Title:   new("Bug: Something is broken"),
+						Body:    new("Details"),
+						State:   new("open"),
+						HTMLURL: new("https://github.com/owner/repo/issues/42"),
+						NodeID:  new("I_node_42"),
+						User:    &github.User{Login: new("user1")},
 						IssueFieldValues: []*github.IssueFieldValue{
 							{IssueFieldID: 99, DataType: "text", Value: "raw REST value"},
 						},
@@ -1832,7 +1833,7 @@ func Test_CreateIssue(t *testing.T) {
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Empty(t, serverTool.FeatureFlagEnable)
+	require.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagIssuesGranular)}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1850,15 +1851,15 @@ func Test_CreateIssue(t *testing.T) {
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
-		Number:    github.Ptr(123),
-		Title:     github.Ptr("Test Issue"),
-		Body:      github.Ptr("This is a test issue"),
-		State:     github.Ptr("open"),
-		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
-		Assignees: []*github.User{{Login: github.Ptr("user1")}, {Login: github.Ptr("user2")}},
+		Number:    new(123),
+		Title:     new("Test Issue"),
+		Body:      new("This is a test issue"),
+		State:     new("open"),
+		HTMLURL:   new("https://github.com/owner/repo/issues/123"),
+		Assignees: []*github.User{{Login: new("user1")}, {Login: new("user2")}},
 		Labels:    []*github.Label{{Name: "bug"}, {Name: "help wanted"}},
-		Milestone: &github.Milestone{Number: github.Ptr(5)},
-		Type:      &github.IssueType{Name: github.Ptr("Bug")},
+		Milestone: &github.Milestone{Number: new(5)},
+		Type:      &github.IssueType{Name: new("Bug")},
 	}
 
 	tests := []struct {
@@ -1902,10 +1903,10 @@ func Test_CreateIssue(t *testing.T) {
 			name: "successful issue creation with minimal fields",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, &github.Issue{
-					Number:  github.Ptr(124),
-					Title:   github.Ptr("Minimal Issue"),
-					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
-					State:   github.Ptr("open"),
+					Number:  new(124),
+					Title:   new("Minimal Issue"),
+					HTMLURL: new("https://github.com/owner/repo/issues/124"),
+					State:   new("open"),
 				}),
 			}),
 			requestArgs: map[string]any{
@@ -1917,10 +1918,10 @@ func Test_CreateIssue(t *testing.T) {
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
-				Number:  github.Ptr(124),
-				Title:   github.Ptr("Minimal Issue"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
-				State:   github.Ptr("open"),
+				Number:  new(124),
+				Title:   new("Minimal Issue"),
+				HTMLURL: new("https://github.com/owner/repo/issues/124"),
+				State:   new("open"),
 			},
 		},
 		{
@@ -1935,10 +1936,10 @@ func Test_CreateIssue(t *testing.T) {
 					},
 				}).andThen(
 					mockResponse(t, http.StatusCreated, &github.Issue{
-						Number:  github.Ptr(125),
-						Title:   github.Ptr("Issue with fields"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-						State:   github.Ptr("open"),
+						Number:  new(125),
+						Title:   new("Issue with fields"),
+						HTMLURL: new("https://github.com/owner/repo/issues/125"),
+						State:   new("open"),
 					}),
 				),
 			}),
@@ -1986,10 +1987,10 @@ func Test_CreateIssue(t *testing.T) {
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
-				Number:  github.Ptr(125),
-				Title:   github.Ptr("Issue with fields"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-				State:   github.Ptr("open"),
+				Number:  new(125),
+				Title:   new("Issue with fields"),
+				HTMLURL: new("https://github.com/owner/repo/issues/125"),
+				State:   new("open"),
 			},
 		},
 		{
@@ -2089,15 +2090,121 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
+func TestIssueWriteReportsUnappliedLabels(t *testing.T) {
+	tests := []struct {
+		name               string
+		method             string
+		requestedLabels    []string
+		appliedLabels      []string
+		expectedMissing    string
+		expectedUnexpected string
+	}{
+		{
+			name:               "create reports partially applied labels",
+			method:             "create",
+			requestedLabels:    []string{"bug", "enhancement"},
+			appliedLabels:      []string{"bug"},
+			expectedMissing:    `missing=["enhancement"]`,
+			expectedUnexpected: "unexpected=[]",
+		},
+		{
+			name:               "update reports silently dropped labels",
+			method:             "update",
+			requestedLabels:    []string{"enhancement"},
+			appliedLabels:      []string{"existing"},
+			expectedMissing:    `missing=["enhancement"]`,
+			expectedUnexpected: `unexpected=["existing"]`,
+		},
+		{
+			name:               "update reports labels that were not cleared",
+			method:             "update",
+			requestedLabels:    []string{},
+			appliedLabels:      []string{"existing"},
+			expectedMissing:    "missing=[]",
+			expectedUnexpected: `unexpected=["existing"]`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			responseLabels := make([]*github.Label, 0, len(tc.appliedLabels))
+			for _, label := range tc.appliedLabels {
+				responseLabels = append(responseLabels, &github.Label{Name: label})
+			}
+			responseIssue := &github.Issue{
+				ID:      new(int64(123)),
+				Number:  new(123),
+				HTMLURL: new("https://github.com/owner/repo/issues/123"),
+				Labels:  responseLabels,
+			}
+
+			endpoint := PostReposIssuesByOwnerByRepo
+			status := http.StatusCreated
+			if tc.method == "update" {
+				endpoint = PatchReposIssuesByOwnerByRepoByIssueNumber
+				status = http.StatusOK
+			}
+			restHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				endpoint: mockResponse(t, status, responseIssue),
+			})
+			restRequests := &requestCountingTransport{inner: restHTTPClient.Transport}
+			restHTTPClient.Transport = restRequests
+
+			gqlHTTPClient := githubv4mock.NewMockedHTTPClient()
+			gqlRequests := &requestCountingTransport{inner: gqlHTTPClient.Transport}
+			gqlHTTPClient.Transport = gqlRequests
+
+			requestLabels := make([]any, len(tc.requestedLabels))
+			for i, label := range tc.requestedLabels {
+				requestLabels[i] = label
+			}
+			requestArgs := map[string]any{
+				"method": tc.method,
+				"owner":  "owner",
+				"repo":   "repo",
+				"labels": requestLabels,
+			}
+			if tc.method == "create" {
+				requestArgs["title"] = "Test issue"
+			} else {
+				requestArgs["issue_number"] = float64(123)
+			}
+
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Equal(t, 1, restRequests.count, "label verification must use the write response without a readback")
+			assert.Zero(t, gqlRequests.count, "label verification must not make a GraphQL readback")
+
+			resultText := getErrorResult(t, result).Text
+			assert.Contains(t, resultText, "issue "+tc.method+"d but requested labels were not fully applied")
+			assert.Contains(t, resultText, fmt.Sprintf("requested=%q", tc.requestedLabels))
+			assert.Contains(t, resultText, fmt.Sprintf("applied=%q", tc.appliedLabels))
+			assert.Contains(t, resultText, tc.expectedMissing)
+			assert.Contains(t, resultText, tc.expectedUnexpected)
+			assert.Contains(t, resultText, `issue_url="https://github.com/owner/repo/issues/123"`)
+			assert.Contains(t, resultText, "AddLabelsToLabelable permission")
+		})
+	}
+}
+
 // Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
 func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(1),
-		Title:   github.Ptr("Test"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+		Number:  new(1),
+		Title:   new("Test"),
+		HTMLURL: new("https://github.com/owner/repo/issues/1"),
 	}
 
 	serverTool := IssueWrite(translations.NullTranslationHelper)
@@ -2109,7 +2216,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	deps := BaseDeps{
 		Client:         client,
 		GQLClient:      githubv4.NewClient(nil),
-		featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
+		featureChecker: featureCheckerFor(),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -2240,6 +2347,713 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 }
 
+func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema
+	issueWriteSchema := schema.(*jsonschema.Schema)
+	assert.Contains(t, issueWriteSchema.Properties, "parent_issue_number")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_owner")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_repo")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_issue_number")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_owner")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_repo")
+
+	labelIDs := []githubv4.ID{"LABEL_backlog"}
+	parentID := githubv4.ID("ISSUE_parent")
+	expectedInput := CreateIssueInput{
+		RepositoryID:  githubv4.ID("REPO_1"),
+		Title:         githubv4.String("Atomic child"),
+		Body:          githubv4.NewString(githubv4.String("Created under its parent")),
+		LabelIDs:      &labelIDs,
+		ParentIssueID: &parentID,
+	}
+	createMatcher := githubv4mock.NewMutationMatcher(
+		createIssueMutation{},
+		expectedInput,
+		nil,
+		githubv4mock.DataResponse(map[string]any{
+			"createIssue": map[string]any{
+				"issue": map[string]any{
+					"fullDatabaseId": "12345",
+					"url":            "https://github.com/owner/repo/issues/2",
+				},
+			},
+		}),
+	)
+	assert.Contains(t, createMatcher.Request, "$input:CreateIssueInput!")
+
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(1, "parent-owner", "parent-repo", "REPO_1", "ISSUE_parent"),
+		createIssueLabelMatcher("status:backlog", "LABEL_backlog"),
+		createMatcher,
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Atomic child",
+		"body":                "Created under its parent",
+		"labels":              []any{"status:backlog"},
+		"parent_issue_number": float64(1),
+		"parent_owner":        "parent-owner",
+		"parent_repo":         "parent-repo",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.Equal(t, 3, gqlCalls(), "metadata lookups and exactly one create mutation are expected")
+	assert.Zero(t, restCounter.count.Load(), "parent creation must not use REST create or attachment requests")
+
+	var response MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, "12345", response.ID)
+	assert.Equal(t, "https://github.com/owner/repo/issues/2", response.URL)
+}
+
+func TestIssueWriteCreateWithParentDoesNotFallbackAfterMutationFailure(t *testing.T) {
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			CreateIssueInput{
+				RepositoryID:  githubv4.ID("REPO_1"),
+				Title:         githubv4.String("Atomic child"),
+				ParentIssueID: githubv4mock.Ptr[githubv4.ID]("ISSUE_parent"),
+			},
+			nil,
+			githubv4mock.ErrorResponse("parent cannot accept sub-issues"),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Atomic child",
+		"parent_issue_number": float64(7),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getTextResult(t, result).Text, "failed to create issue")
+	assert.Equal(t, 2, gqlCalls(), "a failed create mutation must not trigger an attachment mutation")
+	assert.Zero(t, restCounter.count.Load(), "a failed create mutation must not fall back to REST create or attachment requests")
+}
+
+func TestIssueWriteCreateWithParentRejectsIncompleteMutationResponse(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]any
+	}{
+		{
+			name: "missing issue",
+			data: map[string]any{"createIssue": map[string]any{"issue": nil}},
+		},
+		{
+			name: "missing database ID",
+			data: map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{"url": "https://github.com/owner/repo/issues/8"},
+				},
+			},
+		},
+		{
+			name: "missing URL",
+			data: map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{"fullDatabaseId": "34567"},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gqlHTTPClient, gqlCalls := countingGraphQLClient(
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				githubv4mock.NewMutationMatcher(
+					createIssueMutation{},
+					CreateIssueInput{
+						RepositoryID:  githubv4.ID("REPO_1"),
+						Title:         githubv4.String("Atomic child"),
+						ParentIssueID: githubv4mock.Ptr[githubv4.ID]("ISSUE_parent"),
+					},
+					nil,
+					githubv4mock.DataResponse(test.data),
+				),
+			)
+			restHTTPClient := MockHTTPClientWithHandlers(nil)
+			restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+			restHTTPClient.Transport = restCounter
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			request := createMCPRequest(map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Atomic child",
+				"parent_issue_number": float64(7),
+			})
+
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			result, err := serverTool.Handler(deps)(
+				ContextWithDeps(context.Background(), deps),
+				&request,
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, "response did not include the created issue")
+			assert.Equal(t, 2, gqlCalls())
+			assert.Zero(t, restCounter.count.Load())
+		})
+	}
+}
+
+func TestIssueWriteCreateWithParentPreservesSupportedFields(t *testing.T) {
+	labelIDs := []githubv4.ID{"LABEL_bug"}
+	assigneeIDs := []githubv4.ID{"USER_octocat"}
+	milestoneID := githubv4.ID("MILESTONE_1")
+	issueTypeID := githubv4.ID("ISSUE_TYPE_bug")
+	parentID := githubv4.ID("ISSUE_parent")
+	expectedInput := CreateIssueInput{
+		RepositoryID:  githubv4.ID("REPO_1"),
+		Title:         githubv4.String("Fully specified child"),
+		Body:          githubv4.NewString(githubv4.String("Body")),
+		AssigneeIDs:   &assigneeIDs,
+		MilestoneID:   &milestoneID,
+		LabelIDs:      &labelIDs,
+		IssueTypeID:   &issueTypeID,
+		ParentIssueID: &parentID,
+	}
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		createIssueLabelMatcher("bug", "LABEL_bug"),
+		createIssueUserMatcher("octocat", "USER_octocat"),
+		createIssueMilestoneMatcher(1, "MILESTONE_1"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			expectedInput,
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{
+						"fullDatabaseId": "34567",
+						"url":            "https://github.com/owner/repo/issues/8",
+					},
+				},
+			}),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"GET /repos/{owner}/{repo}/issue-types": mockResponse(t, http.StatusOK, []*github.IssueType{
+			{Name: new("Bug"), NodeID: new("ISSUE_TYPE_bug")},
+		}),
+	})
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Fully specified child",
+		"body":                "Body",
+		"assignees":           []any{"octocat"},
+		"labels":              []any{"bug"},
+		"milestone":           float64(1),
+		"type":                "Bug",
+		"parent_issue_number": float64(7),
+	})
+
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.Equal(t, 5, gqlCalls(), "four metadata lookups and exactly one create mutation are expected")
+	assert.Equal(t, int64(1), restCounter.count.Load(), "issue type resolution is the only expected REST call")
+}
+
+func TestIssueWriteCreateWithParentRejectsMissingMetadata(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          map[string]any
+		gqlMatchers   []githubv4mock.Matcher
+		restHandlers  map[string]http.HandlerFunc
+		want          string
+		wantGQLCalls  int
+		wantRESTCalls int64
+	}{
+		{
+			name: "child repository",
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueMissingChildRepositoryMatcher(7),
+			},
+			want:         "failed to resolve parent issue",
+			wantGQLCalls: 1,
+		},
+		{
+			name: "parent issue",
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueMissingParentMatcher(7),
+			},
+			want:         "failed to resolve parent issue",
+			wantGQLCalls: 1,
+		},
+		{
+			name: "milestone",
+			args: map[string]any{"milestone": float64(99)},
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				createIssueMissingMilestoneMatcher(99),
+			},
+			want:         "failed to resolve milestone",
+			wantGQLCalls: 2,
+		},
+		{
+			name: "assignee",
+			args: map[string]any{"assignees": []any{"missing-user"}},
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				createIssueMissingUserMatcher("missing-user"),
+			},
+			want:         `failed to resolve assignee "missing-user"`,
+			wantGQLCalls: 2,
+		},
+		{
+			name:        "issue type",
+			args:        map[string]any{"type": "Missing"},
+			gqlMatchers: []githubv4mock.Matcher{createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent")},
+			restHandlers: map[string]http.HandlerFunc{
+				"GET /repos/{owner}/{repo}/issue-types": mockResponse(t, http.StatusOK, []*github.IssueType{}),
+			},
+			want:          `failed to resolve issue type "Missing"`,
+			wantGQLCalls:  1,
+			wantRESTCalls: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gqlHTTPClient, gqlCalls := countingGraphQLClient(test.gqlMatchers...)
+			restHTTPClient := MockHTTPClientWithHandlers(test.restHandlers)
+			restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+			restHTTPClient.Transport = restCounter
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			args := map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Atomic child",
+				"parent_issue_number": float64(7),
+			}
+			maps.Copy(args, test.args)
+			request := createMCPRequest(args)
+
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			result, err := serverTool.Handler(deps)(
+				ContextWithDeps(context.Background(), deps),
+				&request,
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, test.want)
+			assert.Equal(t, test.wantGQLCalls, gqlCalls())
+			assert.Equal(t, test.wantRESTCalls, restCounter.count.Load())
+		})
+	}
+}
+
+func TestGranularCreateIssueWithParentUsesAtomicMutation(t *testing.T) {
+	serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "parent_issue_number")
+	assert.Contains(t, schema.Properties, "parent_owner")
+	assert.Contains(t, schema.Properties, "parent_repo")
+
+	parentID := githubv4.ID("ISSUE_parent")
+	gqlHTTPClient := githubv4mock.NewMockedHTTPClient(
+		createIssueParentMatcher(3, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			CreateIssueInput{
+				RepositoryID:  githubv4.ID("REPO_1"),
+				Title:         githubv4.String("Granular child"),
+				ParentIssueID: &parentID,
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{
+						"fullDatabaseId": "23456",
+						"url":            "https://github.com/owner/repo/issues/4",
+					},
+				},
+			}),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Granular child",
+		"parent_issue_number": float64(3),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestCreateIssueParentRepositoryValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		args    map[string]any
+		want    string
+	}{
+		{
+			name: "issue_write",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":       "create",
+				"owner":        "owner",
+				"repo":         "repo",
+				"title":        "Child",
+				"parent_owner": "parent-owner",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "create_issue",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"title":       "Child",
+				"parent_repo": "parent-repo",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "issue_write requires parent repo with parent owner",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_owner":        "parent-owner",
+			},
+			want: "parent_owner and parent_repo must be provided together",
+		},
+		{
+			name: "create_issue requires parent owner with parent repo",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_repo":         "parent-repo",
+			},
+			want: "parent_owner and parent_repo must be provided together",
+		},
+		{
+			name: "issue fields",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "field_option_name": "High"},
+				},
+			},
+			want: "issue_fields cannot be used with parent_issue_number",
+		},
+		{
+			name: "issue_write rejects parent during update",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "update",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(2),
+				"parent_issue_number": float64(1),
+			},
+			want: "parent_issue_number can only be used with the create method",
+		},
+		{
+			name: "issue_write rejects zero parent number",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(0),
+			},
+			want: "parent_issue_number must be greater than 0",
+		},
+		{
+			name: "create_issue rejects zero parent number",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(0),
+			},
+			want: "parent_issue_number must be greater than 0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := createMCPRequest(test.args)
+			result, err := test.handler(ContextWithDeps(context.Background(), BaseDeps{}), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, test.want)
+		})
+	}
+}
+
+func createIssueParentMatcher(parentIssueNumber int, parentOwner, parentRepo string, repositoryID, parentIssueID githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String(parentOwner),
+			"parentRepo":        githubv4.String(parentRepo),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": map[string]any{
+				"id":            repositoryID,
+				"nameWithOwner": "owner/repo",
+			},
+			"parentRepository": map[string]any{
+				"issue": map[string]any{
+					"id":     parentIssueID,
+					"number": parentIssueNumber,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueLabelMatcher(name string, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Label struct {
+					ID   githubv4.ID
+					Name githubv4.String
+				} `graphql:"label(name: $name)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner": githubv4.String("owner"),
+			"repo":  githubv4.String("repo"),
+			"name":  githubv4.String(name),
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"label": map[string]any{
+					"id":   id,
+					"name": name,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingChildRepositoryMatcher(parentIssueNumber int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String("owner"),
+			"parentRepo":        githubv4.String("repo"),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": nil,
+			"parentRepository": map[string]any{
+				"issue": map[string]any{
+					"id":     "ISSUE_parent",
+					"number": parentIssueNumber,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingParentMatcher(parentIssueNumber int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String("owner"),
+			"parentRepo":        githubv4.String("repo"),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": map[string]any{
+				"id":            "REPO_1",
+				"nameWithOwner": "owner/repo",
+			},
+			"parentRepository": map[string]any{"issue": nil},
+		}),
+	)
+}
+
+func createIssueUserMatcher(login string, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			User struct {
+				ID    githubv4.ID
+				Login githubv4.String
+			} `graphql:"user(login: $login)"`
+		}{},
+		map[string]any{"login": githubv4.String(login)},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{
+				"id":    id,
+				"login": login,
+			},
+		}),
+	)
+}
+
+func createIssueMissingUserMatcher(login string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			User struct {
+				ID    githubv4.ID
+				Login githubv4.String
+			} `graphql:"user(login: $login)"`
+		}{},
+		map[string]any{"login": githubv4.String(login)},
+		githubv4mock.DataResponse(map[string]any{"user": nil}),
+	)
+}
+
+func createIssueMilestoneMatcher(number int, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Milestone struct {
+					ID     githubv4.ID
+					Number githubv4.Int
+				} `graphql:"milestone(number: $milestoneNumber)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":           githubv4.String("owner"),
+			"repo":            githubv4.String("repo"),
+			"milestoneNumber": githubv4.Int(number), // #nosec G115 - test milestone numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"milestone": map[string]any{
+					"id":     id,
+					"number": number,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingMilestoneMatcher(number int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Milestone struct {
+					ID     githubv4.ID
+					Number githubv4.Int
+				} `graphql:"milestone(number: $milestoneNumber)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":           githubv4.String("owner"),
+			"repo":            githubv4.String("repo"),
+			"milestoneNumber": githubv4.Int(number), // #nosec G115 - test milestone numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{"milestone": nil},
+		}),
+	)
+}
+
 func Test_issueWriteHasNonFormParams(t *testing.T) {
 	t.Parallel()
 
@@ -2258,6 +3072,9 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "parent issue present", args: map[string]any{"parent_issue_number": float64(7)}, want: true},
+		{name: "parent owner present", args: map[string]any{"parent_owner": "octo-org"}, want: true},
+		{name: "parent repo present", args: map[string]any{"parent_repo": "parent-repo"}, want: true},
 		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
@@ -2357,11 +3174,14 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via hasNonFormParams. The
-	// form currently collects every schema property, so this allowlist is
-	// empty; add a property here only if it is added to the schema without
+	// must trigger the safety-net bypass via hasNonFormParams. Add a
+	// property here only if it is added to the schema without
 	// corresponding form support.
-	knownNonForm := map[string]struct{}{}
+	knownNonForm := map[string]struct{}{
+		"parent_issue_number": {},
+		"parent_owner":        {},
+		"parent_repo":         {},
+	}
 
 	cases := []struct {
 		name string
@@ -3809,36 +4629,36 @@ func Test_UpdateIssue(t *testing.T) {
 
 	// Mock issues for reuse across test cases
 	mockBaseIssue := &github.Issue{
-		Number:    github.Ptr(123),
-		Title:     github.Ptr("Title"),
-		Body:      github.Ptr("Description"),
-		State:     github.Ptr("open"),
-		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
-		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+		Number:    new(123),
+		Title:     new("Title"),
+		Body:      new("Description"),
+		State:     new("open"),
+		HTMLURL:   new("https://github.com/owner/repo/issues/123"),
+		Assignees: []*github.User{{Login: new("assignee1")}, {Login: new("assignee2")}},
 		Labels:    []*github.Label{{Name: "bug"}, {Name: "priority"}},
-		Milestone: &github.Milestone{Number: github.Ptr(5)},
-		Type:      &github.IssueType{Name: github.Ptr("Bug")},
+		Milestone: &github.Milestone{Number: new(5)},
+		Type:      &github.IssueType{Name: new("Bug")},
 	}
 
 	mockUpdatedIssue := &github.Issue{
-		Number:      github.Ptr(123),
-		Title:       github.Ptr("Updated Title"),
-		Body:        github.Ptr("Updated Description"),
-		State:       github.Ptr("closed"),
-		StateReason: github.Ptr("duplicate"),
-		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
-		Assignees:   []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+		Number:      new(123),
+		Title:       new("Updated Title"),
+		Body:        new("Updated Description"),
+		State:       new("closed"),
+		StateReason: new("duplicate"),
+		HTMLURL:     new("https://github.com/owner/repo/issues/123"),
+		Assignees:   []*github.User{{Login: new("assignee1")}, {Login: new("assignee2")}},
 		Labels:      []*github.Label{{Name: "bug"}, {Name: "priority"}},
-		Milestone:   &github.Milestone{Number: github.Ptr(5)},
-		Type:        &github.IssueType{Name: github.Ptr("Bug")},
+		Milestone:   &github.Milestone{Number: new(5)},
+		Type:        &github.IssueType{Name: new("Bug")},
 	}
 
 	mockReopenedIssue := &github.Issue{
-		Number:      github.Ptr(123),
-		Title:       github.Ptr("Title"),
-		State:       github.Ptr("open"),
-		StateReason: github.Ptr("reopened"),
-		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+		Number:      new(123),
+		Title:       new("Title"),
+		State:       new("open"),
+		StateReason: new("reopened"),
+		HTMLURL:     new("https://github.com/owner/repo/issues/123"),
 	}
 
 	// Mock GraphQL responses for reuse across test cases
@@ -3925,8 +4745,8 @@ func Test_UpdateIssue(t *testing.T) {
 					"assignees": []any{},
 				}).andThen(
 					mockResponse(t, http.StatusOK, &github.Issue{
-						Number:  github.Ptr(123),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+						Number:  new(123),
+						HTMLURL: new("https://github.com/owner/repo/issues/123"),
 					}),
 				),
 			}),
@@ -3941,7 +4761,7 @@ func Test_UpdateIssue(t *testing.T) {
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+				HTMLURL: new("https://github.com/owner/repo/issues/123"),
 			},
 		},
 		{
@@ -4227,15 +5047,15 @@ func Test_UpdateIssue(t *testing.T) {
 					"type":      "Bug",
 				}).andThen(
 					mockResponse(t, http.StatusOK, &github.Issue{
-						Number:    github.Ptr(123),
-						Title:     github.Ptr("Updated Title"),
-						Body:      github.Ptr("Updated Description"),
+						Number:    new(123),
+						Title:     new("Updated Title"),
+						Body:      new("Updated Description"),
 						Labels:    []*github.Label{{Name: "bug"}, {Name: "priority"}},
-						Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
-						Milestone: &github.Milestone{Number: github.Ptr(5)},
-						Type:      &github.IssueType{Name: github.Ptr("Bug")},
-						State:     github.Ptr("open"), // Still open after REST update
-						HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
+						Assignees: []*github.User{{Login: new("assignee1")}, {Login: new("assignee2")}},
+						Milestone: &github.Milestone{Number: new(5)},
+						Type:      &github.IssueType{Name: new("Bug")},
+						State:     new("open"), // Still open after REST update
+						HTMLURL:   new("https://github.com/owner/repo/issues/123"),
 					}),
 				),
 			}),
@@ -4394,8 +5214,8 @@ func Test_UpdateIssue(t *testing.T) {
 func Test_UpdateIssueClearsLabelsAndAssignees(t *testing.T) {
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	updatedIssue := &github.Issue{
-		Number:  github.Ptr(8),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
+		Number:  new(8),
+		HTMLURL: new("https://github.com/owner/repo/issues/8"),
 	}
 
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -4501,18 +5321,18 @@ func Test_GetIssueComments(t *testing.T) {
 	// Setup mock comments for success case
 	mockComments := []*github.IssueComment{
 		{
-			ID:   github.Ptr(int64(123)),
-			Body: github.Ptr("This is the first comment"),
+			ID:   new(int64(123)),
+			Body: new("This is the first comment"),
 			User: &github.User{
-				Login: github.Ptr("user1"),
+				Login: new("user1"),
 			},
 			CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
 		},
 		{
-			ID:   github.Ptr(int64(456)),
-			Body: github.Ptr("This is the second comment"),
+			ID:   new(int64(456)),
+			Body: new("This is the second comment"),
 			User: &github.User{
-				Login: github.Ptr("user2"),
+				Login: new("user2"),
 			},
 			CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour)},
 		},
@@ -4581,14 +5401,14 @@ func Test_GetIssueComments(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.IssueComment{
 					{
-						ID:   github.Ptr(int64(789)),
-						Body: github.Ptr("Maintainer comment"),
-						User: &github.User{Login: github.Ptr("maintainer")},
+						ID:   new(int64(789)),
+						Body: new("Maintainer comment"),
+						User: &github.User{Login: new("maintainer")},
 					},
 					{
-						ID:   github.Ptr(int64(790)),
-						Body: github.Ptr("External user comment"),
-						User: &github.User{Login: github.Ptr("testuser")},
+						ID:   new(int64(790)),
+						Body: new("External user comment"),
+						User: &github.User{Login: new("testuser")},
 					},
 				}),
 			}),
@@ -4601,9 +5421,9 @@ func Test_GetIssueComments(t *testing.T) {
 			expectError: false,
 			expectedComments: []*github.IssueComment{
 				{
-					ID:   github.Ptr(int64(789)),
-					Body: github.Ptr("Maintainer comment"),
-					User: &github.User{Login: github.Ptr("maintainer")},
+					ID:   new(int64(789)),
+					Body: new("Maintainer comment"),
+					User: &github.User{Login: new("maintainer")},
 				},
 			},
 			lockdownEnabled: true,
@@ -4953,19 +5773,19 @@ func Test_AddSubIssue(t *testing.T) {
 
 	// Setup mock issue for success case (matches GitHub API response format)
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue with a sub-issue"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    new("<script>alert(1)</script>This is **Markdown**\u200B"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		Labels: []*github.Label{
 			{
 				Name:        "enhancement",
 				Color:       "84b6eb",
-				Description: github.Ptr("New feature or request"),
+				Description: new("New feature or request"),
 			},
 		},
 	}
@@ -5150,8 +5970,8 @@ func Test_AddSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
@@ -5178,33 +5998,33 @@ func Test_GetSubIssues(t *testing.T) {
 	// Setup mock sub-issues for success case
 	mockSubIssues := []*github.Issue{
 		{
-			Number:  github.Ptr(123),
-			Title:   github.Ptr("Sub-issue 1"),
-			Body:    github.Ptr("This is the first sub-issue"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			Number:  new(123),
+			Title:   new("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+			Body:    new("<script>alert(1)</script>This is **Markdown**\u200B"),
+			State:   new("open"),
+			HTMLURL: new("https://github.com/owner/repo/issues/123"),
 			User: &github.User{
-				Login: github.Ptr("user1"),
+				Login: new("user1"),
 			},
 			Labels: []*github.Label{
 				{
 					Name:        "bug",
 					Color:       "d73a4a",
-					Description: github.Ptr("Something isn't working"),
+					Description: new("Something isn't working"),
 				},
 			},
 		},
 		{
-			Number:  github.Ptr(124),
-			Title:   github.Ptr("Sub-issue 2"),
-			Body:    github.Ptr("This is the second sub-issue"),
-			State:   github.Ptr("closed"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
+			Number:  new(124),
+			Title:   new("Sub-issue 2"),
+			Body:    new("This is the second sub-issue"),
+			State:   new("closed"),
+			HTMLURL: new("https://github.com/owner/repo/issues/124"),
 			User: &github.User{
-				Login: github.Ptr("user2"),
+				Login: new("user2"),
 			},
 			Assignees: []*github.User{
-				{Login: github.Ptr("assignee1")},
+				{Login: new("assignee1")},
 			},
 		},
 	}
@@ -5379,12 +6199,17 @@ func Test_GetSubIssues(t *testing.T) {
 			for i, subIssue := range returnedSubIssues {
 				if i < len(tc.expectedSubIssues) {
 					assert.Equal(t, *tc.expectedSubIssues[i].Number, *subIssue.Number)
-					assert.Equal(t, *tc.expectedSubIssues[i].Title, *subIssue.Title)
+					if i == 0 {
+						assert.Equal(t, "can't \"quote\" AT&T", *subIssue.Title)
+						assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *subIssue.Body)
+					} else {
+						assert.Equal(t, *tc.expectedSubIssues[i].Title, *subIssue.Title)
+					}
 					assert.Equal(t, *tc.expectedSubIssues[i].State, *subIssue.State)
 					assert.Equal(t, *tc.expectedSubIssues[i].HTMLURL, *subIssue.HTMLURL)
 					assert.Equal(t, *tc.expectedSubIssues[i].User.Login, *subIssue.User.Login)
 
-					if tc.expectedSubIssues[i].Body != nil {
+					if i != 0 && tc.expectedSubIssues[i].Body != nil {
 						assert.Equal(t, *tc.expectedSubIssues[i].Body, *subIssue.Body)
 					}
 				}
@@ -5496,17 +6321,17 @@ func TestAddIssueCommentHandler(t *testing.T) {
 
 	serverTool := AddIssueComment(translations.NullTranslationHelper)
 	mockComment := &github.IssueComment{
-		ID:      github.Ptr(int64(456)),
-		Body:    github.Ptr("This is a comment"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-456"),
+		ID:      new(int64(456)),
+		Body:    new("This is a comment"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42#issuecomment-456"),
 	}
 	mockReaction := &github.Reaction{
-		ID:      github.Ptr(int64(789)),
-		Content: github.Ptr("heart"),
+		ID:      new(int64(789)),
+		Content: new("heart"),
 	}
 	mockIssueComment := &github.IssueComment{
-		ID:       github.Ptr(int64(999)),
-		IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/42"),
+		ID:       new(int64(999)),
+		IssueURL: new("https://api.github.com/repos/owner/repo/issues/42"),
 	}
 	commentCreatedAfterReactionFailure := &atomic.Bool{}
 
@@ -5521,7 +6346,9 @@ func TestAddIssueCommentHandler(t *testing.T) {
 		{
 			name: "successful comment on issue",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"body": "This is a comment",
+				}).andThen(mockResponse(t, http.StatusCreated, mockComment)),
 			}),
 			requestArgs: map[string]any{
 				"owner":        "owner",
@@ -5560,8 +6387,8 @@ func TestAddIssueCommentHandler(t *testing.T) {
 			name: "issue comment reaction requires matching issue_number",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, &github.IssueComment{
-					ID:       github.Ptr(int64(999)),
-					IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/43"),
+					ID:       new(int64(999)),
+					IssueURL: new("https://api.github.com/repos/owner/repo/issues/43"),
 				}),
 			}),
 			requestArgs: map[string]any{
@@ -5814,6 +6641,195 @@ func TestAddIssueCommentHandler(t *testing.T) {
 	}
 }
 
+func TestUpdateIssueCommentSchema(t *testing.T) {
+	t.Parallel()
+
+	tool := UpdateIssueComment(translations.NullTranslationHelper).Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "comment_id")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "comment_id", "body"})
+
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+
+	baseArgs := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"comment_id": 456,
+		"body":       "Updated comment",
+	}
+	tests := []struct {
+		name    string
+		args    map[string]any
+		isValid bool
+	}{
+		{
+			name:    "valid arguments",
+			args:    map[string]any{},
+			isValid: true,
+		},
+		{
+			name:    "missing required body",
+			args:    map[string]any{"body": nil},
+			isValid: false,
+		},
+		{
+			name:    "empty body",
+			args:    map[string]any{"body": ""},
+			isValid: false,
+		},
+		{
+			name:    "zero comment ID",
+			args:    map[string]any{"comment_id": 0},
+			isValid: false,
+		},
+		{
+			name:    "fractional comment ID",
+			args:    map[string]any{"comment_id": 1.5},
+			isValid: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := maps.Clone(baseArgs)
+			maps.Copy(args, tc.args)
+			err := resolved.Validate(args)
+			if tc.isValid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestUpdateIssueCommentHandler(t *testing.T) {
+	t.Parallel()
+
+	updatedComment := &github.IssueComment{
+		ID:      new(int64(456)),
+		Body:    new("Updated comment"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42#issuecomment-456"),
+	}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "successful update",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentByOwnerByRepoByCommentID: expectRequestBody(t, map[string]any{
+					"body": "Updated comment",
+				}).andThen(mockResponse(t, http.StatusOK, updatedComment)),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "Updated comment",
+			},
+		},
+		{
+			name: "missing body",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: body",
+		},
+		{
+			name: "empty body",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "body cannot be empty when provided",
+		},
+		{
+			name: "negative comment ID",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(-1),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name: "fractional comment ID",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(1.5),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "parameter comment_id is not a valid number",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to update issue comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := UpdateIssueComment(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			var response MinimalResponse
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+			assert.Equal(t, "456", response.ID)
+			assert.Equal(t, "https://github.com/owner/repo/issues/42#issuecomment-456", response.URL)
+		})
+	}
+}
+
 func Test_RemoveSubIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
@@ -5831,19 +6847,19 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue after sub-issue removal"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    new("<script>alert(1)</script>This is **Markdown**\u200B"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		Labels: []*github.Label{
 			{
 				Name:        "enhancement",
 				Color:       "84b6eb",
-				Description: github.Ptr("New feature or request"),
+				Description: new("New feature or request"),
 			},
 		},
 	}
@@ -6011,8 +7027,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
@@ -6039,19 +7055,19 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue with reprioritized sub-issues"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    new("<script>alert(1)</script>This is **Markdown**\u200B"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
-			Login: github.Ptr("testuser"),
+			Login: new("testuser"),
 		},
 		Labels: []*github.Label{
 			{
 				Name:        "enhancement",
 				Color:       "84b6eb",
-				Description: github.Ptr("New feature or request"),
+				Description: new("New feature or request"),
 			},
 		},
 	}
@@ -6271,8 +7287,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
@@ -6294,16 +7310,16 @@ func Test_ListIssueTypes(t *testing.T) {
 	// Setup mock issue types for success case
 	mockIssueTypes := []*github.IssueType{
 		{
-			ID:          github.Ptr(int64(1)),
-			Name:        github.Ptr("bug"),
-			Description: github.Ptr("Something isn't working"),
-			Color:       github.Ptr("d73a4a"),
+			ID:          new(int64(1)),
+			Name:        new("bug"),
+			Description: new("Something isn't working"),
+			Color:       new("d73a4a"),
 		},
 		{
-			ID:          github.Ptr(int64(2)),
-			Name:        github.Ptr("feature"),
-			Description: github.Ptr("New feature or enhancement"),
-			Color:       github.Ptr("a2eeef"),
+			ID:          new(int64(2)),
+			Name:        new("feature"),
+			Description: new("New feature or enhancement"),
+			Color:       new("a2eeef"),
 		},
 	}
 

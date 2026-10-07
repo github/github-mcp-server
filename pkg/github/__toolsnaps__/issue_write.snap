@@ -91,6 +91,19 @@
         "description": "Repository owner",
         "type": "string"
       },
+      "parent_issue_number": {
+        "description": "Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "parent_owner": {
+        "description": "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
+      },
+      "parent_repo": {
+        "description": "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
@@ -136,5 +149,84 @@
     ],
     "type": "object"
   },
-  "name": "issue_write"
+  "name": "issue_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "reason": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "status": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "method",
+          "issue"
+        ]
+      },
+      {
+        "properties": {
+          "issue": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ]
+      }
+    ],
+    "properties": {
+      "issue": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "method": {
+        "enum": [
+          "create",
+          "update"
+        ],
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "awaiting_user_submission"
+        ],
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
 }

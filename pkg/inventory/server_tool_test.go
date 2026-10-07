@@ -167,6 +167,7 @@ func TestAnnotateHeaderParams(t *testing.T) {
 		Properties: map[string]*jsonschema.Schema{
 			"owner":  {Type: "string"},
 			"repo":   {Type: "string"},
+			"path":   {Type: "string"},
 			"detail": {Type: "string"},
 		},
 	}}
@@ -174,6 +175,7 @@ func TestAnnotateHeaderParams(t *testing.T) {
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Equal(t, "owner", schema.Properties["owner"].Extra["x-mcp-header"])
 	assert.Equal(t, "repo", schema.Properties["repo"].Extra["x-mcp-header"])
+	assert.Nil(t, schema.Properties["path"].Extra)
 	assert.Nil(t, schema.Properties["detail"].Extra)
 
 	// No-op for tools without owner/repo and when InputSchema is not a *jsonschema.Schema

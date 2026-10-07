@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +28,10 @@ func TestAllToolsRoutingParamsGetHeaders(t *testing.T) {
 		schema, ok := tool.InputSchema.(*jsonschema.Schema)
 		if !ok || schema == nil {
 			continue
+		}
+		if pathSchema := schema.Properties["path"]; pathSchema != nil {
+			require.NotContainsf(t, pathSchema.Extra, "x-mcp-header",
+				"tool %q path must remain in MCP arguments", tool.Name)
 		}
 		for prop, header := range inventory.HeaderParams {
 			ps, ok := schema.Properties[prop]

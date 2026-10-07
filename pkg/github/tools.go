@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
@@ -72,6 +72,11 @@ var (
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
 		Icon:        "organization",
+	}
+	ToolsetMetadataGovernance = inventory.ToolsetMetadata{
+		ID:          "governance",
+		Description: "Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels",
+		Icon:        "law",
 	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
@@ -159,9 +164,9 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
-// source of truth.
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable
+// through the X-MCP-Features header or features URL query parameter. It
+// delegates to AllowedFeatureFlags as the single source of truth.
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(AllowedFeatureFlags)
 }
@@ -210,6 +215,7 @@ func newToolConfig(opts []ToolOption) toolConfig {
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
+	cfg := newToolConfig(opts)
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
@@ -253,6 +259,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
+		UpdateIssueComment(t),
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
@@ -264,6 +271,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Organization tools
 		SearchOrgs(t),
 
+		// Governance tools
+		RepositoryRulesetRead(t),
+		CreateRepositoryRuleset(t),
+		CustomPropertiesRead(t),
+		CustomPropertiesWrite(t),
+
 		// Pull request tools
 		PullRequestRead(t),
 		ListPullRequests(t),
@@ -272,7 +285,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		PullRequestReviewWrite(t),
+		pullRequestReviewWrite(t, false, cfg),
+		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
 
@@ -359,7 +373,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
 		GranularAddIssueReaction(t),
+		GranularRemoveIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
+		GranularRemoveIssueCommentReaction(t),
+		GranularHideIssueComment(t),
+		GranularUnhideIssueComment(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -371,9 +389,15 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
-		GranularResolveReviewThread(t),
+		granularResolveReviewThread(t, false, cfg),
+		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
+		GranularRemovePullRequestReviewCommentReaction(t),
+		GranularHidePullRequestReviewComment(t),
+		GranularUnhidePullRequestReviewComment(t),
+		GranularHidePullRequestReview(t),
+		GranularUnhidePullRequestReview(t),
 	})
 }
 

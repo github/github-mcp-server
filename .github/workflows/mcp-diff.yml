@@ -15,12 +15,12 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
 
@@ -85,12 +85,12 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
 
@@ -119,7 +119,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Run MCP Server Diff (streamable-http)
+        id: diff
         # Pinned to mcp-server-diff v3.0.0 — see rationale on the stdio job above.
+        # The action sleeps http_startup_wait_ms and then probes, with no
+        # readiness check. Build the binary in install_command (which runs to
+        # completion on both the current and baseline checkouts before the
+        # server is started) so the wait only covers process startup, not
+        # compilation. Using `go run` here let compile time on the uncached
+        # baseline checkout exceed the wait, so every baseline probe failed.
         uses: SamMorrowDrums/mcp-server-diff@40d992e0a220e5b63378758f9a40d6a8982898d2 # v3.0.0
         with:
           setup_go: "false"
@@ -127,9 +134,25 @@ jobs:
             go mod download
             mkdir -p pkg/github/ui_dist
             cp "${RUNNER_TEMP}"/ui_dist/*.html pkg/github/ui_dist/
-          http_start_command: go run ./cmd/github-mcp-server http --port 8082
+            go build -o bin/github-mcp-server ./cmd/github-mcp-server
+          http_start_command: ./bin/github-mcp-server http --port 8082
           http_startup_wait_ms: "5000"
           configurations: ${{ steps.configs.outputs.configurations }}
+
+      - name: Verify both sides were probed
+        # mcp-server-diff treats a configuration that fails on only one side as
+        # "missing on that ref" (non-fatal) and diffs against an empty
+        # baseline, so fail_on_error does not catch an unreachable server.
+        # With a single shared HTTP server, a one-sided failure always means
+        # that side's server never came up, so fail the job explicitly.
+        env:
+          REPORT: ${{ steps.diff.outputs.json_report_path }}
+        run: |
+          jq -e 'all(.results[]; .configMissing == null)' "$REPORT" > /dev/null || {
+            jq -r '.results[] | select(.configMissing) | "::error::\(.configName): server unreachable on \(.configMissing.side) side: \(.configMissing.error)"' "$REPORT"
+            exit 1
+          }
+          jq -r '.results[] | "\(.configName): base=\(.baseProtocolVersion) head=\(.branchProtocolVersion) tools base=\(.baseCounts.tools) head=\(.branchCounts.tools)"' "$REPORT"
 
       - name: Add interpretation note
         if: always()

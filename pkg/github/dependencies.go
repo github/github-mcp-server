@@ -6,19 +6,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/transport"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v89/github"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
@@ -96,7 +94,7 @@ type ToolDependencies interface {
 	GetContentWindowSize() int
 
 	// IsFeatureEnabled checks if a feature flag is enabled.
-	IsFeatureEnabled(ctx context.Context, flagName string) bool
+	IsFeatureEnabled(ctx context.Context, flag string) bool
 
 	// Logger returns the structured logger, optionally enriched with
 	// request-scoped data from ctx. Integrators provide their own slog.Handler
@@ -205,46 +203,62 @@ func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 // GetRequestStateSealer implements RequestStateSealerProvider.
 func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
-// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
-// This allows tools to conditionally change behavior based on feature flags.
-func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
-	if d.featureChecker == nil || flagName == "" {
-		return false
-	}
-
-	enabled, err := d.featureChecker(ctx, flagName)
-	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
-		return false
-	}
-
-	return enabled
+// IsFeatureEnabled checks if a feature flag is enabled. Request feature state
+// is authoritative when present; the dependency checker is a fallback for
+// direct handler invocation. Empty names and checker errors resolve false.
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, inventory.FeatureFlag(flag))
 }
 
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
 // This avoids creating closures at registration time, which is important for performance
 // in servers that create a new server instance per request (like the remote server).
 //
+// Use concrete input and output structs for migrated tools; registration then
+// delegates schema inference and validation to mcp.AddTool. For example, define
+// `type SearchInput struct { Query string `json:"query"` }` and a concrete
+// `SearchOutput`, then use `NewTool[SearchInput, SearchOutput](...)`. Keep Out
+// as any for tools that must retain the raw registration path. A final optional
+// inventory.InputNormalizer argument can canonicalize legacy wire values
+// (such as case-insensitive enums) before strict SDK schema validation.
+//
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy (e.g., if
-// public_repo is required, repo is also accepted since repo grants public_repo).
+// scopeAccess controls fixed-token visibility and per-call OAuth challenges.
 func NewTool[In, Out any](
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
-	requiredScopes []scopes.Scope,
+	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
 ) inventory.ServerTool {
-	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+	return NewToolWithSchemaOptions(
+		toolset,
+		tool,
+		scopeAccess,
+		inventory.TypedSchemaOptions{},
+		handler,
+		inputNormalizers...,
+	)
+}
+
+// NewToolWithSchemaOptions is like NewTool, with options for schema inference,
+// runtime-only input validation schemas, and pre-decode compatibility checks.
+// The original tool schema remains the schema advertised to clients.
+func NewToolWithSchemaOptions[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	scopeAccess inventory.ScopeAccess,
+	schemaOptions inventory.TypedSchemaOptions,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandlerAndSchemaOptions(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
-	})
-	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
-	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	}, schemaOptions, inputNormalizers...)
+	st.ScopeAccess = scopeAccess
 	return st
 }
 
@@ -254,20 +268,18 @@ func NewTool[In, Out any](
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy.
+// scopeAccess controls fixed-token visibility and per-call OAuth challenges.
 func NewToolFromHandler(
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
-	requiredScopes []scopes.Scope,
+	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
 ) inventory.ServerTool {
 	st := inventory.NewServerTool(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
-	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
-	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	st.ScopeAccess = scopeAccess
 	return st
 }
 
@@ -501,18 +513,9 @@ func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.obsv.Metrics(ctx)
 }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
-func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
-	if d.featureChecker == nil || flagName == "" {
-		return false
-	}
-
-	enabled, err := d.featureChecker(ctx, flagName)
-	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
-		return false
-	}
-
-	return enabled
+// IsFeatureEnabled checks if a feature flag is enabled. Request feature state
+// is authoritative when present; the dependency checker is a fallback for
+// direct handler invocation.
+func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, inventory.FeatureFlag(flag))
 }

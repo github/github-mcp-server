@@ -4,14 +4,14 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type roundTripFunc func(*http.Request) (*http.Response, error)
+type apiVersionRoundTripFunc func(*http.Request) (*http.Response, error)
 
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+func (f apiVersionRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
@@ -63,7 +63,7 @@ func TestAPIVersionTransport(t *testing.T) {
 			t.Parallel()
 
 			var gotVersion string
-			underlying := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			underlying := apiVersionRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 				gotVersion = req.Header.Get(headers.GitHubAPIVersionHeader)
 				return &http.Response{
 					StatusCode: http.StatusOK,

@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/middleware"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/http/middleware"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,26 +106,29 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 	)
 
 	tests := []struct {
-		name              string
-		method            string
-		path              string
-		expectedStatus    int
-		expectChallenge   bool
-		expectAllowHeader bool
+		name            string
+		method          string
+		path            string
+		requestHeaders  string
+		expectedStatus  int
+		expectChallenge bool
+		expectedAllow   []string
 	}{
 		{
-			name:              "MCP preflight",
-			method:            http.MethodOptions,
-			path:              "/",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "MCP preflight",
+			method:         http.MethodOptions,
+			path:           "/",
+			requestHeaders: "content-type, mcp-method, mcp-name, mcp-param-owner, mcp-param-region",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type", "Mcp-Method", "Mcp-Name", "Mcp-Param-owner", "Mcp-Param-Region"},
 		},
 		{
-			name:              "metadata preflight",
-			method:            http.MethodOptions,
-			path:              "/metadata",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "metadata preflight",
+			method:         http.MethodOptions,
+			path:           "/metadata",
+			requestHeaders: "content-type",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type"},
 		},
 		{
 			name:            "authentication challenge",
@@ -166,7 +169,7 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			req.Header.Set("Origin", "https://confer.to")
 			if tt.method == http.MethodOptions {
 				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-				req.Header.Set("Access-Control-Request-Headers", "content-type")
+				req.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
 			}
 
 			rec := httptest.NewRecorder()
@@ -177,8 +180,8 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Credentials"))
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "WWW-Authenticate")
-			if tt.expectAllowHeader {
-				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+			for _, header := range tt.expectedAllow {
+				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), header)
 			}
 			if tt.expectChallenge {
 				assert.Equal(t,
@@ -259,6 +262,46 @@ func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
 		})
 	}
 
+	// Query-bearing MCP server URLs must round-trip: the challenge's
+	// resource_metadata URL and the served metadata document's "resource"
+	// must both carry the exact same query as the URL the client connects to,
+	// because go-sdk validates metadata.resource with exact string equality.
+	queryPath := "/x/repos?features=issue_dependencies"
+	t.Run(queryPath, func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, queryPath, nil)
+		req.Header.Set("Origin", "https://confer.to")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		challenge := rec.Header().Get("WWW-Authenticate")
+		require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+		metadataURL := strings.TrimSuffix(
+			strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+			`"`,
+		)
+		assert.Equal(t,
+			baseURL+"/.well-known/oauth-protected-resource/mcp/x/repos?features=issue_dependencies",
+			metadataURL,
+		)
+
+		metadataPaths := []string{
+			strings.TrimPrefix(metadataURL, baseURL),
+			oauth.OAuthProtectedResourcePrefix + queryPath,
+		}
+		for _, metadataPath := range metadataPaths {
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+		}
+	})
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		oauth.OAuthProtectedResourcePrefix+"/mcp/unknown",
@@ -332,12 +375,6 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
-			name:           "MCP Apps flag accepted from header",
-			flagName:       github.MCPAppsFeatureFlag,
-			headerFeatures: []string{github.MCPAppsFeatureFlag},
-			wantEnabled:    true,
-		},
-		{
 			name:           "MCP Apps form deferral opt-out accepted from header",
 			flagName:       github.MCPAppsDisableFormDeferralFeatureFlag,
 			headerFeatures: []string{github.MCPAppsDisableFormDeferralFeatureFlag},
@@ -374,8 +411,8 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    false,
 		},
 		{
-			name:         "insiders mode enables MCP Apps without header",
-			flagName:     github.MCPAppsFeatureFlag,
+			name:         "insiders mode enables CSV output without header",
+			flagName:     github.FeatureFlagCSVOutput,
 			insidersMode: true,
 			wantEnabled:  true,
 		},

@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/transport"
 	"golang.org/x/oauth2"
 )
 

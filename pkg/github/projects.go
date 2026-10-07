@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/sanitize"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -266,7 +266,7 @@ func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpd
 
 	return MinimalProjectStatusUpdate{
 		ID:         fmt.Sprintf("%v", node.ID),
-		Body:       sanitize.Sanitize(derefString(node.Body)),
+		Body:       sanitize.Content(derefString(node.Body)),
 		Status:     derefString(node.Status),
 		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
 		StartDate:  derefString(node.StartDate),
@@ -284,10 +284,11 @@ func derefString(s *githubv4.String) string {
 
 // ProjectsList returns the tool and handler for listing GitHub Projects resources.
 func ProjectsList(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := NewToolWithSchemaOptions[ProjectsListInput, *ProjectsListOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
-			Name: "projects_list",
+			Name:         "projects_list",
+			OutputSchema: projectsListOutputSchema(),
 			Description: t("TOOL_PROJECTS_LIST_DESCRIPTION",
 				`Tools for listing GitHub Projects resources.
 Use this tool to list projects for a user or organization, or list project fields, items, views, and status updates for a specific project.
@@ -341,7 +342,7 @@ Use this tool to list projects for a user or organization, or list project field
 							Type: "string",
 						},
 					},
-					"per_page": {
+					"perPage": {
 						Type:        "number",
 						Description: fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage),
 					},
@@ -357,8 +358,9 @@ Use this tool to list projects for a user or organization, or list project field
 				Required: []string{"method", "owner"},
 			},
 		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.RequireAll(scopes.ReadProject),
+		projectsSchemaOptions(),
+		projectsTypedHandler[ProjectsListInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -442,17 +444,19 @@ Use this tool to list projects for a user or organization, or list project field
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		},
+		}, decodeProjectsListOutput),
+		normalizeProjectsRouting("list"),
 	)
 	return tool
 }
 
 // ProjectsGet returns the tool and handler for getting GitHub Projects resources.
 func ProjectsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := NewToolWithSchemaOptions[ProjectsGetInput, *ProjectsGetOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
-			Name: "projects_get",
+			Name:         "projects_get",
+			OutputSchema: projectsGetOutputSchema(),
 			Description: t("TOOL_PROJECTS_GET_DESCRIPTION", `Get details about specific GitHub Projects resources.
 Use this tool to get details about individual projects, project fields, project items, and project views by their unique IDs.
 `),
@@ -521,8 +525,9 @@ Use this tool to get details about individual projects, project fields, project 
 				Required: []string{"method"},
 			},
 		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.RequireAll(scopes.ReadProject),
+		projectsSchemaOptions(),
+		projectsTypedHandler[ProjectsGetInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -625,8 +630,7 @@ Use this tool to get details about individual projects, project fields, project 
 					}
 					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 					if resolveErr != nil {
-						var structured *ghErrors.StructuredResolutionError
-						if errors.As(resolveErr, &structured) {
+						if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 						}
 						return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -644,7 +648,8 @@ Use this tool to get details about individual projects, project fields, project 
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		},
+		}, decodeProjectsGetOutput),
+		normalizeProjectsRouting("get"),
 	)
 	return tool
 }
@@ -693,11 +698,10 @@ func updateProjectItemsItemSchema() *jsonschema.Schema {
 }
 
 func projectUpdatedFieldSchema() *jsonschema.Schema {
-	value := &jsonschema.Schema{
-		Description: "The value to apply. Any JSON value is accepted; use null to clear the field.",
-	}
 	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
-		properties["value"] = value
+		properties["value"] = &jsonschema.Schema{
+			Description: "The value to apply. Any JSON value is accepted; use null to clear the field.",
+		}
 		return &jsonschema.Schema{
 			Type:                 "object",
 			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -728,15 +732,16 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 // ProjectsWrite returns the tool and handler for modifying GitHub Projects resources.
 func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := NewToolWithSchemaOptions[ProjectsWriteInput, *ProjectsWriteOutput](
 		ToolsetMetadataProjects,
 		mcp.Tool{
-			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, manage views, create status updates, and add iteration fields."),
+			Name:         "projects_write",
+			OutputSchema: projectsWriteOutputSchema(),
+			Description:  t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, manage views, create status updates, and add iteration fields."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Manage GitHub Projects"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -891,8 +896,9 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Project},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.RequireAll(scopes.Project),
+		projectsSchemaOptions(),
+		projectsTypedHandler[ProjectsWriteInput](func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -984,8 +990,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					// Resolve the item by (item_owner, item_repo, issue_number).
 					resolvedItemID, resolveErr := resolveItemIDFromIssueArgs(ctx, gqlClient, owner, ownerType, projectNumber, args)
 					if resolveErr != nil {
-						var structured *ghErrors.StructuredResolutionError
-						if errors.As(resolveErr, &structured) {
+						if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 						}
 						return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -1039,7 +1044,8 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		},
+		}, decodeProjectsWriteOutput),
+		normalizeProjectsRouting("write"),
 	)
 	return tool
 }
@@ -1252,8 +1258,7 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 	if len(fieldNames) > 0 {
 		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 		if resolveErr != nil {
-			var structured *ghErrors.StructuredResolutionError
-			if errors.As(resolveErr, &structured) {
+			if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -1446,8 +1451,7 @@ func fetchProjectItem(ctx context.Context, client *github.Client, owner, ownerTy
 func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
 	updatePayload, issueField, err := buildUpdateProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, fieldValue)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -1469,8 +1473,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 
 		issueID, resolveErr := projectItemIssueID(projectItem)
 		if resolveErr != nil {
-			var structured *ghErrors.StructuredResolutionError
-			if errors.As(resolveErr, &structured) {
+			if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](resolveErr); ok {
 				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
@@ -1783,7 +1786,7 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
 
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
@@ -1940,7 +1943,7 @@ func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
@@ -2136,8 +2139,7 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	}
 	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -2267,8 +2269,7 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 
 	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
 	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
+		if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -2512,8 +2513,23 @@ func invalidIssueFieldValue(field *ResolvedField, hint string) error {
 	)
 }
 
+// optionalProjectsPerPage reads the page size for the projects tools.
+//
+// The schema advertises perPage, the name every other paginated tool uses. The
+// projects tools advertised per_page from September 2025 until this change and
+// clients sending it get the size they asked for today, so it is still read when
+// perPage is absent.
+func optionalProjectsPerPage(args map[string]any) (int, error) {
+	if _, ok := args["perPage"]; !ok {
+		if _, legacy := args["per_page"]; legacy {
+			return OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+		}
+	}
+	return OptionalIntParamWithDefault(args, "perPage", MaxProjectsPerPage)
+}
+
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return github.ListProjectsPaginationOptions{}, err
 	}

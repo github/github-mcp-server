@@ -6,7 +6,7 @@
 //
 // Example:
 //
-//	go build -ldflags="-X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID=xxx"
+//	go build -ldflags="-X github.com/github/github-mcp-server/v2/internal/buildinfo.OAuthClientID=xxx"
 package buildinfo
 
 // OAuthClientID is the default OAuth client ID, set at build time. Empty in

@@ -1,7 +1,7 @@
 import { StrictMode, useState } from "react";
 import type React from "react";
 import { createRoot } from "react-dom/client";
-import { Avatar, Box, Text, Link, Heading, Spinner } from "@primer/react";
+import { Avatar, Text, Link, Heading, Spinner } from "@primer/react";
 import {
   OrganizationIcon,
   LocationIcon,
@@ -35,30 +35,30 @@ function AvatarWithFallback({ src, login, size }: { src?: string; login: string;
   
   if (!src || imgError) {
     return (
-      <Box
-        sx={{
+      <div
+        style={{
           width: size,
           height: size,
           borderRadius: "50%",
-          bg: "accent.subtle",
+          backgroundColor: "var(--bgColor-accent-muted)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          mr: 3,
+          marginRight: 16,
           flexShrink: 0,
         }}
       >
         <PersonIcon size={size * 0.6} />
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Avatar 
-      src={src} 
-      size={size} 
-      sx={{ mr: 3 }} 
+    <Avatar
+      src={src}
+      size={size}
       onError={() => setImgError(true)}
+      style={{ marginRight: 16 }}
     />
   );
 }
@@ -79,43 +79,62 @@ function UserCard({
     });
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
-      maxWidth={400}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+        maxWidth: 400,
+      }}
     >
       {/* Header with avatar and name */}
-      <Box display="flex" alignItems="center" mb={3} pb={3} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
+      >
         <AvatarWithFallback src={user.avatar_url} login={user.login} size={48} />
-        <Box>
-          <Heading as="h2" sx={{ fontSize: 2, mb: 0 }}>
+        <div>
+          <Heading as="h2" style={{ fontSize: 16, marginBottom: 0 }}>
             {d.name || user.login}
           </Heading>
-          <Text sx={{ color: "fg.muted", fontSize: 1 }}>@{user.login}</Text>
-        </Box>
-      </Box>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 14 }}>@{user.login}</Text>
+        </div>
+      </div>
 
       {/* Info grid */}
-      <Box display="grid" sx={{ gridTemplateColumns: "auto 1fr", gap: 2, fontSize: 1 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          gap: 8,
+          fontSize: 14,
+        }}
+      >
         {d.company && (
           <>
-            <Box sx={{ color: "fg.muted" }}><OrganizationIcon size={16} /></Box>
+            <div style={{ color: "var(--fgColor-muted)" }}><OrganizationIcon size={16} /></div>
             <Text>{d.company}</Text>
           </>
         )}
         {d.location && (
           <>
-            <Box sx={{ color: "fg.muted" }}><LocationIcon size={16} /></Box>
+            <div style={{ color: "var(--fgColor-muted)" }}><LocationIcon size={16} /></div>
             <Text>{d.location}</Text>
           </>
         )}
         {d.blog && (
           <>
-            <Box sx={{ color: "fg.muted" }}><LinkIcon size={16} /></Box>
+            <div style={{ color: "var(--fgColor-muted)" }}><LinkIcon size={16} /></div>
             <Link
               href={d.blog}
               target="_blank"
@@ -127,34 +146,44 @@ function UserCard({
         )}
         {d.email && (
           <>
-            <Box sx={{ color: "fg.muted" }}><MailIcon size={16} /></Box>
+            <div style={{ color: "var(--fgColor-muted)" }}><MailIcon size={16} /></div>
             <Link href={`mailto:${d.email}`}>{d.email}</Link>
           </>
         )}
-      </Box>
+      </div>
 
       {/* Stats */}
-      <Box display="flex" justifyContent="space-around" mt={3} pt={3} borderTopWidth={1} borderTopStyle="solid" borderTopColor="border.default">
-        <Box sx={{ textAlign: "center" }}>
-          <Text sx={{ fontWeight: "bold", fontSize: 2, display: "block" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-around",
+          marginTop: 16,
+          paddingTop: 16,
+          borderTopWidth: 1,
+          borderTopStyle: "solid",
+          borderTopColor: "var(--borderColor-default)",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <Text style={{ fontWeight: 600, fontSize: 16, display: "block" }}>
             <RepoIcon size={16} /> {d.public_repos ?? 0}
           </Text>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>Repos</Text>
-        </Box>
-        <Box sx={{ textAlign: "center" }}>
-          <Text sx={{ fontWeight: "bold", fontSize: 2, display: "block" }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>Repos</Text>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <Text style={{ fontWeight: 600, fontSize: 16, display: "block" }}>
             <PeopleIcon size={16} /> {d.followers ?? 0}
           </Text>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>Followers</Text>
-        </Box>
-        <Box sx={{ textAlign: "center" }}>
-          <Text sx={{ fontWeight: "bold", fontSize: 2, display: "block" }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>Followers</Text>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <Text style={{ fontWeight: 600, fontSize: 16, display: "block" }}>
             {d.following ?? 0}
           </Text>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>Following</Text>
-        </Box>
-      </Box>
-    </Box>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>Following</Text>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -165,25 +194,25 @@ function GetMeApp() {
 
   const content = (() => {
     if (error) {
-      return <Text sx={{ color: "danger.fg" }}>Error: {error.message}</Text>;
+      return <Text style={{ color: "var(--fgColor-danger)" }}>Error: {error.message}</Text>;
     }
     if (!toolResult) {
       return (
-        <Box display="flex" alignItems="center" gap={2}>
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <Spinner size="small" />
-          <Text sx={{ color: "fg.muted" }}>Loading user data...</Text>
-        </Box>
+          <Text style={{ color: "var(--fgColor-muted)" }}>Loading user data...</Text>
+        </div>
       );
     }
     const textContent = toolResult.content?.find((c: { type: string }) => c.type === "text");
     if (!textContent || !("text" in textContent)) {
-      return <Text sx={{ color: "danger.fg" }}>No user data in response</Text>;
+      return <Text style={{ color: "var(--fgColor-danger)" }}>No user data in response</Text>;
     }
     try {
       const userData = JSON.parse(textContent.text as string) as UserData;
       return <UserCard user={userData} onOpenLink={(url) => void openLink(url)} />;
     } catch {
-      return <Text sx={{ color: "danger.fg" }}>Failed to parse user data</Text>;
+      return <Text style={{ color: "var(--fgColor-danger)" }}>Failed to parse user data</Text>;
     }
   })();
 

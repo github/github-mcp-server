@@ -6,18 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/github/github-mcp-server/internal/profiler"
-	buffer "github.com/github/github-mcp-server/pkg/buffer"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/internal/profiler"
+	buffer "github.com/github/github-mcp-server/v2/pkg/buffer"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -47,7 +48,7 @@ const (
 )
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
-func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
 	// First, get all jobs for the workflow run
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
 		Filter: "latest",
@@ -66,41 +67,38 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	}
 
 	if len(failedJobs) == 0 {
-		result := map[string]any{
-			"message":     "No failed jobs found in this workflow run",
-			"run_id":      runID,
-			"total_jobs":  len(jobs.Jobs),
-			"failed_jobs": 0,
+		result := &ActionsFailedJobLogsOutput{
+			Message:   "No failed jobs found in this workflow run",
+			RunID:     runID,
+			TotalJobs: len(jobs.Jobs),
 		}
 		r, _ := json.Marshal(result)
-		return utils.NewToolResultText(string(r)), nil, nil
+		return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Failed: result}, nil
 	}
 
 	// Collect logs for all failed jobs
-	var logResults []map[string]any
+	var logResults []ActionsJobLog
 	for _, job := range failedJobs {
 		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
 		if err != nil {
 			// Continue with other jobs even if one fails
-			jobResult = map[string]any{
-				"job_id":   job.GetID(),
-				"job_name": job.GetName(),
-				"error":    err.Error(),
-			}
+			jobResult = &ActionsJobLog{Error: &ActionsJobLogError{
+				JobID: job.GetID(), JobName: job.GetName(), Error: err.Error(),
+			}}
 			// Enable reporting of status codes and error causes
 			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore error for graceful handling
 		}
 
-		logResults = append(logResults, jobResult)
+		logResults = append(logResults, *jobResult)
 	}
 
-	result := map[string]any{
-		"message":       fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
-		"run_id":        runID,
-		"total_jobs":    len(jobs.Jobs),
-		"failed_jobs":   len(failedJobs),
-		"logs":          logResults,
-		"return_format": map[string]bool{"content": returnContent, "urls": !returnContent},
+	result := &ActionsFailedJobLogsOutput{
+		Message:      fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
+		RunID:        runID,
+		TotalJobs:    len(jobs.Jobs),
+		FailedJobs:   len(failedJobs),
+		Logs:         &logResults,
+		ReturnFormat: &ActionsLogsReturnFormat{Content: returnContent, URLs: !returnContent},
 	}
 
 	r, err := json.Marshal(result)
@@ -108,11 +106,11 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Failed: result}, nil
 }
 
 // handleSingleJobLogs gets logs for a single job
-func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
 	jobResult, resp, err := getJobLogData(ctx, client, owner, repo, jobID, "", returnContent, tailLines, contentWindowSize)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get job logs", resp, err), nil, nil
@@ -123,11 +121,11 @@ func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Single: jobResult}, nil
 }
 
 // getJobLogData retrieves log data for a single job, either as URL or content
-func getJobLogData(ctx context.Context, client *github.Client, owner, repo string, jobID int64, jobName string, returnContent bool, tailLines int, contentWindowSize int) (map[string]any, *github.Response, error) {
+func getJobLogData(ctx context.Context, client *github.Client, owner, repo string, jobID int64, jobName string, returnContent bool, tailLines int, contentWindowSize int) (*ActionsJobLog, *github.Response, error) {
 	// Get the download URL for the job logs
 	url, resp, err := client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, 1)
 	if err != nil {
@@ -135,13 +133,7 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"job_id": jobID,
-	}
-	if jobName != "" {
-		result["job_name"] = jobName
-	}
-
+	result := &ActionsJobLog{}
 	if returnContent {
 		// Download and return the actual log content
 		content, originalLength, httpResp, err := downloadLogContent(ctx, url.String(), tailLines, contentWindowSize) //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
@@ -152,14 +144,17 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 			}
 			return nil, ghResp, fmt.Errorf("failed to download log content for job %d: %w", jobID, err)
 		}
-		result["logs_content"] = content
-		result["message"] = "Job logs content retrieved successfully"
-		result["original_length"] = originalLength
+		result.Content = &ActionsJobLogContent{
+			JobID: jobID, JobName: jobName, LogsContent: content,
+			Message: "Job logs content retrieved successfully", OriginalLength: originalLength,
+		}
 	} else {
 		// Return just the URL
-		result["logs_url"] = url.String()
-		result["message"] = "Job logs are available for download"
-		result["note"] = "The logs_url provides a download link for the individual job logs in plain text format. Use return_content=true to get the actual log content."
+		result.URL = &ActionsJobLogURL{
+			JobID: jobID, JobName: jobName, LogsURL: url.String(),
+			Message: "Job logs are available for download",
+			Note:    "The logs_url provides a download link for the individual job logs in plain text format. Use return_content=true to get the actual log content.",
+		}
 	}
 
 	return result, resp, nil
@@ -199,10 +194,11 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 
 // ActionsList returns the tool and handler for listing GitHub Actions resources.
 func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
-			Name: "actions_list",
+			Name:         "actions_list",
+			OutputSchema: actionsListOutputSchema(),
 			Description: t("TOOL_ACTIONS_LIST_DESCRIPTION",
 				`Tools for listing GitHub Actions resources.
 Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
@@ -217,12 +213,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The action to perform",
-						Enum: []any{
-							actionsMethodListWorkflows,
-							actionsMethodListWorkflowRuns,
-							actionsMethodListWorkflowJobs,
-							actionsMethodListWorkflowArtifacts,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsListMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -311,44 +302,22 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					"page": {
 						Type:        "number",
 						Description: "Page number for pagination (default: 1)",
-						Minimum:     jsonschema.Ptr(1.0),
+						Minimum:     new(1.0),
 					},
-					"per_page": {
+					"perPage": {
 						Type:        "number",
 						Description: "Results per page for pagination (default: 30, max: 100)",
-						Minimum:     jsonschema.Ptr(1.0),
-						Maximum:     jsonschema.Ptr(100.0),
+						Minimum:     new(1.0),
+						Maximum:     new(100.0),
 					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			resourceID, err := OptionalParam[string](args, "resource_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		scopes.PublicRead(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ActionsListInput) (*mcp.CallToolResult, *ActionsListOutput, error) {
+			owner, repo, method, resourceID := args.Owner, args.Repo, args.Method, args.ResourceID
+			pagination := PaginationParams{Page: args.Page, PerPage: args.PerPage}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -388,10 +357,10 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				result, payload, err := listWorkflows(ctx, client, owner, repo, pagination)
 				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowRuns:
-				result, payload, err := listWorkflowRuns(ctx, client, args, owner, repo, resourceID, pagination)
+				result, payload, err := listWorkflowRuns(ctx, client, args.WorkflowRunsFilter, owner, repo, resourceID, pagination)
 				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowJobs:
-				result, payload, err := listWorkflowJobs(ctx, client, args, owner, repo, resourceIDInt, pagination)
+				result, payload, err := listWorkflowJobs(ctx, client, args.WorkflowJobsFilter, owner, repo, resourceIDInt, pagination)
 				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowArtifacts:
 				result, payload, err := listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
@@ -400,16 +369,18 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
+		normalizeActionsArguments("list"),
 	)
 	return tool
 }
 
 // ActionsGet returns the tool and handler for getting GitHub Actions resources.
 func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
-			Name: "actions_get",
+			Name:         "actions_get",
+			OutputSchema: actionsGetOutputSchema(),
 			Description: t("TOOL_ACTIONS_GET_DESCRIPTION", `Get details about specific GitHub Actions resources.
 Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.
 `),
@@ -423,14 +394,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodGetWorkflow,
-							actionsMethodGetWorkflowRun,
-							actionsMethodGetWorkflowJob,
-							actionsMethodDownloadWorkflowArtifact,
-							actionsMethodGetWorkflowRunUsage,
-							actionsMethodGetWorkflowRunLogsURL,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsGetMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -453,25 +417,9 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo", "resource_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			resourceID, err := RequiredParam[string](args, "resource_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		scopes.PublicRead(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ActionsGetInput) (*mcp.CallToolResult, *ActionsGetOutput, error) {
+			owner, repo, method, resourceID := args.Owner, args.Repo, args.Method, args.ResourceID
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -522,21 +470,23 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
+		normalizeActionsArguments("get"),
 	)
 	return tool
 }
 
 // ActionsRunTrigger returns the tool and handler for triggering GitHub Actions workflows.
 func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
-			Name:        "actions_run_trigger",
-			Description: t("TOOL_ACTIONS_RUN_TRIGGER_DESCRIPTION", "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs."),
+			Name:         "actions_run_trigger",
+			OutputSchema: actionsRunTriggerOutputSchema(),
+			Description:  t("TOOL_ACTIONS_RUN_TRIGGER_DESCRIPTION", "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ACTIONS_RUN_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -544,13 +494,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodRunWorkflow,
-							actionsMethodRerunWorkflowRun,
-							actionsMethodRerunFailedJobs,
-							actionsMethodCancelWorkflowRun,
-							actionsMethodDeleteWorkflowRunLogs,
-						},
+						Enum:        actionsEnumSchemas()[reflect.TypeFor[ActionsRunTriggerMethod]()].Enum,
 					},
 					"owner": {
 						Type:        "string",
@@ -581,31 +525,10 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			// Get optional parameters
-			workflowID, _ := OptionalParam[string](args, "workflow_id")
-			ref, _ := OptionalParam[string](args, "ref")
-			runID, _ := OptionalIntParam(args, "run_id")
-
-			// Get optional inputs parameter
-			inputs, err := OptionalParam[map[string]any](args, "inputs")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ActionsRunTriggerInput) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
+			owner, repo, method := args.Owner, args.Repo, args.Method
+			workflowID, ref, runID, inputs := args.WorkflowID, args.Ref, args.RunID, args.Inputs
 
 			// Validate required parameters based on action type
 			if method == actionsMethodRunWorkflow {
@@ -639,16 +562,18 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
+		normalizeActionsArguments("trigger"),
 	)
 	return tool
 }
 
 // ActionsGetJobLogs returns the tool and handler for getting workflow job logs.
 func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
+	tool := newActionsTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
-			Name: "get_job_logs",
+			Name:         "get_job_logs",
+			OutputSchema: actionsJobLogsOutputSchema(),
 			Description: t("TOOL_GET_JOB_LOGS_CONSOLIDATED_DESCRIPTION", `Get logs for GitHub Actions workflow jobs.
 Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run.
 For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
@@ -693,45 +618,10 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			jobID, err := OptionalIntParam(args, "job_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			runID, err := OptionalIntParam(args, "run_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			failedOnly, err := OptionalParam[bool](args, "failed_only")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			returnContent, err := OptionalParam[bool](args, "return_content")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			tailLines, err := OptionalIntParam(args, "tail_lines")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			// Default to 500 lines if not specified or invalid
-			if tailLines <= 0 {
-				tailLines = 500
-			}
+		scopes.PublicRead(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ActionsGetJobLogsInput) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
+			owner, repo, jobID, runID := args.Owner, args.Repo, args.JobID, args.RunID
+			failedOnly, returnContent, tailLines := args.FailedOnly, args.ReturnContent, args.TailLines
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -766,13 +656,14 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 
 			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
+		normalizeActionsArguments("logs"),
 	)
 	return tool
 }
 
 // Helper functions for consolidated actions tools
 
-func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resourceID string) (*mcp.CallToolResult, any, error) {
+func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resourceID string) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	var workflow *github.Workflow
 	var resp *github.Response
 	var err error
@@ -793,23 +684,24 @@ func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resour
 		return nil, nil, fmt.Errorf("failed to marshal workflow: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflow, Workflow: convertToActionsWorkflow(workflow)}, nil
 }
 
-func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
+func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	workflowRun, resp, err := client.Actions.GetWorkflowRunByID(ctx, owner, repo, resourceID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(convertToMinimalWorkflowRun(workflowRun))
+	output := convertToMinimalWorkflowRun(workflowRun)
+	r, err := json.Marshal(output)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRun, Run: &output}, nil
 }
 
-func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
+func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	workflowJob, resp, err := client.Actions.GetWorkflowJobByID(ctx, owner, repo, resourceID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow job", resp, err), nil, nil
@@ -819,10 +711,15 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow job: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	var output *MinimalWorkflowJob
+	if workflowJob != nil {
+		job := convertToMinimalWorkflowJob(workflowJob)
+		output = &job
+	}
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowJob, Job: output}, nil
 }
 
-func listWorkflows(ctx context.Context, client *github.Client, owner, repo string, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
+func listWorkflows(ctx context.Context, client *github.Client, owner, repo string, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
 		Page:    pagination.Page,
@@ -839,29 +736,19 @@ func listWorkflows(ctx context.Context, client *github.Client, owner, repo strin
 		return nil, nil, fmt.Errorf("failed to marshal workflows: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflows, Workflows: convertToActionsWorkflows(workflows)}, nil
 }
 
-func listWorkflowRuns(ctx context.Context, client *github.Client, args map[string]any, owner, repo, resourceID string, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
-	filterArgs, err := OptionalParam[map[string]any](args, "workflow_runs_filter")
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-
-	filterArgsTyped := make(map[string]string)
-	for k, v := range filterArgs {
-		if strVal, ok := v.(string); ok {
-			filterArgsTyped[k] = strVal
-		} else {
-			filterArgsTyped[k] = ""
-		}
+func listWorkflowRuns(ctx context.Context, client *github.Client, filter ActionsWorkflowRunsFilter, owner, repo, resourceID string, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
+	if filter.validationError != "" {
+		return utils.NewToolResultError(filter.validationError), nil, nil
 	}
 
 	listWorkflowRunsOptions := &github.ListWorkflowRunsOptions{
-		Actor:  filterArgsTyped["actor"],
-		Branch: filterArgsTyped["branch"],
-		Event:  filterArgsTyped["event"],
-		Status: filterArgsTyped["status"],
+		Actor:  filter.Actor,
+		Branch: filter.Branch,
+		Event:  filter.Event,
+		Status: filter.Status,
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
 			PerPage: pagination.PerPage,
@@ -870,6 +757,7 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 
 	var workflowRuns *github.WorkflowRuns
 	var resp *github.Response
+	var err error
 
 	if resourceID == "" {
 		workflowRuns, resp, err = client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, listWorkflowRunsOptions)
@@ -884,31 +772,22 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(convertToMinimalWorkflowRuns(workflowRuns))
+	output := convertToMinimalWorkflowRuns(workflowRuns)
+	r, err := json.Marshal(output)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow runs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowRuns, Runs: &output}, nil
 }
 
-func listWorkflowJobs(ctx context.Context, client *github.Client, args map[string]any, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
-	filterArgs, err := OptionalParam[map[string]any](args, "workflow_jobs_filter")
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-
-	filterArgsTyped := make(map[string]string)
-	for k, v := range filterArgs {
-		if strVal, ok := v.(string); ok {
-			filterArgsTyped[k] = strVal
-		} else {
-			filterArgsTyped[k] = ""
-		}
+func listWorkflowJobs(ctx context.Context, client *github.Client, filter ActionsWorkflowJobsFilter, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
+	if filter.validationError != "" {
+		return utils.NewToolResultError(filter.validationError), nil, nil
 	}
 
 	workflowJobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, resourceID, &github.ListWorkflowJobsOptions{
-		Filter: filterArgsTyped["filter"],
+		Filter: filter.Filter,
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
 			PerPage: pagination.PerPage,
@@ -918,8 +797,8 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, args map[strin
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
 	}
 
-	response := map[string]any{
-		"jobs": convertToMinimalWorkflowJobs(workflowJobs),
+	response := &ActionsJobsOutput{
+		Jobs: convertToMinimalWorkflowJobs(workflowJobs),
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -928,10 +807,10 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, args map[strin
 		return nil, nil, fmt.Errorf("failed to marshal workflow jobs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowJobs, Jobs: &response.Jobs}, nil
 }
 
-func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
+func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, *ActionsListOutput, error) {
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
 		Page:    pagination.Page,
@@ -948,10 +827,10 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsListOutput{Method: actionsMethodListWorkflowArtifacts, Artifacts: convertToActionsArtifacts(artifacts)}, nil
 }
 
-func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
+func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	// Get the download URL for the artifact
 	url, resp, err := client.Actions.DownloadArtifact(ctx, owner, repo, resourceID, 1)
 	if err != nil {
@@ -960,11 +839,11 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 	defer func() { _ = resp.Body.Close() }()
 
 	// Create response with the download URL and information
-	result := map[string]any{
-		"download_url": url.String(),
-		"message":      "Artifact is available for download",
-		"note":         "The download_url provides a download link for the artifact as a ZIP archive. The link is temporary and expires after a short time.",
-		"artifact_id":  resourceID,
+	result := &ActionsArtifactDownloadOutput{
+		DownloadURL: url.String(),
+		Message:     "Artifact is available for download",
+		Note:        "The download_url provides a download link for the artifact as a ZIP archive. The link is temporary and expires after a short time.",
+		ArtifactID:  resourceID,
 	}
 
 	r, err := json.Marshal(result)
@@ -972,10 +851,10 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodDownloadWorkflowArtifact, Artifact: result}, nil
 }
 
-func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
+func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	// Get the download URL for the logs
 	url, resp, err := client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, 1)
 	if err != nil {
@@ -984,12 +863,12 @@ func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, re
 	defer func() { _ = resp.Body.Close() }()
 
 	// Create response with the logs URL and information
-	result := map[string]any{
-		"logs_url":         url.String(),
-		"message":          "Workflow run logs are available for download",
-		"note":             "The logs_url provides a download link for the complete workflow run logs as a ZIP archive. You can download this archive to extract and examine individual job logs.",
-		"warning":          "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id instead.",
-		"optimization_tip": "Use: get_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
+	result := &ActionsRunLogsOutput{
+		LogsURL:         url.String(),
+		Message:         "Workflow run logs are available for download",
+		Note:            "The logs_url provides a download link for the complete workflow run logs as a ZIP archive. You can download this archive to extract and examine individual job logs.",
+		Warning:         "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id instead.",
+		OptimizationTip: "Use: get_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
 	}
 
 	r, err := json.Marshal(result)
@@ -997,10 +876,10 @@ func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRunLogsURL, Logs: result}, nil
 }
 
-func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
+func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, *ActionsGetOutput, error) {
 	usage, resp, err := client.Actions.GetWorkflowRunUsageByID(ctx, owner, repo, resourceID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run usage", resp, err), nil, nil
@@ -1012,10 +891,10 @@ func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowRunUsage, Usage: convertToActionsRunUsage(usage)}, nil
 }
 
-func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]any) (*mcp.CallToolResult, any, error) {
+func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]any) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
 	event := github.CreateWorkflowDispatchEventRequest{
 		Ref:    ref,
 		Inputs: inputs,
@@ -1023,7 +902,7 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 
 	var resp *github.Response
 	var err error
-	var workflowType string
+	var workflowType ActionsWorkflowType
 
 	if workflowIDInt, parseErr := strconv.ParseInt(workflowID, 10, 64); parseErr == nil {
 		_, resp, err = client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowIDInt, event)
@@ -1038,14 +917,18 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"message":       "Workflow run has been queued",
-		"workflow_type": workflowType,
-		"workflow_id":   workflowID,
-		"ref":           ref,
-		"inputs":        inputs,
-		"status":        resp.Status,
-		"status_code":   resp.StatusCode,
+	inputJSON, err := json.Marshal(inputs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	result := &ActionsDispatchOutput{
+		Message:      "Workflow run has been queued",
+		WorkflowType: workflowType,
+		WorkflowID:   workflowID,
+		Ref:          ref,
+		Inputs:       inputJSON,
+		Status:       resp.Status,
+		StatusCode:   resp.StatusCode,
 	}
 
 	r, err := json.Marshal(result)
@@ -1053,21 +936,21 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRunWorkflow, Dispatch: result}, nil
 }
 
-func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
+func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
 	resp, err := client.Actions.RerunWorkflowByID(ctx, owner, repo, runID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to rerun workflow run", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"message":     "Workflow run has been queued for re-run",
-		"run_id":      runID,
-		"status":      resp.Status,
-		"status_code": resp.StatusCode,
+	result := &ActionsRunOperationOutput{
+		Message:    "Workflow run has been queued for re-run",
+		RunID:      runID,
+		Status:     resp.Status,
+		StatusCode: resp.StatusCode,
 	}
 
 	r, err := json.Marshal(result)
@@ -1075,21 +958,21 @@ func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo st
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRerunWorkflowRun, Rerun: result}, nil
 }
 
-func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
+func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
 	resp, err := client.Actions.RerunFailedJobsByID(ctx, owner, repo, runID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to rerun failed jobs", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"message":     "Failed jobs have been queued for re-run",
-		"run_id":      runID,
-		"status":      resp.Status,
-		"status_code": resp.StatusCode,
+	result := &ActionsRunOperationOutput{
+		Message:    "Failed jobs have been queued for re-run",
+		RunID:      runID,
+		Status:     resp.Status,
+		StatusCode: resp.StatusCode,
 	}
 
 	r, err := json.Marshal(result)
@@ -1097,24 +980,23 @@ func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo str
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodRerunFailedJobs, RerunFailed: result}, nil
 }
 
-func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
+func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
 	resp, err := client.Actions.CancelWorkflowRunByID(ctx, owner, repo, runID)
 	if err != nil {
-		var acceptedErr *github.AcceptedError
-		if !errors.As(err, &acceptedErr) {
+		if _, ok := errors.AsType[*github.AcceptedError](err); !ok {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to cancel workflow run", resp, err), nil, nil
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"message":     "Workflow run has been cancelled",
-		"run_id":      runID,
-		"status":      resp.Status,
-		"status_code": resp.StatusCode,
+	result := &ActionsRunOperationOutput{
+		Message:    "Workflow run has been cancelled",
+		RunID:      runID,
+		Status:     resp.Status,
+		StatusCode: resp.StatusCode,
 	}
 
 	r, err := json.Marshal(result)
@@ -1122,21 +1004,21 @@ func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo s
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodCancelWorkflowRun, Cancel: result}, nil
 }
 
-func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
+func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, *ActionsRunTriggerOutput, error) {
 	resp, err := client.Actions.DeleteWorkflowRunLogs(ctx, owner, repo, runID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to delete workflow run logs", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	result := map[string]any{
-		"message":     "Workflow run logs have been deleted",
-		"run_id":      runID,
-		"status":      resp.Status,
-		"status_code": resp.StatusCode,
+	result := &ActionsRunOperationOutput{
+		Message:    "Workflow run logs have been deleted",
+		RunID:      runID,
+		Status:     resp.Status,
+		StatusCode: resp.StatusCode,
 	}
 
 	r, err := json.Marshal(result)
@@ -1144,5 +1026,5 @@ func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), &ActionsRunTriggerOutput{Method: actionsMethodDeleteWorkflowRunLogs, DeleteLogs: result}, nil
 }

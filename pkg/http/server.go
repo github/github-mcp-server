@@ -13,18 +13,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/requeststate"
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/middleware"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/internal/requeststate"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/http/middleware"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -310,13 +310,13 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc, hostType utils
 }
 
 // createHTTPFeatureChecker creates a feature checker that resolves static CLI
-// features plus per-request header features and insiders mode.
+// features plus per-request features and insiders mode.
 func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	return func(ctx context.Context, flag string) (bool, error) {
-		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-		features := make([]string, 0, len(enabledFeatures)+len(headerFeatures))
+		requestFeatures := ghcontext.GetHeaderFeatures(ctx)
+		features := make([]string, 0, len(enabledFeatures)+len(requestFeatures))
 		features = append(features, enabledFeatures...)
-		features = append(features, headerFeatures...)
+		features = append(features, requestFeatures...)
 
 		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
 		return effective[flag], nil

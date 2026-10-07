@@ -3,8 +3,8 @@ package transport
 import (
 	"net/http"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 // APIVersionTransport sets the host-compatible GitHub REST API version on

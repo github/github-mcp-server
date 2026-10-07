@@ -31,5 +31,21 @@
     ],
     "type": "object"
   },
-  "name": "update_pull_request_branch"
+  "name": "update_pull_request_branch",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "description": "Operation result message.",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "object",
+      "null"
+    ]
+  }
 }

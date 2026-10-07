@@ -7,44 +7,47 @@ import (
 	"io"
 	"net/http"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ListGists creates a tool to list gists for a user
 func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	inputSchema := WithPagination(&jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"username": {
+				Type:        "string",
+				Description: "GitHub username (omit for authenticated user's gists)",
+			},
+			"since": {
+				Type:        "string",
+				Description: "Only gists updated after this time (ISO 8601 timestamp)",
+			},
+		},
+	})
+	return NewToolWithSchemaOptions(
 		ToolsetMetadataGists,
 		mcp.Tool{
-			Name:        "list_gists",
-			Description: t("TOOL_LIST_GISTS_DESCRIPTION", "List gists for a user"),
+			Name:         "list_gists",
+			OutputSchema: gistListOutputSchema(),
+			Description:  t("TOOL_LIST_GISTS_DESCRIPTION", "List gists for a user"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_GISTS", "List Gists"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"username": {
-						Type:        "string",
-						Description: "GitHub username (omit for authenticated user's gists)",
-					},
-					"since": {
-						Type:        "string",
-						Description: "Only gists updated after this time (ISO 8601 timestamp)",
-					},
-				},
-			}),
+			InputSchema: inputSchema,
 		},
-		nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.NoScopes(),
+		inventory.TypedSchemaOptions{ValidationInputSchema: relaxedPaginationValidationSchema(inputSchema)},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*GistOutput, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -102,8 +105,9 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGistList())
-			return result, nil, nil
+			return result, projectGists(gists), nil
 		},
+		gitGistNormalizer(validateListGistsArguments),
 	)
 }
 
@@ -112,8 +116,9 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
-			Name:        "get_gist",
-			Description: t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID"),
+			Name:         "get_gist",
+			OutputSchema: gistOutputSchema(),
+			Description:  t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_GIST", "Get Gist Content"),
 				ReadOnlyHint: true,
@@ -129,8 +134,8 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id"},
 			},
 		},
-		nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.NoScopes(),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *GistReadOutput, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -162,8 +167,9 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGist())
-			return result, nil, nil
+			return result, &GistReadOutput{Gist: projectGist(gist)}, nil
 		},
+		gitGistNormalizer(validateGetGistArguments),
 	)
 }
 
@@ -172,8 +178,9 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
-			Name:        "create_gist",
-			Description: t("TOOL_CREATE_GIST_DESCRIPTION", "Create a new gist"),
+			Name:         "create_gist",
+			OutputSchema: gistMutationOutputSchema(),
+			Description:  t("TOOL_CREATE_GIST_DESCRIPTION", "Create a new gist"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_GIST", "Create Gist"),
 				ReadOnlyHint: false,
@@ -202,8 +209,8 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"filename", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Gist},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.RequireAll(scopes.Gist),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *MinimalResponse, error) {
 			description, err := OptionalParam[string](args, "description")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -231,8 +238,8 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			gist := github.CreateGistRequest{
 				Files:       files,
-				Public:      github.Ptr(public),
-				Description: github.Ptr(description),
+				Public:      new(public),
+				Description: new(description),
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -264,8 +271,9 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText(string(r)), &minimalResponse, nil
 		},
+		gitGistNormalizer(validateCreateGistArguments),
 	)
 }
 
@@ -274,8 +282,9 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
-			Name:        "update_gist",
-			Description: t("TOOL_UPDATE_GIST_DESCRIPTION", "Update an existing gist"),
+			Name:         "update_gist",
+			OutputSchema: gistMutationOutputSchema(),
+			Description:  t("TOOL_UPDATE_GIST_DESCRIPTION", "Update an existing gist"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_GIST", "Update Gist"),
 				ReadOnlyHint: false,
@@ -303,8 +312,8 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id", "filename", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Gist},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.RequireAll(scopes.Gist),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *MinimalResponse, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -327,8 +336,8 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			files := make(map[github.GistFilename]*github.UpdateGistFile)
 			files[github.GistFilename(filename)] = &github.UpdateGistFile{
-				Filename: github.Ptr(filename),
-				Content:  github.Ptr(content),
+				Filename: new(filename),
+				Content:  new(content),
 			}
 
 			// Only set Description when the caller actually provided it, so
@@ -336,7 +345,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// explicit empty string still clears it.
 			var descriptionPtr *string
 			if _, ok := args["description"]; ok {
-				descriptionPtr = github.Ptr(description)
+				descriptionPtr = new(description)
 			}
 
 			gist := github.UpdateGistRequest{
@@ -373,7 +382,8 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText(string(r)), &minimalResponse, nil
 		},
+		gitGistNormalizer(validateUpdateGistArguments),
 	)
 }
