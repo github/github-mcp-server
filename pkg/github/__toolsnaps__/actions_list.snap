@@ -2,18 +2,52 @@
   "annotations": {
     "idempotentHint": false,
     "readOnlyHint": true,
-    "title": "List GitHub Actions workflows in a repository"
+    "title": "List GitHub Actions resources and CI checks"
   },
-  "description": "Tools for listing GitHub Actions resources.\nUse this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.\n",
+  "description": "List GitHub Actions resources and CI checks from any provider.\nList workflows, workflow runs, jobs, and artifacts, or use list_check_runs for a commit ref or check suite.\nWorkflow runs expose check_suite_id and jobs expose check_run_id. Check lists contain summaries only.\nUse actions_get with get_check_run for a selected check's output, or list_check_run_annotations for its paginated annotations.\n",
   "inputSchema": {
     "properties": {
+      "check_runs_filter": {
+        "description": "Filters used only by list_check_runs.",
+        "properties": {
+          "app_id": {
+            "description": "GitHub App ID. Only supported with ref.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "check_name": {
+            "description": "Exact check name.",
+            "type": "string"
+          },
+          "filter": {
+            "description": "Return the latest checks (default) or all attempts.",
+            "enum": [
+              "latest",
+              "all"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Check lifecycle status.",
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "method": {
         "description": "The action to perform",
         "enum": [
           "list_workflows",
           "list_workflow_runs",
           "list_workflow_jobs",
-          "list_workflow_run_artifacts"
+          "list_workflow_run_artifacts",
+          "list_check_runs",
+          "list_check_run_annotations"
         ],
         "type": "string"
       },
@@ -32,12 +66,16 @@
         "minimum": 1,
         "type": "number"
       },
+      "ref": {
+        "description": "Commit SHA, branch, or tag for list_check_runs. Provide exactly one of ref or resource_id (a check suite ID). Use a SHA to keep the lookup stable.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
       },
       "resource_id": {
-        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n",
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n- Provide a check suite ID for 'list_check_runs', or omit it and provide 'ref' instead.\n- Provide a check run ID for 'list_check_run_annotations'.\n",
         "type": "string"
       },
       "workflow_jobs_filter": {
@@ -136,6 +174,16 @@
               "description": "Any value."
             }
           },
+          "check_run_annotations": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "list_workflows"
@@ -156,6 +204,16 @@
       {
         "properties": {
           "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_run_annotations": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_runs": {
             "not": {
               "description": "Any value."
             }
@@ -187,6 +245,16 @@
               "description": "Any value."
             }
           },
+          "check_run_annotations": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "list_workflow_jobs"
@@ -209,6 +277,16 @@
       },
       {
         "properties": {
+          "check_run_annotations": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "list_workflow_run_artifacts"
@@ -230,6 +308,80 @@
             }
           }
         }
+      },
+      {
+        "properties": {
+          "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_run_annotations": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "list_check_runs"
+            ]
+          },
+          "workflow_jobs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflows": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "check_runs"
+        ]
+      },
+      {
+        "properties": {
+          "artifacts": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "list_check_run_annotations"
+            ]
+          },
+          "workflow_jobs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_runs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflows": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "check_run_annotations"
+        ]
       }
     ],
     "properties": {
@@ -336,13 +488,191 @@
           "object"
         ]
       },
+      "check_run_annotations": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "annotation_level": {
+                  "type": "string"
+                },
+                "end_column": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "end_line": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "raw_details": {
+                  "type": "string"
+                },
+                "start_column": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "start_line": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "start_line",
+                "end_line"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "next_page": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "annotations"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "check_runs": {
+        "additionalProperties": false,
+        "properties": {
+          "check_runs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "app": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "slug": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "check_suite_id": {
+                  "type": "integer"
+                },
+                "completed_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "conclusion": {
+                  "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "neutral",
+                    "cancelled",
+                    "skipped",
+                    "timed_out",
+                    "action_required",
+                    "stale",
+                    "startup_failure"
+                  ],
+                  "type": "string"
+                },
+                "details_url": {
+                  "type": "string"
+                },
+                "head_sha": {
+                  "type": "string"
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "description": "Timestamp in RFC3339 format.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Lifecycle status, e.g. queued, in_progress, completed, waiting.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "requested",
+                    "waiting",
+                    "pending",
+                    ""
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "next_page": {
+            "type": "integer"
+          },
+          "total_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "check_runs"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
       "method": {
         "description": "Operation that produced this response.",
         "enum": [
           "list_workflows",
           "list_workflow_runs",
           "list_workflow_jobs",
-          "list_workflow_run_artifacts"
+          "list_workflow_run_artifacts",
+          "list_check_runs",
+          "list_check_run_annotations"
         ],
         "type": "string"
       },
@@ -353,6 +683,9 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "check_run_id": {
+                  "type": "integer"
+                },
                 "completed_at": {
                   "description": "Timestamp in RFC3339 format.",
                   "format": "date-time",
@@ -635,6 +968,9 @@
                     "null",
                     "object"
                   ]
+                },
+                "check_suite_id": {
+                  "type": "integer"
                 },
                 "conclusion": {
                   "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",

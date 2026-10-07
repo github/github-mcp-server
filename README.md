@@ -638,14 +638,16 @@ For `get_repository_tree`, `list_gists`, `get_gist`, `create_gist`, and `update_
 
 The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issue_comment`, `update_issue_comment`), dependency (`issue_dependency_read`, `issue_dependency_write`), and duplicate-detection (`find_duplicate`) tools provide typed `outputSchema` and `structuredContent` for negotiated supported protocol versions `2026-07-28` or newer. Older or unknown protocol versions retain the same text responses without these fields. Tool errors do not return structured content. Dependency and duplicate-detection tools retain their existing feature gates.
 
-For negotiated supported protocol versions `2026-07-28` or newer, the consolidated Actions tools (`actions_list`, `actions_get`, `actions_run_trigger`) return structured objects with a `method` discriminant and a method-specific typed field; JSON text contains the same compact projection. Workflow, job, and artifact projections omit API/hypermedia URLs while retaining browser links and useful identifiers, states, timestamps, and usage durations. Run usage lists billable runner environments in deterministic name order. Older and unknown-protocol text responses remain unchanged; `get_job_logs` retains its typed content, URL, or failed-job collection variants.
+For negotiated supported protocol versions `2026-07-28` or newer, the consolidated Actions tools (`actions_list`, `actions_get`, `actions_run_trigger`) return structured objects with a `method` discriminant and a method-specific typed field; JSON text contains the same compact projection. Workflow, job, and artifact projections omit API/hypermedia URLs while retaining browser links and useful identifiers, states, timestamps, and usage durations. Run usage lists billable runner environments in deterministic name order. Older and unknown-protocol clients retain the legacy response envelopes; `get_job_logs` retains its typed content, URL, or failed-job collection variants.
+
+The existing Actions tools also support CI check summaries, individual check output, and paginated annotations from any check provider. Workflow-run summaries include `check_suite_id`, and job summaries include `check_run_id` when available. These identifiers connect small list responses to explicit detail requests without extra API calls during listing. See [Read CI check details](docs/checks.md) for methods, permissions, and examples.
 
 <!-- START AUTOMATED TOOLS -->
 <details>
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Actions</summary>
 
-- **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
+- **actions_get** - Get GitHub Actions resources and CI check details
   - **OAuth Challenge Scopes**: `repo`
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
@@ -655,19 +657,24 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
     - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
     - Provide an artifact ID for 'download_workflow_run_artifact' method.
     - Provide a job ID for 'get_workflow_job' method.
+    - Provide a check run ID for 'get_check_run' method.
      (string, required)
 
-- **actions_list** - List GitHub Actions workflows in a repository
+- **actions_list** - List GitHub Actions resources and CI checks
   - **OAuth Challenge Scopes**: `repo`
+  - `check_runs_filter`: Filters used only by list_check_runs. (object, optional)
   - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
   - `perPage`: Results per page for pagination (default: 30, max: 100) (number, optional)
+  - `ref`: Commit SHA, branch, or tag for list_check_runs. Provide exactly one of ref or resource_id (a check suite ID). Use a SHA to keep the lookup stable. (string, optional)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Do not provide any resource ID for 'list_workflows' method.
     - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
     - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
+    - Provide a check suite ID for 'list_check_runs', or omit it and provide 'ref' instead.
+    - Provide a check run ID for 'list_check_run_annotations'.
      (string, optional)
   - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
   - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
@@ -1323,7 +1330,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
      6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.
      7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
-     9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+     9. get_check_runs - Get check summaries for the head commit of a pull request. Use actions_get with method get_check_run and resource_id set to a check ID for output. Use actions_list with list_check_run_annotations for annotations.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
