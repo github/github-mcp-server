@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 )
 
 func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool) inventory.InputNormalizer {

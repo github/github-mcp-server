@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/v2/pkg/octicons"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/require"
 )

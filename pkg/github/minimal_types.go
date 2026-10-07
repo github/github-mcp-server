@@ -12,7 +12,7 @@ import (
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 
-	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 )
 
 // codeSearchItemFieldEnum lists the selectable fields for search_code result

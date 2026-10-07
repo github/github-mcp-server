@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server/v2)](https://goreportcard.com/report/github.com/github/github-mcp-server/v2)
 
 # GitHub MCP Server
 
@@ -13,6 +13,18 @@ The GitHub MCP Server connects AI tools directly to GitHub's platform. This give
 - Team Collaboration: Access discussions, manage notifications, analyze team activity, and streamline processes for your team.
 
 Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
+
+### Using the Go module
+
+The Go module path is `github.com/github/github-mcp-server/v2`. Library consumers
+must use this prefix in imports, for example
+`github.com/github/github-mcp-server/v2/pkg/github`, and in `go get` commands.
+No `/v2` subdirectory is needed when building from a repository checkout.
+
+The existing `v2.0.0` tag predates this module-path correction and cannot be used
+as a Go module. After this change is merged, a new release such as `v2.0.1` must
+be tagged from a commit containing the corrected module path. Until then,
+consumers can use a pseudo-version from a commit containing this change.
 
 ---
 

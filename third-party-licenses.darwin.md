@@ -14,7 +14,7 @@ The following packages are included for the amd64, arm64 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
- - [github.com/github/github-mcp-server](https://pkg.go.dev/github.com/github/github-mcp-server) ([MIT](https://github.com/github/github-mcp-server/blob/HEAD/LICENSE))
+ - [github.com/github/github-mcp-server/v2](https://pkg.go.dev/github.com/github/github-mcp-server/v2) ([MIT](https://github.com/github/github-mcp-server/blob/HEAD/LICENSE))
  - [github.com/go-chi/chi/v5](https://pkg.go.dev/github.com/go-chi/chi/v5) ([MIT](https://github.com/go-chi/chi/blob/v5.3.2/LICENSE))
  - [github.com/go-viper/mapstructure/v2](https://pkg.go.dev/github.com/go-viper/mapstructure/v2) ([MIT](https://github.com/go-viper/mapstructure/blob/v2.5.0/LICENSE))
  - [github.com/google/go-github/v92/github](https://pkg.go.dev/github.com/google/go-github/v92/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v92.0.0/LICENSE))

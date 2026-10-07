@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

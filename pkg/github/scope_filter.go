@@ -3,7 +3,7 @@ package github
 import (
 	"context"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 )
 
 // CreateToolScopeFilter creates an inventory.ToolFilter that filters tools
