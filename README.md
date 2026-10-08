@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server/v2)](https://goreportcard.com/report/github.com/github/github-mcp-server/v2)
 
 # GitHub MCP Server
 
@@ -13,6 +13,18 @@ The GitHub MCP Server connects AI tools directly to GitHub's platform. This give
 - Team Collaboration: Access discussions, manage notifications, analyze team activity, and streamline processes for your team.
 
 Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
+
+### Using the Go module
+
+The Go module path is `github.com/github/github-mcp-server/v2`. Library consumers
+must use this prefix in imports, for example
+`github.com/github/github-mcp-server/v2/pkg/github`, and in `go get` commands.
+No `/v2` subdirectory is needed when building from a repository checkout.
+
+The existing `v2.0.0` tag predates this module-path correction and cannot be used
+as a Go module. After this change is merged, a new release such as `v2.0.1` must
+be tagged from a commit containing the corrected module path. Until then,
+consumers can use a pseudo-version from a commit containing this change.
 
 ---
 
@@ -615,6 +627,18 @@ The following sets of tools are available:
 | `github_support_docs_search` | Search docs to answer GitHub product and support questions |
 
 ## Tools
+
+Repository tools expose output schemas and typed `structuredContent` when the negotiated MCP protocol version is a supported version `2026-07-28` or newer. Older clients, clients with an unknown protocol version, and clients omitting the version receive the existing content without an output schema or structured output. Unknown versions are not treated as supported merely because they sort after `2026-07-28`.
+
+For `get_file_contents`, directory results (including field projections) are structured arrays. File downloads and metadata-only responses use a `content` array of typed text, embedded-resource, or resource-link blocks, preserving status messages, text, base64 blobs, empty files, and download links. Text-only repository mutations such as starring and deletion also return a structured `message`; fork responses distinguish a repository reference from an in-progress message. Repository deletion still requires its existing confirmation flow before returning a completed result.
+
+Structured repository results use compact DTOs rather than raw REST objects. Release lookups share the compact release shape with release listings; Git references retain the ref, object type, and SHA; annotated tags retain tag/message/tagger/target information; deletion commits retain SHA, message, authors, tree SHA, parent SHAs, and a human-facing `html_url` when available. Directory entries retain file metadata and useful HTML/download links, but omit API and hypermedia routing URLs even when those fields were requested in a projection. Legacy and unknown protocol versions retain the original text byte-for-byte; modern text-only JSON responses serialize the same compact DTO as `structuredContent`. Non-text resource blocks and tool errors retain their existing content behavior. Structured projections use the same sanitized and filtered source as the legacy formatter.
+
+For `get_repository_tree`, `list_gists`, `get_gist`, `create_gist`, and `update_gist`, gist results retain file names, contents, sizes, language/type information, timestamps, visibility, and compact owner profiles, while omitting API/node and Git transport URLs. Tree entries omit their derivable API URLs. Create/update gist results contain the gist ID and HTML URL. Modern JSON text and structured content serialize the same compact result. Older or unknown protocol versions retain byte-for-byte legacy text without an output schema or structured content.
+
+The issue metadata (`list_issue_types`, `list_issue_fields`), comment (`add_issue_comment`, `update_issue_comment`), dependency (`issue_dependency_read`, `issue_dependency_write`), and duplicate-detection (`find_duplicate`) tools provide typed `outputSchema` and `structuredContent` for negotiated supported protocol versions `2026-07-28` or newer. Older or unknown protocol versions retain the same text responses without these fields. Tool errors do not return structured content. Dependency and duplicate-detection tools retain their existing feature gates.
+
+For negotiated supported protocol versions `2026-07-28` or newer, the consolidated Actions tools (`actions_list`, `actions_get`, `actions_run_trigger`) return structured objects with a `method` discriminant and a method-specific typed field; JSON text contains the same compact projection. Workflow, job, and artifact projections omit API/hypermedia URLs while retaining browser links and useful identifiers, states, timestamps, and usage durations. Run usage lists billable runner environments in deterministic name order. Older and unknown-protocol text responses remain unchanged; `get_job_logs` retains its typed content, URL, or failed-job collection variants.
 
 <!-- START AUTOMATED TOOLS -->
 <details>
@@ -1506,7 +1530,7 @@ The following sets of tools are available:
 
 - **search_repositories** - Search repositories
   - **OAuth Challenge Scopes**: `repo`
-  - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `minimal_output`: Return minimal repository information (default: true). When false, modern clients receive additional curated repository details, not the complete GitHub API object. Legacy clients retain full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -24,6 +24,10 @@ const labelOrderFieldIssueCount githubv4.LabelOrderField = "ISSUE_COUNT"
 
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(getLabelLegacy(t), labelOutputSchema(), decodeGovernanceJSON[MinimalLabel])
+}
+
+func getLabelLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -130,6 +134,10 @@ func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) inventory.Se
 
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(listLabelsLegacy(t), listLabelsOutputSchema(), decodeGovernanceJSON[ListLabelsOutput])
+}
+
+func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
@@ -228,6 +236,12 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // LabelWrite handles create, update, and delete operations for GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(labelWriteLegacy(t), labelWriteOutputSchema(), func(raw []byte, args map[string]json.RawMessage) (LabelWriteOutput, error) {
+		return LabelWriteOutput{Method: strings.ToLower(governanceArgument(args, "method")), Message: string(raw)}, nil
+	})
+}
+
+func labelWriteLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
@@ -236,7 +250,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

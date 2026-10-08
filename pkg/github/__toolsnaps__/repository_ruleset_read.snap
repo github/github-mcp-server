@@ -118,5 +118,433 @@
     ],
     "type": "object"
   },
-  "name": "repository_ruleset_read"
+  "name": "repository_ruleset_read",
+  "outputSchema": {
+    "$defs": {
+      "idCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "organization_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "repository_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "nameCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "propertyCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "rule": {
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "description": "User-configured parameters for this rule type.",
+            "type": "object"
+          },
+          "ruleset_id": {
+            "type": "integer"
+          },
+          "ruleset_source": {
+            "type": "string"
+          },
+          "ruleset_source_type": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "ruleSuite": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "type": "integer"
+          },
+          "actor_name": {
+            "type": "string"
+          },
+          "after_sha": {
+            "type": "string"
+          },
+          "before_sha": {
+            "type": "string"
+          },
+          "evaluation_result": {
+            "description": "Result of rules evaluated without enforcement, distinct from the enforced result.",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "pushed_at": {
+            "description": "RFC3339 push time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "repository_id": {
+            "type": "integer"
+          },
+          "repository_name": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "bypass"
+            ],
+            "type": "string"
+          },
+          "rule_evaluations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "details": {
+                  "type": "string"
+                },
+                "enforcement": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                },
+                "rule_source": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "rule_type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "result",
+                "rule_type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "result"
+        ],
+        "type": "object"
+      },
+      "ruleset": {
+        "additionalProperties": false,
+        "properties": {
+          "bypass_actors": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "actor_id": {
+                  "type": "integer"
+                },
+                "actor_type": {
+                  "type": "string"
+                },
+                "bypass_mode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actor_type",
+                "bypass_mode"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "additionalProperties": false,
+            "properties": {
+              "organization_id": {
+                "$ref": "#/$defs/idCondition",
+                "type": "object"
+              },
+              "organization_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "organization_property": {
+                "$ref": "#/$defs/propertyCondition",
+                "type": "object"
+              },
+              "ref_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "repository_id": {
+                "$ref": "#/$defs/idCondition",
+                "type": "object"
+              },
+              "repository_name": {
+                "$ref": "#/$defs/nameCondition",
+                "type": "object"
+              },
+              "repository_property": {
+                "$ref": "#/$defs/propertyCondition",
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "created_at": {
+            "description": "RFC3339 creation time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "current_user_can_bypass": {
+            "type": "string"
+          },
+          "enforcement": {
+            "enum": [
+              "",
+              "disabled",
+              "active",
+              "evaluate"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/$defs/rule",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "Repository",
+              "Organization",
+              "Enterprise"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "branch",
+              "tag",
+              "push",
+              "repository"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "RFC3339 last update time.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "enforcement"
+        ],
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "level": {
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "enum": [
+          "get",
+          "list",
+          "get_rules_for_branch",
+          "list_rule_suites",
+          "get_rule_suite"
+        ],
+        "type": "string"
+      },
+      "rule_suite": {
+        "$ref": "#/$defs/ruleSuite",
+        "type": "object"
+      },
+      "rule_suites": {
+        "items": {
+          "$ref": "#/$defs/ruleSuite",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "rules": {
+        "items": {
+          "$ref": "#/$defs/rule",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "ruleset": {
+        "$ref": "#/$defs/ruleset",
+        "type": "object"
+      },
+      "rulesets": {
+        "items": {
+          "$ref": "#/$defs/ruleset",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "method",
+      "level"
+    ],
+    "type": "object"
+  }
 }

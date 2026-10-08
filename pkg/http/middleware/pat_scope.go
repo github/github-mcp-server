@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 // WithPATScopes is a middleware that fetches and stores scopes for classic Personal Access Tokens (PATs) in the request context.
