@@ -2309,7 +2309,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				`"resolved_path":"docs/other.md"`,
 				`create_or_update_file path="docs/other.md"`,
 				`allow_symlink_write=true`,
-				`push_files path="docs/example.md"`,
+				`push_files only writes regular files; remove the symlink at "docs/example.md" separately before replacing it.`,
 			},
 			expectedRequestCount: 4,
 		},
@@ -2416,7 +2416,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectedErrMsgs: []string{
 				`"error":"symlink_write_requires_opt_in"`,
 				`Target is outside this repository`,
-				`push_files path="docs/example.md"`,
+				`push_files only writes regular files; remove the symlink at "docs/example.md" separately before replacing it.`,
 			},
 			expectedRequestCount: 1,
 		},
@@ -2985,6 +2985,10 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
+				WithRequestMatch(
+					GetReposGitTreesByOwnerByRepoByTree,
+					&github.Tree{SHA: new("def456")},
+				),
 				// Create tree
 				WithRequestMatchHandler(
 					PostReposGitTreesByOwnerByRepo,
@@ -3077,6 +3081,10 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
+				WithRequestMatch(
+					GetReposGitTreesByOwnerByRepoByTree,
+					&github.Tree{SHA: new("def456")},
+				),
 			),
 			requestArgs: map[string]any{
 				"owner":  "owner",
@@ -3104,6 +3112,10 @@ func Test_PushFiles(t *testing.T) {
 				WithRequestMatch(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
+				),
+				WithRequestMatch(
+					GetReposGitTreesByOwnerByRepoByTree,
+					&github.Tree{SHA: new("def456")},
 				),
 			),
 			requestArgs: map[string]any{
@@ -3191,6 +3203,10 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
+				WithRequestMatch(
+					GetReposGitTreesByOwnerByRepoByTree,
+					&github.Tree{SHA: new("def456")},
+				),
 				// Fail to create tree
 				WithRequestMatchHandler(
 					PostReposGitTreesByOwnerByRepo,
@@ -3266,6 +3282,10 @@ func Test_PushFiles(t *testing.T) {
 				WithRequestMatch(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
+				),
+				WithRequestMatch(
+					GetReposGitTreesByOwnerByRepoByTree,
+					&github.Tree{SHA: new("def456")},
 				),
 				// Create tree
 				WithRequestMatch(
@@ -3378,6 +3398,7 @@ func Test_PushFiles(t *testing.T) {
 						_, _ = w.Write(b)
 					}),
 				),
+				WithRequestMatch(GetReposGitTreesByOwnerByRepoByTree, &github.Tree{SHA: new("tree456")}),
 				// Create tree with all user files
 				WithRequestMatchHandler(
 					PostReposGitTreesByOwnerByRepo,

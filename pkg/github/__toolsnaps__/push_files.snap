@@ -24,12 +24,20 @@
         "type": "string"
       },
       "files": {
-        "description": "Array of file objects to push, each object with path (string) and content (string)",
+        "description": "Array of file objects to push, each with path, content, and optional mode (100644 or 100755). Omitted mode preserves existing regular file permissions; new files default to 100644. Only regular files are supported.",
         "items": {
           "additionalProperties": false,
           "properties": {
             "content": {
               "description": "file content",
+              "type": "string"
+            },
+            "mode": {
+              "description": "File mode: 100644 (ordinary) or 100755 (executable). Omit to preserve an existing regular file's mode or default a new file to 100644.",
+              "enum": [
+                "100644",
+                "100755"
+              ],
               "type": "string"
             },
             "path": {
