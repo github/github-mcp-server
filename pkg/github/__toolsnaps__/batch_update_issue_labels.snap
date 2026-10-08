@@ -1,0 +1,64 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Batch Update Issue Labels"
+  },
+  "description": "Apply label changes to multiple issues in one call. Each entry in operations targets one issue and can add labels, remove labels, or both. Labels not named in the operation are left untouched. Invalid input fails the whole call before any change is applied; per-issue API errors are reported individually.",
+  "inputSchema": {
+    "properties": {
+      "operations": {
+        "description": "One entry per issue, in any order. Each entry requires issue_number plus at least one non-empty of add or remove (arrays of label names). Duplicate issue numbers are rejected.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "add": {
+              "description": "Label names to add to this issue (GitHub creates missing labels implicitly)",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "issue_number": {
+              "description": "The issue number to update",
+              "minimum": 1,
+              "type": "number"
+            },
+            "remove": {
+              "description": "Label names to remove from this issue",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "issue_number"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "operations"
+    ],
+    "type": "object"
+  },
+  "name": "batch_update_issue_labels"
+}
