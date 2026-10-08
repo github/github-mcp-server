@@ -1628,6 +1628,12 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> Users</summary>
 
+- **list_user_events** - List user activity
+  - **OAuth Challenge Scopes**: `repo`
+  - `page`: Page number for pagination (min 1) (integer, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (integer, optional)
+  - `username`: GitHub username whose activity to list (string, required)
+
 - **search_users** - Search users
   - **OAuth Challenge Scopes**: `repo`
   - `order`: Sort order (string, optional)
