@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/octicons"
@@ -247,53 +248,102 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 	}
 }
 
-// expandRepoResourceURI builds a resource URI using the appropriate URI template
-// based on the provided parameters (sha, ref, or default).
+func escapeRepoResourceURIComponent(value string) (string, error) {
+	if !utf8.ValidString(value) {
+		return "", errors.New("invalid UTF-8 in repository resource URI")
+	}
+
+	const hex = "0123456789ABCDEF"
+	var escaped strings.Builder
+	escaped.Grow(len(value))
+	for i := range len(value) {
+		b := value[i]
+		if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') ||
+			(b >= '0' && b <= '9') || b == '-' || b == '.' || b == '_' || b == '~' {
+			escaped.WriteByte(b)
+			continue
+		}
+		escaped.WriteByte('%')
+		escaped.WriteByte(hex[b>>4])
+		escaped.WriteByte(hex[b&0x0f])
+	}
+	return escaped.String(), nil
+}
+
 func expandRepoResourceURI(owner, repo, sha, ref string, pathParts []string) (string, error) {
-	baseValues := uritemplate.Values{
-		"owner": uritemplate.String(owner),
-		"repo":  uritemplate.String(repo),
-		"path":  uritemplate.List(pathParts...),
+	owner, err := escapeRepoResourceURIComponent(owner)
+	if err != nil {
+		return "", err
+	}
+	repo, err = escapeRepoResourceURIComponent(repo)
+	if err != nil {
+		return "", err
+	}
+
+	path := make([]string, len(pathParts))
+	for i, part := range pathParts {
+		path[i], err = escapeRepoResourceURIComponent(part)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	base := "repo://" + owner + "/" + repo
+	withPath := func(uri string) string {
+		uri += "/contents"
+		if len(path) > 0 {
+			uri += "/" + strings.Join(path, "/")
+		}
+		return uri
 	}
 
 	switch {
 	case sha != "":
-		baseValues["sha"] = uritemplate.String(sha)
-		return repositoryResourceCommitContentURITemplate.Expand(baseValues)
+		sha, err = escapeRepoResourceURIComponent(sha)
+		if err != nil {
+			return "", err
+		}
+		return withPath(base + "/sha/" + sha), nil
 
 	case ref != "":
-		// Parse ref to determine which template to use
 		switch {
 		case strings.HasPrefix(ref, "refs/heads/"):
-			branch := strings.TrimPrefix(ref, "refs/heads/")
-			baseValues["branch"] = uritemplate.String(branch)
-			return repositoryResourceBranchContentURITemplate.Expand(baseValues)
+			branch, err := escapeRepoResourceURIComponent(strings.TrimPrefix(ref, "refs/heads/"))
+			if err != nil {
+				return "", err
+			}
+			return withPath(base + "/refs/heads/" + branch), nil
 
 		case strings.HasPrefix(ref, "refs/tags/"):
-			tag := strings.TrimPrefix(ref, "refs/tags/")
-			baseValues["tag"] = uritemplate.String(tag)
-			return repositoryResourceTagContentURITemplate.Expand(baseValues)
+			tag, err := escapeRepoResourceURIComponent(strings.TrimPrefix(ref, "refs/tags/"))
+			if err != nil {
+				return "", err
+			}
+			return withPath(base + "/refs/tags/" + tag), nil
 
 		case strings.HasPrefix(ref, "refs/pull/") && strings.HasSuffix(ref, "/head"):
-			// Extract PR number from "refs/pull/{number}/head"
-			prPart := strings.TrimPrefix(ref, "refs/pull/")
-			prNumber := strings.TrimSuffix(prPart, "/head")
-			baseValues["prNumber"] = uritemplate.String(prNumber)
-			return repositoryResourcePrContentURITemplate.Expand(baseValues)
+			prNumber, err := escapeRepoResourceURIComponent(strings.TrimSuffix(strings.TrimPrefix(ref, "refs/pull/"), "/head"))
+			if err != nil {
+				return "", err
+			}
+			return withPath(base + "/refs/pull/" + prNumber + "/head"), nil
 
 		case looksLikeSHA(ref):
-			// ref is actually a SHA (e.g., from resolveGitReference)
-			baseValues["sha"] = uritemplate.String(ref)
-			return repositoryResourceCommitContentURITemplate.Expand(baseValues)
+			sha, err := escapeRepoResourceURIComponent(ref)
+			if err != nil {
+				return "", err
+			}
+			return withPath(base + "/sha/" + sha), nil
 
 		default:
-			// For other refs (like a branch name without refs/heads/ prefix),
-			// treat it as a branch
-			baseValues["branch"] = uritemplate.String(ref)
-			return repositoryResourceBranchContentURITemplate.Expand(baseValues)
+			branch, err := escapeRepoResourceURIComponent(ref)
+			if err != nil {
+				return "", err
+			}
+			return withPath(base + "/refs/heads/" + branch), nil
 		}
 
 	default:
-		return repositoryResourceContentURITemplate.Expand(baseValues)
+		return withPath(base), nil
 	}
 }
