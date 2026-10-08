@@ -751,4 +751,57 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "No failed jobs found in this workflow run", response["message"])
 	})
+
+	t.Run("failed job on a later page", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				jobs := &github.Jobs{TotalCount: new(31)}
+				if r.URL.Query().Get("page") == "2" {
+					jobs.Jobs = []*github.WorkflowJob{
+						{ID: new(int64(31)), Name: new("test-job-31"), Conclusion: new("failure")},
+					}
+				} else {
+					for i := int64(1); i <= 30; i++ {
+						jobs.Jobs = append(jobs.Jobs, &github.WorkflowJob{
+							ID:         new(i),
+							Name:       new("passing-job"),
+							Conclusion: new("success"),
+						})
+					}
+					w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/actions/runs/456/jobs?page=2>; rel="next"`)
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/31")
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":       "owner",
+			"repo":        "repo",
+			"run_id":      float64(456),
+			"failed_only": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(1), response["failed_jobs"])
+		assert.Equal(t, float64(31), response["total_jobs"])
+	})
 }
