@@ -45,7 +45,7 @@ var listIssuesItemFieldEnum = []any{
 // MinimalPullRequest. The body field is the heaviest, so omitting it is the main
 // lever for shrinking large result sets.
 var listPullRequestsItemFieldEnum = []any{
-	"number", "title", "body", "state", "draft", "merged", "mergeable_state",
+	"number", "title", "body", "state", "draft", "merged", "merge_commit_sha", "mergeable_state",
 	"html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by",
 	"head", "base", "additions", "deletions", "changed_files", "commits",
 	"comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone",
@@ -717,6 +717,7 @@ type MinimalPullRequest struct {
 	State              string           `json:"state"`
 	Draft              bool             `json:"draft"`
 	Merged             bool             `json:"merged"`
+	MergeCommitSHA     string           `json:"merge_commit_sha,omitempty"`
 	MergeableState     string           `json:"mergeable_state,omitempty"`
 	HTMLURL            string           `json:"html_url"`
 	User               *MinimalUser     `json:"user,omitempty"`
@@ -1110,6 +1111,11 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	}
 	if pr.MergedAt != nil {
 		m.MergedAt = pr.MergedAt.Format(time.RFC3339)
+	}
+	// merge_commit_sha is a real base-branch commit only once merged; an open PR's
+	// is an ephemeral test-merge ref, so omit it there (#3235).
+	if pr.GetMerged() || pr.MergedAt != nil {
+		m.MergeCommitSHA = pr.GetMergeCommitSHA()
 	}
 
 	for _, label := range pr.Labels {
