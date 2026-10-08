@@ -267,6 +267,11 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			expectedTools: []string{"list_issues", "create_issue"},
 		},
 		{
+			name:          "toolset path supports multiple toolsets",
+			path:          "/x/repos,issues",
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback", "list_issues", "create_issue"},
+		},
+		{
 			name:          "toolset readonly path filters to readonly tools in toolset",
 			path:          "/x/repos/readonly",
 			expectedTools: []string{"get_file_contents", "hidden_by_holdback"},
@@ -275,6 +280,11 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			name:          "toolset readonly path with issues",
 			path:          "/x/issues/readonly",
 			expectedTools: []string{"list_issues"},
+		},
+		{
+			name:          "multiple toolsets compose with readonly path",
+			path:          "/x/repos,issues/readonly",
+			expectedTools: []string{"get_file_contents", "hidden_by_holdback", "list_issues"},
 		},
 		{
 			name: "X-MCP-Tools header filters to specific tools",
@@ -323,6 +333,14 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 				headers.MCPToolsetsHeader: "repos",
 			},
 			expectedTools: []string{"list_issues", "create_issue"},
+		},
+		{
+			name: "multiple URL toolsets take precedence over header toolset",
+			path: "/x/repos,issues",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "pull_requests",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback", "list_issues", "create_issue"},
 		},
 		{
 			name: "URL readonly takes precedence over header",
