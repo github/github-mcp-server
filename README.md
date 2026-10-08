@@ -1460,6 +1460,28 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (string, required)
 
+- **get_traffic_clones** - Get repository traffic clones
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `per`: The time frame to aggregate by. Either 'day' or 'week'. Defaults to 'day'. (string, optional)
+  - `repo`: Repository name (string, required)
+
+- **get_traffic_paths** - Get repository traffic paths
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_traffic_referrers** - Get repository traffic referrers
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_traffic_views** - Get repository traffic views
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `per`: The time frame to aggregate by. Either 'day' or 'week'. Defaults to 'day'. (string, optional)
+  - `repo`: Repository name (string, required)
+
 - **list_branches** - List branches
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)

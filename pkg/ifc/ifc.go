@@ -204,6 +204,21 @@ func LabelCollaboratorRoster() SecurityLabel {
 	return PrivateTrusted()
 }
 
+// LabelRepoTraffic returns the IFC label for repository traffic analytics
+// (get_traffic_views, get_traffic_clones, get_traffic_referrers,
+// get_traffic_paths).
+//
+// Integrity is trusted: traffic data is GitHub-computed analytics, not
+// attacker-authored content.
+//
+// Confidentiality is always private. Reading traffic requires push access to
+// the repository (GitHub gates the endpoints behind Administration: Read), so
+// the data is never world-readable — not even for a public repository. This
+// mirrors LabelCollaboratorRoster.
+func LabelRepoTraffic() SecurityLabel {
+	return PrivateTrusted()
+}
+
 // LabelCommitContents returns the IFC label for committed repository content
 // reachable from the default branch and its history: commits, commit diffs,
 // and the repository file tree.

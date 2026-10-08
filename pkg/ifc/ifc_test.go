@@ -160,6 +160,17 @@ func TestLabelCollaboratorRoster(t *testing.T) {
 	assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
 }
 
+func TestLabelRepoTraffic(t *testing.T) {
+	t.Parallel()
+
+	// Traffic analytics require push access to read, so the data is never
+	// world-readable — always trusted and private, regardless of repo
+	// visibility. Mirrors TestLabelCollaboratorRoster.
+	label := LabelRepoTraffic()
+	assert.Equal(t, IntegrityTrusted, label.Integrity)
+	assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+}
+
 func TestLabelCommitContents(t *testing.T) {
 	t.Parallel()
 
