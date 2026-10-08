@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -232,12 +232,6 @@ func TestFeatureRulesOverlap(t *testing.T) {
 	assert.True(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, otherEnabled}))
 	assert.True(t, featureDeclarationsOverlap([]inventory.ServerTool{ungated, enabled}))
 	assert.False(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, disabled}))
-}
-
-func TestMCPAppsFeatureFlagMatchesInventory(t *testing.T) {
-	inv, err := NewInventory(stubTranslation).Build()
-	require.NoError(t, err)
-	assert.Contains(t, inv.RequiredFeatures(), inventory.FeatureFlag(MCPAppsFeatureFlag))
 }
 
 // TestNoDuplicateResourceNames ensures all resources have unique names

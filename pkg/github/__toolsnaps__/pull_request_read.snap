@@ -58,5 +58,945 @@
     ],
     "type": "object"
   },
-  "name": "pull_request_read"
+  "name": "pull_request_read",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "additions": {
+            "description": "Number of lines.",
+            "type": "integer"
+          },
+          "assignees": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "base": {
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "repo": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "full_name"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "sha": {
+                "description": "Git commit SHA.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ref",
+              "sha"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "changed_files": {
+            "type": "integer"
+          },
+          "closed_at": {
+            "description": "RFC 3339 timestamp.",
+            "type": "string"
+          },
+          "comments": {
+            "type": "integer"
+          },
+          "commits": {
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "RFC 3339 timestamp.",
+            "type": "string"
+          },
+          "deletions": {
+            "description": "Number of lines.",
+            "type": "integer"
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "head": {
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "repo": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "full_name"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "sha": {
+                "description": "Git commit SHA.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ref",
+              "sha"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "html_url": {
+            "description": "Browser URL.",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "mergeable_state": {
+            "type": "string"
+          },
+          "merged": {
+            "description": "Whether the pull request was merged.",
+            "type": "boolean"
+          },
+          "merged_at": {
+            "description": "RFC 3339 timestamp.",
+            "type": "string"
+          },
+          "merged_by": {
+            "type": "string"
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "requested_reviewers": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "state": {
+            "description": "Pull request state; empty for a sparse response.",
+            "enum": [
+              "open",
+              "closed",
+              ""
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "RFC 3339 timestamp.",
+            "type": "string"
+          },
+          "user": {
+            "additionalProperties": false,
+            "properties": {
+              "avatar_url": {
+                "type": "string"
+              },
+              "details": {
+                "additionalProperties": false,
+                "properties": {
+                  "bio": {
+                    "type": "string"
+                  },
+                  "blog": {
+                    "type": "string"
+                  },
+                  "company": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "description": "RFC 3339 timestamp.",
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "followers": {
+                    "type": "integer"
+                  },
+                  "following": {
+                    "type": "integer"
+                  },
+                  "hireable": {
+                    "type": "boolean"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "owned_private_repos": {
+                    "type": "integer"
+                  },
+                  "private_gists": {
+                    "type": "integer"
+                  },
+                  "public_gists": {
+                    "type": "integer"
+                  },
+                  "public_repos": {
+                    "type": "integer"
+                  },
+                  "total_private_repos": {
+                    "type": "integer"
+                  },
+                  "twitter_username": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "description": "RFC 3339 timestamp.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "public_repos",
+                  "public_gists",
+                  "followers",
+                  "following",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              },
+              "profile_url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "draft",
+          "merged",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "diff": {
+            "description": "Unified pull request diff.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "diff"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "sha": {
+            "description": "Git commit SHA.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Commit status; empty for a sparse response.",
+            "enum": [
+              "error",
+              "failure",
+              "pending",
+              "success",
+              ""
+            ],
+            "type": "string"
+          },
+          "statuses": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "state": {
+                  "description": "Commit status; empty for a sparse response.",
+                  "enum": [
+                    "error",
+                    "failure",
+                    "pending",
+                    "success",
+                    ""
+                  ],
+                  "type": "string"
+                },
+                "target_url": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "state",
+                "context"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "total_count": {
+            "description": "Total number of results.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "sha",
+          "total_count",
+          "statuses"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "pageInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "endCursor": {
+                "type": "string"
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "startCursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage"
+            ],
+            "type": "object"
+          },
+          "review_threads": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "comments": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "author": {
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "description": "RFC 3339 timestamp.",
+                        "type": "string"
+                      },
+                      "html_url": {
+                        "description": "Browser URL.",
+                        "type": "string"
+                      },
+                      "line": {
+                        "description": "One-based diff line number.",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "original_line": {
+                        "description": "One-based diff line number.",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "original_start_line": {
+                        "description": "One-based diff line number.",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "start_line": {
+                        "description": "One-based diff line number.",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "updated_at": {
+                        "description": "RFC 3339 timestamp.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "html_url"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "is_collapsed": {
+                  "type": "boolean"
+                },
+                "is_outdated": {
+                  "type": "boolean"
+                },
+                "is_resolved": {
+                  "type": "boolean"
+                },
+                "total_count": {
+                  "description": "Total number of results.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "is_resolved",
+                "is_outdated",
+                "is_collapsed",
+                "comments",
+                "total_count"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "totalCount": {
+            "description": "Total number of results.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "review_threads",
+          "totalCount",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "check_runs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "completed_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "conclusion": {
+                  "description": "Completed check outcome.",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "neutral",
+                    "cancelled",
+                    "skipped",
+                    "timed_out",
+                    "action_required",
+                    "stale",
+                    "startup_failure"
+                  ],
+                  "type": "string"
+                },
+                "details_url": {
+                  "type": "string"
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Check execution status; empty for a sparse response.",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "waiting",
+                    "requested",
+                    "pending",
+                    ""
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "total_count": {
+            "description": "Total number of results.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "check_runs"
+        ],
+        "type": "object"
+      },
+      {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "additions": {
+                  "description": "Number of lines.",
+                  "type": "integer"
+                },
+                "changes": {
+                  "description": "Number of lines.",
+                  "type": "integer"
+                },
+                "deletions": {
+                  "description": "Number of lines.",
+                  "type": "integer"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "patch": {
+                  "type": "string"
+                },
+                "previous_filename": {
+                  "type": "string"
+                },
+                "status": {
+                  "description": "File change status.",
+                  "enum": [
+                    "added",
+                    "removed",
+                    "modified",
+                    "renamed",
+                    "copied",
+                    "changed",
+                    "unchanged"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "author": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "sha": {
+                  "description": "Git commit SHA.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sha"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "author_association": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "commit_id": {
+                  "description": "Git commit SHA.",
+                  "type": "string"
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "state": {
+                  "description": "Review state; empty for a sparse response.",
+                  "enum": [
+                    "APPROVED",
+                    "CHANGES_REQUESTED",
+                    "COMMENTED",
+                    "DISMISSED",
+                    "PENDING",
+                    ""
+                  ],
+                  "type": "string"
+                },
+                "submitted_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "user": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "avatar_url": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bio": {
+                          "type": "string"
+                        },
+                        "blog": {
+                          "type": "string"
+                        },
+                        "company": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "description": "RFC 3339 timestamp.",
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "followers": {
+                          "type": "integer"
+                        },
+                        "following": {
+                          "type": "integer"
+                        },
+                        "hireable": {
+                          "type": "boolean"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owned_private_repos": {
+                          "type": "integer"
+                        },
+                        "private_gists": {
+                          "type": "integer"
+                        },
+                        "public_gists": {
+                          "type": "integer"
+                        },
+                        "public_repos": {
+                          "type": "integer"
+                        },
+                        "total_private_repos": {
+                          "type": "integer"
+                        },
+                        "twitter_username": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "description": "RFC 3339 timestamp.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "public_repos",
+                        "public_gists",
+                        "followers",
+                        "following",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    },
+                    "profile_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "state",
+                "html_url"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "author_association": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "html_url": {
+                  "description": "Browser URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "reactions": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "+1": {
+                      "type": "integer"
+                    },
+                    "-1": {
+                      "type": "integer"
+                    },
+                    "confused": {
+                      "type": "integer"
+                    },
+                    "eyes": {
+                      "type": "integer"
+                    },
+                    "heart": {
+                      "type": "integer"
+                    },
+                    "hooray": {
+                      "type": "integer"
+                    },
+                    "laugh": {
+                      "type": "integer"
+                    },
+                    "rocket": {
+                      "type": "integer"
+                    },
+                    "total_count": {
+                      "description": "Total number of results.",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "total_count",
+                    "+1",
+                    "-1",
+                    "laugh",
+                    "confused",
+                    "heart",
+                    "hooray",
+                    "rocket",
+                    "eyes"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "updated_at": {
+                  "description": "RFC 3339 timestamp.",
+                  "type": "string"
+                },
+                "user": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "login"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "html_url"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        ],
+        "type": "array"
+      }
+    ]
+  }
 }

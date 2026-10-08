@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -396,10 +396,10 @@ func Test_ProjectsWrite_UpdateProjectItems_NumericItemIDDeduplicatesRESTLookup(t
 	}
 	gqlClient := newTestGQLClient(transport)
 
-	var restCalls int32
+	var restCalls atomic.Int32
 	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, _ *http.Request) {
-			atomic.AddInt32(&restCalls, 1)
+			restCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"id":1001,"node_id":"PVTI_item1001"}`))
@@ -427,7 +427,7 @@ func Test_ProjectsWrite_UpdateProjectItems_NumericItemIDDeduplicatesRESTLookup(t
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
 	assert.Equal(t, float64(1), response["succeeded"])
 	assert.Equal(t, float64(1), response["failed"])
-	assert.Equal(t, int32(1), atomic.LoadInt32(&restCalls), "the same numeric item_id must only be resolved once")
+	assert.Equal(t, int32(1), restCalls.Load(), "the same numeric item_id must only be resolved once")
 	results := response["results"].([]any)
 	assert.Equal(t, "duplicate_target", results[1].(map[string]any)["error"].(map[string]any)["code"])
 }
@@ -581,10 +581,10 @@ func Test_ProjectsWrite_UpdateProjectItems_DuplicateTargetRejected(t *testing.T)
 		},
 	}
 	gqlClient := newTestGQLClient(transport)
-	var restCalls int32
+	var restCalls atomic.Int32
 	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, _ *http.Request) {
-			atomic.AddInt32(&restCalls, 1)
+			restCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":1001,"node_id":"PVTI_item1"}`))
 		},
@@ -616,7 +616,7 @@ func Test_ProjectsWrite_UpdateProjectItems_DuplicateTargetRejected(t *testing.T)
 	second := results[1].(map[string]any)
 	assert.Equal(t, "failed", second["status"])
 	assert.Equal(t, "duplicate_target", second["error"].(map[string]any)["code"])
-	assert.Equal(t, int32(1), atomic.LoadInt32(&restCalls))
+	assert.Equal(t, int32(1), restCalls.Load())
 	assert.Len(t, transport.mutationCalls, 1)
 }
 

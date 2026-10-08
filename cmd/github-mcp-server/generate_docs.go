@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/spf13/cobra"
 )
@@ -222,9 +222,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		fmt.Fprintf(buf, "  - **OAuth Challenge Scopes**: `%s`\n", strings.Join(scopes, "`, `"))
 	}
 
-	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
-	// applied to the inventory; for the no-flags README this section is
-	// stripped by inventory.ToolsForRegistration before rendering).
+	// MCP App UI metadata.
 	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
 		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
 			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)

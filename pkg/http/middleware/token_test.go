@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestExtractUserToken(t *testing.T) {
 			expectWWWAuth:      true,
 		},
 		// Personal Access Token (classic) - ghp_ prefix
-		{
+		{ //nolint:gosec // G101: Synthetic token fixture exercises classic PAT prefix detection; it cannot authenticate.
 			name:               "personal access token (classic) with Bearer prefix",
 			authHeader:         "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
@@ -45,7 +45,7 @@ func TestExtractUserToken(t *testing.T) {
 			expectedToken:      "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
-		{
+		{ //nolint:gosec // G101: Synthetic token fixture exercises lowercase bearer parsing; it cannot authenticate.
 			name:               "personal access token (classic) with bearer lowercase",
 			authHeader:         "bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
@@ -62,7 +62,7 @@ func TestExtractUserToken(t *testing.T) {
 			expectTokenInfo:    true,
 		},
 		// Fine-grained Personal Access Token - github_pat_ prefix
-		{
+		{ //nolint:gosec // G101: Synthetic token fixture exercises fine-grained PAT prefix detection; it cannot authenticate.
 			name:               "fine-grained personal access token with Bearer prefix",
 			authHeader:         "Bearer github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
@@ -70,7 +70,7 @@ func TestExtractUserToken(t *testing.T) {
 			expectedToken:      "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
-		{
+		{ //nolint:gosec // G101: Synthetic token fixture exercises fine-grained PAT parsing without a bearer prefix; it cannot authenticate.
 			name:               "fine-grained personal access token without Bearer prefix",
 			authHeader:         "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
@@ -113,7 +113,7 @@ func TestExtractUserToken(t *testing.T) {
 			expectTokenInfo:    true,
 		},
 		// Server-to-Server GitHub App Token (installation token) - ghs_ prefix
-		{
+		{ //nolint:gosec // G101: Synthetic token fixture exercises installation token prefix detection; it cannot authenticate.
 			name:               "server-to-server GitHub App token with Bearer prefix",
 			authHeader:         "Bearer ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,

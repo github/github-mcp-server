@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

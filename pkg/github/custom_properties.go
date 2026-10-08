@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"net/url"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -23,6 +23,10 @@ const customPropertiesLevelDescription = "The level at which custom properties a
 
 // CustomPropertiesRead creates the custom properties read tool.
 func CustomPropertiesRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(customPropertiesReadLegacy(t), customPropertiesReadOutputSchema(), decodeCustomProperties("read"), normalizeGovernanceLevelRouting)
+}
+
+func customPropertiesReadLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
 		mcp.Tool{
@@ -137,6 +141,10 @@ func customPropertiesReadEnterprise(ctx context.Context, client *github.Client, 
 
 // CustomPropertiesWrite creates the custom properties write tool.
 func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(customPropertiesWriteLegacy(t), customPropertiesWriteOutputSchema(), decodeCustomProperties("write"), normalizeGovernanceLevelRouting)
+}
+
+func customPropertiesWriteLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
 		mcp.Tool{

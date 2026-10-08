@@ -1,0 +1,335 @@
+{
+  "inputSchema": null,
+  "name": "list_pull_requests",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "additions": {
+          "description": "Number of lines added.",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "assignees": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "base": {
+          "additionalProperties": false,
+          "properties": {
+            "ref": {
+              "type": "string"
+            },
+            "repo": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "full_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "full_name"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "sha": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ref",
+            "sha"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "body": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "changed_files": {
+          "description": "Number of files changed.",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "closed_at": {
+          "description": "Closing time in RFC 3339 format.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "comments": {
+          "description": "Number of comments on the pull request.",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "commits": {
+          "description": "Number of commits in the pull request.",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "created_at": {
+          "description": "Creation time in RFC 3339 format.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "deletions": {
+          "description": "Number of lines removed.",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "draft": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "head": {
+          "additionalProperties": false,
+          "properties": {
+            "ref": {
+              "type": "string"
+            },
+            "repo": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "full_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "full_name"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "sha": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ref",
+            "sha"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "html_url": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "mergeable_state": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "merged": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "merged_at": {
+          "description": "Merge time in RFC 3339 format.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "merged_by": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "milestone": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "number": {
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "requested_reviewers": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "state": {
+          "description": "Pull request state: open or closed.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "title": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "updated_at": {
+          "description": "Last update time in RFC 3339 format.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "user": {
+          "additionalProperties": false,
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "bio": {
+                  "type": "string"
+                },
+                "blog": {
+                  "type": "string"
+                },
+                "company": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "Account creation time in RFC3339 format.",
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "followers": {
+                  "type": "integer"
+                },
+                "following": {
+                  "type": "integer"
+                },
+                "hireable": {
+                  "type": "boolean"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "owned_private_repos": {
+                  "type": "integer"
+                },
+                "private_gists": {
+                  "type": "integer"
+                },
+                "public_gists": {
+                  "type": "integer"
+                },
+                "public_repos": {
+                  "type": "integer"
+                },
+                "total_private_repos": {
+                  "type": "integer"
+                },
+                "twitter_username": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "description": "Last profile update time in RFC3339 format.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "public_repos",
+                "public_gists",
+                "followers",
+                "following",
+                "created_at",
+                "updated_at"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "id": {
+              "type": "integer"
+            },
+            "login": {
+              "type": "string"
+            },
+            "profile_url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "login"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
+}

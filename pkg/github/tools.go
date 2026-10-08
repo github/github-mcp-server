@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
@@ -263,6 +263,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
+		UpdateIssueComment(t),
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
@@ -376,7 +377,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
 		GranularAddIssueReaction(t),
+		GranularRemoveIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
+		GranularRemoveIssueCommentReaction(t),
+		GranularHideIssueComment(t),
+		GranularUnhideIssueComment(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -392,6 +397,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
+		GranularRemovePullRequestReviewCommentReaction(t),
+		GranularHidePullRequestReviewComment(t),
+		GranularUnhidePullRequestReviewComment(t),
+		GranularHidePullRequestReview(t),
+		GranularUnhidePullRequestReview(t),
 	})
 }
 
