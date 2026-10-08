@@ -472,8 +472,9 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 				panic(fmt.Sprintf("failed to resolve input schema for tool %q: %v", tool.Name, err))
 			}
 			// Input validation is deferred until guards have allowed the call.
-			// The advertised and validation schemas remain the original schemas.
-			tool.InputSchema, err = cachedObjectInputSchema()
+			// Retain the advertised header bindings for checks at the original
+			// HTTP boundary, even when the body validation schema is overridden.
+			tool.InputSchema, err = cachedHeaderInputSchema(registration.modernTool.InputSchema)
 			if err != nil {
 				panic(fmt.Sprintf("failed to prepare input schema for tool %q: %v", tool.Name, err))
 			}

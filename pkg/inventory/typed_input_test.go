@@ -41,6 +41,8 @@ func compareTypedInputWithSDK[In any](t *testing.T, advertised, validation *json
 	for _, raw := range []string{
 		`{"mode":"valid"}`, `{"mode":"valid","count":9}`, `{"mode":"valid","Count":9}`,
 		`{"mode":"invalid"}`, `{"mode":42}`, `{}`, `{"mode":"valid","count":"bad"}`,
+		`{"mode":"valid","owner":"octo"}`, `{"mode":"valid","owner":"invalid"}`,
+		`{"mode":"valid","owner":42}`, `{"mode":"valid","owner":null}`,
 		`[]`, `"not an object"`,
 	} {
 		t.Run(raw, func(t *testing.T) {
@@ -82,6 +84,18 @@ func TestTypedInputValidationMatchesSDK(t *testing.T) {
 		runtime.Properties["mode"].Enum = nil
 		runtime.Properties["count"].Default = json.RawMessage(`3`)
 		compareTypedInputWithSDK[typedValidationInput](t, schema, runtime)
+	})
+	t.Run("header-annotations", func(t *testing.T) {
+		type input struct {
+			Owner string `json:"owner"`
+			typedValidationInput
+		}
+		advertised := CloneSchema(schema)
+		advertised.Properties["owner"] = &jsonschema.Schema{
+			Type: "string", Enum: []any{"octo"}, Default: json.RawMessage(`"octo"`),
+			Extra: map[string]any{"x-mcp-header": "owner"},
+		}
+		compareTypedInputWithSDK[input](t, advertised, advertised)
 	})
 }
 

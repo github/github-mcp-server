@@ -111,6 +111,7 @@ var inferredSchemaCache sync.Map
 var explicitSchemaCache sync.Map
 var ownedSchemaPointers sync.Map
 var annotatedSchemaCache sync.Map
+var headerInputSchemaCache sync.Map
 var defaultObjectInputSchemaEntry inferredSchemaEntry
 
 type resolvedInputSchemaEntry struct {
@@ -121,7 +122,7 @@ type resolvedInputSchemaEntry struct {
 
 var resolvedInputSchemaCache sync.Map
 
-func cachedResolvedInputSchema(value any) (*jsonschema.Resolved, error) {
+func cachedInputSchema(value any) (*jsonschema.Schema, error) {
 	schema, ok := value.(*jsonschema.Schema)
 	if !ok {
 		encoded, err := json.Marshal(value)
@@ -140,6 +141,14 @@ func cachedResolvedInputSchema(value any) (*jsonschema.Resolved, error) {
 	if schema.Type != "object" {
 		return nil, fmt.Errorf("input schema must have type \"object\"")
 	}
+	return schema, nil
+}
+
+func cachedResolvedInputSchema(value any) (*jsonschema.Resolved, error) {
+	schema, err := cachedInputSchema(value)
+	if err != nil {
+		return nil, err
+	}
 	entryValue, _ := resolvedInputSchemaCache.LoadOrStore(schema, &resolvedInputSchemaEntry{})
 	entry := entryValue.(*resolvedInputSchemaEntry)
 	entry.once.Do(func() {
@@ -153,6 +162,46 @@ func cachedObjectInputSchema() (*jsonschema.Schema, error) {
 		defaultObjectInputSchemaEntry.schema, defaultObjectInputSchemaEntry.err = CachedSchema(&jsonschema.Schema{Type: "object"})
 	})
 	return defaultObjectInputSchemaEntry.schema, defaultObjectInputSchemaEntry.err
+}
+
+// Keep header bindings visible to the SDK's HTTP transport without restoring
+// required fields, defaults, or other body constraints ahead of tool guards.
+func cachedHeaderInputSchema(value any) (*jsonschema.Schema, error) {
+	schema, err := cachedInputSchema(value)
+	if err != nil {
+		return nil, err
+	}
+	entryValue, _ := headerInputSchemaCache.LoadOrStore(schema, &inferredSchemaEntry{})
+	entry := entryValue.(*inferredSchemaEntry)
+	entry.once.Do(func() {
+		headerSchema := headerPropertySchema(schema)
+		headerSchema.Type = "object"
+		entry.schema, entry.err = CachedSchema(headerSchema)
+	})
+	return entry.schema, entry.err
+}
+
+func headerPropertySchema(schema *jsonschema.Schema) *jsonschema.Schema {
+	result := &jsonschema.Schema{}
+	if annotation, ok := schema.Extra["x-mcp-header"]; ok {
+		// The SDK requires a primitive type when validating header annotations.
+		result.Type = schema.Type
+		result.Extra = map[string]any{"x-mcp-header": annotation}
+	}
+	for name, property := range schema.Properties {
+		if property == nil {
+			continue
+		}
+		child := headerPropertySchema(property)
+		if len(child.Extra) == 0 && len(child.Properties) == 0 {
+			continue
+		}
+		if result.Properties == nil {
+			result.Properties = make(map[string]*jsonschema.Schema)
+		}
+		result.Properties[name] = child
+	}
+	return result
 }
 
 // CloneSchemaWithoutDefaults returns a deep schema copy with default keywords
