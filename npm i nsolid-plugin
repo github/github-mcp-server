@@ -1,0 +1,3586 @@
+npm i nsolid-pluginGUBON-EX Enterprise Commercial Edition — Physical Repository Verification
+
+Release artifact: GUBON-EX Enterprise Commercial Edition patched in this working repository.
+
+
+Local release identity: generated in this verification worktree; it is not an upstream repository identity.
+
+
+Gate	Result	Evidence
+Physical repository recon	PASS	Archive extracted and source tree inspected
+Source contract audit	PASS	audit:source = 10/10 PASS
+Kernel contract checks	PASS	kernel = 4/4 PASS
+G20 dependency-free verifier	PASS	fixture verifier = 3/3 PASS
+G30 adjudication	BLOCKED	Complete production evidence package is absent; fail-closed
+Dependency installation	BLOCKED	npm install timed out
+Typecheck	NOT_VERIFIED	Dependencies unavailable in execution environment
+Production build	NOT_VERIFIED	Dependencies unavailable in execution environment
+PostgreSQL runtime	NOT_VERIFIED	No reachable PostgreSQL runtime in execution environment
+PayPal order/capture	NOT_VERIFIED	External credentials/provider runtime unavailable
+Verified PayPal webhook	NOT_VERIFIED	Real provider event unavailable
+Real user	NOT_VERIFIED	No public deployed runtime in this environment
+First Cash	NOT_VERIFIED	No real commercial transaction evidence
+G20 production evidence	NOT_VERIFIED	Runtime commercial evidence missing
+G30	BLOCKED	Independent adjudication denies release
+Production Release	DENIED	Fail-closed
+
+Closure patches applied
+
+
+Strict GUBON-9 zero-state rejection and strict semantic resolution; unresolved input stops instead of hashing arbitrary text.
+
+Server-authoritative 40% preview no longer exposes the complete decision vector.
+
+Server-side PayPal capture endpoint added; capture does not authorize payment and requires verified webhook processing.
+
+Exact decimal-to-minor-unit PayPal amount parsing added; no floating-point monetary conversion.
+
+Production register/login flow added with scrypt password hashing and tenant creation.
+
+Full-report entitlement query corrected to bind through orders rather than a nonexistent entitlement decision column.
+
+Payment event processing is marked PROCESSED only after the protected transaction completes; transaction failure rolls back the event reservation for retry.
+
+Runtime schema closure migration added for vector hash, report assets, payment-event processing state, and auth fields.
+
+Dependency-free kernel/G20 verification scripts added.
+
+Physical implementation matrix generated.
+
+
+External blockers
+
+DATABASE_URL, JWT_SECRET, PayPal credentials (PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID), and a public deployment/runtime are required for real commercial verification. These are integration blockers, not architecture blockers.
+
+
+No PASS is inferred from source inspection. First Cash remains NOT_VERIFIED. Production Release remains DENIED until the real transaction evidence chain is executed and independently adjudicated.
+
+GUBON-EX Physical Repository Implementation Matrix
+
+Domain	Physical path	State	Verification status	Release impact
+Input/Auth	apps/api/src/server.ts, auth/*, middleware/*	IMPLEMENTED	NOT_VERIFIED	Blocking until runtime tests
+Normalization/GUBON-9	apps/api/src/kernel/gubon9.ts	IMPLEMENTED	NOT_VERIFIED	Blocking
+Decision persistence	apps/api/src/decision/*, database/migrations/*	IMPLEMENTED	NOT_VERIFIED	Blocking
+Preview/Paywall	apps/api/src/server.ts, apps/web/index.html	IMPLEMENTED	NOT_VERIFIED	Blocking
+PayPal order/capture	apps/api/src/commerce/paypal.ts, apps/api/src/server.ts	IMPLEMENTED	NOT_VERIFIED	Blocking; credentials required
+Webhook/idempotency	apps/api/src/server.ts, migration 003	IMPLEMENTED	NOT_VERIFIED	Blocking
+Entitlement/full report	apps/api/src/server.ts, migration 003	IMPLEMENTED	NOT_VERIFIED	Blocking
+Ledger/audit/evidence	database/migrations/001-003, webhook transaction	IMPLEMENTED	NOT_VERIFIED	Blocking; PostgreSQL required
+AI Gateway	packages/ai/src/*	IMPLEMENTED	NOT_VERIFIED	Blocking if AI path is enabled
+G20	packages/g20-verifier/*, scripts/g20/*	IMPLEMENTED	NOT_VERIFIED	Blocking
+G30	scripts/g30/*	IMPLEMENTED	NOT_VERIFIED	Blocking; independent evidence required
+Customer surface	apps/web/index.html	IMPLEMENTED	NOT_VERIFIED	Blocking
+Build/test	root package.json, workspace scripts	IMPLEMENTED	NOT_VERIFIED	Blocking
+
+Current release verdict
+
+PRODUCTION RELEASE = DENIED
+
+
+Reason: the repository is present in the supplied archive, but dependency installation timed out in this execution environment and no reachable PostgreSQL/PayPal production runtime is available. No PASS is inferred from source inspection.
+
+GUBON-EX® Canonical Frozen Runtime Specification v1.0
+
+Status: CANONICAL / FROZEN
+System: GUBON-EX® Unified Commercial OS
+Operating Model: Decision-as-a-Service
+Runtime Model: Event-Driven / Silent-by-Default
+Kernel: GLS-PROD-1.0.0
+Authority: L0 Sovereign → Governance → Verified Runtime
+Business System of Record: PostgreSQL
+Release Verification: Independent G30
+Production Rule: FAIL-CLOSED
+Default Runtime State: SILENT
+
+
+---
+
+0. Canonical Freeze Statement
+
+GUBON-EX® is one unified commercial runtime.
+
+There is exactly:
+
+- one Decision Core
+- one GUBON-9 Kernel
+- one Governance Authority
+- one Commerce Authority
+- one Report Runtime
+- one Event State Machine
+- one Audit Authority
+- one Revenue Chain
+- one Memory Chain
+- one Release Control
+- one G01–G30 evidence system
+
+There is no:
+
+- second Kernel
+- second Authority Chain
+- second Commerce Architecture
+- second Report Engine
+- second State Machine
+- Personal Architecture
+- Enterprise Architecture
+- AI Authority
+- Frontend Authority
+- customer-side authority
+
+Packages, applications, workers, providers, adapters, queues, and storage systems are implementation components of this single runtime.
+
+
+---
+
+1. Canonical Commercial Chain
+
+TRAFFIC
+  ↓
+AUDIENCE
+  ↓
+EXL5
+  ↓
+LANDING
+  ↓
+INPUT
+  ↓
+NORMALIZE
+  ↓
+SEMANTIC
+  ↓
+GUBON-9
+  ↓
+DIMENSION
+  ↓
+DECISION VECTOR
+  ↓
+CONTEXT
+  ↓
+DECISION CONTRACT
+  ↓
+GOVERNANCE
+  ↓
+APPROVAL
+  ↓
+PREVIEW
+  ↓
+OFFER
+  ↓
+CHECKOUT
+  ↓
+PAYPAL
+  ↓
+CAPTURE
+  ↓
+WEBHOOK
+  ↓
+IDEMPOTENCY
+  ↓
+PAYMENT_PAID
+  ↓
+ENTITLEMENT_ACTIVE
+  ↓
+FULL_REPORT
+  ↓
+PDF
+  ↓
+DELIVERY
+  ↓
+ACTION
+  ↓
+OUTCOME
+  ↓
+MEMORY
+  ↓
+REVENUE
+  ↓
+NEXT_DECISION
+  ↓
+TRAFFIC
+
+This is the only canonical commercial direction.
+
+
+---
+
+2. Silent Runtime
+
+2.1 Default
+
+NO BUSINESS EVENT
+        ↓
+SILENT
+
+SILENT means:
+
+NO BUSINESS DECISION
+NO AI INVOCATION
+NO REPORT GENERATION
+NO PDF GENERATION
+NO TTS
+NO CUSTOMER NOTIFICATION
+NO COMMERCIAL MUTATION
+NO UNNECESSARY COMPUTE
+
+The infrastructure remains available.
+
+Therefore:
+
+24/7 AVAILABILITY
+        ≠
+24/7 BUSINESS COMPUTATION
+
+2.2 Permitted safety operations
+
+The following may remain continuously active:
+
+SECURITY MONITORING
+HEALTH CHECKS
+DATABASE BACKUP
+AUDIT INTEGRITY
+WEBHOOK RECEPTION
+QUEUE RECOVERY
+OBSERVABILITY
+
+These are Runtime Safety Operations, not business execution.
+
+
+---
+
+3. Canonical Event Wake-Up Contract
+
+Every business event follows:
+
+EVENT
+ ↓
+AUTHENTICATE SOURCE
+ ↓
+VALIDATE
+ ↓
+CLASSIFY
+ ↓
+AUTHORIZE
+ ↓
+DECIDE
+ ↓
+GOVERN
+ ↓
+APPROVE IF REQUIRED
+ ↓
+EXECUTE
+ ↓
+PERSIST
+ ↓
+VERIFY
+ ↓
+DELIVER IF REQUIRED
+ ↓
+MEMORY
+ ↓
+REVENUE IF APPLICABLE
+ ↓
+SILENT
+
+An invalid event cannot enter business execution.
+
+INVALID
+ ↓
+REJECT
+ ↓
+NO BUSINESS MUTATION
+ ↓
+AUDIT
+ ↓
+SILENT
+
+
+---
+
+4. Canonical Runtime Event
+
+interface RuntimeEvent {
+  eventId: string;
+  eventType: string;
+  occurredAt: string;
+
+  tenantId: string;
+  actorId?: string;
+
+  correlationId: string;
+  causationId?: string;
+
+  aggregateType: string;
+  aggregateId: string;
+
+  schemaVersion: string;
+  payload: unknown;
+}
+
+Identity rules
+
+Field	Authority
+
+eventId	Unique event identity
+eventType	Canonical event classification
+occurredAt	Event occurrence timestamp
+tenantId	Tenant boundary
+actorId	Originating actor where applicable
+correlationId	Complete business-flow identity
+causationId	Immediate originating event
+aggregateType	Business aggregate type
+aggregateId	Authoritative business entity
+schemaVersion	Event contract version
+payload	Validated event data
+
+
+Every business event must contain enough information for:
+
+AUTHENTICATION
+VALIDATION
+AUTHORIZATION
+IDEMPOTENCY
+AUDIT
+TRACEABILITY
+
+
+---
+
+5. Canonical Event State Machine
+
+┌──────────────┐
+                         │    SILENT    │
+                         └──────┬───────┘
+                                │
+                              EVENT
+                                │
+                                ▼
+                     ┌────────────────────┐
+                     │  EVENT_DETECTED    │
+                     └─────────┬──────────┘
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │     VALIDATING     │
+                     └─────────┬──────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+                 INVALID                 VALID
+                    │                     │
+                    ▼                     ▼
+                REJECTED          DECISION_REQUIRED
+                    │                     │
+                    ▼                     ▼
+                 SILENT                DECIDING
+                                          │
+                                          ▼
+                                 GOVERNANCE_CHECK
+                                  │       │       │
+                                DENY   APPROVAL   ALLOW
+                                  │       │       │
+                                  ▼       ▼       │
+                               BLOCKED  APPROVAL  │
+                                          │       │
+                                       APPROVED   │
+                                          │       │
+                                          └───┬───┘
+                                              ▼
+                                          EXECUTING
+                                              │
+                         ┌────────────────────┼──────────────────┐
+                         │                    │                  │
+                  RECOVERABLE            NON-RECOVERABLE      SUCCESS
+                    FAILURE                 FAILURE              │
+                         │                    │                  ▼
+                         ▼                    ▼              DELIVERING
+                       RETRY                FAILED               │
+                         │                                       ▼
+                    REVALIDATE                              VERIFYING
+                         │                                       │
+                         └──────────────→ EXECUTING              ▼
+                                                            COMPLETED
+                                                                │
+                                                                ▼
+                                                        AUDIT / MEMORY /
+                                                        REVENUE IF APPLICABLE
+                                                                │
+                                                                ▼
+                                                             SILENT
+
+
+---
+
+6. Closed Transition Table
+
+Only the following transitions are legal.
+
+From	Event / Condition	To
+
+SILENT	valid business event	EVENT_DETECTED
+EVENT_DETECTED	received	VALIDATING
+VALIDATING	invalid	REJECTED
+VALIDATING	valid	DECISION_REQUIRED
+DECISION_REQUIRED	decision path established	DECIDING
+DECIDING	decision complete	GOVERNANCE_CHECK
+GOVERNANCE_CHECK	deny	BLOCKED
+GOVERNANCE_CHECK	approval required	APPROVAL_REQUIRED
+GOVERNANCE_CHECK	allow	EXECUTING
+APPROVAL_REQUIRED	authorized approval	APPROVED
+APPROVED	execution begins	EXECUTING
+EXECUTING	recoverable failure	RETRY
+RETRY	revalidated	EXECUTING
+EXECUTING	non-recoverable failure	FAILED
+EXECUTING	success	DELIVERING
+DELIVERING	delivery operation complete	VERIFYING
+VERIFYING	verified	COMPLETED
+COMPLETED	terminal processing	SILENT
+REJECTED	terminal processing	SILENT
+BLOCKED	terminal processing	SILENT
+FAILED	terminal processing	SILENT
+
+
+Unknown transitions are invalid.
+
+UNKNOWN TRANSITION
+        ↓
+REJECT
+        ↓
+NO BUSINESS MUTATION
+        ↓
+AUDIT
+        ↓
+SILENT
+
+
+---
+
+7. State Authority Rules
+
+State	Business Mutation	AI	Authority
+
+SILENT	No	No	None
+EVENT_DETECTED	No	No	None
+VALIDATING	No	No	Validation only
+DECISION_REQUIRED	No	No	Routing only
+DECIDING	Decision state only	Proposal	Decision Core
+GOVERNANCE_CHECK	No unauthorized mutation	Proposal only	Governance
+APPROVAL_REQUIRED	No	No	Approval Authority
+APPROVED	No direct mutation	No	Approved authority
+EXECUTING	Yes, authorized only	Controlled	Verified Runtime
+RETRY	No duplicate mutation	No	Recovery
+DELIVERING	Delivery only	Optional	Delivery Runtime
+VERIFYING	Verification only	No	Verification
+COMPLETED	Finalized	No	Runtime
+BLOCKED	No	No	Governance
+REJECTED	No	No	Validation
+FAILED	No unauthorized mutation	No	Runtime
+
+
+
+---
+
+8. Illegal Transition Contract
+
+The following are explicitly forbidden:
+
+SILENT → PAYMENT_PAID
+SILENT → ENTITLEMENT_ACTIVE
+
+EVENT_DETECTED → PAYMENT_PAID
+EVENT_DETECTED → ENTITLEMENT_ACTIVE
+
+AI → PAYMENT_PAID
+AI → ENTITLEMENT_ACTIVE
+AI → G30_RELEASE
+
+FRONTEND → PAYMENT_PAID
+FRONTEND → ENTITLEMENT_ACTIVE
+
+WEBHOOK → FULL_REPORT
+
+FAILED → SERVICE_ACTIVE
+
+A webhook is an input to the commerce authority.
+
+It is not itself the entitlement authority.
+
+
+---
+
+9. Decision Core Contract
+
+SOURCE_ADAPTER
+ ↓
+NORMALIZER
+ ↓
+SEMANTIC_CANONICALIZATION
+ ↓
+GUBON-9
+ ↓
+DIMENSIONS
+ ↓
+DECISION_VECTOR
+ ↓
+CONTEXT
+ ↓
+DECISION_CONTRACT
+ ↓
+DECISION_HASH
+
+The Decision Core must derive authoritative state.
+
+It must reject authoritative reliance on:
+
+CLIENT VECTOR
+AI-GENERATED VECTOR
+FRONTEND DECISION
+EXTERNAL CALCULATED VECTOR
+
+
+---
+
+10. GUBON-9 Contract
+
+Kernel:
+
+GLS-PROD-1.0.0
+
+Canonical GUBON state:
+
+1–9
+
+Raw/intermediate calculations may contain 0.
+
+0 is never a GUBON state.
+
+export function digitalRoot(value: number): GubonDigit {
+  if (!Number.isFinite(value)) {
+    throw new TypeError("VALUE_MUST_BE_FINITE");
+  }
+
+  const integer = Math.abs(Math.trunc(value));
+
+  if (integer === 0) {
+    throw new RangeError("ZERO_IS_NOT_A_GUBON_STATE");
+  }
+
+  const result = 1 + ((integer - 1) % 9);
+
+  return result as GubonDigit;
+}
+
+No second kernel is permitted.
+
+
+---
+
+11. Governance Contract
+
+POLICY
+ ↓
+RISK
+ ↓
+PERMISSION
+ ↓
+APPROVAL REQUIREMENT
+ ↓
+AUTHORITY
+ ↓
+EXECUTION
+
+Canonical rule:
+
+> AI MAY PROPOSE.
+GOVERNANCE MAY AUTHORIZE.
+VERIFIED RUNTIME MAY EXECUTE.
+
+
+
+Possible governance outcomes:
+
+ALLOW
+DENY
+REQUIRE_APPROVAL
+SIMULATE_ONLY
+
+
+---
+
+12. AI Boundary Contract
+
+VALIDATED DECISION CONTEXT
+ ↓
+APPROVED TEMPLATE
+ ↓
+AI GATEWAY
+ ↓
+OUTPUT VALIDATOR
+ ↓
+AUTHORITY VALIDATOR
+ ↓
+REPORT COMPILER
+
+AI may:
+
+ANALYZE
+GENERATE
+NARRATE
+CREATE CONTENT
+CREATE CAMPAIGN PROPOSALS
+CREATE AUDIENCE PROPOSALS
+CREATE REPORT NARRATIVE
+
+AI may not:
+
+CHANGE KERNEL
+CHANGE FORMULA
+CHANGE MAPPING
+CHANGE WEIGHTS
+CHANGE DECISION HASH
+CHANGE PRICE
+AUTHORIZE PAYMENT
+AUTHORIZE ENTITLEMENT
+WRITE REVENUE AUTHORITY
+MODIFY AUDIT AUTHORITY
+RELEASE PRODUCTION
+AUTHORIZE G30
+BECOME L0
+
+
+---
+
+13. No-Event AI Invariant
+
+NO BUSINESS EVENT
+        ↓
+NO DECISION
+        ↓
+NO AI CALL
+
+Therefore:
+
+NO EVENT
+→ NO REPORT
+→ NO PDF
+→ NO TTS
+→ NO CUSTOMER MESSAGE
+→ NO COMMERCIAL COMPUTATION
+
+
+---
+
+14. Preview Contract
+
+INPUT
+ ↓
+VALIDATION
+ ↓
+GUBON-9
+ ↓
+DECISION
+ ↓
+DECISION_HASH
+ ↓
+REPORT_CREATED
+ ↓
+DETERMINISTIC_PREVIEW
+ ↓
+PREVIEW_READY
+
+The frontend may render the preview.
+
+The frontend cannot establish its underlying truth.
+
+
+---
+
+15. Commerce Contract
+
+OFFER
+ ↓
+PRODUCT_CONTRACT
+ ↓
+CHECKOUT
+ ↓
+PAYPAL_ORDER
+ ↓
+REAL_CAPTURE
+ ↓
+AUTHENTICATED_WEBHOOK
+ ↓
+IDEMPOTENCY
+ ↓
+PAYMENT_PAID
+ ↓
+ORDER_PAID
+ ↓
+ENTITLEMENT_ACTIVE
+ ↓
+FULL_REPORT
+
+Critical invariant:
+
+CHECKOUT.ORDER.APPROVED
+        ≠
+PAYMENT_PAID
+
+Payment authority requires the verified capture + authenticated webhook + idempotency + authoritative transaction chain.
+
+
+---
+
+16. Atomic Commerce Contract
+
+The following must be committed atomically within the authoritative PostgreSQL transaction:
+
+PAYMENT = PAID
++
+ORDER = PAID
++
+ENTITLEMENT = ACTIVE
++
+REVENUE JOURNAL
++
+AUDIT RECORD
+
+Failure:
+
+ROLLBACK
+ ↓
+NO PARTIAL COMMERCIAL AUTHORITY STATE
+
+PostgreSQL is authoritative.
+
+Redis is not.
+
+
+---
+
+17. Idempotency Contract
+
+Canonical identities:
+
+eventId
+providerEventId
+requestId
+
+The applicable contract determines which identity is authoritative for a given operation.
+
+Duplicate:
+
+DUPLICATE
+ ↓
+NO SECOND MUTATION
+ ↓
+RETURN EXISTING AUTHORITATIVE RESULT
+ ↓
+AUDIT
+
+Mandatory for:
+
+PAYMENT
+WEBHOOK
+ENTITLEMENT
+REVENUE
+FULFILLMENT
+
+
+---
+
+18. Full Report Contract
+
+ENTITLEMENT_ACTIVE
+ ↓
+DECISION_CONTEXT
+ ↓
+APPROVED_TEMPLATE
+ ↓
+AI_GATEWAY
+ ↓
+OUTPUT_VALIDATOR
+ ↓
+AUTHORITY_VALIDATOR
+ ↓
+REPORT_COMPILER
+ ↓
+FULL_REPORT_READY
+
+AI output is non-authoritative until validated.
+
+
+---
+
+19. Delivery Contract
+
+Delivery products are independently stateful:
+
+REPORT_READY
+≠
+PDF_READY
+≠
+AUDIO_READY
+≠
+DELIVERY_COMPLETE
+
+A PDF failure cannot invalidate:
+
+DECISION
+PAYMENT
+ENTITLEMENT
+REPORT
+
+
+---
+
+20. Outcome and Memory Contract
+
+DECISION
+ ↓
+ACTION
+ ↓
+OUTCOME
+ ↓
+MEMORY
+ ↓
+NEXT_DECISION
+
+Historical evidence is immutable.
+
+BUSINESS STATE EVOLVES
+HISTORICAL EVIDENCE REMAINS IMMUTABLE
+
+Corrections create new traceable records.
+
+
+---
+
+21. Revenue Contract
+
+REVENUE ATTRIBUTION
+ ↓
+LEDGER
+ ↓
+AUDIT
+ ↓
+RETENTION
+ ↓
+UPSELL
+ ↓
+NEXT DECISION
+
+Revenue cannot be created by:
+
+AI
+FRONTEND
+ANALYTICS PRESENTATION
+CUSTOMER INPUT
+
+Revenue authority originates from verified commerce events.
+
+
+---
+
+22. Recovery Contract
+
+EXECUTING
+ ↓
+RECOVERABLE_FAILURE
+ ↓
+RETRY
+ ↓
+BACKOFF
+ ↓
+REVALIDATE
+ ↓
+EXECUTING
+
+Exhaustion:
+
+RETRY_EXHAUSTED
+ ↓
+FAILED / BLOCKED
+ ↓
+AUDIT
+ ↓
+SILENT
+
+Forbidden:
+
+FORCE_RELEASE
+SKIP_G20
+SKIP_GOVERNANCE
+SKIP_IDEMPOTENCY
+SKIP_PAYMENT_VERIFICATION
+SKIP_ENTITLEMENT
+SKIP_AUDIT
+
+Failure never grants authority.
+
+
+---
+
+23. G01–G30 Evidence Binding
+
+G01–G30 is the verification layer of the same runtime.
+
+It is not a second runtime.
+
+CANONICAL RUNTIME
+ ↓
+REAL EXECUTION
+ ↓
+EVIDENCE
+ ↓
+G01–G30
+ ↓
+INDEPENDENT VERIFICATION
+ ↓
+RELEASE DECISION
+
+Evidence cannot manufacture execution.
+
+
+---
+
+23.1 Runtime-to-G01–G30 Mapping
+
+Gate	Runtime Domain	Required Evidence
+
+G01	Deployment/runtime identity	Deployment and canonical version identity
+G02	Customer identity	Real authenticated customer
+G03	Real input	Real input persisted
+G04	Validation	Valid/invalid validation evidence
+G05	Semantic normalization	Canonical semantic transformation
+G06	GUBON-9	Physical GLS-PROD-1.0.0 execution
+G07	Decision	Decision Contract + decision identity/hash
+G08	Gateway boundary	Authentication/authorization/runtime evidence
+G09	Governance	Policy/risk/permission/authority evidence
+G10	Preview	Deterministic preview evidence
+G11	Offer/Product	Product Contract + authoritative price
+G12	PayPal order	Real PayPal order
+G13	Capture	Real capture
+G14	Webhook	Authenticity verification
+G15	Idempotency	Duplicate suppression evidence
+G16	Payment	PAYMENT = PAID
+G17	Entitlement	ENTITLEMENT = ACTIVE
+G18	Full report	Paid full-report execution
+G19	Delivery	Customer-accessible delivery
+G20	Real commercial transaction	End-to-end real transaction
+G21	Revenue	Ledger + attribution
+G22	Audit	Immutable audit verification
+G23	Outcome/memory	Outcome/memory continuity
+G24	Release identity	Required prior evidence + release identity
+G25	Runtime integrity	Canonical runtime/configuration integrity
+G26	Security boundary	L0/customer isolation + denial evidence
+G27	Recovery	Failure/retry/recovery evidence
+G28	Observability	Operational telemetry/evidence
+G29	Evidence package	Independently inspectable evidence package
+G30	Release verification	Independent final release verification
+
+
+Registry precedence: the frozen G01–G30 registry remains authoritative for exact gate names and criteria. This table is the runtime implementation mapping and must not silently redefine the registry.
+
+
+---
+
+24. G20 Contract
+
+G20 proves the real commercial transaction.
+
+Required identity:
+
+requestId
+tenantId
+decisionId
+orderId
+paymentId
+webhookEventId
+entitlementId
+ledgerEntryId
+auditHash
+finalState
+
+Required final state:
+
+SERVICE_ACTIVE
+
+G20 evidence must establish the applicable real transaction chain, including:
+
+REAL_USER
+REAL_INPUT
+REAL_KERNEL
+REAL_PREVIEW
+REAL_PAYPAL_ORDER
+REAL_CAPTURE
+AUTHENTICATED_WEBHOOK
+IDEMPOTENCY
+PAYMENT_PAID
+ENTITLEMENT_ACTIVE
+FULL_REPORT
+REVENUE_LEDGER
+AUDIT
+EVIDENCE_PACK
+
+Sandbox evidence does not become First Cash evidence.
+
+
+---
+
+25. G30 Contract
+
+G30 is independent release verification.
+
+G20
+ ↓
+EVIDENCE
+ ↓
+G30
+ ↓
+INDEPENDENT VERIFICATION
+ ↓
+RELEASE_ALLOW / RELEASE_DENY
+
+G30:
+
+- does not execute the commercial transaction
+- does not create payment truth
+- does not create entitlement truth
+- does not become a database function
+- does not self-authorize from database state
+
+Until mandatory evidence is independently verified:
+
+RELEASE_DENY
+
+Forbidden:
+
+FORCE_RELEASE
+SKIP_G20
+MANUAL_RELEASE_OVERRIDE
+
+
+---
+
+26. L0 Sovereign Boundary
+
+L0 SOVEREIGN OWNER
+        ↓
+SOVEREIGN CONTROL PLANE
+        ↓
+GOVERNANCE
+        ↓
+VERIFIED RUNTIME
+
+L0-only domains:
+
+SOVEREIGN WAR ROOM
+CORE ALGORITHM
+FORMULA
+MAPPING
+WEIGHTS
+DECISION INTELLIGENCE
+REVENUE INTELLIGENCE
+G20
+G30
+RELEASE CONTROL
+RUNTIME GOVERNANCE
+AI GOVERNANCE
+
+Customer domain:
+
+LANDING
+INPUT
+OWN PREVIEW
+OWN CHECKOUT
+OWN PAYMENT STATUS
+OWN FULL REPORT
+OWN PDF
+OWN DELIVERY
+OWN OUTCOME
+
+Isolation is enforced server-side.
+
+
+---
+
+27. Data Authority
+
+POSTGRESQL
+= SYSTEM OF RECORD
+= BUSINESS STATE AUTHORITY
+= COMMERCE AUTHORITY
+
+REDIS
+= CACHE
+= LOCK
+= RATE LIMIT
+= EPHEMERAL QUEUE SUPPORT
+
+OBJECT STORAGE
+= PDF
+= REPORT ARTIFACTS
+= EVIDENCE ARTIFACTS
+
+No secondary datastore may silently become an authority.
+
+
+---
+
+28. Authoritative Transaction Contract
+
+Every authoritative mutation follows:
+
+BEGIN
+ ↓
+VALIDATE
+ ↓
+AUTHORIZE
+ ↓
+MUTATE
+ ↓
+AUDIT
+ ↓
+COMMIT
+
+Failure:
+
+ROLLBACK
+ ↓
+FAILURE RECORD
+ ↓
+RECOVERY / BLOCK
+ ↓
+NO PARTIAL AUTHORITY STATE
+
+Commerce uses PostgreSQL SERIALIZABLE semantics where required by the frozen commerce contract.
+
+
+---
+
+29. Audit Contract
+
+Important business evidence must reconstruct:
+
+WHO
+WHAT
+WHEN
+WHY
+VERSION
+DECISION
+PAYMENT
+ENTITLEMENT
+RESULT
+
+Integrity mechanism:
+
+RFC8785 JCS
++
+SHA-256
+
+Historical records are never silently rewritten.
+
+Corrections create new traceable records.
+
+
+---
+
+30. Observability Contract
+
+Observability is a detector, never an authority.
+
+It may:
+
+DETECT
+RECORD
+ALERT
+ESCALATE
+
+It may not:
+
+AUTHORIZE PAYMENT
+AUTHORIZE ENTITLEMENT
+AUTHORIZE G30
+CHANGE KERNEL
+CHANGE REVENUE
+CHANGE GOVERNANCE
+
+Required dimensions:
+
+CPU
+MEMORY
+DISK
+DATABASE
+QUEUE
+WORKERS
+AI PROVIDERS
+PAYMENT
+WEBHOOKS
+ERRORS
+LATENCY
+SECURITY
+REVENUE
+
+
+---
+
+31. Implementation Contract Set
+
+source.contract
+input.contract
+semantic.contract
+gubon9.contract
+dimension.contract
+decision-vector.contract
+decision.contract
+governance.contract
+approval.contract
+runtime-event.contract
+runtime-state.contract
+report.contract
+product.contract
+payment.contract
+webhook.contract
+entitlement.contract
+delivery.contract
+outcome.contract
+memory.contract
+revenue.contract
+audit.contract
+traffic.contract
+exl5.contract
+evidence.contract
+release.contract
+
+These are interfaces of one runtime, not independent systems.
+
+
+---
+
+32. Core Runtime Interfaces
+
+32.1 Event Processor
+
+interface EventProcessor {
+  receive(event: RuntimeEvent): Promise<EventReceipt>;
+  validate(event: RuntimeEvent): Promise<ValidationResult>;
+  authorize(event: RuntimeEvent): Promise<AuthorizationResult>;
+  execute(event: RuntimeEvent): Promise<ExecutionResult>;
+  verify(event: RuntimeEvent): Promise<VerificationResult>;
+}
+
+32.2 State Machine
+
+interface StateMachine {
+  current(entityId: string): Promise<RuntimeState>;
+
+  transition(
+    entityId: string,
+    event: RuntimeEvent
+  ): Promise<StateTransitionResult>;
+}
+
+Implementation requirement:
+
+CLOSED TRANSITION TABLE
++
+ATOMIC STATE TRANSITION
++
+NO UNKNOWN TRANSITIONS
+
+32.3 Governance
+
+interface GovernanceEngine {
+  evaluate(
+    context: GovernanceContext
+  ): Promise<GovernanceDecision>;
+}
+
+32.4 Decision Core
+
+interface DecisionCore {
+  normalize(input: SourceInput): Promise<NormalizedInput>;
+
+  resolveSemantic(
+    input: NormalizedInput
+  ): Promise<SemanticResolution>;
+
+  executeKernel(
+    input: SemanticResolution
+  ): Promise<KernelResult>;
+
+  deriveVector(
+    kernelResult: KernelResult
+  ): Promise<DecisionVector>;
+
+  createContract(
+    context: DecisionContext
+  ): Promise<DecisionContract>;
+
+  hash(
+    contract: DecisionContract
+  ): Promise<string>;
+}
+
+32.4 Decision Core
+
+interface DecisionCore {
+  normalize(input: SourceInput): Promise<NormalizedInput>;
+
+  resolveSemantic(
+    input: NormalizedInput
+  ): Promise<SemanticResolution>;
+
+  executeKernel(
+    input: SemanticResolution
+  ): Promise<KernelResult>;
+
+  deriveVector(
+    kernelResult: KernelResult
+  ): Promise<DecisionVector>;
+
+  createContract(
+    context: DecisionContext
+  ): Promise<DecisionContract>;
+
+  hash(
+    contract: DecisionContract
+  ): Promise<string>;
+}
+
+32.4 Decision Core
+interface DecisionCore {
+  normalize(input: SourceInput): Promise<NormalizedInput>;
+
+  resolveSemantic(
+    input: NormalizedInput
+  ): Promise<SemanticResolution>;
+
+  executeKernel(
+    input: SemanticResolution
+  ): Promise<KernelResult>;
+
+  deriveVector(
+    kernelResult: KernelResult
+  ): Promise<DecisionVector>;
+
+  createContract(
+    context: DecisionContext
+  ): Promise<DecisionContract>;
+
+  hash(
+    contract: DecisionContract
+  ): Promise<string>;
+}
+32.5 Commerce
+interface CommerceAuthority {
+  createOrder(
+    request: CreateOrderRequest
+  ): Promise<Order>;
+
+  verifyCapture(
+    capture: ProviderCapture
+  ): Promise<CaptureVerification>;
+
+  processWebhook(
+    event: ProviderWebhook
+  ): Promise<WebhookResult>;
+
+  activateEntitlement(
+    paymentId: string
+  ): Promise<Entitlement>;
+}
+32.6 Report
+interface ReportRuntime {
+  createPreview(
+    decision: DecisionContract
+  ): Promise<Preview>;
+
+  generateFullReport(
+    request: FullReportRequest
+  ): Promise<Report>;
+
+  compilePdf(
+    report: Report
+  ): Promise<PdfArtifact>;
+}
+32.7 Audit
+interface AuditAuthority {
+  append(record: AuditRecord): Promise<AuditReceipt>;
+
+  verify(
+    recordId: string
+  ): Promise<AuditVerification>;
+}
+33. Frozen Monorepo
+gubon-ex/
+├── apps/
+│   ├── web/
+│   ├── api/
+│   ├── worker/
+│   └── war-room/
+│
+├── packages/
+│   ├── core-contracts/
+│   ├── decision-kernel/
+│   ├── governance/
+│   ├── report-engine/
+│   ├── commerce/
+│   ├── traffic/
+│   ├── ai-gateway/
+│   ├── memory/
+│   ├── audit/
+│   └── release-gate/
+│
+├── database/
+│   ├── migrations/
+│   └── seeds/
+│
+├── scripts/
+│   ├── verify-g20.*
+│   ├── g30-verify.*
+│   └── release.*
+│
+├── evidence/
+│   ├── g01/
+│   ├── ...
+│   ├── g20/
+│   └── g30/
+│
+└── docs/
+    └── canonical/
+Package boundaries are not authority boundaries.
+34. Frozen Architecture Rules
+Forbidden
+SECOND_KERNEL
+SECOND_AUTHORITY_CHAIN
+SECOND_COMMERCE_ARCHITECTURE
+SECOND_REPORT_ENGINE
+SECOND_STATE_MACHINE
+PERSONAL_ARCHITECTURE
+ENTERPRISE_ARCHITECTURE
+AI_AUTHORITY
+FRONTEND_AUTHORITY
+PRICE_IN_KERNEL
+PAYMENT_IN_AI
+ENTITLEMENT_IN_FRONTEND
+REPORT_DIRECTLY_MUTATING_ORDER
+DUPLICATE_WEBHOOK_FULFILLMENT
+UNVERIFIED_RELEASE
+BYPASS_RECOVERY
+BYPASS_G20
+BYPASS_G30
+Extensible
+TRAFFIC_CHANNEL
+SOURCE_ADAPTER
+DIMENSION
+SEMANTIC_ID
+TEMPLATE
+PRODUCT
+CAMPAIGN
+CREATIVE
+AUDIENCE
+OUTCOME
+MEMORY
+AI_PROVIDER
+DISTRIBUTION_CHANNEL
+All extensions must implement the canonical contracts.
+35. Frozen Runtime Invariants
+R01  SILENT IS THE DEFAULT STATE.
+
+R02  EVERY BUSINESS ACTION REQUIRES A VALID EVENT.
+
+R03  EVERY EVENT MUST PASS SOURCE AUTHENTICATION AND VALIDATION.
+
+R04  GOVERNANCE PRECEDES AUTHORIZED EXECUTION.
+
+R05  AI NEVER BECOMES BUSINESS AUTHORITY.
+
+R06  FRONTEND NEVER BECOMES BUSINESS AUTHORITY.
+
+R07  PAYMENT AUTHORITY REMAINS SERVER-SIDE.
+
+R08  ENTITLEMENT AUTHORITY REMAINS SERVER-SIDE.
+
+R09  DUPLICATE EVENTS NEVER CREATE DUPLICATE BUSINESS MUTATIONS.
+
+R10  HISTORICAL EVIDENCE IS IMMUTABLE.
+
+R11  BUSINESS STATE MAY EVOLVE THROUGH AUTHORIZED NEW EVENTS.
+
+R12  FAILURE NEVER GRANTS AUTHORITY.
+
+R13  RECOVERY NEVER BYPASSES GOVERNANCE.
+
+R14  UNVERIFIED EVIDENCE NEVER BECOMES VERIFIED EVIDENCE.
+
+R15  G20 VERIFIES COMMERCIAL EXECUTION; IT DOES NOT RELEASE PRODUCTION.
+
+R16  G30 INDEPENDENTLY VERIFIES RELEASE READINESS.
+
+R17  DATABASE STATE NEVER SELF-AUTHORIZES G30.
+
+R18  NO BUSINESS EVENT MEANS NO BUSINESS ACTION.
+
+R19  COMPLETED EVENTS RETURN TO SILENT.
+
+R20  THERE IS ONLY ONE CANONICAL COMMERCIAL CHAIN.
+36. Implementation Checklist
+Phase A — Contract Freeze
+[ ] Freeze GLS-PROD-1.0.0
+[ ] Freeze RuntimeEvent
+[ ] Freeze RuntimeState
+[ ] Freeze transition table
+[ ] Freeze Decision Contract
+[ ] Freeze Decision Vector
+[ ] Freeze Governance Contract
+[ ] Freeze Product Contract
+[ ] Freeze Payment Contract
+[ ] Freeze Entitlement Contract
+[ ] Freeze Report Contract
+[ ] Freeze Delivery Contract
+[ ] Freeze Revenue Contract
+[ ] Freeze Audit Contract
+[ ] Freeze Evidence Contract
+[ ] Freeze Release Contract
+[ ] Freeze G01–G30 registry reference
+[ ] Reject alternate contracts
+Phase B — Runtime
+[ ] Implement event ingestion
+[ ] Implement event authentication
+[ ] Implement schema validation
+[ ] Implement event classification
+[ ] Implement idempotency
+[ ] Implement closed transition table
+[ ] Implement transition authorization
+[ ] Implement fail-closed behavior
+[ ] Implement retry policy
+[ ] Implement recovery exhaustion
+[ ] Implement terminal-to-SILENT behavior
+[ ] Implement correlation/causation tracing
+Phase C — Decision Core
+[ ] Source adapter
+[ ] Normalizer
+[ ] Semantic canonicalization
+[ ] GUBON-9
+[ ] Dimension registry
+[ ] Decision Vector derivation
+[ ] Context builder
+[ ] Decision Contract
+[ ] Decision hash
+[ ] External vector rejection/validation
+[ ] Kernel version binding
+Phase D — Governance
+[ ] Policy evaluation
+[ ] Risk evaluation
+[ ] Permission evaluation
+[ ] Approval requirement
+[ ] Authority validation
+[ ] AI proposal boundary
+[ ] Runtime execution authorization
+[ ] Governance audit
+Phase E — Preview / Report
+[ ] Deterministic preview
+[ ] Preview persistence
+[ ] Preview access control
+[ ] Entitlement enforcement
+[ ] Full report pipeline
+[ ] AI Gateway
+[ ] Output validation
+[ ] Authority validation
+[ ] Report compilation
+[ ] PDF compilation
+[ ] Audio/TTS isolation
+[ ] Delivery state separation
+Phase F — Commerce
+[ ] Product registry
+[ ] Server-side price authority
+[ ] PayPal order creation
+[ ] Real capture verification
+[ ] Webhook authentication
+[ ] Provider event idempotency
+[ ] PostgreSQL transaction boundary
+[ ] Payment PAID
+[ ] Order PAID
+[ ] Entitlement ACTIVE
+[ ] Revenue journal
+[ ] Audit record
+[ ] Duplicate fulfillment protection
+Phase G — Security
+[ ] L0 authentication
+[ ] L0 authorization
+[ ] War Room server-side enforcement
+[ ] Customer isolation
+[ ] Tenant isolation
+[ ] Kernel isolation
+[ ] Governance isolation
+[ ] Revenue intelligence isolation
+[ ] G20 isolation
+[ ] G30 isolation
+[ ] Privileged-access denial evidence
+[ ] No frontend authority
+Phase H — Memory / Outcome
+[ ] Action recording
+[ ] Outcome recording
+[ ] Memory persistence
+[ ] Immutable historical records
+[ ] Next-decision linkage
+[ ] Revenue continuity
+[ ] Decision-history continuity
+Phase I — Observability / Recovery
+[ ] Runtime health
+[ ] Database health
+[ ] Queue health
+[ ] Worker health
+[ ] AI provider health
+[ ] PayPal health
+[ ] Webhook health
+[ ] Error monitoring
+[ ] Latency monitoring
+[ ] Security monitoring
+[ ] Retry/backoff
+[ ] Recovery exhaustion
+[ ] Audit recovery events
+Phase J — Evidence
+[ ] G01 evidence
+[ ] G02 evidence
+[ ] G03 evidence
+[ ] G04 evidence
+[ ] G05 evidence
+[ ] G06 evidence
+[ ] G07 evidence
+[ ] G08 evidence
+[ ] G09 evidence
+[ ] G10 evidence
+[ ] G11 evidence
+[ ] G12 evidence
+[ ] G13 evidence
+[ ] G14 evidence
+[ ] G15 evidence
+[ ] G16 evidence
+[ ] G17 evidence
+[ ] G18 evidence
+[ ] G19 evidence
+[ ] G20 evidence
+[ ] G21 evidence
+[ ] G22 evidence
+[ ] G23 evidence
+[ ] G24 evidence
+[ ] G25 evidence
+[ ] G26 evidence
+[ ] G27 evidence
+[ ] G28 evidence
+[ ] G29 evidence
+[ ] G30 evidence
+Phase K — Release
+IMPLEMENTATION
+ ↓
+UNIT VERIFICATION
+ ↓
+INTEGRATION VERIFICATION
+ ↓
+RUNTIME VERIFICATION
+ ↓
+REAL COMMERCIAL EXECUTION
+ ↓
+G20
+ ↓
+EVIDENCE PACKAGE
+ ↓
+INDEPENDENT G30
+ ↓
+RELEASE_ALLOW
+ ↓
+PRODUCTION
+Any unresolved mandatory gate:
+RELEASE_DENY
+37. Production Status Rules
+Only these statuses are valid:
+PASS
+FAIL
+NOT_VERIFIED
+BLOCKED
+The following are not production verification:
+CODE EXISTS
+TEST PASSES
+ENVIRONMENT EXISTS
+SANDBOX WORKS
+DOCUMENT CLAIMS PASS
+Production VERIFIED requires physical evidence.
+38. Final Canonical Runtime
+                         GUBON-EX®
+                  DECISION-AS-A-SERVICE
+                         │
+                         ▼
+                      SILENT
+                         │
+                    VALID EVENT
+                         │
+                         ▼
+                     DETECT
+                         │
+                         ▼
+                    VALIDATE
+                         │
+                         ▼
+                     DECIDE
+                         │
+                         ▼
+                    GOVERN
+                         │
+                         ▼
+                   AUTHORIZE
+                         │
+                         ▼
+                    EXECUTE
+                         │
+                         ▼
+                    DELIVER
+                         │
+                         ▼
+                    VERIFY
+                         │
+                         ▼
+                   REMEMBER
+                         │
+                         ▼
+                REVENUE IF APPLICABLE
+                         │
+                         ▼
+                      SILENT
+                         │
+                         └────────→ NEXT EVENT
+39. Canonical Product Principle
+GUBON-EX® — Decision-as-a-Service.
+Event-driven. Silent by default.
+When there is a decision, the system acts.
+When the decision is complete, the system becomes silent.
+The architecture is one.
+The commercial chain is one.
+The authority chain is one.
+The state machine is one.
+The runtime is one.
+The evidence system is one.
+Business state evolves through authorized events.
+Historical evidence remains immutable.
+No event. No action. Silence.
+Canonical Freeze: v1.0
+Turn the frozen runtime into build artifacts
+Create a traceability matrix for G01–G30
+Create the canonical spec as an editable documentTherefore the intended operating model is:
+
+24/7 ONLINE
++
+EVENT-DRIVEN COMPUTATION
++
+ON-DEMAND AI
++
+ON-DEMAND REPORTING
++
+ON-DEMAND DELIVERY
+
+rather than:
+
+24/7 AI
+24/7 POLLING
+24/7 REPORT GENERATION
+24/7 AGENT LOOPS
+24/7 CUSTOMER MESSAGING
+
+This is the correct architecture for low operating cost with autonomous commercial execution.
+
+32. Frozen Monorepo
+
+gubon-ex/
+├── apps/
+│   ├── web/
+│   ├── api/
+│   ├── worker/
+│   └── war-room/
+│
+├── packages/
+│   ├── core-contracts/
+│   ├── decision-kernel/
+│   ├── governance/
+│   ├── report-engine/
+│   ├── commerce/
+│   ├── traffic/
+│   ├── ai-gateway/
+│   ├── memory/
+│   ├── audit/
+│   └── release-gate/
+│
+├── database/
+│   ├── migrations/
+│   └── seeds/
+│
+├── scripts/
+│   ├── verify-g20.*
+│   ├── g30-verify.*
+│   └── release.*
+│
+├── evidence/
+│   ├── g01/
+│   ├── ...
+│   ├── g20/
+│   └── g30/
+│
+└── docs/
+    └── canonical/
+
+These packages are implementation boundaries only.
+
+They are not independent authorities.
+
+33. Frozen Runtime Invariants
+
+R01  SILENT IS THE DEFAULT STATE.
+
+R02  EVERY BUSINESS ACTION REQUIRES A VALID EVENT.
+
+R03  EVERY EVENT MUST PASS SOURCE AUTHENTICATION AND VALIDATION.
+
+R04  GOVERNANCE PRECEDES AUTHORIZED EXECUTION.
+
+R05  AI NEVER BECOMES BUSINESS AUTHORITY.
+
+R06  FRONTEND NEVER BECOMES BUSINESS AUTHORITY.
+
+R07  PAYMENT AUTHORITY REMAINS SERVER-SIDE.
+
+R08  ENTITLEMENT AUTHORITY REMAINS SERVER-SIDE.
+
+R09  DUPLICATE EVENTS NEVER CREATE DUPLICATE BUSINESS MUTATIONS.
+
+R10  HISTORICAL EVIDENCE IS IMMUTABLE.
+
+R11  BUSINESS STATE MAY EVOLVE THROUGH AUTHORIZED NEW EVENTS.
+
+R12  FAILURE NEVER GRANTS AUTHORITY.
+
+R13  RECOVERY NEVER BYPASSES GOVERNANCE.
+
+R14  UNVERIFIED EVIDENCE NEVER BECOMES VERIFIED EVIDENCE.
+
+R15  G20 VERIFIES COMMERCIAL EXECUTION; IT DOES NOT RELEASE PRODUCTION.
+
+R16  G30 INDEPENDENTLY VERIFIES RELEASE READINESS.
+
+R17  DATABASE STATE NEVER SELF-AUTHORIZES G30.
+
+R18  NO BUSINESS EVENT MEANS NO BUSINESS ACTION.
+
+R19  COMPLETED EVENTS RETURN TO SILENT.
+
+R20  THERE IS ONLY ONE CANONICAL COMMERCIAL CHAIN.
+
+34. Final Runtime
+
+                         GUBON-EX®
+
+                  DECISION-AS-A-SERVICE
+                         │
+                         ▼
+                      SILENT
+                         │
+                    VALID EVENT
+                         │
+                         ▼
+                     DETECT
+                         │
+                         ▼
+                    VALIDATE
+                         │
+                         ▼
+                     DECIDE
+                         │
+                         ▼
+                    GOVERN
+                         │
+                         ▼
+                   AUTHORIZE
+                         │
+                         ▼
+                    EXECUTE
+                         │
+                         ▼
+                    DELIVER
+                         │
+                         ▼
+                    VERIFY
+                         │
+                         ▼
+                    REMEMBER
+                         │
+                         ▼
+                 REVENUE IF APPLICABLE
+                         │
+                         ▼
+                      SILENT
+                         │
+                         └──────→ NEXT EVENT
+
+35. Final Frozen Product Principle
+
+GUBON-EX® — Decision-as-a-Service.
+Event-driven. Silent by default.
+
+When there is a decision, the system acts.
+
+When the decision is complete, the system becomes silent.
+
+The architecture is one.
+The commercial chain is one.
+The authority chain is one.
+The state machine is one.
+The runtime is one.
+The evidence system is one.
+The business state continuously evolves.
+The historical evidence remains immutable.
+
+No event. No action. Silence.
+
+Refine the frozen runtime
+
+Create an implementation checklist
+Turn this into a canonical specGUBON-EX® — Unified Immutable Commercial Chain
+
+以下直接收斂成一條完整商業鏈。
+不是 Personal / Enterprise 兩套架構，不是 War Room、AI、流量、Report、Commerce 各自獨立，而是同一個 GUBON-EX® Operating Chain 的不同節點。
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                  GUBON-EX® COMMERCIAL OS                           ║
+║          DECISION EXECUTION & REVENUE OPERATING CHAIN              ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+L0 SOVEREIGN OWNER  
+                     徐嘉糧 / CEO / L0  
+                              │  
+                              ▼
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                     SOVEREIGN CONTROL PLANE                         ║
+║                                                                      ║
+║ Identity · Security · Governance · Audit · Observability             ║
+║ AI Governance · Commerce Authority · Release Control · G20 · G30    ║
+║                                                                      ║
+║                 SOVEREIGN WAR ROOM — L0 ONLY                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         TRAFFIC ENGINE                               │
+│                                                                      │
+│ Organic / SEO / Social / Referral / LINE / Email / Web Push          │
+│ Paid Campaign / Creative / Video / Content / Landing                 │
+│                                                                      │
+│ Audience Definition → Campaign → Creative → Distribution             │
+│                                                                      │
+│                    EXL5 TRAFFIC CONVERSION KEY                       │
+│          Traffic → Audience → Creative → Landing → Conversion        │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         CUSTOMER ENTRY                               │
+│                                                                      │
+│ Landing Page                                                         │
+│      ↓                                                               │
+│ Customer Question / Data Input                                       │
+│      ↓                                                               │
+│ Authentication / Consent / Validation                                │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         DECISION CORE                                │
+│                                                                      │
+│ SOURCE ADAPTER                                                       │
+│      ↓                                                               │
+│ NORMALIZER                                                           │
+│      ↓                                                               │
+│ SEMANTIC CANONICALIZATION                                            │
+│      ↓                                                               │
+│ GUBON-9 NUMERIC KERNEL                                               │
+│      ↓                                                               │
+│ DIMENSIONS                                                           │
+│      ↓                                                               │
+│ DECISION VECTOR                                                      │
+│      ↓                                                               │
+│ CONTEXT                                                              │
+│      ↓                                                               │
+│ DECISION CONTRACT                                                    │
+│      ↓                                                               │
+│ DECISION HASH                                                        │
+│                                                                      │
+│              CORE ALGORITHM NEVER EXPOSED                            │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                           GOVERNANCE                                 │
+│                                                                      │
+│ Policy → Risk → Permission → Approval Requirement → Authority        │
+│                                                                      │
+│ AI MAY PROPOSE                                                       │
+│ GOVERNANCE MAY AUTHORIZE                                             │
+│ VERIFIED RUNTIME MAY EXECUTE                                        │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       REPORT EXPERIENCE                              │
+│                                                                      │
+│ Decision                                                             │
+│   ↓                                                                  │
+│ Report CREATED                                                       │
+│   ↓                                                                  │
+│ Deterministic Preview                                                │
+│   ↓                                                                  │
+│ PREVIEW READY                                                        │
+│   ↓                                                                  │
+│ CUSTOMER IMMEDIATE DISPLAY                                           │
+└──────────────────────────────────────────────────────────────────────┘
+│
+┌─────────────┴──────────────┐
+│                            │
+▼                            ▼
+FREE EXPERIENCE              COMMERCIAL PATH
+│
+▼
+PAYWALL / OFFER
+│
+▼
+PRODUCT CONTRACT
+│
+▼
+CHECKOUT
+│
+▼
+PAYPAL ORDER
+│
+▼
+REAL CAPTURE
+│
+▼
+WEBHOOK AUTHENTICATION
+│
+▼
+IDEMPOTENCY
+│
+▼
+PAYMENT = PAID
+│
+▼
+ENTITLEMENT = ACTIVE
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       FULL REPORT ENGINE                             │
+│                                                                      │
+│ Decision Context                                                     │
+│      ↓                                                               │
+│ Approved Template                                                    │
+│      ↓                                                               │
+│ AI Gateway                                                           │
+│      ↓                                                               │
+│ Output Validator                                                     │
+│      ↓                                                               │
+│ Authority Validator                                                  │
+│      ↓                                                               │
+│ Report Compiler                                                      │
+│      ↓                                                               │
+│ FULL REPORT READY                                                    │
+└──────────────────────────────────────────────────────────────────────┘
+│
+┌─────────────┴──────────────┐
+▼                            ▼
+DYNAMIC PDF                    NARRATION
+│                            │
+▼                            ▼
+PDF READY                       TTS
+│
+▼
+AUDIO READY
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         CUSTOMER DELIVERY                            │
+│                                                                      │
+│ Customer receives the generated decision result / PDF                │
+│                                                                      │
+│ 2026 © 徐嘉糧 (GUBON LUCID OS / GUBON-EX).                          │
+│ All rights reserved.                                                 │
+│                                                                      │
+│ Unauthorized reproduction, distribution, modification,               │
+│ or deployment is prohibited.                                         │
+│                                                                      │
+│ CORE FORMULA / KERNEL / MAPPING / WEIGHTS NOT DISCLOSED              │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                           DELIVERY                                   │
+│                                                                      │
+│ LINE / Web / Email / Follow-up / Calendar / Action                   │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                            OUTCOME                                   │
+│                                                                      │
+│ Action → Result → KPI → Exception → Validation                       │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                            MEMORY                                    │
+│                                                                      │
+│ Decision History                                                     │
+│ Outcome History                                                      │
+│ Revenue History                                                      │
+│ Customer / Organization Context                                     │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                            REVENUE                                   │
+│                                                                      │
+│ Revenue Attribution → Ledger → Audit → Retention → Upsell            │
+│                                                                      │
+│ Every commercial result returns to the same GUBON system              │
+└──────────────────────────────────────────────────────────────────────┘
+│
+▼
+NEXT DECISION / CYCLE
+│
+└───────────────────┐
+│
+▼
+TRAFFIC / INPUT
+│
+└──────↺
+
+唯一權威鏈
+
+整條鏈實際上只有這個方向：
+
+TRAFFIC
+→ AUDIENCE
+→ EXL5
+→ LANDING
+→ INPUT
+→ NORMALIZE
+→ SEMANTIC
+→ GUBON-9
+→ DIMENSION
+→ DECISION VECTOR
+→ CONTEXT
+→ DECISION CONTRACT
+→ GOVERNANCE
+→ APPROVAL
+→ PREVIEW
+→ OFFER
+→ CHECKOUT
+→ PAYPAL
+→ CAPTURE
+→ WEBHOOK
+→ IDEMPOTENCY
+→ PAID
+→ ENTITLEMENT
+→ FULL REPORT
+→ PDF
+→ DELIVERY
+→ ACTION
+→ OUTCOME
+→ MEMORY
+→ REVENUE
+→ NEXT DECISION
+→ TRAFFIC
+
+這就是閉環。
+
+
+---
+
+L0 與客戶的邊界
+
+整條商業鏈不是全部公開。
+
+GUBON-EX®
+│
+┌───────────────┴───────────────┐
+│                               │
+SOVEREIGN DOMAIN                 CUSTOMER DOMAIN
+│                               │
+▼                               ▼
+徐嘉糧 / L0                     Product Experience
+│                               │
+┌─────┴─────┐                  ┌──────┴──────┐
+│           │                  │             │
+WAR ROOM     CORE              INPUT         REPORT
+│           │                  │             │
+Traffic      GUBON-9           Preview       PDF
+EXL5         Formula           Checkout      Delivery
+Audience     Mapping           Payment       Outcome
+Campaign     Vector
+Revenue      Governance
+AI Control   Audit
+G20/G30
+
+L0 才能看見
+
+- 完整流量
+- Audience
+- EXL5
+- Campaign
+- Creative
+- 影音製作
+- Conversion Intelligence
+- GUBON-9
+- Formula
+- Mapping
+- Weight
+- Decision Vector
+- Governance
+- AI Gateway
+- Revenue Intelligence
+- Audit
+- G20 / G30
+- Runtime
+- Sovereign War Room
+
+客戶只能看見
+
+- Landing
+- 自己的 Input
+- 自己的 Preview
+- 自己的付款
+- 自己的 Full Report
+- 自己的 Dynamic PDF
+- 自己的交付／追蹤內容
+
+核心算法不因任何客戶權限而下放。
+
+
+---
+
+AI 在整條鏈的位置
+
+AI 不是第二個大腦，也不是商業權威。
+
+GUBON GOVERNANCE
+↓
+AI GATEWAY
+↓
+OpenAI / Gemini / Anthropic / Other Approved Provider
+↓
+VALIDATED OUTPUT
+↓
+REPORT
+
+AI：
+
+- 可以分析
+- 可以生成
+- 可以製作文案
+- 可以製作影音
+- 可以提出受眾策略
+- 可以提出 Campaign
+- 可以產生 Report narrative
+
+AI 不可以：
+
+- 改 GUBON-9
+- 改公式
+- 改 Decision Hash
+- 改價格
+- 改 Payment
+- 改 Entitlement
+- 寫 Revenue Ledger
+- 修改 Audit Authority
+- 自行發布商業交易
+- 決定 G20
+- 決定 G30
+- 取得 L0 War Room 權限
+
+
+---
+
+不可串改，不等於「資料永遠不能更新」
+
+這裡要區分兩件事：
+
+架構不可任意串改
+
+Canonical Architecture
+↓
+FROZEN
+
+業務資料可以持續產生
+
+Traffic
+↓
+Customers
+↓
+Decisions
+↓
+Payments
+↓
+Reports
+↓
+Outcomes
+↓
+Revenue
+
+每一筆重要商業事件由 PostgreSQL Authority + Audit Chain 留存；修改不是直接覆寫歷史，而是透過有權限、可追蹤、可驗證的事件／版本紀錄形成新狀態。
+
+因此：
+
+> Architecture Frozen；Business State Evolves；Historical Evidence Immutable。
+
+
+
+
+---
+
+最終 Freeze 清單
+
+不再新增
+
+第二套 Kernel
+第二套 Authority Chain
+第二套 Commerce Architecture
+第二套 Report Engine
+第二套 State Machine
+Personal Architecture
+Enterprise Architecture
+AI Authority
+Frontend Authority
+
+可以持續擴充
+
+Traffic Channel
+Source Adapter
+Dimension
+Semantic ID
+Template
+Product
+Campaign
+Creative
+Audience
+Outcome
+Memory
+AI Provider
+Distribution Channel
+
+但全部必須掛在同一條 Canonical Chain 上。
+
+
+---
+
+最終商業定義
+
+GUBON-EX® 不是一個 AI Chatbot。
+
+也不是單純：
+
+- 命理產品
+- 報告產生器
+- 廣告平台
+- AI Agent 平台
+- CRM
+- Payment SaaS
+- Analytics Dashboard
+
+> 從流量取得 → 精準受眾 → 問題輸入 → GUBON-9 決策 → Governance → Preview → 商業轉換 → Payment → Entitlement → 動態報告 → PDF → 行動 → Outcome → Memory → Revenue → 下一次決策的完整 Decision Execution & Revenue Operating Chain。
+
+
+
+一套 GUBON-EX®。一條商業鏈。一個 Authority Chain。一個 L0 Sovereign War Room。
+
+Canonical Chain  Monorepo、Contracts、State Machine、Runtime  G01–G30 Evidence
+
+GUBON-EX® 的核心運行哲學：
+
+決策即服務（Decision-as-a-Service）
+
+有問題
+→ 進入
+→ 決策
+→ 執行
+→ 交付
+→ 追蹤
+→ 完成
+→ 靜默
+
+無事，即靜默。
+
+NO EVENT
+↓
+NO ACTION
+↓
+NO NOTIFICATION
+↓
+NO AI INVOCATION
+↓
+NO COST
+↓
+SILENT
+
+EVENT
+↓
+DETECT
+↓
+DECIDE
+↓
+ACT
+↓
+DELIVER
+↓
+VERIFY
+↓
+SILENCE
+
+> Event-Driven Decision-as-a-Service
+
+
+
+> Continuous AI Chat / Continuous Agent / Always-On AI
+
+
+
+GUBON-EX® 最終狀態
+
+┌──────────────────────────┐
+│       GUBON-EX®          │
+│ Decision-as-a-Service    │
+├──────────────────────────┤
+│                          │
+│  無事                    │
+│    ↓                     │
+│  靜默                    │
+│                          │
+│  有事                    │
+│    ↓                     │
+│  感知                    │
+│    ↓                     │
+│  決策                    │
+│    ↓                     │
+│  執行                    │
+│    ↓                     │
+│  交付                    │
+│    ↓                     │
+│  驗證                    │
+│    ↓                     │
+│  靜默                    │
+│                          │
+└──────────────────────────┘
+
+GUBON-EX® 在背景維持：
+
+監測 → 決策 → 執行 → 結果 → 記憶 → 靜默。
+
+這一句可以直接凍結為產品核心原則：
+
+> 決策即服務。無事，即靜默。
+
+
+
+- 建立事件狀態機
+- 建立靜默運行規格Physical Build Unblock — current execution boundary
+
+workspace dependency environment：
+
+node_modules      ABSENT
+tsx               NOT_INSTALLED
+package-lock.json ABSENT
+npm install       TIMEOUT
+
+pnpm test:unit
+pnpm test:typecheck
+pnpm build
+
+1. Restore / provide physical repository workspace
+   ↓
+2. Verify package manager + lockfile
+   ↓
+3. npm/pnpm install
+   ↓
+4. Verify tsx executable
+   ↓
+5. node --import tsx --test tests/*.test.mjs
+   ↓
+6. npm run typecheck
+   ↓
+7. npm test
+   ↓
+8. npm run build
+   ↓
+9. PostgreSQL runtime verification
+   ↓
+10. PayPal LIVE transaction
+    ↓
+11. G20 evidence
+    ↓
+12. G30 independent release verification
+
+Source authority audit	PASS 10/10
+GUBON-9 contracts	PASS 4/4
+G20 dependency-free verifier	PASS 3/3
+Report contracts	PASS 3/3
+Runtime test execution	BLOCKED
+Typecheck	NOT_VERIFIED
+Production build	NOT_VERIFIED
+PostgreSQL runtime	BLOCKED
+PayPal LIVE	NOT_VERIFIED
+G20 production evidence	BLOCKED
+G30	BLOCKED
+First Cash	NOT_VERIFIED
+Release Controller	BLOCKED
+
+「physical repository」 workspace npm install、 build 。
+
+GUBON-EX repository ZIP / workspace  dependency、lockfile、scriptsBUILD STATUS
+
+CURRENT PHASE: Physical Materialization / Runtime Closure
+
+COMPLETED
+
+- Repository extracted and inspected from the supplied GUBON-EX commercial archive.
+- GEX-07 async Report Experience physically integrated.
+- POST /api/decisions now persists:
+  - deterministic decision
+  - SHA-256 decision hash
+  - Preview
+  - Report = CREATED
+  - PDF/TTS asset states = PENDING
+  - HTTP 201
+- Added asynchronous report_jobs runtime.
+- Added Full Report worker lifecycle:
+  - CREATED
+  - GENERATING
+  - READY
+  - FAILED
+- PayPal webhook now performs the authoritative commerce transaction and queues Full Report generation instead of generating it inline.
+- Added server-side /api/decision/state.
+- Added /api/report/full.
+- Added report status endpoint.
+- Added entitlement-protected PDF endpoint.
+- Added entitlement-protected audio endpoint.
+- Added physical async worker package.
+- Added canonical report-status contracts.
+- Added production ANNUAL / NT$3,280 catalog entry.
+- Repaired missing orders.decision_id database relation.
+- Removed the incompatible immutable-update behavior from payment_events so verified processing state can be persisted.
+- Preserved PostgreSQL SERIALIZABLE commerce transaction.
+- Preserved server-side PayPal authority.
+- Preserved fail-closed G20/G30 boundary.
+- Updated customer surface to GUBON-EX® and canonical commercial products.
+- Removed npm workspace:* dependency declarations that are incompatible with the repository's declared npm package manager.
+
+TESTS
+
+- Source authority audit: PASS — 10/10
+- GUBON-9 verification: PASS — 4/4
+- G20 dependency-free verifier: PASS — 3/3
+- Report contract tests: PASS — 3/3
+- Structural TypeScript delimiter validation: PASS
+- git diff --check: PASS
+
+BUILD
+
+- TypeScript production compilation: NOT_VERIFIED
+- Dependency installation: BLOCKED
+- npm install cannot complete in the current execution environment.
+- Direct tsc execution is also BLOCKED because installed runtime dependencies/type definitions are unavailable.
+
+RUNTIME
+
+- PostgreSQL: NOT_VERIFIED
+- PayPal LIVE: NOT_VERIFIED
+- Real webhook: NOT_VERIFIED
+- Real capture: NOT_VERIFIED
+- TTS provider: NOT_VERIFIED
+- Public deployment: NOT_VERIFIED
+- First Cash: NOT_VERIFIED
+- G20 production evidence: NOT_VERIFIED
+- G30: BLOCKED
+- Production: BLOCKED
+
+The physical build artifact has been generated:
+
+Download GUBON-EX Physical Materialized Build
+
+SHA-256:
+
+1142f844179140e5da78d6823323584fa05e582f4f4f7d62aab3f48ded735906
+
+Current executable chain
+
+REAL USER
+  ↓
+AUTH / TENANT
+  ↓
+REAL INPUT
+  ↓
+CANONICAL NORMALIZATION
+  ↓
+GUBON-9
+  ↓
+SHA-256
+  ↓
+DECISION PERSISTED
+  ↓
+REPORT CREATED
+  ↓
+PREVIEW
+  ↓
+HTTP 201
+  ↓
+SERVER CATALOG
+  ↓
+PAYPAL ORDER
+  ↓
+REAL CAPTURE
+  ↓
+RAW WEBHOOK
+  ↓
+SIGNATURE VERIFICATION
+  ↓
+PROVIDER EVENT IDEMPOTENCY
+  ↓
+SERIALIZABLE COMMERCE COMMIT
+  ├─ PAYMENT = PAID
+  ├─ ORDER = PAID
+  ├─ ENTITLEMENT = ACTIVE
+  ├─ LEDGER = POSTED
+  └─ AUDIT = APPENDED
+  ↓
+EVIDENCE
+  ↓
+FULL_REPORT JOB
+  ↓
+FULL_REPORT READY
+  ↓
+PDF / TTS JOBS
+
+Production authorization remains BLOCKED. No simulated payment, First Cash, G20, G30, or Production PASS was manufactured.
+
+Continue the physical build
+
+- Run the production build checks
+- Inspect the remaining blockersGUBON-EX Repository
+
+「Repository」
+
+Repository 
+
+ARCHITECTURE
+      PASS
+        ↓
+CANONICAL SPEC
+      FROZEN
+        ↓
+PHYSICAL REPOSITORY
+      ↓
+┌─────────────────────────────┐
+│ Code exists?                │
+│ Correct authority?          │
+│ Correct DB schema?          │
+│ Correct API flow?           │
+│ Correct PayPal integration? │
+│ Correct webhook?            │
+│ Correct entitlement?        │
+│ Correct report?             │
+│ Correct ledger?             │
+│ Correct audit?              │
+│ Correct evidence?           │
+└─────────────────────────────┘
+        ↓
+RUNTIME TEST
+        ↓
+G20
+        ↓
+G30
+
+Architecture  Repository PASS
+
+Repository = NOT_VERIFIED
+
+
+---
+
+Repository 
+
+Recon 
+
+Domain	Repository 
+
+Input	API route / DTO / validation	⬜
+Normalization	canonical normalizer	⬜
+GUBON-9	kernel implementation	⬜
+Decision	decision service / repository	⬜
+Hash	deterministic hash implementation	⬜
+Decision Profile	profile generator	⬜
+AI Gateway	provider abstraction / boundary	⬜
+Preview	preview policy / renderer	⬜
+Catalog	DB-backed product catalog	⬜
+PayPal	order/create/capture	⬜
+Webhook	signature verification	⬜
+Idempotency	provider event protection	⬜
+Commerce Tx	SERIALIZABLE transaction	⬜
+Payment	payment state	⬜
+Entitlement	ownership / expiry	⬜
+Full Report	authorization guard	⬜
+PDF	report asset generation	⬜
+Audio	playback asset / manifest	⬜
+LINE	delivery service	⬜
+Ledger	double-entry implementation	⬜
+Audit	hash-chain implementation	⬜
+Evidence	evidence pack	⬜
+G20	structural/evaluator logic	⬜
+G30	external release verifier	⬜
+Deployment	production configuration	⬜
+
+
+
+---
+
+Repository 
+StateMachine
+CommerceAuthority
+PaymentAuthority
+EntitlementAuthority
+LedgerAuthority
+EvidenceAuthority
+ReleaseAuthority
+
+
+Canonical Specification  Repository 
+
+---
+
+Repository 
+
+POST /decision/input
+        ↓
+Validation
+        ↓
+Normalization
+        ↓
+GUBON-9
+        ↓
+Decision Record
+        ↓
+Decision Hash
+        ↓
+Preview
+        ↓
+Product Selection
+        ↓
+PayPal Order
+        ↓
+REAL CAPTURE
+        ↓
+PayPal Webhook
+        ↓
+Signature Verification
+        ↓
+Idempotency
+        ↓
+SERIALIZABLE DB TX
+        ↓
+Payment PAID
+        ↓
+Order PAID
+        ↓
+Entitlement ACTIVE
+        ↓
+Full Report
+        ↓
+PDF / Audio / LINE
+        ↓
+Ledger
+        ↓
+Audit
+        ↓
+Evidence Pack
+
+
+---
+
+Repository Audit 
+
+paypal.ts 
+
+≠
+
+PAYPAL VERIFIED
+
+ledger.ts 
+
+≠
+
+REVENUE_LEDGER VERIFIED
+
+CODE
+ ↓
+EXECUTION
+ ↓
+EXPECTED RESULT
+ ↓
+PERSISTED STATE
+ ↓
+EVIDENCE
+
+
+---
+
+Repository
+
+┌──────────────────────────────────────┐
+│ GUBON-EX REPOSITORY RELEASE AUDIT   │
+├──────────────────────────────────────┤
+│ Source Integrity          NOT_VERIFIED│
+│ Canonical Alignment       NOT_VERIFIED│
+│ Input Runtime             NOT_VERIFIED│
+│ GUBON-9 Runtime           NOT_VERIFIED│
+│ Decision Runtime          NOT_VERIFIED│
+│ Preview Runtime           NOT_VERIFIED│
+│ PayPal Runtime            NOT_VERIFIED│
+│ Webhook Runtime           NOT_VERIFIED│
+│ Idempotency               NOT_VERIFIED│
+│ Commerce Transaction      NOT_VERIFIED│
+│ Entitlement               NOT_VERIFIED│
+│ Full Report               NOT_VERIFIED│
+│ Delivery                  NOT_VERIFIED│
+│ Ledger                    NOT_VERIFIED│
+│ Audit                     NOT_VERIFIED│
+│ Evidence                  NOT_VERIFIED│
+│ G20                       NOT_VERIFIED│
+│ G30                       BLOCKED      │
+├──────────────────────────────────────┤
+│ FIRST CASH              NOT_VERIFIED  │
+│ PRODUCTION RELEASE      BLOCKED       │
+└──────────────────────────────────────┘
+PHYSICAL REPOSITORY RECON 
+
+Repository：
+
+REPOSITORY
+   ↓
+RECON
+   ↓
+CANONICAL DIFF
+   ↓
+IMPLEMENTATION GAP
+   ↓
+TEST EXECUTION
+   ↓
+REAL COMMERCE PATH
+   ↓
+EVIDENCE
+   ↓
+G20
+   ↓
+G30
+   ↓
+FIRST CASH
+
+Architecture Expansion。GUBON-EX Enterprise Decision Operations Layer — SSS+
+
+一、總體裁決
+
+Architecture Specification：
+L1 Input	100%	PASS
+L2 GUBON-9 Kernel	100%	PASS
+L3 Decision Operations	95%	PASS / IMPLEMENTATION REQUIRED
+L4 AI Gateway	95%	PASS / BOUNDARY FROZEN
+Preview / Paywall	100%	PASS
+PayPal Commerce	100%	PASS
+Webhook / Idempotency	100%	PASS
+Entitlement	100%	PASS
+Full Report	90%	IMPLEMENTATION REQUIRED
+PDF	90%	IMPLEMENTATION REQUIRED
+Audio / Playback	80%	IMPLEMENTATION REQUIRED
+LINE Delivery	80%	IMPLEMENTATION REQUIRED
+Revenue Ledger	100%	PASS / RUNTIME REQUIRED
+Audit Chain	100%	PASS / RUNTIME REQUIRED
+Evidence Chain	100%	PASS / RUNTIME REQUIRED
+G20	100% specification	NOT_VERIFIED
+G30	100% specification	BLOCKED UNTIL EVIDENCE
+First Cash	0% evidence	NOT_VERIFIED
+Production Release	—	BLOCKED
+
+> Architecture = COMPLETE
+Runtime Implementation = MUST VERIFY
+Production Evidence = NOT_VERIFIED
+G30 Release = BLOCKED
+
+
+
+
+---
+
+REAL USER
+↓
+REAL INPUT
+↓
+VALIDATION
+↓
+NORMALIZATION
+↓
+GUBON-9
+↓
+DECISION RECORD
+↓
+DECISION HASH
+↓
+DECISION PROFILE
+↓
+PREVIEW
+↓
+PAYWALL
+↓
+PAYPAL ORDER
+↓
+REAL CAPTURE
+↓
+WEBHOOK
+↓
+SIGNATURE VERIFY
+↓
+IDEMPOTENCY
+↓
+SERIALIZABLE TRANSACTION
+↓
+PAYMENT = PAID
+↓
+ORDER = PAID
+↓
+ENTITLEMENT = ACTIVE
+↓
+FULL REPORT
+↓
+PDF / AUDIO / LINE
+↓
+REVENUE LEDGER
+↓
+AUDIT
+↓
+EVIDENCE PACK
+↓
+G20
+↓
+G30
+↓
+RELEASE
+
+Canonical Business Spine。
+
+
+---
+
+State Machine
+Commerce Authority
+Payment Authority
+Entitlement Authority
+Ledger Authority
+Evidence Authority
+Release Authority
+
+
+---
+
+四、L1 — Input Layer
+
+目前定義完整：
+
+姓名
+生日
+出生時辰
+性別
+出生地
+主要問題
+補充資訊
+Tenant
+Session
+
+建議正式 Runtime Contract 固定：
+
+Input
+├── identity
+├── birth
+├── location
+├── question
+├── optionalContext
+└── requestId
+
+必須驗證
+
+Missing required field
+Invalid date
+Invalid time
+Invalid enum
+Invalid encoding
+Invalid tenant
+Duplicate request
+Malformed payload
+
+RAW INPUT
+↓
+VALIDATION
+↓
+CANONICAL NORMALIZATION
+↓
+GUBON-9
+
+
+---
+
+五、L2 — GUBON-9
+
+[N, B, T, R, P]
+↓
+Digital Root
+↓
+1–9
+↓
+Decision State
+↓
+SHA-256 Decision Hash
+
+requestId
+decisionId
+canonicalInput
+kernelVersion
+kernelOutput
+decisionState
+decisionHash
+createdAt
+
+
+---
+
+六、L3 — Decision Operations Layer
+
+Risk
+Opportunity
+Decision Path
+Action
+Timing
+
+Production Runtime：
+
+Decision Profile
+├── Core Decision
+├── Primary Risk
+├── Secondary Risk
+├── Opportunity
+├── Constraint
+├── Recommended Path
+├── Action
+├── Timing
+├── Confidence / Evidence State
+└── Source Decision Hash
+
+Decision Record。
+
+Full Report
+↓
+Decision Profile
+↓
+Decision Record
+↓
+Decision Hash
+
+User Input
+↓
+AI
+↓
+Fair Value Report
+
+
+---
+
+七、L4 — AI Layer
+
+AI = Presentation / Interpretation Layer
+
+AI = Authority Layer
+
+Interpret
+Narrate
+Summarize
+Personalize
+Structure
+Generate
+Translate
+Voice Script
+
+Calculate GUBON-9
+Change Decision Hash
+Change Price
+Authorize Payment
+Activate Entitlement
+Write Ledger
+Approve Evidence
+Release Production
+
+
+---
+
+八、Preview 需要再補一個重要控制
+
+> Preview = 40%
+
+
+
+Preview Policy
+├── Visible Sections
+├── Hidden Sections
+├── Redacted Fields
+├── Unlock Condition
+└── Product Tier
+
+Preview
+├── Decision Summary
+├── Primary Signal
+├── Main Risk
+└── Partial Direction
+
+LOCKED
+├── Root Cause
+├── Full Decision Path
+├── Timing
+├── Action Sequence
+├── Deep Analysis
+└── Delivery Assets
+
+
+---
+
+九、Commerce
+
+Catalog
+↓
+Order
+↓
+PayPal
+↓
+Capture
+↓
+Webhook
+↓
+Payment
+↓
+Entitlement
+
+而且：
+
+Price Server Authority
+
+Client
+↓
+productId
+↓
+Server Catalog
+↓
+amountMinor
+↓
+PayPal
+
+Client → amount = 49
+
+49 → 1
+
+
+---
+
+十、Webhook
+
+Production：
+
+PayPal Event
+↓
+Raw Payload
+↓
+Signature Verification
+↓
+providerEventId
+↓
+Idempotency Check
+↓
+Business Validation
+↓
+SERIALIZABLE Transaction
+
+Payment PAID
+Order PAID
+Entitlement ACTIVE
+Ledger Entry
+Audit Entry
+
+Payment = PAID
+Entitlement = PENDING
+Ledger = missing
+
+
+---
+
+十一、Entitlement
+
+Full Report API：
+
+GET /reports/:id/full
+
+payment.status === PAID
+
+Entitlement
+├── owner
+├── product
+├── decision
+├── status
+├── startsAt
+├── expiresAt
+└── sourcePayment
+
+ACTIVE
++
+valid time window
++
+correct owner
++
+correct decision
+↓
+FULL REPORT
+
+
+---
+
+十二、Full Report
+
+Dynamic Report
+PDF
+Audio
+LINE
+
+Production：
+
+Report
+├── reportId
+├── decisionId
+├── reportVersion
+├── preview
+├── fullContent
+├── pdfAsset
+├── audioAsset
+├── playbackManifest
+├── generatedAt
+└── contentHash
+
+Web
+↓
+PDF
+↓
+Audio
+↓
+LINE
+
+Report Identity。
+
+
+---
+
+十三、
+
+- 手機優先
+- 播放 / 暫停
+- 重播
+- 段落切換
+- 進度
+- 語速
+- PDF
+
+L4 AI Presentation
+↓
+L6 Fulfillment
+↓
+Report Player
+
+Report Engine。
+
+Full Report
+│
+├── Web Reader
+│
+├── Audio Player
+│
+└── PDF Export
+
+reportId
+sectionId
+contentVersion
+
+
+---
+
+十四、LINE
+
+Delivery Channel
+
+Payment Authority
+Entitlement Authority
+Ledger Authority
+
+Payment
+↓
+Entitlement
+↓
+Fulfillment
+↓
+LINE
+
+LINE callback
+↓
+activate entitlement
+
+
+---
+
+十五、Ledger Double Entry
+
+Revenue Ledger
+Double Entry
+
+Debit = Credit
+Debit > 0
+Credit > 0
+
+Payment
+↓
+Journal
+↓
+Ledger Entries
+
+revenue = 49
+
+
+---
+
+十六、Audit Chain
+
+Audit
+
+createdAt
+userId
+action
+
+Production Evidence
+
+Audit[n]
+↓
+canonical serialization
+↓
+SHA-256
+↓
+previousHash
+↓
+Audit[n+1]
+
+H0
+↓
+H1
+↓
+H2
+↓
+H3
+↓
+H4
+
+
+---
+
+十七、Evidence Pack
+
+Evidence Pack
+├── Real User
+├── Real Input
+├── Kernel Execution
+├── Decision Hash
+├── Preview
+├── PayPal Order
+├── Capture
+├── Webhook Verification
+├── Idempotency
+├── Payment
+├── Entitlement
+├── Full Report
+├── Ledger
+├── Audit
+└── Delivery
+
+evidenceId
+timestamp
+environment
+requestId
+entityId
+result
+source
+hash
+
+
+---
+
+十八、G20
+
+G20
+│
+├── G20-01 REAL_USER
+├── G20-02 REAL_INPUT
+├── G20-03 KERNEL_EXECUTED
+├── G20-04 DECISION_CREATED
+├── G20-05 PREVIEW
+├── G20-06 PAYPAL_ORDER
+├── G20-07 REAL_CAPTURE
+├── G20-08 WEBHOOK_AUTH
+├── G20-09 IDEMPOTENCY
+├── G20-10 PAYMENT_PAID
+├── G20-11 ENTITLEMENT_ACTIVE
+├── G20-12 FULL_REPORT
+├── G20-13 REVENUE_LEDGER
+├── G20-14 AUDIT_LOG
+└── G20-15 EVIDENCE_PACK
+
+FAIL
+
+G20 = FAIL
+
+NOT_VERIFIED
+
+G20 ≠ PASS
+
+fail-closed。
+
+
+---
+
+十九、G30
+
+G30
+
+> 「Production Evidence Release？」
+
+
+
+Runtime
+↓
+Evidence
+↓
+G20
+↓
+External G30 Verification
+↓
+Release Decision
+
+Database
+↓
+verify_g30()
+↓
+Production = YES
+
+
+---
+
+二十、First Cash Evidence：
+
+1. REAL USER
+   ↓
+2. REAL INPUT
+   ↓
+3. REAL DECISION
+   ↓
+4. REAL PREVIEW
+   ↓
+5. REAL PAYPAL ORDER
+   ↓
+6. REAL CAPTURE
+   ↓
+7. REAL PAYPAL WEBHOOK
+   ↓
+8. VERIFIED SIGNATURE
+   ↓
+9. IDEMPOTENCY
+   ↓
+10. PAYMENT = PAID
+    ↓
+11. ENTITLEMENT = ACTIVE
+    ↓
+12. FULL REPORT
+    ↓
+13. DELIVERY
+    ↓
+14. LEDGER
+    ↓
+15. AUDIT
+    ↓
+16. EVIDENCE PACK
+    ↓
+17. G20 PASS
+    ↓
+18. G30 PASS
+    ↓
+19. RELEASE AUTHORIZED
+
+
+---
+
+二十一
+
+┌──────────────────────────────┐
+│ GUBON-EX SSS+                │
+├──────────────────────────────┤
+│ Architecture                 │ PASS
+│ Authority Boundary           │ PASS
+│ Business Spine               │ PASS
+│ Commerce Design              │ PASS
+│ PayPal Design                │ PASS
+│ Entitlement Design           │ PASS
+│ Report Design                │ PASS
+│ Ledger Design                │ PASS
+│ Audit Design                 │ PASS
+│ Evidence Design              │ PASS
+├──────────────────────────────┤
+│ Physical Repository          │ NOT_VERIFIED
+│ Runtime Execution            │ NOT_VERIFIED
+│ Real PayPal Capture          │ NOT_VERIFIED
+│ Real Webhook                 │ NOT_VERIFIED
+│ Real Entitlement             │ NOT_VERIFIED
+│ Real Full Report             │ NOT_VERIFIED
+│ Real Ledger                  │ NOT_VERIFIED
+│ Real Delivery                │ NOT_VERIFIED
+│ G20                          │ NOT_VERIFIED
+│ G30                          │ BLOCKED
+│ First Cash                   │ NOT_VERIFIED
+│ Production Release           │ BLOCKED
+└──────────────────────────────┘
+
+GUBON-EX Enterprise Decision Operations Layer
+STOP ARCHITECTURE EXPANSION
+↓
+PHYSICAL REPOSITORY RECON
+↓
+IMPLEMENTATION ↔ CANONICAL SPEC
+↓
+RUN REAL TESTS
+↓
+COLLECT EVIDENCE
+↓
+G20
+↓
+EXTERNAL G30
+↓
+FIRST REAL CASH
+↓
+RELEASE
+
+「Repository」。
