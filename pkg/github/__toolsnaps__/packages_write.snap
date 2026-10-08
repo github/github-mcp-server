@@ -1,0 +1,58 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Delete packages"
+  },
+  "description": "Delete GitHub Packages or individual package versions owned by organizations and users. Requires the delete:packages scope.",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "The delete operation to perform.\nOptions are:\n- 'delete_org_package' - delete an entire organization package, including all versions. Requires 'org', 'package_type', 'package_name'.\n- 'delete_org_package_version' - delete a single version of an organization package. Requires 'org', 'package_type', 'package_name', 'package_version_id'.\n- 'delete_user_package' - delete an entire user package, including all versions. Requires 'package_type', 'package_name'. Omit 'username' to target the authenticated user.\n- 'delete_user_package_version' - delete a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'. Omit 'username' to target the authenticated user.\n\nDeleted packages and versions can be restored from the GitHub web interface within 30 days.",
+        "enum": [
+          "delete_org_package",
+          "delete_org_package_version",
+          "delete_user_package",
+          "delete_user_package_version"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required for org_* methods.",
+        "type": "string"
+      },
+      "package_name": {
+        "description": "Package name.",
+        "type": "string"
+      },
+      "package_type": {
+        "description": "Package type.",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ],
+        "type": "string"
+      },
+      "package_version_id": {
+        "description": "Package version ID. Required for methods that target a single version.",
+        "type": "number"
+      },
+      "username": {
+        "description": "GitHub username for user_* methods. Omit to target the authenticated user.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "package_type",
+      "package_name"
+    ],
+    "type": "object"
+  },
+  "name": "packages_write"
+}

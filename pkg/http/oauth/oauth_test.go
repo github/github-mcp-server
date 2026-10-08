@@ -676,6 +676,7 @@ func TestSupportedScopes(t *testing.T) {
 		"user:email",
 		"read:packages",
 		"write:packages",
+		"delete:packages",
 		"read:project",
 		"project",
 		"gist",
