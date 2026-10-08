@@ -4397,6 +4397,168 @@ func pendingReviewsData(reviews []pendingReviewQueryReview, hasNextPage bool, en
 	}
 }
 
+func Test_PullRequestRead_UnsupportedPaginationParams(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	mockFiles := []*github.CommitFile{
+		{
+			Filename:  github.Ptr("file1.go"),
+			Status:    github.Ptr("modified"),
+			Additions: github.Ptr(10),
+			Deletions: github.Ptr(5),
+			Changes:   github.Ptr(15),
+			Patch:     github.Ptr("@@ -1,5 +1,10 @@"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		gqlHTTPClient  *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "after is rejected for get_files",
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"after":      "cursor-page-2",
+			},
+			expectError:    true,
+			expectedErrMsg: `method "get_files" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name: "after is rejected for get",
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"after":      "cursor-page-2",
+			},
+			expectError:    true,
+			expectedErrMsg: `method "get" uses page/perPage pagination; "after" is not supported`,
+		},
+		{
+			name: "page is rejected for get_review_comments",
+			requestArgs: map[string]any{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+			},
+			expectError:    true,
+			expectedErrMsg: `method "get_review_comments" uses cursor-based pagination (perPage, after); "page" is not supported`,
+		},
+		{
+			name: "page and perPage are accepted for get_files",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFiles),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "perPage and after are accepted for get_review_comments",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]any{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(10),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             githubv4.String("cursor-page-2"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": true,
+										"startCursor":     "cursor3",
+										"endCursor":       "cursor4",
+									},
+									"totalCount": 5,
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"perPage":    float64(10),
+				"after":      "cursor-page-2",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+
+			deps := BaseDeps{
+				Client:          mustNewGHClient(t, tc.mockedClient),
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(nil),
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+		})
+	}
+}
+
 func TestAddReplyToPullRequestComment(t *testing.T) {
 	t.Parallel()
 

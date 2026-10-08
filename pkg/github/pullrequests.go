@@ -103,6 +103,9 @@ Possible options:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validatePaginationParamsForMethod(method, args); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -163,6 +166,22 @@ Possible options:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		}, normalizePullRequestArguments("read"))
+}
+
+// validatePaginationParamsForMethod rejects pagination parameters that the
+// selected pull_request_read method does not use. get_review_comments uses
+// cursor-based pagination (perPage, after), while the other methods use
+// page/perPage. perPage applies to every method. Without this check, a
+// mismatched parameter is silently dropped and the caller receives the
+// first page again with no indication that the parameter was ignored.
+func validatePaginationParamsForMethod(method string, args map[string]any) error {
+	if _, hasAfter := args["after"]; hasAfter && method != "get_review_comments" {
+		return fmt.Errorf("method %q uses page/perPage pagination; \"after\" is not supported. Use method %q for cursor-based pagination", method, "get_review_comments")
+	}
+	if _, hasPage := args["page"]; hasPage && method == "get_review_comments" {
+		return fmt.Errorf("method %q uses cursor-based pagination (perPage, after); \"page\" is not supported", method)
+	}
+	return nil
 }
 
 func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
