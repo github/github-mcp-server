@@ -6804,3 +6804,36 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateOrUpdateFile_EscapesPath(t *testing.T) {
+	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
+
+	var putPath string
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"": func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPut {
+				putPath = r.URL.EscapedPath()
+				mockResponse(t, http.StatusCreated, &github.RepositoryContentResponse{
+					Content: &github.RepositoryContent{Path: new("docs/C#/intro?.md")},
+				})(w, r)
+				return
+			}
+			mockResponse(t, http.StatusNotFound, map[string]string{"message": "Not Found"})(w, r)
+		},
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, mockedClient)}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":   "owner",
+		"repo":    "repo",
+		"path":    "docs/C#/intro?.md",
+		"content": "# Intro",
+		"message": "Add intro",
+		"branch":  "main",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.Equal(t, "/repos/owner/repo/contents/docs/C%23/intro%3F.md", putPath)
+}
