@@ -1,8 +1,12 @@
 package ghmcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/oauth"
@@ -233,6 +237,143 @@ func TestOAuthTypedRegistrationLegacyElicitation(t *testing.T) {
 			assert.Nil(t, result.StructuredContent)
 			require.Len(t, result.Content, 1)
 			assert.Equal(t, "tool-ran", result.Content[0].(*mcp.TextContent).Text)
+		})
+	}
+}
+
+func TestOAuthTypedHTTPHeaderBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		arguments string
+		owner     string
+		repo      string
+		mismatch  bool
+		valid     bool
+	}{
+		{"owner-mismatch", `{"owner":"octo","repo":"hello","mode":"valid"}`, "other", "hello", true, true},
+		{"repo-mismatch", `{"owner":"octo","repo":"hello","mode":"valid"}`, "octo", "other", true, true},
+		{"missing-header", `{"owner":"octo","repo":"hello","mode":"valid"}`, "", "hello", true, true},
+		{"matching", `{"owner":"octo","repo":"hello","mode":"valid"}`, "octo", "hello", false, true},
+		{"missing-required", `{}`, "", "", false, false},
+		{"invalid-enum", `{"owner":"octo","repo":"hello","mode":"invalid"}`, "octo", "hello", false, false},
+		{"invalid-owner-type", `{"owner":42,"repo":"hello","mode":"valid"}`, "42", "hello", false, false},
+		{"null-owner", `{"owner":null,"repo":"hello","mode":"valid"}`, "", "hello", false, false},
+		{"non-object", `[]`, "", "", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := oauthPendingAuthenticator()
+			handlerCalls, receivingCalls, preflightCalls, normalizerCalls := 0, 0, 0, 0
+			type input struct {
+				Owner string `json:"owner"`
+				Repo  string `json:"repo"`
+				Mode  string `json:"mode"`
+			}
+			tool := inventory.NewServerToolWithContextHandlerAndSchemaOptions(
+				mcp.Tool{
+					Name: probeToolName,
+					InputSchema: &jsonschema.Schema{
+						Type: "object",
+						Properties: map[string]*jsonschema.Schema{
+							"owner": {Type: "string"},
+							"repo":  {Type: "string"},
+							"mode":  {Type: "string", Enum: []any{"valid"}},
+						},
+						Required: []string{"owner", "repo", "mode"},
+					},
+				},
+				inventory.ToolsetMetadata{ID: "test"},
+				func(context.Context, *mcp.CallToolRequest, input) (*mcp.CallToolResult, oauthProbeOutput, error) {
+					handlerCalls++
+					return nil, oauthProbeOutput{Status: "tool-ran"}, nil
+				},
+				inventory.TypedSchemaOptions{
+					Preflight: func(ctx context.Context, _ *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+						preflightCalls++
+						return ctx, nil, nil
+					},
+				},
+				func(raw json.RawMessage) (json.RawMessage, error) {
+					normalizerCalls++
+					return raw, nil
+				},
+			)
+			server := mcp.NewServer(&mcp.Implementation{Name: "oauth-http", Version: "test"}, nil)
+			tool.RegisterFunc(server, nil, createOAuthToolMiddleware(fake, discardLogger()))
+			server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+				return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+					if method == inventory.MCPMethodToolsCall {
+						receivingCalls++
+					}
+					return next(ctx, method, req)
+				}
+			})
+			handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+				return server
+			}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+			call := func(accept bool) *httptest.ResponseRecorder {
+				t.Helper()
+				params := map[string]any{
+					"name": probeToolName, "arguments": json.RawMessage(tc.arguments),
+					"_meta": mcp.Meta{
+						mcp.MetaKeyProtocolVersion:    inventory.ProtocolVersionMultiRoundTrip,
+						mcp.MetaKeyClientInfo:         &mcp.Implementation{Name: "test", Version: "test"},
+						mcp.MetaKeyClientCapabilities: &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
+					},
+				}
+				if accept {
+					params["inputResponses"] = mcp.InputResponseMap{
+						oauthElicitIDPrefix + "flow-1": &mcp.ElicitResult{Action: "accept"},
+					}
+				}
+				body, err := json.Marshal(params)
+				require.NoError(t, err)
+				req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(fmt.Sprintf(
+					`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":%s}`, body)))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				req.Header.Set("Mcp-Protocol-Version", inventory.ProtocolVersionMultiRoundTrip)
+				req.Header.Set("Mcp-Method", "tools/call")
+				req.Header.Set("Mcp-Name", probeToolName)
+				req.Header.Set("Mcp-Param-owner", tc.owner)
+				req.Header.Set("Mcp-Param-repo", tc.repo)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				return rec
+			}
+			rec := call(false)
+			if tc.mismatch {
+				require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+				assert.Contains(t, rec.Body.String(), "header mismatch")
+				assert.Zero(t, receivingCalls)
+				assert.Zero(t, fake.authCalls)
+			} else {
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				assert.Contains(t, rec.Body.String(), `"resultType":"input_required"`)
+				assert.NotContains(t, rec.Body.String(), "structuredContent")
+				assert.Equal(t, 1, receivingCalls)
+				assert.Equal(t, 1, fake.authCalls)
+			}
+			assert.Zero(t, handlerCalls)
+			assert.Zero(t, preflightCalls)
+			assert.Zero(t, normalizerCalls)
+			if tc.mismatch {
+				return
+			}
+			rec = call(true)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), `"resultType":"complete"`)
+			assert.NotContains(t, rec.Body.String(), `"resultType":"input_required"`)
+			assert.Equal(t, 1, fake.awaitCalls)
+			assert.Equal(t, 1, preflightCalls)
+			assert.Equal(t, 1, normalizerCalls)
+			if tc.valid {
+				assert.Equal(t, 1, handlerCalls)
+				assert.Contains(t, rec.Body.String(), `"structuredContent":{"status":"tool-ran"}`)
+			} else {
+				assert.Zero(t, handlerCalls)
+				assert.Contains(t, rec.Body.String(), `"isError":true`)
+				assert.NotContains(t, rec.Body.String(), "structuredContent")
+			}
 		})
 	}
 }
