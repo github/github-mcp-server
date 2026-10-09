@@ -678,8 +678,10 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	t.Parallel()
 
 	var gotAuth string
+	var gotAPIVersion string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get(headers.AuthorizationHeader)
+		gotAPIVersion = r.Header.Get(headers.GitHubAPIVersionHeader)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -701,6 +703,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 
 	do()
 	assert.Equal(t, "", gotAuth, "no auth header before authorization")
+	assert.Equal(t, headers.GitHubEnterpriseServerAPIVersion, gotAPIVersion)
 
 	current = "oauth-token"
 	do()
