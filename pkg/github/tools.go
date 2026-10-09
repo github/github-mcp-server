@@ -237,6 +237,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GetLatestRelease(t),
 		GetReleaseByTag(t),
 		CreateOrUpdateFile(t),
+		ApplyFilePatch(t),
 		CreateRepository(t),
 		DeleteRepository(t),
 		ForkRepository(t),
