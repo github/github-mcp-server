@@ -761,6 +761,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - **OAuth Challenge Scopes**: `repo`
   - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+  - `custom_agent`: Optional custom agent slug to use instead of the default Copilot coding agent (string, optional)
   - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
   - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
