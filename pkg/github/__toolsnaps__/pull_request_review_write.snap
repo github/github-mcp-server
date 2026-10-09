@@ -60,5 +60,18 @@
     ],
     "type": "object"
   },
-  "name": "pull_request_review_write"
+  "name": "pull_request_review_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "description": "Operation result message.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": "object"
+  }
 }

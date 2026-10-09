@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 )
 
 // generateInsidersFeaturesDocs refreshes the auto-generated section of

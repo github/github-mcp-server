@@ -131,5 +131,275 @@
     ],
     "type": "object"
   },
-  "name": "create_repository_ruleset"
+  "name": "create_repository_ruleset",
+  "outputSchema": {
+    "$defs": {
+      "idCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "organization_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "repository_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "nameCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "propertyCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "include": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "property_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "property_values"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "include",
+          "exclude"
+        ],
+        "type": "object"
+      },
+      "rule": {
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "description": "User-configured parameters for this rule type.",
+            "type": "object"
+          },
+          "ruleset_id": {
+            "type": "integer"
+          },
+          "ruleset_source": {
+            "type": "string"
+          },
+          "ruleset_source_type": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "bypass_actors": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "actor_id": {
+              "type": "integer"
+            },
+            "actor_type": {
+              "type": "string"
+            },
+            "bypass_mode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actor_type",
+            "bypass_mode"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "conditions": {
+        "additionalProperties": false,
+        "properties": {
+          "organization_id": {
+            "$ref": "#/$defs/idCondition",
+            "type": "object"
+          },
+          "organization_name": {
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
+          },
+          "organization_property": {
+            "$ref": "#/$defs/propertyCondition",
+            "type": "object"
+          },
+          "ref_name": {
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
+          },
+          "repository_id": {
+            "$ref": "#/$defs/idCondition",
+            "type": "object"
+          },
+          "repository_name": {
+            "$ref": "#/$defs/nameCondition",
+            "type": "object"
+          },
+          "repository_property": {
+            "$ref": "#/$defs/propertyCondition",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "created_at": {
+        "description": "RFC3339 creation time.",
+        "format": "date-time",
+        "type": "string"
+      },
+      "current_user_can_bypass": {
+        "type": "string"
+      },
+      "enforcement": {
+        "enum": [
+          "",
+          "disabled",
+          "active",
+          "evaluate"
+        ],
+        "type": "string"
+      },
+      "id": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "rules": {
+        "items": {
+          "$ref": "#/$defs/rule",
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "source": {
+        "type": "string"
+      },
+      "source_type": {
+        "enum": [
+          "Repository",
+          "Organization",
+          "Enterprise"
+        ],
+        "type": "string"
+      },
+      "target": {
+        "enum": [
+          "branch",
+          "tag",
+          "push",
+          "repository"
+        ],
+        "type": "string"
+      },
+      "updated_at": {
+        "description": "RFC3339 last update time.",
+        "format": "date-time",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "source",
+      "enforcement"
+    ],
+    "type": "object"
+  }
 }

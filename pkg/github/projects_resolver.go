@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/shurcooL/githubv4"
 )
 

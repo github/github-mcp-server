@@ -423,14 +423,14 @@ func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Page number for pagination (min 1)",
-		Minimum:     jsonschema.Ptr(1.0),
+		Minimum:     new(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	return schema
@@ -442,14 +442,14 @@ func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Page number for pagination (min 1)",
-		Minimum:     jsonschema.Ptr(1.0),
+		Minimum:     new(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{
@@ -465,8 +465,8 @@ func WithCursorPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{

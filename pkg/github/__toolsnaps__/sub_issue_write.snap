@@ -49,5 +49,217 @@
     ],
     "type": "object"
   },
-  "name": "sub_issue_write"
+  "name": "sub_issue_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "issue": {
+        "additionalProperties": false,
+        "properties": {
+          "assignees": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "closed_at": {
+            "description": "Closure time (RFC 3339), when closed.",
+            "type": "string"
+          },
+          "comments": {
+            "description": "Number of comments.",
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "created_at": {
+            "description": "Creation time (RFC 3339).",
+            "type": "string"
+          },
+          "field_values": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data_type": {
+                  "description": "REST issue field type.",
+                  "enum": [
+                    "text",
+                    "number",
+                    "date",
+                    "single_select"
+                  ],
+                  "type": "string"
+                },
+                "issue_field_id": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "issue_field_id",
+                "data_type",
+                "value"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "html_url": {
+            "description": "Human-readable issue link.",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "issue_type": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "state": {
+            "description": "Issue state (lowercase REST value).",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state_reason": {
+            "enum": [
+              "completed",
+              "not_planned",
+              "reopened",
+              "duplicate"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sub_issues_summary": {
+            "additionalProperties": false,
+            "properties": {
+              "completed": {
+                "description": "Number of completed sub-issues.",
+                "type": "integer"
+              },
+              "percent_completed": {
+                "description": "Completed sub-issues as a percentage (0-100).",
+                "type": "integer"
+              },
+              "total": {
+                "description": "Total number of sub-issues.",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "completed",
+              "percent_completed"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updated_at": {
+            "description": "Last update time (RFC 3339).",
+            "type": "string"
+          },
+          "user": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          }
+        },
+        "required": [
+          "assignees"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "method": {
+        "enum": [
+          "add",
+          "remove",
+          "reprioritize"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "issue"
+    ],
+    "type": "object"
+  }
 }

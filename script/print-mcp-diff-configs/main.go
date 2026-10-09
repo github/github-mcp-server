@@ -36,8 +36,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	mcphdr "github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	mcphdr "github.com/github/github-mcp-server/v2/pkg/http/headers"
 )
 
 type config struct {
