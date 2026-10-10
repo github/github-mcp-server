@@ -707,8 +707,9 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			OutputSchema: pullRequestWriteOutputSchema(),
 			Description:  t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			Meta: mcp.Meta{
 				"ui": map[string]any{
@@ -1285,8 +1286,9 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			OutputSchema: pullRequestCommentReplyOutputSchema(),
 			Description:  t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: schema,
 		},
@@ -2553,8 +2555,9 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			OutputSchema: pullRequestOutputSchema[RepositoryMessageOutput](),
 			Description:  t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure)."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: schema,
 		},
