@@ -17,5 +17,168 @@
     ],
     "type": "object"
   },
-  "name": "get_global_security_advisory"
+  "name": "get_global_security_advisory",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "cve_id": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "cwe_ids": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "description": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "ghsa_id": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "html_url": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "published_at": {
+        "description": "Advisory publication time (RFC 3339).",
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "severity": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "source_code_location": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "state": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "summary": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "type": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "updated_at": {
+        "description": "Last advisory update time (RFC 3339).",
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "vulnerabilities": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "first_patched_version": {
+              "description": "Earliest version fixing the affected package.",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "package": {
+              "additionalProperties": false,
+              "properties": {
+                "ecosystem": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "patched_versions": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "severity": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "vulnerable_functions": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "vulnerable_version_range": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "withdrawn_at": {
+        "description": "Withdrawal time, when withdrawn (RFC 3339).",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

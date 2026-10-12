@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )

@@ -35,5 +35,92 @@
     ],
     "type": "object"
   },
-  "name": "get_repository_tree"
+  "name": "get_repository_tree",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "count": {
+        "type": "integer"
+      },
+      "owner": {
+        "type": "string"
+      },
+      "recursive": {
+        "type": "boolean"
+      },
+      "repo": {
+        "type": "string"
+      },
+      "sha": {
+        "type": "string"
+      },
+      "tree": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "description": "Git file mode in octal; empty if absent in the API response.",
+              "enum": [
+                "100644",
+                "100755",
+                "040000",
+                "160000",
+                "120000",
+                ""
+              ],
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sha": {
+              "type": "string"
+            },
+            "size": {
+              "description": "Blob size in bytes, when available.",
+              "type": "integer"
+            },
+            "type": {
+              "description": "Git object type; empty if absent in the API response.",
+              "enum": [
+                "blob",
+                "tree",
+                "commit",
+                ""
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "type",
+            "mode",
+            "sha"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "tree_sha": {
+        "type": "string"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sha",
+      "truncated",
+      "tree",
+      "tree_sha",
+      "owner",
+      "repo",
+      "recursive",
+      "count"
+    ],
+    "type": "object"
+  }
 }

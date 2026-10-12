@@ -11,11 +11,12 @@
     "build": "node scripts/build.mjs",
     "dev": "npm run build",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@github/markdown-toolbar-element": "^2.2.3",
-    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.3.1",
     "@modelcontextprotocol/ext-apps": "^2.0.3",
     "@primer/octicons-react": "^19.38.0",
     "@primer/primitives": "^11.10.0",

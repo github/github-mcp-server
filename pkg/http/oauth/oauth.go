@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"

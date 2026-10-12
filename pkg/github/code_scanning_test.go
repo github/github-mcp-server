@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ import (
 func Test_GetCodeScanningAlert(t *testing.T) {
 	// Verify tool definition once
 	toolDef := GetCodeScanningAlert(translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "get_code_scanning_alert", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
@@ -123,7 +122,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 func Test_ListCodeScanningAlerts(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListCodeScanningAlerts(translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "list_code_scanning_alerts", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
