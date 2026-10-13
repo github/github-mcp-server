@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -436,7 +436,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
-expectedScopes: []string{
+			expectedScopes: []string{
 				"repo",
 				"read:org",
 				"read:user",

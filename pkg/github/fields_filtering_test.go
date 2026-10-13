@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -23,16 +23,16 @@ import (
 func mockListCommits() []*github.RepositoryCommit {
 	return []*github.RepositoryCommit{
 		{
-			SHA:     github.Ptr("abc123def456"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			SHA:     new("abc123def456"),
+			HTMLURL: new("https://github.com/owner/repo/commit/abc123def456"),
 			Commit: &github.Commit{
-				Message: github.Ptr("First commit with a reasonably long message to add bytes"),
+				Message: new("First commit with a reasonably long message to add bytes"),
 				Author: &github.CommitAuthor{
-					Name:  github.Ptr("Test User"),
-					Email: github.Ptr("test@example.com"),
+					Name:  new("Test User"),
+					Email: new("test@example.com"),
 				},
 			},
-			Author: &github.User{Login: github.Ptr("testuser")},
+			Author: &github.User{Login: new("testuser")},
 		},
 	}
 }
@@ -82,8 +82,8 @@ func mockListReleases() []*github.RepositoryRelease {
 		{
 			ID:      1,
 			TagName: "v1.0.0",
-			Name:    github.Ptr("First Release"),
-			Body:    github.Ptr("Release notes with a reasonably long body to add bytes"),
+			Name:    new("First Release"),
+			Body:    new("Release notes with a reasonably long body to add bytes"),
 			HTMLURL: "https://github.com/owner/repo/releases/tag/v1.0.0",
 		},
 	}
@@ -133,12 +133,12 @@ func Test_ListReleases_FieldsTelemetry(t *testing.T) {
 func mockListPullRequests() []*github.PullRequest {
 	return []*github.PullRequest{
 		{
-			Number:  github.Ptr(42),
-			Title:   github.Ptr("First PR"),
-			Body:    github.Ptr("PR body with a reasonably long description to add bytes"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
-			User:    &github.User{Login: github.Ptr("user1")},
+			Number:  new(42),
+			Title:   new("First PR"),
+			Body:    new("PR body with a reasonably long description to add bytes"),
+			State:   new("open"),
+			HTMLURL: new("https://github.com/owner/repo/pull/42"),
+			User:    &github.User{Login: new("user1")},
 		},
 	}
 }
@@ -190,16 +190,16 @@ func Test_ListPullRequests_FieldsTelemetry(t *testing.T) {
 // does not attempt the follow-up GraphQL field-values enrichment.
 func mockIssueSearchResult() *github.IssuesSearchResult {
 	return &github.IssuesSearchResult{
-		Total:             github.Ptr(1),
-		IncompleteResults: github.Ptr(false),
+		Total:             new(1),
+		IncompleteResults: new(false),
 		Issues: []*github.Issue{
 			{
-				Number:  github.Ptr(42),
-				Title:   github.Ptr("A result"),
-				Body:    github.Ptr("Body with a reasonably long description to add bytes"),
-				State:   github.Ptr("open"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
-				User:    &github.User{Login: github.Ptr("user1")},
+				Number:  new(42),
+				Title:   new("A result"),
+				Body:    new("Body with a reasonably long description to add bytes"),
+				State:   new("open"),
+				HTMLURL: new("https://github.com/owner/repo/pull/42"),
+				User:    &github.User{Login: new("user1")},
 			},
 		},
 	}
@@ -598,16 +598,16 @@ func Test_PullRequestRead_FieldsRejectFieldForWrongMethod(t *testing.T) {
 func mockPullRequestReviews() []*github.PullRequestReview {
 	return []*github.PullRequestReview{
 		{
-			ID:    github.Ptr(int64(101)),
-			State: github.Ptr("APPROVED"),
-			Body: github.Ptr(
+			ID:    new(int64(101)),
+			State: new("APPROVED"),
+			Body: new(
 				"large review body that should disappear when fields are selected",
 			),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#pullrequestreview-101"),
+			HTMLURL: new("https://github.com/owner/repo/pull/42#pullrequestreview-101"),
 			User: &github.User{
-				Login: github.Ptr("reviewer"),
+				Login: new("reviewer"),
 			},
-			CommitID:    github.Ptr("abcdef123456"),
+			CommitID:    new("abcdef123456"),
 			SubmittedAt: &github.Timestamp{Time: time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)},
 		},
 	}
@@ -691,31 +691,31 @@ func Test_PullRequestRead_GetReviews_Fields(t *testing.T) {
 
 func mockPullRequestForCheckRuns() *github.PullRequest {
 	return &github.PullRequest{
-		Number: github.Ptr(42),
+		Number: new(42),
 		Head: &github.PullRequestBranch{
-			SHA: github.Ptr("abcd1234"),
-			Ref: github.Ptr("feature-branch"),
+			SHA: new("abcd1234"),
+			Ref: new("feature-branch"),
 		},
 	}
 }
 
 func mockCheckRuns() *github.ListCheckRunsResults {
 	return &github.ListCheckRunsResults{
-		Total: github.Ptr(2),
+		Total: new(2),
 		CheckRuns: []*github.CheckRun{
 			{
-				ID:         github.Ptr(int64(1)),
-				Name:       github.Ptr("test"),
-				Status:     github.Ptr("completed"),
-				Conclusion: github.Ptr("success"),
-				DetailsURL: github.Ptr("https://example.test/test"),
+				ID:         new(int64(1)),
+				Name:       new("test"),
+				Status:     new("completed"),
+				Conclusion: new("success"),
+				DetailsURL: new("https://example.test/test"),
 			},
 			{
-				ID:         github.Ptr(int64(2)),
-				Name:       github.Ptr("lint"),
-				Status:     github.Ptr("completed"),
-				Conclusion: github.Ptr("failure"),
-				DetailsURL: github.Ptr("https://example.test/lint"),
+				ID:         new(int64(2)),
+				Name:       new("lint"),
+				Status:     new("completed"),
+				Conclusion: new("failure"),
+				DetailsURL: new("https://example.test/lint"),
 			},
 		},
 	}
@@ -923,16 +923,16 @@ func Test_PullRequestRead_FieldsAfterLockdown(t *testing.T) {
 
 	reviews := []*github.PullRequestReview{
 		{
-			ID:    github.Ptr(int64(2030)),
-			State: github.Ptr("APPROVED"),
-			Body:  github.Ptr("Maintainer review"),
-			User:  &github.User{Login: github.Ptr("maintainer")},
+			ID:    new(int64(2030)),
+			State: new("APPROVED"),
+			Body:  new("Maintainer review"),
+			User:  &github.User{Login: new("maintainer")},
 		},
 		{
-			ID:    github.Ptr(int64(2031)),
-			State: github.Ptr("COMMENTED"),
-			Body:  github.Ptr("External reviewer"),
-			User:  &github.User{Login: github.Ptr("testuser")},
+			ID:    new(int64(2031)),
+			State: new("COMMENTED"),
+			Body:  new("External reviewer"),
+			User:  &github.User{Login: new("testuser")},
 		},
 	}
 

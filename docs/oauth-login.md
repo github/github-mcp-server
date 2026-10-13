@@ -260,8 +260,8 @@ credentials, set them with `-ldflags`:
 
 ```bash
 go build -ldflags "\
-  -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID=<CLIENT_ID> \
-  -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientSecret=<CLIENT_SECRET>" \
+  -X github.com/github/github-mcp-server/v2/internal/buildinfo.OAuthClientID=<CLIENT_ID> \
+  -X github.com/github/github-mcp-server/v2/internal/buildinfo.OAuthClientSecret=<CLIENT_SECRET>" \
   ./cmd/github-mcp-server
 ```
 

@@ -6,7 +6,8 @@
  * @see https://github.com/github/markdown-toolbar-element
  */
 import { useId, useRef, useState, useEffect } from "react";
-import { Box, Text, Button, IconButton, useTheme } from "@primer/react";
+import { Text, Button, IconButton, useTheme } from "@primer/react";
+import styles from "../styles.module.css";
 import {
   BoldIcon,
   ItalicIcon,
@@ -25,7 +26,7 @@ import remarkGfm from "remark-gfm";
 import "@github/markdown-toolbar-element";
 
 // Declare types for the web component elements
-declare global {
+declare module "react/jsx-runtime" {
   namespace JSX {
     interface IntrinsicElements {
       "markdown-toolbar": React.DetailedHTMLProps<
@@ -168,41 +169,48 @@ export function MarkdownEditor({
   };
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      overflow="hidden"
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        overflow: "hidden",
+      }}
     >
       {/* Header with tabs and toolbar */}
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="space-between"
-        px={2}
-        py={1}
-        bg="canvas.subtle"
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
-        overflow="hidden"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingTop: 4,
+          paddingBottom: 4,
+          backgroundColor: "var(--bgColor-muted)",
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+          overflow: "hidden",
+        }}
       >
         {/* Write/Preview tabs */}
-        <Box display="flex" flexShrink={0} gap={0}>
+        <div style={{ display: "flex", flexShrink: 0, gap: 0 }}>
           <Button
             size="small"
             variant="invisible"
             onClick={() => setViewMode("write")}
-            sx={{
-              fontWeight: viewMode === "write" ? "semibold" : "normal",
-              color: viewMode === "write" ? "fg.default" : "fg.muted",
-              bg: viewMode === "write" ? "actionListItem.default.hoverBg" : "transparent",
-              borderRadius: 2,
-              "&:hover": {
-                color: "fg.default",
-              },
+            style={{
+              fontWeight: viewMode === "write" ? 500 : 400,
+              backgroundColor:
+                viewMode === "write"
+                  ? "var(--control-transparent-bgColor-hover)"
+                  : "transparent",
+              borderRadius: 6,
             }}
+            className={styles.editorTab}
+            data-active={viewMode === "write"}
           >
             Write
           </Button>
@@ -210,24 +218,32 @@ export function MarkdownEditor({
             size="small"
             variant="invisible"
             onClick={() => setViewMode("preview")}
-            sx={{
-              fontWeight: viewMode === "preview" ? "semibold" : "normal",
-              color: viewMode === "preview" ? "fg.default" : "fg.muted",
-              bg: viewMode === "preview" ? "actionListItem.default.hoverBg" : "transparent",
-              borderRadius: 2,
-              "&:hover": {
-                color: "fg.default",
-              },
+            style={{
+              fontWeight: viewMode === "preview" ? 500 : 400,
+              backgroundColor:
+                viewMode === "preview"
+                  ? "var(--control-transparent-bgColor-hover)"
+                  : "transparent",
+              borderRadius: 6,
             }}
+            className={styles.editorTab}
+            data-active={viewMode === "preview"}
           >
             Preview
           </Button>
-        </Box>
+        </div>
 
         {/* Toolbar - uses GitHub's official markdown-toolbar-element */}
         {viewMode === "write" && (
           <markdown-toolbar for={textareaId} style={{ display: "flex", overflow: "hidden", minWidth: 0, flexShrink: 1 }}>
-            <Box display="flex" gap={0} alignItems="center" sx={{ overflowX: "auto" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 0,
+                alignItems: "center",
+                overflowX: "auto",
+              }}
+            >
               <md-bold>
                 <IconButton
                   icon={BoldIcon}
@@ -269,12 +285,13 @@ export function MarkdownEditor({
                 />
               </md-link>
 
-              <Box
-                sx={{
+              <div
+                style={{
                   width: "1px",
                   height: 16,
-                  bg: "border.default",
-                  mx: 1,
+                  backgroundColor: "var(--borderColor-default)",
+                  marginLeft: 4,
+                  marginRight: 4,
                 }}
               />
 
@@ -302,10 +319,10 @@ export function MarkdownEditor({
                   variant="invisible"
                 />
               </md-task-list>
-            </Box>
+            </div>
           </markdown-toolbar>
         )}
-      </Box>
+      </div>
 
       {/* Content area */}
       {viewMode === "write" ? (
@@ -333,115 +350,51 @@ export function MarkdownEditor({
           }}
         />
       ) : (
-        <Box
-          bg="canvas.default"
-          sx={{
+        <div
+          style={{
+            backgroundColor: "var(--bgColor-default)",
             padding: "12px",
             minHeight,
-            fontSize: 1,
+            fontSize: 14,
             lineHeight: 1.5,
-            color: "fg.default",
-            // Remove top margin from first element so text aligns with write mode
-            "& > :first-child": { mt: 0 },
-            // GitHub Flavored Markdown styles
-            "& h1, & h2, & h3, & h4, & h5, & h6": {
-              mt: 3,
-              mb: 2,
-              fontWeight: "semibold",
-              lineHeight: 1.25,
-            },
-            "& h1": { fontSize: 4, borderBottom: "1px solid", borderColor: "border.default", pb: 2 },
-            "& h2": { fontSize: 3, borderBottom: "1px solid", borderColor: "border.default", pb: 2 },
-            "& h3": { fontSize: 2 },
-            "& p": { my: 2 },
-            "& ul, & ol": { pl: 4, my: 2 },
-            "& li": { my: 1 },
-            "& code": {
-              bg: "neutral.muted",
-              px: 1,
-              py: "2px",
-              borderRadius: 1,
-              fontFamily: "mono",
-              fontSize: "85%",
-            },
-            "& pre": {
-              bg: "neutral.muted",
-              p: 3,
-              borderRadius: 2,
-              overflow: "auto",
-              my: 2,
-            },
-            "& pre code": {
-              bg: "transparent",
-              p: 0,
-            },
-            "& blockquote": {
-              borderLeft: "4px solid",
-              borderColor: "border.default",
-              pl: 3,
-              ml: 0,
-              mr: 0,
-              my: 2,
-              color: "fg.muted",
-              bg: "canvas.subtle",
-            },
-            "& a": {
-              color: "accent.fg",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
-            },
-            "& table": {
-              borderCollapse: "collapse",
-              width: "100%",
-              my: 2,
-            },
-            "& th, & td": {
-              border: "1px solid",
-              borderColor: "border.default",
-              p: 2,
-            },
-            "& th": {
-              bg: "canvas.subtle",
-              fontWeight: "semibold",
-            },
-            "& input[type='checkbox']": {
-              mr: 2,
-            },
-            "& hr": {
-              border: "none",
-              borderTop: "1px solid",
-              borderColor: "border.default",
-              my: 3,
-            },
-          }}>
+            color: "var(--fgColor-default)",
+          }}
+          className={styles.markdownPreview}
+        >
 
           {value ? (
             <Markdown remarkPlugins={[remarkGfm]}>{value}</Markdown>
           ) : (
-            <Text sx={{ color: "fg.muted", fontStyle: "italic" }}>
+            <Text
+              style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}
+            >
               Nothing to preview
             </Text>
           )}
-        </Box>
+        </div>
       )}
 
       {/* Footer */}
-      <Box
-        display="flex"
-        alignItems="center"
-        gap={1}
-        px={2}
-        py={1}
-        bg="canvas.subtle"
-        borderTopWidth={1}
-        borderTopStyle="solid"
-        borderTopColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingTop: 4,
+          paddingBottom: 4,
+          backgroundColor: "var(--bgColor-muted)",
+          borderTopWidth: 1,
+          borderTopStyle: "solid",
+          borderTopColor: "var(--borderColor-default)",
+        }}
       >
         <MarkdownIcon size={16} />
-        <Text sx={{ fontSize: 0, color: "fg.muted" }}>
+        <Text style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
           Markdown is supported
         </Text>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

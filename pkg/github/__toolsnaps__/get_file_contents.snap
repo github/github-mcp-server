@@ -5,6 +5,18 @@
     "title": "Get file or directory contents"
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABTklEQVRIie2UPUvDUBSGn5PW2qnYwUXExWhNpY2CUKT+BB10E3R0dnbrppuKLgouHbr5X5qlKRIFB+cuguBHj4O05KYfNsVJ+m7n3Hue54ZcrhDKQqGQTX1YVwg7QIbx0gh8b7VTJMMrqS+5RtgD7oDX2GhhC6UcbhkCVLZVuX1sesex4YCdX6uAGgIrsicjlrTGgQ9KVPDnmQgmgongPwgkXNiOq8ADMAtkx4UGvtflJvus20ANeIlN/vW5/kkt8L3D2HD6P9dRgSI8dQcc9w1IR3acBE3vbFSp8ZMVnoFSqJ/unZDe3pAYXyDIJarn9opbDZrewaAh2y7Oy5S1r6h5QG2Xxbw3piDw6xe244oKyxFmC5ihc+tS1qaqngKJyAEBGmZvSGzHVYT790T7aPozsaFoFZGboFGvDJsbOYuOuxuuc7n1uaV8sRSH8Q1DUVLnYLty3gAAAABJRU5ErkJggg==",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAA+ElEQVRIie2WLU5DQRRGzwUEirQCQ9BsoSGtZQHgSFgIsg4JXQCGP8V2QCBIEATZkJDgOJi+MJnMo30TFHmfmzvzfeeKyZ2BROpQvVHfrddDmhkZ4BY4Ai6BD7prAowjIoq7i85nFcGNf6qa1tayM1vAvBZQUg74c/WAHtAD/gMgn6YCT8A2MKwOTaZpCfAF3AGvFdlLx7XqdUVw4186rgWeE8Nn4cU67QLNAS/ASG3qmwVPqdaqjWw9A86BK+CkzaTuAseFBse/AiLiQg1gLzs3Bwb8XIp94AxYL/Af2xordap6v/htHKhv6nTlgBUAh9l6Rx11yfgG8ne/zwh2OysAAAAASUVORK5CYII=",
+      "theme": "dark"
+    }
+  ],
   "inputSchema": {
     "properties": {
       "fields": {
@@ -27,7 +39,8 @@
       },
       "owner": {
         "description": "Repository owner (username or organization)",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "path": {
         "default": "/",
@@ -40,7 +53,8 @@
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       },
       "sha": {
         "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
@@ -53,5 +67,236 @@
     ],
     "type": "object"
   },
-  "name": "get_file_contents"
+  "name": "get_file_contents",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "download_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "git_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "html_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "size": {
+              "description": "File size in bytes.",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "submodule_git_url": {
+              "description": "Git remote URL for a submodule.",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "target": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "type": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": "array"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "const": "text",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "resource": {
+                      "additionalProperties": false,
+                      "oneOf": [
+                        {
+                          "not": {
+                            "required": [
+                              "blob"
+                            ]
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        },
+                        {
+                          "not": {
+                            "required": [
+                              "text"
+                            ]
+                          },
+                          "required": [
+                            "blob"
+                          ]
+                        },
+                        {
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "text"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "blob"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "properties": {
+                        "blob": {
+                          "description": "Base64-encoded file bytes.",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "uri": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "uri"
+                      ],
+                      "type": "object"
+                    },
+                    "type": {
+                      "const": "resource",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "resource"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "File size in bytes.",
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "const": "resource_link",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      }
+    ]
+  }
 }

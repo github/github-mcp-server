@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,10 +46,10 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 	const etag = `"abc123"`
 	const body = `{"number":1}`
 
-	var requests int32
+	var requests atomic.Int32
 	var lastIfNoneMatch string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&requests, 1)
+		n := requests.Add(1)
 		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
 		w.Header().Set(headers.ETagHeader, etag)
 		if n == 1 {
@@ -84,7 +84,7 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 	assert.Equal(t, http.StatusOK, status2, "304 is translated to the cached 200")
 	assert.Equal(t, body, body2, "cached body is served on 304")
 	assert.Equal(t, etag, lastIfNoneMatch, "second request sends the cached ETag")
-	assert.Equal(t, int32(2), atomic.LoadInt32(&requests), "every request still reaches the server")
+	assert.Equal(t, int32(2), requests.Load(), "every request still reaches the server")
 }
 
 // TestETagTransport_UpdatesRateLimitHeadersFrom304 verifies that a cache-served
@@ -95,9 +95,9 @@ func TestETagTransport_UpdatesRateLimitHeadersFrom304(t *testing.T) {
 
 	const etag = `"v1"`
 
-	var requests int32
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		n := atomic.AddInt32(&requests, 1)
+		n := requests.Add(1)
 		w.Header().Set(headers.ETagHeader, etag)
 		if n == 1 {
 			w.Header().Set("X-RateLimit-Remaining", "100")
@@ -143,7 +143,7 @@ func TestETagTransport_ScopesCacheByAuthorization(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, r.Header.Get(headers.AuthorizationHeader))
+		_, _ = io.WriteString(w, r.Header.Get(headers.AuthorizationHeader)) //nolint:gosec // G705: Test server echoes synthetic tokens to verify cache isolation; no browser consumes the response.
 	}))
 	defer server.Close()
 
