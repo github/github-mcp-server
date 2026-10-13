@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -18,7 +17,7 @@ import (
 func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	toolDef := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_global_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -133,7 +132,7 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	toolDef := GetGlobalSecurityAdvisory(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "get_global_security_advisory", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -240,7 +239,7 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -501,7 +500,7 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListOrgRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_org_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)

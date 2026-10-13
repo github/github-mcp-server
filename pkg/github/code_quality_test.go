@@ -11,14 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 )
 
 func Test_GetCodeQualityFinding(t *testing.T) {
 	// Verify tool definition once
 	toolDef := GetCodeQualityFinding(translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "get_code_quality_finding", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)

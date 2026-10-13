@@ -25,6 +25,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface IssueResult {
@@ -552,7 +553,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("labels", textContent.text as string);
             const labels = (data.labels || []).map(
               (l: { name: string; color: string; id: string }) => ({
                 id: l.id || l.name,
@@ -579,7 +580,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("assignees", textContent.text as string);
             const assignees = (data.assignees || []).map(
               (a: { login: string }) => ({
                 id: a.login,
@@ -605,7 +606,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("milestones", textContent.text as string);
             const milestones = (data.milestones || []).map(
               (m: { number: number; title: string; description: string }) => ({
                 id: String(m.number),
@@ -633,10 +634,8 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            // ui_get returns array directly or wrapped in issue_types/types
-            const typesArray = Array.isArray(data) ? data : (data.issue_types || data.types || []);
-            const types = typesArray.map(
+            const typesArray = parseUIGetResult("issue_types", textContent.text as string);
+            const types = typesArray.filter(t => t !== null).map(
               (t: { id: number; name: string; description?: string } | string) => {
                 if (typeof t === "string") {
                   return { id: t, text: t };
@@ -663,7 +662,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("issue_fields", textContent.text as string);
             const fields = (data.fields || [])
               .map(
                 (field: {

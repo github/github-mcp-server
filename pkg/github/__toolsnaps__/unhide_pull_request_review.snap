@@ -36,5 +36,25 @@
     ],
     "type": "object"
   },
-  "name": "unhide_pull_request_review"
+  "name": "unhide_pull_request_review",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "description": "GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden.",
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
 }

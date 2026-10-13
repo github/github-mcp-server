@@ -9,10 +9,10 @@ import (
 	"sort"
 	"strings"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,11 +30,12 @@ const uiGetMaxPages = 10
 
 // UIGet creates a tool to fetch UI data for MCP Apps.
 func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[map[string]any, *UIGetOutput](
 		ToolsetMetadataContext, // Use context toolset so it's always available
 		mcp.Tool{
-			Name:        "ui_get",
-			Description: t("TOOL_UI_GET_DESCRIPTION", "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers)."),
+			Name:         "ui_get",
+			OutputSchema: uiGetOutputSchema(),
+			Description:  t("TOOL_UI_GET_DESCRIPTION", "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers)."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UI_GET_USER_TITLE", "Get UI data"),
 				ReadOnlyHint: true,
@@ -68,36 +69,40 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		uiGetScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *UIGetOutput, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: "labels"}, nil
 			}
-
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), &UIGetOutput{Method: uiGetSchemaMethod(method)}, nil
 			}
 
+			var result *mcp.CallToolResult
 			switch method {
 			case "labels":
-				return uiGetLabels(ctx, deps, args, owner)
+				result, _, err = uiGetLabels(ctx, deps, args, owner)
 			case "assignees":
-				return uiGetAssignees(ctx, deps, args, owner)
+				result, _, err = uiGetAssignees(ctx, deps, args, owner)
 			case "milestones":
-				return uiGetMilestones(ctx, deps, args, owner)
+				result, _, err = uiGetMilestones(ctx, deps, args, owner)
 			case "issue_types":
-				return uiGetIssueTypes(ctx, deps, owner)
+				result, _, err = uiGetIssueTypes(ctx, deps, owner)
 			case "branches":
-				return uiGetBranches(ctx, deps, args, owner)
+				result, _, err = uiGetBranches(ctx, deps, args, owner)
 			case "issue_fields":
-				return uiGetIssueFields(ctx, deps, args, owner)
+				result, _, err = uiGetIssueFields(ctx, deps, args, owner)
 			case "reviewers":
-				return uiGetReviewers(ctx, deps, args, owner)
+				result, _, err = uiGetReviewers(ctx, deps, args, owner)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), &UIGetOutput{Method: "labels"}, nil
 			}
-		})
+			if err != nil {
+				return nil, nil, err
+			}
+			return uiGetTypedResult(method, result)
+		}, normalizeUIGetArguments)
 	return st
 }
 

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
 )
 
 const workflowPathPrefix = ".github/workflows/"

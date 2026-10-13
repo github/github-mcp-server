@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 )
 
 type userAgentKey struct{}
