@@ -2,13 +2,17 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	gogithub "github.com/google/go-github/v92/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,4 +210,75 @@ func TestGranularBatchUpdateIssueLabelsTransport(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGranularBatchUpdateIssueLabelsModernTypedSession(t *testing.T) {
+	calls := 0
+	httpClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposIssuesByOwnerByRepoByIssueNumberLabels: func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			expectPath(t, "/repos/owner/repo/issues/1/labels").
+				andThen(expectRequestBody(t, []any{"bug"}).
+					andThen(mockResponse(t, http.StatusOK, []*gogithub.Label{{Name: "bug"}})))(w, r)
+		},
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	tool := GranularBatchUpdateIssueLabels(translations.NullTranslationHelper)
+	inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(featureCheckerFor(inventory.FeatureFlag(FeatureFlagIssuesGranular))).Build()
+	require.NoError(t, err)
+	server := mcp.NewServer(&mcp.Implementation{Name: "batch-label-typed-test", Version: "v1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	inv.RegisterTools(context.Background(), server, deps)
+	session := connectCommentVisibilityClient(t, server, inventory.ProtocolVersionMultiRoundTrip)
+
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	require.Equal(t, tool.Tool.Name, list.Tools[0].Name)
+	require.NotNil(t, list.Tools[0].OutputSchema)
+	var schema jsonschema.Schema
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, list.Tools[0].OutputSchema)), &schema))
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, toolsnaps.Test(tool.Tool.Name, *list.Tools[0]))
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: tool.Tool.Name,
+		Arguments: map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"operations": []any{map[string]any{
+				// RequiredInt accepted this numeric string before typed decoding.
+				"issue_number": "1.0",
+				"add":          []any{"bug"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, mustMarshalJSON(t, result))
+	expected := `{"results":[{"issue_number":1,"applied":true,"labels":["bug"]}]}`
+	assert.JSONEq(t, expected, getTextResult(t, result).Text)
+	require.NotNil(t, result.StructuredContent)
+	assert.JSONEq(t, expected, mustMarshalJSON(t, result.StructuredContent))
+	require.NoError(t, resolved.Validate(result.StructuredContent))
+	assert.Equal(t, 1, calls)
+
+	invalid, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: tool.Tool.Name,
+		Arguments: map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"operations": []any{
+				map[string]any{"issue_number": "1.0", "add": []any{"bug"}},
+				map[string]any{"issue_number": "2", "add": []any{" "}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, invalid.IsError)
+	assert.Nil(t, invalid.StructuredContent)
+	assert.Contains(t, getErrorResult(t, invalid).Text, "operations[1]")
+	assert.Equal(t, 1, calls, "validation must precede every mutation")
 }

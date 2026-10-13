@@ -664,8 +664,28 @@ func normalizeGranularBatchUpdateIssueLabelsArguments(raw json.RawMessage) (json
 			return nil, err
 		}
 	}
-	if _, ok := args["operations"]; !ok {
+	operationsValue, ok := args["operations"]
+	if !ok {
 		return nil, fmt.Errorf("missing required parameter: operations")
+	}
+	operations, ok := operationsValue.([]any)
+	if !ok {
+		return nil, fmt.Errorf("parameter operations is not of type array, is %T", operationsValue)
+	}
+	for i, operationValue := range operations {
+		operation, ok := operationValue.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("operations[%d] is not an object, is %T", i, operationValue)
+		}
+		issueNumber, ok := operation["issue_number"]
+		if !ok {
+			continue
+		}
+		normalizedIssueNumber, err := toInt(issueNumber)
+		if err != nil {
+			return nil, fmt.Errorf("operations[%d].issue_number: %w", i, err)
+		}
+		operation["issue_number"] = normalizedIssueNumber
 	}
 	return json.Marshal(args)
 }
