@@ -52,5 +52,274 @@
     ],
     "type": "object"
   },
-  "name": "actions_run_trigger"
+  "name": "actions_run_trigger",
+  "outputSchema": {
+    "$defs": {
+      "run_operation": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "status": {
+            "description": "HTTP response status.",
+            "type": "string"
+          },
+          "status_code": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "run_id",
+          "status",
+          "status_code"
+        ],
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "oneOf": [
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "run_workflow"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "dispatch"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "rerun_workflow_run"
+            ]
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "rerun"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "rerun_failed_jobs"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "rerun_failed"
+        ]
+      },
+      {
+        "properties": {
+          "delete_logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "cancel_workflow_run"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "cancel"
+        ]
+      },
+      {
+        "properties": {
+          "cancel": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "dispatch": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "delete_workflow_run_logs"
+            ]
+          },
+          "rerun": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "rerun_failed": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "delete_logs"
+        ]
+      }
+    ],
+    "properties": {
+      "cancel": {
+        "$ref": "#/$defs/run_operation"
+      },
+      "delete_logs": {
+        "$ref": "#/$defs/run_operation"
+      },
+      "dispatch": {
+        "additionalProperties": false,
+        "properties": {
+          "inputs": {
+            "additionalProperties": true,
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP response status.",
+            "type": "string"
+          },
+          "status_code": {
+            "type": "integer"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "workflow_type": {
+            "enum": [
+              "workflow_file",
+              "workflow_id"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "inputs",
+          "message",
+          "ref",
+          "status",
+          "status_code",
+          "workflow_id",
+          "workflow_type"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "method": {
+        "description": "Operation that produced this response.",
+        "enum": [
+          "run_workflow",
+          "rerun_workflow_run",
+          "rerun_failed_jobs",
+          "cancel_workflow_run",
+          "delete_workflow_run_logs"
+        ],
+        "type": "string"
+      },
+      "rerun": {
+        "$ref": "#/$defs/run_operation"
+      },
+      "rerun_failed": {
+        "$ref": "#/$defs/run_operation"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  }
 }

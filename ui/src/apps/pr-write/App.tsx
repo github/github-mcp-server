@@ -28,6 +28,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -335,8 +336,8 @@ function CreatePRApp() {
         if (result && !result.isError && result.content) {
           const textContent = result.content.find((c: { type: string }) => c.type === "text");
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            const branches = (data.branches || data || []).map(
+            const data = parseUIGetResult("branches", textContent.text as string);
+            const branches = (data.branches || []).map(
               (b: { name: string; protected?: boolean }) => ({ name: b.name, protected: b.protected || false })
             );
             setAvailableBranches(branches);
@@ -363,7 +364,7 @@ function CreatePRApp() {
         if (result && !result.isError && result.content) {
           const textContent = result.content.find((c: { type: string }) => c.type === "text");
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("reviewers", textContent.text as string);
             const users = (data.users || []).map(
               (u: { login: string; avatar_url?: string }) => ({
                 kind: "user" as const,

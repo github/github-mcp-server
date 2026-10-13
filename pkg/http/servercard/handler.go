@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
 )
 

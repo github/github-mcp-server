@@ -1,6 +1,10 @@
 package scopes
 
-import "github.com/github/github-mcp-server/pkg/inventory"
+import (
+	"encoding/json"
+
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+)
 
 // ToolScopeMap maps tool names to their complete scope access policies.
 type ToolScopeMap map[string]inventory.ScopeAccess
@@ -8,8 +12,9 @@ type ToolScopeMap map[string]inventory.ScopeAccess
 // ToolScopeAccess is the immutable request-time subset of a tool scope policy.
 // Its maximum scopes stay private so callers cannot mutate the global lookup.
 type ToolScopeAccess struct {
-	maxScopes []string
-	challenge inventory.ScopeChallenge
+	maxScopes          []string
+	challenge          inventory.ScopeChallenge
+	argumentNormalizer inventory.InputNormalizer
 }
 
 var globalToolScopeMap map[string]ToolScopeAccess
@@ -34,8 +39,9 @@ func SetGlobalToolScopeMap(m ToolScopeMap) {
 			panic("dynamic scope challenge requires exhaustive maximum scopes")
 		}
 		globalToolScopeMap[name] = ToolScopeAccess{
-			maxScopes: append([]string(nil), access.Scopes...),
-			challenge: access.Challenge,
+			maxScopes:          append([]string(nil), access.Scopes...),
+			challenge:          access.Challenge,
+			argumentNormalizer: access.ArgumentNormalizer,
 		}
 	}
 }
@@ -57,6 +63,19 @@ func (access ToolScopeAccess) ResolveChallenge(arguments map[string]any, activeS
 	return access.challenge(arguments, activeScopes)
 }
 
+// NormalizeArguments applies the tool's compatibility normalizer before
+// evaluating its dynamic scope challenge.
+func (access ToolScopeAccess) NormalizeArguments(arguments json.RawMessage) (json.RawMessage, bool, error) {
+	if access.argumentNormalizer == nil {
+		return arguments, false, nil
+	}
+	if len(arguments) == 0 {
+		arguments = json.RawMessage(`{}`)
+	}
+	normalized, err := access.argumentNormalizer(arguments)
+	return normalized, true, err
+}
+
 // MaximumScopes returns a copy of the exhaustive upper bound.
 func (access ToolScopeAccess) MaximumScopes() []string {
 	return append([]string(nil), access.maxScopes...)
@@ -69,6 +88,9 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 		if tool.ScopeAccess.Challenge != nil {
 			access := tool.ScopeAccess
 			access.Scopes = append([]string(nil), access.Scopes...)
+			if access.Dynamic {
+				access.ArgumentNormalizer = tool.GetInputNormalizer()
+			}
 			result[tool.Tool.Name] = access
 		}
 	}

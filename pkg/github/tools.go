@@ -8,9 +8,9 @@ import (
 	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)

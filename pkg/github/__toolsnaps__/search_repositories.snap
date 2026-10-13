@@ -9,7 +9,7 @@
     "properties": {
       "minimal_output": {
         "default": true,
-        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+        "description": "Return minimal repository information (default: true). When false, modern clients receive additional curated repository details, not the complete GitHub API object. Legacy clients retain full GitHub API repository objects.",
         "type": "boolean"
       },
       "order": {
@@ -51,5 +51,229 @@
     ],
     "type": "object"
   },
-  "name": "search_repositories"
+  "name": "search_repositories",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "archived": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "default_branch": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "disabled": {
+              "description": "Whether the repository is disabled",
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "fork": {
+              "type": "boolean"
+            },
+            "forks_count": {
+              "type": "integer"
+            },
+            "full_name": {
+              "type": "string"
+            },
+            "has_discussions": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "has_issues": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "has_projects": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "has_wiki": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "homepage": {
+              "description": "Repository homepage URL",
+              "type": "string"
+            },
+            "html_url": {
+              "type": "string"
+            },
+            "id": {
+              "type": "integer"
+            },
+            "is_template": {
+              "description": "Whether the repository is a template",
+              "type": [
+                "null",
+                "boolean"
+              ]
+            },
+            "language": {
+              "type": "string"
+            },
+            "license": {
+              "additionalProperties": false,
+              "description": "Repository license",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "spdx_id": {
+                  "description": "SPDX license identifier",
+                  "type": "string"
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "open_issues_count": {
+              "type": "integer"
+            },
+            "permissions": {
+              "additionalProperties": false,
+              "description": "Authenticated user's repository permissions",
+              "properties": {
+                "admin": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                },
+                "maintain": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                },
+                "pull": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                },
+                "push": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                },
+                "triage": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "private": {
+              "type": "boolean"
+            },
+            "pushed_at": {
+              "description": "Last push time as an ISO 8601 UTC timestamp",
+              "type": "string"
+            },
+            "size": {
+              "description": "Repository size in kilobytes",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "stargazers_count": {
+              "type": "integer"
+            },
+            "topics": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "updated_at": {
+              "type": "string"
+            },
+            "visibility": {
+              "description": "Repository visibility",
+              "enum": [
+                "public",
+                "private",
+                "internal"
+              ],
+              "type": "string"
+            },
+            "watchers_count": {
+              "description": "Number of watchers",
+              "type": [
+                "null",
+                "integer"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "full_name",
+            "html_url",
+            "stargazers_count",
+            "forks_count",
+            "open_issues_count",
+            "private",
+            "fork",
+            "archived"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": "object"
+  }
 }
