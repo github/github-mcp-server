@@ -485,19 +485,11 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// batchLabelOperation is one per-issue add/remove entry inside a
-// batch_update_issue_labels call.
-type batchLabelOperation struct {
-	IssueNumber int      `json:"issue_number"`
-	Add         []string `json:"add,omitempty"`
-	Remove      []string `json:"remove,omitempty"`
-}
-
 // GranularBatchUpdateIssueLabels creates a tool to apply label changes to
 // several issues in a single call, avoiding N sequential update_issue_labels
 // round-trips for bulk triage workflows.
 func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool(
+	st := NewTool[GranularBatchUpdateIssueLabelsInput, *GranularBatchUpdateIssueLabelsOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "batch_update_issue_labels",
@@ -551,59 +543,33 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularBatchUpdateIssueLabelsInput) (*mcp.CallToolResult, *GranularBatchUpdateIssueLabelsOutput, error) {
+			owner, repo := args.Owner, args.Repo
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-
-			opsRaw, ok := args["operations"]
-			if !ok {
-				return utils.NewToolResultError("missing required parameter: operations"), nil, nil
-			}
-			opsSlice, ok := opsRaw.([]any)
-			if !ok {
-				return utils.NewToolResultError("parameter operations must be an array"), nil, nil
-			}
-			if len(opsSlice) == 0 {
+			if len(args.Operations) == 0 {
 				return utils.NewToolResultError("operations must contain at least one entry"), nil, nil
 			}
 
 			// Validate every operation up front so an invalid entry fails the
 			// whole call before any mutation is attempted.
-			planned := make([]batchLabelOperation, 0, len(opsSlice))
-			seenIssues := make(map[int]bool, len(opsSlice))
-			for i, item := range opsSlice {
-				opObj, ok := item.(map[string]any)
-				if !ok {
-					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: each operation must be an object with issue_number and at least one of add or remove", i)), nil, nil
+			planned := make([]GranularBatchUpdateIssueLabelsOperation, 0, len(args.Operations))
+			seenIssues := make(map[int]bool, len(args.Operations))
+			for i, op := range args.Operations {
+				if op.IssueNumber == 0 {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: missing required parameter: issue_number", i)), nil, nil
 				}
-				issueNumber, err := RequiredInt(opObj, "issue_number")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
+				if op.IssueNumber < 0 {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: issue_number must be greater than 0", i)), nil, nil
 				}
-				if seenIssues[issueNumber] {
-					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: duplicate issue_number %d; merge the label changes into a single operation", i, issueNumber)), nil, nil
+				if seenIssues[op.IssueNumber] {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: duplicate issue_number %d; merge the label changes into a single operation", i, op.IssueNumber)), nil, nil
 				}
-				seenIssues[issueNumber] = true
-
-				op := batchLabelOperation{IssueNumber: issueNumber}
-				if addRaw, hasAdd := opObj["add"]; hasAdd && addRaw != nil {
-					op.Add, err = OptionalStringArrayParam(opObj, "add")
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
-					}
-				}
-				if removeRaw, hasRemove := opObj["remove"]; hasRemove && removeRaw != nil {
-					op.Remove, err = OptionalStringArrayParam(opObj, "remove")
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
-					}
-				}
+				seenIssues[op.IssueNumber] = true
 				if len(op.Add) == 0 && len(op.Remove) == 0 {
 					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: at least one non-empty of add or remove is required", i)), nil, nil
 				}
@@ -625,16 +591,10 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			type opOutcome struct {
-				IssueNumber int      `json:"issue_number"`
-				Applied     bool     `json:"applied"`
-				Error       string   `json:"error,omitempty"`
-				Labels      []string `json:"labels,omitempty"`
-			}
-			outcomes := make([]opOutcome, 0, len(planned))
+			outcomes := make([]GranularBatchUpdateIssueLabelsResult, 0, len(planned))
 			hadFailure := false
 			for _, op := range planned {
-				outcome := opOutcome{IssueNumber: op.IssueNumber, Applied: true}
+				outcome := GranularBatchUpdateIssueLabelsResult{IssueNumber: op.IssueNumber, Applied: true}
 
 				// Add phase: POST .../issues/{n}/labels adds without touching
 				// existing labels and returns the full resulting label set.
@@ -679,20 +639,35 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 				outcomes = append(outcomes, outcome)
 			}
 
-			response := struct {
-				Results []opOutcome `json:"results"`
-			}{Results: outcomes}
-			r, err := json.Marshal(response)
+			output := &GranularBatchUpdateIssueLabelsOutput{Results: outcomes}
+			r, err := json.Marshal(output)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 			result := utils.NewToolResultText(string(r))
 			result.IsError = hadFailure
-			return result, nil, nil
+			return result, output, nil
 		},
+		granularIssueInputNormalizer(normalizeGranularBatchUpdateIssueLabelsArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
+}
+
+func normalizeGranularBatchUpdateIssueLabelsArguments(raw json.RawMessage) (json.RawMessage, error) {
+	var args map[string]any
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, err
+	}
+	for _, name := range []string{"owner", "repo"} {
+		if _, err := RequiredParam[string](args, name); err != nil {
+			return nil, err
+		}
+	}
+	if _, ok := args["operations"]; !ok {
+		return nil, fmt.Errorf("missing required parameter: operations")
+	}
+	return json.Marshal(args)
 }
 
 // issueTypeWithIntent represents the object form of the issue type field,
