@@ -66,7 +66,7 @@ The GitHub MCP Server can be installed using several methods. **Docker is the mo
 - **Pros**: Latest features, full customization, no external dependencies
 - **Cons**: Requires Go development environment, more complex setup
 - **Prerequisites**: [Go 1.24+](https://go.dev/doc/install)
-- **Build command**: `go build -o github-mcp-server cmd/github-mcp-server/main.go`
+- **Build command**: `go build -o github-mcp-server ./cmd/github-mcp-server` (build the complete package from a Git checkout to retain its source revision).
 - **Best for**: Developers who want the latest features or need custom modifications
 
 ### Important Notes on the GitHub MCP Server

@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ import (
 func Test_GetSecretScanningAlert(t *testing.T) {
 	toolDef := GetSecretScanningAlert(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "get_secret_scanning_alert", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
@@ -32,9 +31,9 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 
 	// Setup mock alert for success case
 	mockAlert := &github.SecretScanningAlert{
-		Number:  github.Ptr(42),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/42"),
+		Number:  new(42),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/private-repo/security/secret-scanning/42"),
 	}
 
 	tests := []struct {
@@ -122,7 +121,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListSecretScanningAlerts(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "list_secret_scanning_alerts", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
@@ -139,18 +138,18 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 
 	// Setup mock alerts for success case
 	resolvedAlert := github.SecretScanningAlert{
-		Number:     github.Ptr(2),
-		HTMLURL:    github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/2"),
-		State:      github.Ptr("resolved"),
-		Resolution: github.Ptr("false_positive"),
-		SecretType: github.Ptr("adafruit_io_key"),
+		Number:     new(2),
+		HTMLURL:    new("https://github.com/owner/private-repo/security/secret-scanning/2"),
+		State:      new("resolved"),
+		Resolution: new("false_positive"),
+		SecretType: new("adafruit_io_key"),
 	}
 	openAlert := github.SecretScanningAlert{
-		Number:     github.Ptr(2),
-		HTMLURL:    github.Ptr("https://github.com/owner/private-repo/security/secret-scanning/3"),
-		State:      github.Ptr("open"),
-		Resolution: github.Ptr("false_positive"),
-		SecretType: github.Ptr("adafruit_io_key"),
+		Number:     new(2),
+		HTMLURL:    new("https://github.com/owner/private-repo/security/secret-scanning/3"),
+		State:      new("open"),
+		Resolution: new("false_positive"),
+		SecretType: new("adafruit_io_key"),
 	}
 
 	tests := []struct {

@@ -2,15 +2,16 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 // WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
@@ -102,8 +103,27 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				return
 			}
 
-			arguments, err := methodInfo.DecodeArguments()
-			if err != nil {
+			rawArguments := methodInfo.RawArguments
+			if len(rawArguments) == 0 {
+				rawArguments = []byte(`{}`)
+			}
+			argumentsJSON, didNormalize, normalizeErr := scopeAccess.NormalizeArguments(rawArguments)
+			if normalizeErr != nil {
+				// Preserve normal tool validation for arguments the normalizer rejects.
+				next.ServeHTTP(w, r)
+				return
+			}
+			if !didNormalize {
+				argumentsJSON = rawArguments
+			} else {
+				normalizedInfo := *methodInfo
+				normalizedInfo.NormalizedArguments = argumentsJSON
+				normalizedInfo.ArgumentsNormalized = true
+				ctx = ghcontext.WithMCPMethodInfo(ctx, &normalizedInfo)
+				r = r.WithContext(ctx)
+			}
+			arguments := make(map[string]any)
+			if err := json.Unmarshal(argumentsJSON, &arguments); err != nil {
 				// Preserve normal MCP handler validation for invalid arguments.
 				next.ServeHTTP(w, r)
 				return

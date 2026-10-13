@@ -27,5 +27,26 @@
     ],
     "type": "object"
   },
-  "name": "get_label"
+  "name": "get_label",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "color": {
+        "description": "Hex RGB without leading #.",
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "color",
+      "description"
+    ],
+    "type": "object"
+  }
 }

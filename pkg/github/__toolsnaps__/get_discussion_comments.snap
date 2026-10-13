@@ -41,5 +41,97 @@
     ],
     "type": "object"
   },
-  "name": "get_discussion_comments"
+  "name": "get_discussion_comments",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "comments": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "isAnswer": {
+              "type": "boolean"
+            },
+            "replies": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "isAnswer": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "body"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "replyTotalCount": {
+              "description": "Total replies, including replies beyond the returned maximum of 100.",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "body"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "endCursor": {
+            "type": "string"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "startCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage",
+          "startCursor",
+          "endCursor"
+        ],
+        "type": "object"
+      },
+      "totalCount": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "comments",
+      "pageInfo",
+      "totalCount"
+    ],
+    "type": "object"
+  }
 }

@@ -73,7 +73,7 @@ func (f *fakeGitHub) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	f.mu.Unlock()
 
 	redirect := q.Get("redirect_uri") + "?code=authcode&state=" + url.QueryEscape(q.Get("state"))
-	http.Redirect(w, r, redirect, http.StatusFound)
+	http.Redirect(w, r, redirect, http.StatusFound) //nolint:gosec // G710: Fake OAuth server redirects to the test client's callback, not an external user's input.
 }
 
 func (f *fakeGitHub) handleToken(w http.ResponseWriter, r *http.Request) {
