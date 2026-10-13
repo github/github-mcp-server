@@ -3,8 +3,8 @@ package github
 import (
 	"context"
 
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

@@ -5,7 +5,7 @@ import type {
   McpUiHostContext,
   McpUiUpdateModelContextRequest,
 } from "@modelcontextprotocol/ext-apps";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/client";
 import { useState, useCallback, useEffect } from "react";
 
 interface UseMcpAppOptions {

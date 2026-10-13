@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "issue title (REST)",
 			got: func() string {
 				return convertToMinimalIssue(&github.Issue{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -39,7 +39,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				return convertToMinimalIssue(&github.Issue{
-					Body: github.Ptr(maliciousText),
+					Body: new(maliciousText),
 				}).Body
 			},
 		},
@@ -48,7 +48,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				return convertToMinimalIssueComment(&github.IssueComment{
-					Body: github.Ptr(maliciousText),
+					Body: new(maliciousText),
 				}).Body
 			},
 		},
@@ -56,7 +56,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "pull request title",
 			got: func() string {
 				return convertToMinimalPullRequest(&github.PullRequest{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -65,7 +65,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				return convertToMinimalPullRequest(&github.PullRequest{
-					Body: github.Ptr(maliciousText),
+					Body: new(maliciousText),
 				}).Body
 			},
 		},
@@ -74,7 +74,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				return convertToMinimalPullRequestReview(&github.PullRequestReview{
-					Body: github.Ptr(maliciousText),
+					Body: new(maliciousText),
 				}).Body
 			},
 		},
@@ -92,7 +92,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "release name",
 			got: func() string {
 				return convertToMinimalRelease(&github.RepositoryRelease{
-					Name: github.Ptr(maliciousText),
+					Name: new(maliciousText),
 				}).Name
 			},
 		},
@@ -101,7 +101,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				return convertToMinimalRelease(&github.RepositoryRelease{
-					Body: github.Ptr(maliciousText),
+					Body: new(maliciousText),
 				}).Body
 			},
 		},
@@ -110,7 +110,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				commit := convertToMinimalCommit(&github.RepositoryCommit{
-					Commit: &github.Commit{Message: github.Ptr(maliciousText)},
+					Commit: &github.Commit{Message: new(maliciousText)},
 				}, commitDetailNone)
 				require.NotNil(t, commit.Commit)
 				return commit.Commit.Message
@@ -121,7 +121,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				item := convertCommitResultToMinimalCommit(&github.CommitResult{
-					Commit: &github.Commit{Message: github.Ptr(maliciousText)},
+					Commit: &github.Commit{Message: new(maliciousText)},
 				})
 				require.NotNil(t, item.Commit)
 				return item.Commit.Message
@@ -132,7 +132,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				commits := convertToMinimalPullRequestCommits([]*github.RepositoryCommit{
-					{Commit: &github.Commit{Message: github.Ptr(maliciousText)}},
+					{Commit: &github.Commit{Message: new(maliciousText)}},
 				})
 				require.Len(t, commits, 1)
 				return commits[0].Message
@@ -143,7 +143,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				resp := convertToMinimalFileContentResponse(&github.RepositoryContentResponse{
-					Commit: github.Commit{Message: github.Ptr(maliciousText)},
+					Commit: github.Commit{Message: new(maliciousText)},
 				})
 				require.NotNil(t, resp.Commit)
 				return resp.Commit.Message
@@ -154,7 +154,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				run := convertToMinimalWorkflowRun(&github.WorkflowRun{
-					HeadCommit: &github.HeadCommit{Message: github.Ptr(maliciousText)},
+					HeadCommit: &github.HeadCommit{Message: new(maliciousText)},
 				})
 				require.NotNil(t, run.HeadCommit)
 				return run.HeadCommit.Message
@@ -164,7 +164,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "project item content title (issue)",
 			got: func() string {
 				return convertIssueToMinimalProjectItemContent(&github.Issue{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -172,7 +172,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "project item content title (pull request)",
 			got: func() string {
 				return convertPullRequestToMinimalProjectItemContent(&github.PullRequest{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -180,7 +180,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "project item content title (draft issue)",
 			got: func() string {
 				return convertDraftIssueToMinimalProjectItemContent(&github.ProjectV2DraftIssue{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -188,7 +188,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "project pull request ref title (from *github.PullRequest)",
 			got: func() string {
 				return minimalProjectPullRequestRefFromPullRequest(&github.PullRequest{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -226,7 +226,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			name: "issue dependency ref title (issue_dependency_read / issue_dependency_write)",
 			got: func() string {
 				return issueToDependencyRef(&github.Issue{
-					Title: github.Ptr(maliciousText),
+					Title: new(maliciousText),
 				}).Title
 			},
 		},
@@ -249,8 +249,8 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 func Test_SearchIssueResult_SanitizesTitleAndBody(t *testing.T) {
 	result := SearchIssueResult{
 		Issue: &github.Issue{
-			Title: github.Ptr(maliciousText),
-			Body:  github.Ptr(maliciousText),
+			Title: new(maliciousText),
+			Body:  new(maliciousText),
 		},
 	}
 
@@ -283,8 +283,8 @@ func Test_SanitizeIssueTitleAndBody(t *testing.T) {
 
 	t.Run("sanitizes in place", func(t *testing.T) {
 		issue := &github.Issue{
-			Title: github.Ptr(maliciousText),
-			Body:  github.Ptr(maliciousText),
+			Title: new(maliciousText),
+			Body:  new(maliciousText),
 		}
 		sanitizeIssueTitleAndBody(issue)
 		require.NotNil(t, issue.Title)
@@ -302,7 +302,7 @@ func Test_MinimalConverters_PreserveCodeFidelity(t *testing.T) {
 
 	t.Run("commit file patch (get_commit)", func(t *testing.T) {
 		commit := convertToMinimalCommit(&github.RepositoryCommit{
-			Files: []*github.CommitFile{{Filename: github.Ptr("a.go"), Patch: github.Ptr(patch)}},
+			Files: []*github.CommitFile{{Filename: new("a.go"), Patch: new(patch)}},
 		}, commitDetailFullPatch)
 		require.Len(t, commit.Files, 1)
 		assert.Equal(t, patch, commit.Files[0].Patch)
@@ -310,7 +310,7 @@ func Test_MinimalConverters_PreserveCodeFidelity(t *testing.T) {
 
 	t.Run("pull request file patch (get_pull_request_files)", func(t *testing.T) {
 		files := convertToMinimalPRFiles([]*github.CommitFile{
-			{Filename: github.Ptr("a.go"), Patch: github.Ptr(patch)},
+			{Filename: new("a.go"), Patch: new(patch)},
 		})
 		require.Len(t, files, 1)
 		assert.Equal(t, patch, files[0].Patch)

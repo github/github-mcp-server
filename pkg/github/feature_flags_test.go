@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 // RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
@@ -149,12 +149,12 @@ func TestResolveFeatureFlags(t *testing.T) {
 			name:            "no features, no insiders",
 			enabledFeatures: nil,
 			expectedFlags:   nil,
-			unexpectedFlags: []string{MCPAppsFeatureFlag},
+			unexpectedFlags: []string{FeatureFlagCSVOutput},
 		},
 		{
 			name:            "explicit feature enabled",
-			enabledFeatures: []string{MCPAppsFeatureFlag},
-			expectedFlags:   []string{MCPAppsFeatureFlag},
+			enabledFeatures: []string{FeatureFlagCSVOutput},
+			expectedFlags:   []string{FeatureFlagCSVOutput},
 		},
 		{
 			name:            "MCP Apps form deferral can be disabled directly",
@@ -191,8 +191,8 @@ func TestResolveFeatureFlags(t *testing.T) {
 		},
 		{
 			name:            "mix of known and unknown flags",
-			enabledFeatures: []string{MCPAppsFeatureFlag, "unknown_flag"},
-			expectedFlags:   []string{MCPAppsFeatureFlag},
+			enabledFeatures: []string{FeatureFlagCSVOutput, "unknown_flag"},
+			expectedFlags:   []string{FeatureFlagCSVOutput},
 			unexpectedFlags: []string{"unknown_flag"},
 		},
 		{
@@ -214,7 +214,7 @@ func TestResolveFeatureFlags(t *testing.T) {
 		},
 		{
 			name:            "explicit plus insiders deduplicates",
-			enabledFeatures: []string{MCPAppsFeatureFlag},
+			enabledFeatures: []string{FeatureFlagCSVOutput},
 			insidersMode:    true,
 			expectedFlags:   InsidersFeatureFlags,
 		},

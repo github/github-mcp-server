@@ -1,11 +1,10 @@
 import { StrictMode, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Box,
   Text,
   TextInput,
   Button,
-  Flash,
+  Banner,
   Spinner,
   FormControl,
   CounterLabel,
@@ -13,6 +12,7 @@ import {
   ActionList,
   Label,
 } from "@primer/react";
+import styles from "../../styles.module.css";
 import {
   IssueOpenedIcon,
   CheckCircleIcon,
@@ -25,6 +25,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface IssueResult {
@@ -296,46 +297,65 @@ function SuccessView({
   const issueUrl = issue.html_url || issue.url || issue.URL || "#";
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+      }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        mb={3}
-        pb={3}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
+        <div
+          style={{
+            color: "var(--fgColor-success)",
+            flexShrink: 0,
+            marginRight: 8,
+          }}
+        >
           <CheckCircleIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold" }}>
+        </div>
+        <Text style={{ fontWeight: 500 }}>
           {isUpdate ? "Issue updated successfully" : "Issue created successfully"}
         </Text>
-      </Box>
+      </div>
 
-      <Box
-        display="flex"
-        alignItems="flex-start"
-        gap={2}
-        p={3}
-        bg="canvas.subtle"
-        borderRadius={2}
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 2,
+          padding: 16,
+          backgroundColor: "var(--bgColor-muted)",
+          borderRadius: 6,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
+        <div
+          style={{
+            color: "var(--fgColor-open)",
+            flexShrink: 0,
+            marginTop: "2px",
+            marginRight: 4,
+          }}
+        >
           <IssueOpenedIcon size={16} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
+        </div>
+        <div style={{ minWidth: 0 }}>
           <a
             href={issueUrl}
             target="_blank"
@@ -361,20 +381,33 @@ function SuccessView({
           >
             {issue.title || submittedTitle}
             {issue.number && (
-              <Text sx={{ color: "fg.muted", fontWeight: "normal", ml: 1 }}>
+              <Text
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontWeight: 400,
+                  marginLeft: 4,
+                }}
+              >
                 #{issue.number}
               </Text>
             )}
           </a>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>
             {owner}/{repo}
           </Text>
           {submittedLabels.length > 0 && (
-            <Box display="flex" gap={1} mt={2} flexWrap="wrap">
+            <div
+              style={{
+                display: "flex",
+                gap: 1,
+                marginTop: 8,
+                flexWrap: "wrap",
+              }}
+            >
               {submittedLabels.map((label) => (
                 <Label
                   key={label.id}
-                  sx={{
+                  style={{
                     backgroundColor: `#${label.color}`,
                     color: getContrastColor(label.color),
                     borderColor: `#${label.color}`,
@@ -383,11 +416,11 @@ function SuccessView({
                   {label.text}
                 </Label>
               ))}
-            </Box>
+            </div>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -520,7 +553,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("labels", textContent.text as string);
             const labels = (data.labels || []).map(
               (l: { name: string; color: string; id: string }) => ({
                 id: l.id || l.name,
@@ -547,7 +580,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("assignees", textContent.text as string);
             const assignees = (data.assignees || []).map(
               (a: { login: string }) => ({
                 id: a.login,
@@ -573,7 +606,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("milestones", textContent.text as string);
             const milestones = (data.milestones || []).map(
               (m: { number: number; title: string; description: string }) => ({
                 id: String(m.number),
@@ -601,10 +634,8 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            // ui_get returns array directly or wrapped in issue_types/types
-            const typesArray = Array.isArray(data) ? data : (data.issue_types || data.types || []);
-            const types = typesArray.map(
+            const typesArray = parseUIGetResult("issue_types", textContent.text as string);
+            const types = typesArray.filter(t => t !== null).map(
               (t: { id: number; name: string; description?: string } | string) => {
                 if (typeof t === "string") {
                   return { id: t, text: t };
@@ -631,7 +662,7 @@ function CreateIssueApp() {
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("issue_fields", textContent.text as string);
             const fields = (data.fields || [])
               .map(
                 (field: {
@@ -1162,9 +1193,9 @@ function CreateIssueApp() {
       const selectedOptionName = fieldValue.cleared ? undefined : fieldValue.optionName;
       const selectedOption = field.options.find((option) => option.name === selectedOptionName);
       return (
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <ActionMenu>
-            <ActionMenu.Button size="small" sx={{ maxWidth: "100%" }}>
+            <ActionMenu.Button size="small" style={{ maxWidth: "100%" }}>
               {selectedOption ? selectedOption.name : "Select option"}
             </ActionMenu.Button>
             <ActionMenu.Overlay width="medium">
@@ -1179,15 +1210,15 @@ function CreateIssueApp() {
                       onSelect={() => updateIssueFieldValue(field.name, { optionName: option.name })}
                     >
                       <ActionList.LeadingVisual>
-                        <Box
-                          sx={{
+                        <div
+                          style={{
                             width: 14,
                             height: 14,
                             borderRadius: "50%",
                             backgroundColor: normalizeSwatchColor(option.color),
                             borderWidth: 1,
                             borderStyle: "solid",
-                            borderColor: "border.default",
+                            borderColor: "var(--borderColor-default)",
                           }}
                         />
                       </ActionList.LeadingVisual>
@@ -1198,18 +1229,26 @@ function CreateIssueApp() {
               </ActionList>
             </ActionMenu.Overlay>
           </ActionMenu>
-        </Box>
+        </div>
       );
     }
 
     return (
       <TextInput
-        type={field.data_type === "number" ? "number" : field.data_type === "date" ? "date" : "text"}
+        type={
+          field.data_type === "number"
+            ? "number"
+            : field.data_type === "date"
+              ? "date"
+              : "text"
+        }
         value={fieldValue.cleared ? "" : String(fieldValue.value ?? "")}
-        onChange={(e) => updateIssueFieldValue(field.name, { value: e.target.value })}
+        onChange={(e) =>
+          updateIssueFieldValue(field.name, { value: e.target.value })
+        }
         block
         contrast
-        sx={{ flex: 1 }}
+        style={{ flex: 1 }}
       />
     );
   };
@@ -1217,17 +1256,22 @@ function CreateIssueApp() {
   const body_node = (() => {
   if (appError) {
     return (
-      <Flash variant="danger" sx={{ m: 2 }}>
-        Connection error: {appError.message}
-      </Flash>
+      <Banner variant="critical" title={`Connection error: ${appError.message}`} style={{ margin: 8 }} />
     );
   }
 
   if (!app) {
     return (
-      <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+      <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
         <Spinner size="medium" />
-      </Box>
+      </div>
     );
   }
 
@@ -1246,52 +1290,71 @@ function CreateIssueApp() {
   }
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
-    >
-      {/* Repository picker */}
-      <Box
-        display="flex"
-        alignItems="center"
-        gap={2}
-        mb={3}
-        pb={2}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
-        sx={{ minWidth: 0, overflow: "hidden" }}
+    <div
+        style={{
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+          borderRadius: 6,
+          backgroundColor: "var(--bgColor-muted)",
+          padding: 16,
+        }}
       >
-        <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+      {/* Repository picker */}
+      <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            marginBottom: 16,
+            paddingBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--borderColor-default)",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+        <div style={{ minWidth: 0, maxWidth: "100%" }}>
           <ActionMenu>
             <ActionMenu.Button
-              size="small"
-              leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
-              sx={{ maxWidth: "100%", overflow: "hidden", "& > span:last-child": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
-            >
+                size="small"
+                leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+                style={{ maxWidth: "100%", overflow: "hidden" }}
+                className={styles.truncateLastChild}
+              >
               {selectedRepo ? selectedRepo.fullName : "Select repository"}
             </ActionMenu.Button>
           <ActionMenu.Overlay width="medium">
             <ActionList selectionVariant="single">
-              <Box px={3} py={2}>
+              <div
+                    style={{
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                    }}
+                  >
                 <TextInput
-                  placeholder="Search repositories..."
-                  value={repoFilter}
-                  onChange={(e) => setRepoFilter(e.target.value)}
-                  sx={{ width: "100%" }}
-                  size="small"
-                  autoFocus
-                />
-              </Box>
+                      placeholder="Search repositories..."
+                      value={repoFilter}
+                      onChange={(e) => setRepoFilter(e.target.value)}
+                      size="small"
+                      autoFocus
+                      style={{ width: "100%" }}
+                    />
+              </div>
               <ActionList.Divider />
               {repoSearchLoading ? (
-                <Box display="flex" justifyContent="center" p={3}>
+                <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: 16,
+                      }}
+                    >
                   <Spinner size="small" />
-                </Box>
+                </div>
               ) : repoSearchResults.length > 0 ? (
                 repoSearchResults.map((r) => (
                   <ActionList.Item
@@ -1331,28 +1394,35 @@ function CreateIssueApp() {
                   {selectedRepo.fullName}
                 </ActionList.Item>
               ) : (
-                <Box px={3} py={2}>
-                  <Text sx={{ color: "fg.muted", fontSize: 1 }}>
+                <div
+                      style={{
+                        paddingLeft: 16,
+                        paddingRight: 16,
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                      }}
+                    >
+                  <Text
+                        style={{ color: "var(--fgColor-muted)", fontSize: 14 }}
+                      >
                     Type to search repositories...
                   </Text>
-                </Box>
+                </div>
               )}
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Error banner */}
       {error && (
-        <Flash variant="danger" sx={{ mb: 3 }}>
-          {error}
-        </Flash>
+        <Banner variant="critical" title={error} style={{ marginBottom: 16 }} />
       )}
 
       {/* Title */}
-      <FormControl sx={{ mb: 3 }}>
-        <FormControl.Label sx={{ fontWeight: "semibold" }}>
+      <FormControl style={{ marginBottom: 16 }}>
+        <FormControl.Label style={{ fontWeight: 500 }}>
           Title
         </FormControl.Label>
         <TextInput
@@ -1365,11 +1435,16 @@ function CreateIssueApp() {
       </FormControl>
 
       {/* Description */}
-      <Box sx={{ mb: 3 }}>
+      <div style={{ marginBottom: 16 }}>
         <Text
-          as="label"
-          sx={{ fontWeight: "semibold", fontSize: 1, display: "block", mb: 2 }}
-        >
+            as="label"
+            style={{
+              fontWeight: 500,
+              fontSize: 14,
+              display: "block",
+              marginBottom: 8,
+            }}
+          >
           Description
         </Text>
         <MarkdownEditor
@@ -1377,20 +1452,34 @@ function CreateIssueApp() {
           onChange={setBody}
           placeholder="Add a description..."
         />
-      </Box>
+      </div>
 
       {/* Metadata section */}
-      <Box display="flex" gap={4} mb={3} sx={{ flexWrap: "wrap" }}>
+      <div
+          style={{
+            display: "flex",
+            gap: 4,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>
             Labels
             {selectedLabels.length > 0 && (
-              <CounterLabel sx={{ ml: 1 }}>{selectedLabels.length}</CounterLabel>
+              <CounterLabel style={{ marginLeft: 4 }}>{selectedLabels.length}</CounterLabel>
             )}
           </ActionMenu.Button>
           <ActionMenu.Overlay width="medium">
-            <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+            <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
               <TextInput
                 placeholder="Filter labels"
                 value={labelsFilter}
@@ -1398,7 +1487,7 @@ function CreateIssueApp() {
                 size="small"
                 block
               />
-            </Box>
+            </div>
             <ActionList selectionVariant="multiple">
               {labelsLoading ? (
                 <ActionList.Item disabled>
@@ -1420,14 +1509,14 @@ function CreateIssueApp() {
                     }}
                   >
                     <ActionList.LeadingVisual>
-                      <Box
-                        sx={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: "50%",
-                          backgroundColor: `#${label.color}`,
-                        }}
-                      />
+                      <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            backgroundColor: `#${label.color}`,
+                          }}
+                        />
                     </ActionList.LeadingVisual>
                     {label.text}
                   </ActionList.Item>
@@ -1442,11 +1531,18 @@ function CreateIssueApp() {
           <ActionMenu.Button size="small" leadingVisual={PersonIcon}>
             Assignees
             {selectedAssignees.length > 0 && (
-              <CounterLabel sx={{ ml: 1 }}>{selectedAssignees.length}</CounterLabel>
+              <CounterLabel style={{ marginLeft: 4 }}>{selectedAssignees.length}</CounterLabel>
             )}
           </ActionMenu.Button>
           <ActionMenu.Overlay width="medium">
-            <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+            <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
               <TextInput
                 placeholder="Search people"
                 value={assigneesFilter}
@@ -1454,7 +1550,7 @@ function CreateIssueApp() {
                 size="small"
                 block
               />
-            </Box>
+            </div>
             <ActionList selectionVariant="multiple">
               {assigneesLoading ? (
                 <ActionList.Item disabled>
@@ -1569,18 +1665,23 @@ function CreateIssueApp() {
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>
-      </Box>
+      </div>
 
       {/* Fields section */}
       {availableIssueFields.length > 0 && (
-        <Box mb={3}>
-          <Text sx={{ fontWeight: "semibold", display: "block", mb: 3 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Text
+              style={{ fontWeight: 500, display: "block", marginBottom: 16 }}
+            >
             Fields
           </Text>
-          <Box
-            display="grid"
-            sx={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 2 }}
-          >
+          <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 8,
+              }}
+            >
             {availableIssueFields.map((field) => {
               const fieldValue = fieldValues[field.name];
               const hasFieldValue =
@@ -1590,56 +1691,95 @@ function CreateIssueApp() {
                   (fieldValue.value !== undefined && fieldValue.value !== ""));
 
               return (
-                <Box key={field.id || field.name}>
-                  <Text sx={{ fontWeight: "semibold", fontSize: 1, display: "block" }}>
+                <div key={field.id || field.name}>
+                  <Text
+                      style={{
+                        fontWeight: 500,
+                        fontSize: 14,
+                        display: "block",
+                      }}
+                    >
                     {field.name}
                   </Text>
                   {field.description && (
-                    <Text sx={{ color: "fg.muted", fontSize: 0, display: "block", mt: 1, mb: 2 }}>
+                    <Text
+                        style={{
+                          color: "var(--fgColor-muted)",
+                          fontSize: 12,
+                          display: "block",
+                          marginTop: 4,
+                          marginBottom: 8,
+                        }}
+                      >
                       {field.description}
                     </Text>
                   )}
-                  <Box display="flex" alignItems="center" gap={2} mt={field.description ? 0 : 2}>
+                  <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        marginTop: field.description ? 0 : 8,
+                      }}
+                    >
                     {renderIssueFieldInput(field)}
                     {hasFieldValue && (
                       <Button
-                        variant="invisible"
-                        size="small"
-                        sx={{ fontSize: 0, color: "fg.muted" }}
-                        onClick={() => updateIssueFieldValue(field.name, { cleared: true })}
-                      >
+                          variant="invisible"
+                          size="small"
+                          onClick={() =>
+                            updateIssueFieldValue(field.name, { cleared: true })
+                          }
+                          style={{
+                            fontSize: 12,
+                            color: "var(--fgColor-muted)",
+                          }}
+                        >
                         Clear
                       </Button>
                     )}
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               );
             })}
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
 
       {/* Selected labels display */}
       {selectedLabels.length > 0 && (
-        <Box display="flex" gap={1} mb={3} flexWrap="wrap">
+        <div
+            style={{
+              display: "flex",
+              gap: 1,
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
+          >
           {selectedLabels.map((label) => (
             <Label
-              key={label.id}
-              sx={{
-                backgroundColor: `#${label.color}`,
-                color: getContrastColor(label.color),
-                borderColor: `#${label.color}`,
-              }}
-            >
+                key={label.id}
+                style={{
+                  backgroundColor: `#${label.color}`,
+                  color: getContrastColor(label.color),
+                  borderColor: `#${label.color}`,
+                }}
+              >
               {label.text}
             </Label>
           ))}
-        </Box>
+        </div>
       )}
 
       {/* Selected metadata display */}
       {(selectedAssignees.length > 0 || selectedMilestone) && (
-        <Box mb={3} sx={{ fontSize: 0, color: "fg.muted" }}>
+        <div
+            style={{
+              marginBottom: 16,
+              fontSize: 12,
+              color: "var(--fgColor-muted)",
+            }}
+          >
           {selectedAssignees.length > 0 && (
             <Text as="div">
               Assigned to: {selectedAssignees.map((a) => a.text).join(", ")}
@@ -1648,36 +1788,51 @@ function CreateIssueApp() {
           {selectedMilestone && (
             <Text as="div">Milestone: {selectedMilestone.text}</Text>
           )}
-        </Box>
+        </div>
       )}
 
       {/* State and submit actions */}
-      <Box
-        display="flex"
-        justifyContent={isUpdateMode ? "space-between" : "flex-end"}
-        alignItems="center"
-        gap={3}
-        sx={{ flexWrap: "wrap" }}
-      >
+      <div
+          style={{
+            display: "flex",
+            justifyContent: isUpdateMode ? "space-between" : "flex-end",
+            alignItems: "center",
+            gap: 3,
+            flexWrap: "wrap",
+          }}
+        >
         {isUpdateMode && (
-          <Box>
+          <div>
             {currentState === "open" ? (
               <>
-                <Box display="flex" alignItems="center" gap={0}>
-                  <Button
-                    size="small"
-                    variant="danger"
-                    onClick={() => void handleSubmit("closed")}
-                    disabled={isSubmitting || !title.trim() || (stateReason === "duplicate" && !duplicateOf.trim())}
-                    sx={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                <div
+                    style={{ display: "flex", alignItems: "center", gap: 0 }}
                   >
+                  <Button
+                      size="small"
+                      variant="danger"
+                      onClick={() => void handleSubmit("closed")}
+                      disabled={
+                        isSubmitting ||
+                        !title.trim() ||
+                        (stateReason === "duplicate" && !duplicateOf.trim())
+                      }
+                      style={{
+                        borderTopRightRadius: 0,
+                        borderBottomRightRadius: 0,
+                      }}
+                    >
                     Close issue
                   </Button>
                   <ActionMenu>
                     <ActionMenu.Button
-                      size="small"
-                      sx={{ ml: "-1px", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-                    >
+                        size="small"
+                        style={{
+                          marginLeft: "-1px",
+                          borderTopLeftRadius: 0,
+                          borderBottomLeftRadius: 0,
+                        }}
+                      >
                       {selectedStateReason.label}
                     </ActionMenu.Button>
                     <ActionMenu.Overlay width="medium">
@@ -1695,18 +1850,18 @@ function CreateIssueApp() {
                       </ActionList>
                     </ActionMenu.Overlay>
                   </ActionMenu>
-                </Box>
+                </div>
                 {stateReason === "duplicate" && (
-                  <FormControl sx={{ mt: 2 }}>
-                    <FormControl.Label sx={{ fontSize: 0 }}>Duplicate of</FormControl.Label>
+                  <FormControl style={{ marginTop: 8 }}>
+                    <FormControl.Label style={{ fontSize: 12 }}>Duplicate of</FormControl.Label>
                     <TextInput
-                      type="number"
-                      placeholder="Issue number"
-                      value={duplicateOf}
-                      onChange={(e) => setDuplicateOf(e.target.value)}
-                      size="small"
-                      sx={{ width: 140 }}
-                    />
+                        type="number"
+                        placeholder="Issue number"
+                        value={duplicateOf}
+                        onChange={(e) => setDuplicateOf(e.target.value)}
+                        size="small"
+                        style={{ width: 140 }}
+                      />
                   </FormControl>
                 )}
               </>
@@ -1719,7 +1874,7 @@ function CreateIssueApp() {
                 Reopen issue
               </Button>
             )}
-          </Box>
+          </div>
         )}
 
         <Button
@@ -1729,15 +1884,15 @@ function CreateIssueApp() {
         >
           {isSubmitting ? (
             <>
-              <Spinner size="small" sx={{ mr: 1 }} />
+              <Spinner size="small" style={{ marginRight: 4 }} />
               {isUpdateMode ? "Updating..." : "Creating..."}
             </>
           ) : (
             isUpdateMode ? "Update issue" : "Create issue"
           )}
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
   })();
 
