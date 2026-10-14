@@ -361,7 +361,7 @@ func applyModernStructuredText(result *mcp.CallToolResult) error {
 	if result == nil || result.IsError || result.InputRequests != nil || result.StructuredContent == nil {
 		return nil
 	}
-	encoded, err := json.Marshal(result.StructuredContent)
+	encoded, err := marshalStructuredText(result.StructuredContent)
 	if err != nil {
 		return fmt.Errorf("marshal structured tool output for text content: %w", err)
 	}
@@ -374,6 +374,58 @@ func applyModernStructuredText(result *mcp.CallToolResult) error {
 	}
 	result.Content = []mcp.Content{&mcp.TextContent{Text: string(encoded)}}
 	return nil
+}
+
+// marshalStructuredText encodes structured output for its JSON text block
+// without HTML escaping, so the text matches a standard re-serialization of
+// structuredContent (such as JSON.stringify) and clients can detect it as a
+// duplicate.
+func marshalStructuredText(value any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	// Pre-encoded json.RawMessage values, including SDK typed output, keep
+	// their HTML escapes even when the encoder does not add new ones.
+	return unescapeJSONHTML(bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))), nil
+}
+
+// unescapeJSONHTML replaces the \u003c, \u003e and \u0026 escapes that
+// encoding/json emits inside strings with the literal characters. In valid JSON
+// a backslash only starts a string escape, so consuming escapes pairwise
+// cannot misread an escaped backslash followed by "u003c".
+func unescapeJSONHTML(data []byte) []byte {
+	if !bytes.Contains(data, []byte(`\u00`)) {
+		return data
+	}
+	out := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		if data[i] != '\\' || i+1 == len(data) {
+			out = append(out, data[i])
+			continue
+		}
+		if data[i+1] == 'u' && i+6 <= len(data) {
+			switch string(data[i+2 : i+6]) {
+			case "003c", "003C":
+				out = append(out, '<')
+				i += 5
+				continue
+			case "003e", "003E":
+				out = append(out, '>')
+				i += 5
+				continue
+			case "0026":
+				out = append(out, '&')
+				i += 5
+				continue
+			}
+		}
+		out = append(out, data[i], data[i+1])
+		i++
+	}
+	return out
 }
 
 func removeSDKOutputFallback(result *mcp.CallToolResult, state *typedCallState) error {

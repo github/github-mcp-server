@@ -1,7 +1,6 @@
 package github
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -212,8 +211,9 @@ func (out ForkRepositoryOutput) MarshalJSON() ([]byte, error) {
 }
 
 // Repository contents can be a projected directory listing or a heterogeneous
-// MCP content response. The latter is represented losslessly as typed content
-// blocks, including the human-readable status and embedded text/blob or link.
+// MCP content response. The latter is represented as typed content blocks,
+// including the human-readable status and resource or link metadata. File
+// bodies stay in the result content and are not repeated in structured output.
 type RepositoryContentsOutput struct {
 	Directory []*RepositoryDirectoryEntryOutput
 	Content   *RepositoryContentOutput
@@ -324,14 +324,15 @@ type RepositoryTextBlock struct {
 
 type RepositoryResourceBlock struct {
 	Type     string                   `json:"type"`
-	Resource RepositoryResourceOutput `json:"resource"`
+	Resource RepositoryResourceOutput `json:"resource" jsonschema:"Metadata for the embedded resource. The file body is returned only in the result content, not repeated here."`
 }
 
+// RepositoryResourceOutput describes an embedded file resource without its
+// body, so clients that forward both content and structured output to a model
+// do not receive every file twice.
 type RepositoryResourceOutput struct {
-	URI      string  `json:"uri"`
-	MIMEType string  `json:"mimeType,omitempty"`
-	Text     *string `json:"text,omitempty"`
-	Blob     *string `json:"blob,omitempty" jsonschema:"Base64-encoded file bytes."`
+	URI      string `json:"uri"`
+	MIMEType string `json:"mimeType,omitempty"`
 }
 
 type RepositoryLinkBlock struct {
@@ -353,12 +354,6 @@ func repositoryContentOutput(result *mcp.CallToolResult) (*RepositoryContentsOut
 			out.Content = append(out.Content, RepositoryContentBlock{Text: &RepositoryTextBlock{Type: "text", Text: block.Text}})
 		case *mcp.EmbeddedResource:
 			resource := RepositoryResourceOutput{URI: block.Resource.URI, MIMEType: block.Resource.MIMEType}
-			if block.Resource.Blob != nil {
-				blob := base64.StdEncoding.EncodeToString(block.Resource.Blob)
-				resource.Blob = &blob
-			} else if block.Resource.Text != "" {
-				resource.Text = &block.Resource.Text
-			}
 			out.Content = append(out.Content, RepositoryContentBlock{Resource: &RepositoryResourceBlock{Type: "resource", Resource: resource}})
 		case *mcp.ResourceLink:
 			out.Content = append(out.Content, RepositoryContentBlock{Link: &RepositoryLinkBlock{
@@ -521,11 +516,6 @@ func repositoryContentsOutputSchema() *jsonschema.Schema {
 	text.Properties["type"].Const = new(any("text"))
 	resource := repositoryOutputSchema[RepositoryResourceBlock]()
 	resource.Properties["type"].Const = new(any("resource"))
-	resource.Properties["resource"].OneOf = []*jsonschema.Schema{
-		{Required: []string{"text"}, Not: &jsonschema.Schema{Required: []string{"blob"}}},
-		{Required: []string{"blob"}, Not: &jsonschema.Schema{Required: []string{"text"}}},
-		{Not: &jsonschema.Schema{AnyOf: []*jsonschema.Schema{{Required: []string{"text"}}, {Required: []string{"blob"}}}}},
-	}
 	link := repositoryOutputSchema[RepositoryLinkBlock]()
 	link.Properties["type"].Const = new(any("resource_link"))
 	content := &jsonschema.Schema{

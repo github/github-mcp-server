@@ -181,60 +181,10 @@
                   "properties": {
                     "resource": {
                       "additionalProperties": false,
-                      "oneOf": [
-                        {
-                          "not": {
-                            "required": [
-                              "blob"
-                            ]
-                          },
-                          "required": [
-                            "text"
-                          ]
-                        },
-                        {
-                          "not": {
-                            "required": [
-                              "text"
-                            ]
-                          },
-                          "required": [
-                            "blob"
-                          ]
-                        },
-                        {
-                          "not": {
-                            "anyOf": [
-                              {
-                                "required": [
-                                  "text"
-                                ]
-                              },
-                              {
-                                "required": [
-                                  "blob"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ],
+                      "description": "Metadata for the embedded resource. The file body is returned only in the result content, not repeated here.",
                       "properties": {
-                        "blob": {
-                          "description": "Base64-encoded file bytes.",
-                          "type": [
-                            "null",
-                            "string"
-                          ]
-                        },
                         "mimeType": {
                           "type": "string"
-                        },
-                        "text": {
-                          "type": [
-                            "null",
-                            "string"
-                          ]
                         },
                         "uri": {
                           "type": "string"

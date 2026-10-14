@@ -1686,6 +1686,52 @@ func TestTypedScalarOutputProtocolGatePreservesHandlerText(t *testing.T) {
 	assert.Equal(t, "custom legacy text", result.Content[0].(*mcp.TextContent).Text)
 }
 
+func TestTypedModernTextDoesNotEscapeHTML(t *testing.T) {
+	type output struct {
+		HTML    string `json:"html"`
+		Literal string `json:"literal"`
+	}
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_html_tool"},
+		testToolsetMetadata("test"),
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, output, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text"}},
+			}, output{HTML: "<b>a & b</b>", Literal: `\u003c`}, nil
+		},
+	)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	tool.RegisterFunc(server, nil)
+	modern := connectTypedTestClient(t, server, "")
+
+	result, err := modern.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_html_tool"})
+	require.NoError(t, err)
+	require.Len(t, result.Content, 1)
+	text := result.Content[0].(*mcp.TextContent).Text
+	assert.Equal(t, `{"html":"<b>a & b</b>","literal":"\\u003c"}`, text,
+		"modern text matches a standard re-serialization of structuredContent")
+
+	var reserialized bytes.Buffer
+	encoder := json.NewEncoder(&reserialized)
+	encoder.SetEscapeHTML(false)
+	require.NoError(t, encoder.Encode(result.StructuredContent))
+	assert.Equal(t, strings.TrimSuffix(reserialized.String(), "\n"), text)
+}
+
+func TestUnescapeJSONHTML(t *testing.T) {
+	for _, test := range []struct{ input, want string }{
+		{`{"a":"plain"}`, `{"a":"plain"}`},
+		{`"\u003cb\u003e \u0026 \u003C\u003E"`, `"<b> & <>"`},
+		{`"\\u003c"`, `"\\u003c"`},
+		{`"\\\u003c"`, `"\\<"`},
+		{`"\u00e9\u2028\"\u0026"`, `"\u00e9\u2028\"&"`},
+		{`"\u003`, `"\u003`},
+		{`"\`, `"\`},
+	} {
+		assert.Equal(t, test.want, string(unescapeJSONHTML([]byte(test.input))), test.input)
+	}
+}
+
 func TestTypedLegacyOutputGateRemovesFallbackWithEmptyHandlerContent(t *testing.T) {
 	tool := NewServerToolWithContextHandler(
 		mcp.Tool{Name: "typed_empty_content_tool"},

@@ -70,3 +70,12 @@ request-dependent output such as CSV. This is for intentional non-DTO responses
 such as resources, errors, or CSV; ordinary declared structured success must
 retain shared DTO serialization, with modern JSON text equal to
 `structuredContent`, even when legacy handler text was a plain mutation message.
+That text is encoded without HTML escaping (`<`, `>` and `&` stay literal), so it
+matches a standard re-serialization such as `JSON.stringify(structuredContent)`
+and clients can recognize it as a duplicate.
+
+Content blocks are kept as-is whenever any block is not text. Structured output
+for such results should describe the blocks rather than repeat their payloads:
+`get_file_contents` keeps file bodies in the embedded resource and reports only
+its `uri` and `mimeType` in `structuredContent`, so clients that forward both
+fields do not send each file to the model twice.

@@ -373,7 +373,11 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 					first := result.Content[0].(*mcp.TextContent).Text
 					switch {
 					case call.name == "get_file_contents" && !strings.HasPrefix(first, "["):
-						assert.JSONEq(t, `{"content":`+mustMarshalJSON(t, legacy.Content)+`}`, mustMarshalJSON(t, result.StructuredContent))
+						structured := mustMarshalJSON(t, result.StructuredContent)
+						assert.JSONEq(t, `{"content":`+legacyContentWithoutResourceBodies(t, legacy.Content)+`}`, structured,
+							"structured output repeats content metadata but not file bodies")
+						assert.NotContains(t, structured, `"text":"hello\n"`)
+						assert.NotContains(t, structured, `"blob"`)
 					case call.name == "get_file_contents":
 						var entries []*RepositoryDirectoryEntryOutput
 						require.NoError(t, json.Unmarshal([]byte(first), &entries))
@@ -437,6 +441,19 @@ func hasOnlyTextContent(content []mcp.Content) bool {
 		}
 	}
 	return true
+}
+
+func legacyContentWithoutResourceBodies(t *testing.T, content []mcp.Content) string {
+	t.Helper()
+	var blocks []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, content)), &blocks))
+	for _, block := range blocks {
+		if resource, ok := block["resource"].(map[string]any); ok {
+			delete(resource, "text")
+			delete(resource, "blob")
+		}
+	}
+	return mustMarshalJSON(t, blocks)
 }
 
 func assertLegacyRepositoryText(t *testing.T, name string, args map[string]any, result *mcp.CallToolResult) {
@@ -546,9 +563,10 @@ func TestRepositoryOutputUnions(t *testing.T) {
 			"contents", repositoryContentsOutputSchema(),
 			[]string{`null`, `[]`, `[{"name":"file"}]`, `{"content":[]}`, `{"content":[{"type":"text","text":"status"}]}`,
 				`{"content":[{"type":"resource","resource":{"uri":"repo://file","mimeType":"text/plain"}}]}`,
-				`{"content":[{"type":"resource","resource":{"uri":"repo://file","blob":"AAEC"}}]}`,
 				`{"content":[{"type":"resource_link","uri":"repo://file","name":"file","size":1048576}]}`},
-			[]string{`{}`, `{"content":[{"type":"text"}]}`, `{"content":[{"type":"resource","resource":{"uri":"repo://file","text":"x","blob":"AA=="}}]}`,
+			[]string{`{}`, `{"content":[{"type":"text"}]}`,
+				`{"content":[{"type":"resource","resource":{"uri":"repo://file","text":"x"}}]}`,
+				`{"content":[{"type":"resource","resource":{"uri":"repo://file","blob":"AAEC"}}]}`,
 				`{"content":[{"type":"opaque","data":{}}]}`},
 		},
 	} {
