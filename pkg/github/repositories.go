@@ -644,7 +644,8 @@ SHA MUST be provided for existing file updates.
 				// If file not found, no previous SHA needed (new file creation)
 			}
 
-			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
+			// CreateFile puts path into the URL as is, unlike GetContents.
+			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, escapeGitTreeish(path), opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create/update file",
