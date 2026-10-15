@@ -110,6 +110,12 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
+- **batch_update_issue_labels** - Batch Update Issue Labels
+  - **OAuth Challenge Scopes**: `repo`
+  - `operations`: One entry per issue, in any order. Each entry requires issue_number plus at least one non-empty of add or remove (arrays of label names). Duplicate issue numbers are rejected. (object[], required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **create_issue** - Create Issue
   - **OAuth Challenge Scopes**: `repo`
   - `body`: Issue body content (optional) (string, optional)
