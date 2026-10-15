@@ -72,7 +72,7 @@ func assertGovernanceProjection(t *testing.T, tc governanceWireCase, output any)
 	case "get_label":
 		assert.JSONEq(t, `{"name":"bug","color":"ff0000","description":"desc"}`, mustMarshalJSON(t, output))
 	case "list_label":
-		assert.JSONEq(t, `{"labels":[{"name":"bug","color":"ff0000","description":"desc"}],"totalCount":1}`, mustMarshalJSON(t, output))
+		assert.JSONEq(t, `{"labels":[{"name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"has_more":false}`, mustMarshalJSON(t, output))
 	case "label_write":
 		assert.Equal(t, tc.args["method"], object["method"])
 		assert.Equal(t, tc.text, object["message"])
@@ -236,7 +236,7 @@ func governanceWireCases(t *testing.T) []governanceWireCase {
 	tr := translations.NullTranslationHelper
 	return []governanceWireCase{
 		{tool: GetLabel(tr), args: map[string]any{"owner": "o", "repo": "r", "name": "bug"}, text: `{"id":"L1","name":"bug","color":"ff0000","description":"desc"}`},
-		{tool: ListLabels(tr), args: map[string]any{"owner": "o", "repo": "r"}, text: `{"labels":[{"id":"L1","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1}`},
+		{tool: ListLabels(tr), args: map[string]any{"owner": "o", "repo": "r"}, text: `{"labels":[{"id":"L1","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"has_more":false}`},
 		{tool: LabelWrite(tr), args: map[string]any{"method": "create", "owner": "o", "repo": "r", "name": "feature", "color": "abcdef"}, text: "label 'feature' created successfully"},
 		{tool: LabelWrite(tr), args: map[string]any{"method": "update", "owner": "o", "repo": "r", "name": "bug", "new_name": "defect"}, text: "label 'defect' updated successfully"},
 		{tool: LabelWrite(tr), args: map[string]any{"method": "delete", "owner": "o", "repo": "r", "name": "bug"}, text: "label 'bug' deleted successfully"},

@@ -22,6 +22,7 @@ type MinimalLabel struct {
 type ListLabelsOutput struct {
 	Labels     []MinimalLabel `json:"labels"`
 	TotalCount int            `json:"totalCount" jsonschema:"Total labels in the repository."`
+	HasMore    bool           `json:"has_more" jsonschema:"Whether the repository has more labels than were returned."`
 }
 
 type LabelWriteOutput struct {

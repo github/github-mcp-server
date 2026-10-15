@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "List labels from a repository"
   },
-  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first",
+  "description": "List all labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. has_more is true when the repository has more labels than could be returned; use get_label to check a specific label by name.",
   "inputSchema": {
     "properties": {
       "owner": {
@@ -26,6 +26,10 @@
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
+      "has_more": {
+        "description": "Whether the repository has more labels than were returned.",
+        "type": "boolean"
+      },
       "labels": {
         "items": {
           "additionalProperties": false,
@@ -60,7 +64,8 @@
     },
     "required": [
       "labels",
-      "totalCount"
+      "totalCount",
+      "has_more"
     ],
     "type": "object"
   }

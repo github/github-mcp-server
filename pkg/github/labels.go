@@ -132,6 +132,9 @@ func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) inventory.Se
 	return tool
 }
 
+// listLabelsMaxPages bounds list_label to 1,000 labels so one call cannot page indefinitely.
+const listLabelsMaxPages = 10
+
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return typedGovernanceTool(listLabelsLegacy(t), listLabelsOutputSchema(), decodeGovernanceJSON[ListLabelsOutput])
@@ -142,7 +145,7 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first"),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List all labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. has_more is true when the repository has more labels than could be returned; use get_label to check a specific label by name."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
@@ -189,35 +192,51 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 							Description githubv4.String
 						}
 						TotalCount githubv4.Int
-					} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
+						PageInfo   struct {
+							HasNextPage githubv4.Boolean
+							EndCursor   githubv4.String
+						}
+					} `graphql:"labels(first: 100, after: $cursor, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
 			vars := map[string]any{
-				"owner": githubv4.String(owner),
-				"repo":  githubv4.String(repo),
+				"owner":  githubv4.String(owner),
+				"repo":   githubv4.String(repo),
+				"cursor": (*githubv4.String)(nil),
 				// Order labels by issue count (descending) so the most-used labels are returned first.
 				"orderByField":     labelOrderFieldIssueCount,
 				"orderByDirection": githubv4.OrderDirectionDesc,
 			}
 
-			if err := client.Query(ctx, &query, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil, nil
-			}
-
-			labels := make([]map[string]any, len(query.Repository.Labels.Nodes))
-			for i, labelNode := range query.Repository.Labels.Nodes {
-				labels[i] = map[string]any{
-					"id":          fmt.Sprintf("%v", labelNode.ID),
-					"name":        string(labelNode.Name),
-					"color":       string(labelNode.Color),
-					"description": string(labelNode.Description),
+			labels := make([]map[string]any, 0)
+			hasMore := false
+			for page := 1; ; page++ {
+				if err := client.Query(ctx, &query, vars); err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil, nil
 				}
+				for _, labelNode := range query.Repository.Labels.Nodes {
+					labels = append(labels, map[string]any{
+						"id":          fmt.Sprintf("%v", labelNode.ID),
+						"name":        string(labelNode.Name),
+						"color":       string(labelNode.Color),
+						"description": string(labelNode.Description),
+					})
+				}
+				if !query.Repository.Labels.PageInfo.HasNextPage {
+					break
+				}
+				if page >= listLabelsMaxPages {
+					hasMore = true
+					break
+				}
+				vars["cursor"] = githubv4.NewString(query.Repository.Labels.PageInfo.EndCursor)
 			}
 
 			response := map[string]any{
 				"labels":     labels,
 				"totalCount": int(query.Repository.Labels.TotalCount),
+				"has_more":   hasMore,
 			}
 
 			out, err := json.Marshal(response)

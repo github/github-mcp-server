@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -156,6 +157,9 @@ func TestListLabels(t *testing.T) {
 		mockedClient       *http.Client
 		expectToolError    bool
 		expectedToolErrMsg string
+		expectedNames      []string
+		expectedCount      int
+		expectHasMore      bool
 	}{
 		{
 			name: "successful repository labels listing",
@@ -175,12 +179,17 @@ func TestListLabels(t *testing.T) {
 									Description githubv4.String
 								}
 								TotalCount githubv4.Int
-							} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
+								PageInfo   struct {
+									HasNextPage githubv4.Boolean
+									EndCursor   githubv4.String
+								}
+							} `graphql:"labels(first: 100, after: $cursor, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 						} `graphql:"repository(owner: $owner, name: $repo)"`
 					}{},
 					map[string]any{
 						"owner":            githubv4.String("owner"),
 						"repo":             githubv4.String("repo"),
+						"cursor":           (*githubv4.String)(nil),
 						"orderByField":     labelOrderFieldIssueCount,
 						"orderByDirection": githubv4.OrderDirectionDesc,
 					},
@@ -202,12 +211,38 @@ func TestListLabels(t *testing.T) {
 									},
 								},
 								"totalCount": githubv4.Int(2),
+								"pageInfo": map[string]any{
+									"hasNextPage": githubv4.Boolean(false),
+									"endCursor":   githubv4.String(""),
+								},
 							},
 						},
 					}),
 				),
 			),
 			expectToolError: false,
+			expectedNames:   []string{"bug", "enhancement"},
+		},
+		{
+			name: "follows cursors so the least-used labels are not dropped",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockedClient:    twoPageLabelsClient(t),
+			expectToolError: false,
+			expectedNames:   []string{"bug", "rarely-used"},
+		},
+		{
+			name: "stops at the page cap and sets has_more",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockedClient:    alwaysHasNextPageLabelsClient(t),
+			expectToolError: false,
+			expectedCount:   listLabelsMaxPages,
+			expectHasMore:   true,
 		},
 	}
 
@@ -233,9 +268,60 @@ func TestListLabels(t *testing.T) {
 				}
 			} else {
 				assert.False(t, result.IsError)
+				var response struct {
+					Labels []struct {
+						Name string `json:"name"`
+					} `json:"labels"`
+					HasMore bool `json:"has_more"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+				names := make([]string, len(response.Labels))
+				for i, label := range response.Labels {
+					names[i] = label.Name
+				}
+				if tc.expectedNames != nil {
+					assert.Equal(t, tc.expectedNames, names)
+				}
+				if tc.expectedCount != 0 {
+					assert.Len(t, names, tc.expectedCount)
+				}
+				assert.Equal(t, tc.expectHasMore, response.HasMore)
 			}
 		})
 	}
+}
+
+// twoPageLabelsClient serves a first page that reports another page, then a second page reached only through its cursor.
+func twoPageLabelsClient(t *testing.T) *http.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		name, hasNext := "bug", true
+		if req.Variables["cursor"] == "page-2" {
+			name, hasNext = "rarely-used", false
+		}
+		resp := map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"labels": map[string]any{
+						"nodes":      []any{map[string]any{"id": name, "name": name, "color": "ededed", "description": ""}},
+						"totalCount": 2,
+						"pageInfo":   map[string]any{"hasNextPage": hasNext, "endCursor": "page-2"},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	return &http.Client{Transport: recorderTransport{handler: mux}}
 }
 
 func TestWriteLabel(t *testing.T) {
