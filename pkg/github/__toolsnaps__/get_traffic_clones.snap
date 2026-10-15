@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get repository traffic clones"
+  },
+  "description": "Get the total git clones and unique cloners for a GitHub repository over the last 14 days. Requires push access to the repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "per": {
+        "description": "The time frame to aggregate by. Either 'day' or 'week'. Defaults to 'day'.",
+        "enum": [
+          "day",
+          "week"
+        ],
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "get_traffic_clones"
+}
