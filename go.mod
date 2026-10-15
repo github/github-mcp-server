@@ -3,7 +3,7 @@ module github.com/github/github-mcp-server/v2
 go 1.26.8
 
 require (
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-github/v92 v92.0.0
 	github.com/google/jsonschema-go v0.4.3
