@@ -2372,7 +2372,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 // GetTrafficViews creates a tool to get the page views and unique visitors for
 // a repository over the last 14 days.
 func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryTrafficBreakdownInput, *TrafficViewsOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_traffic_views",
@@ -2402,19 +2402,16 @@ func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool 
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryTrafficBreakdownInput) (*mcp.CallToolResult, *TrafficViewsOutput, error) {
+			owner := input.Owner
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			repo := input.Repo
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			per, err := OptionalParam[string](args, "per")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			per := input.Per
 
 			var opts *github.TrafficBreakdownOptions
 			if per != "" {
@@ -2440,17 +2437,18 @@ func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic views", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(views)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			output := &TrafficViewsOutput{
+				Count:   views.GetCount(),
+				Uniques: views.GetUniques(),
+				Views:   convertToTrafficDataOutput(views.Views),
 			}
 
-			result := utils.NewToolResultText(string(r))
+			result := MarshalledTextResult(output)
 			// Traffic analytics require push access to read (GitHub gates the
 			// endpoint behind Administration: Read), so the data is never
 			// world-readable, even on a public repository. Always private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -2458,7 +2456,7 @@ func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool 
 // GetTrafficClones creates a tool to get the git clones and unique cloners for
 // a repository over the last 14 days.
 func GetTrafficClones(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryTrafficBreakdownInput, *TrafficClonesOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_traffic_clones",
@@ -2488,19 +2486,16 @@ func GetTrafficClones(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryTrafficBreakdownInput) (*mcp.CallToolResult, *TrafficClonesOutput, error) {
+			owner := input.Owner
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			repo := input.Repo
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
-			per, err := OptionalParam[string](args, "per")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			per := input.Per
 
 			var opts *github.TrafficBreakdownOptions
 			if per != "" {
@@ -2526,15 +2521,16 @@ func GetTrafficClones(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic clones", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(clones)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			output := &TrafficClonesOutput{
+				Count:   clones.GetCount(),
+				Uniques: clones.GetUniques(),
+				Clones:  convertToTrafficDataOutput(clones.Clones),
 			}
 
-			result := utils.NewToolResultText(string(r))
+			result := MarshalledTextResult(output)
 			// Traffic analytics require push access to read; never world-readable.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -2542,7 +2538,7 @@ func GetTrafficClones(t translations.TranslationHelperFunc) inventory.ServerTool
 // GetTrafficReferrers creates a tool to get the top 10 referring sites for a
 // repository over the last 14 days.
 func GetTrafficReferrers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryInput, []TrafficReferrerOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_traffic_referrers",
@@ -2567,14 +2563,14 @@ func GetTrafficReferrers(t translations.TranslationHelperFunc) inventory.ServerT
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryInput) (*mcp.CallToolResult, []TrafficReferrerOutput, error) {
+			owner := input.Owner
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			repo := input.Repo
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2596,15 +2592,19 @@ func GetTrafficReferrers(t translations.TranslationHelperFunc) inventory.ServerT
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic referrers", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(referrers)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			output := make([]TrafficReferrerOutput, 0, len(referrers))
+			for _, r := range referrers {
+				output = append(output, TrafficReferrerOutput{
+					Referrer: r.GetReferrer(),
+					Count:    r.GetCount(),
+					Uniques:  r.GetUniques(),
+				})
 			}
 
-			result := utils.NewToolResultText(string(r))
+			result := MarshalledTextResult(output)
 			// Traffic analytics require push access to read; never world-readable.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -2612,7 +2612,7 @@ func GetTrafficReferrers(t translations.TranslationHelperFunc) inventory.ServerT
 // GetTrafficPaths creates a tool to get the top 10 most-visited paths for a
 // repository over the last 14 days.
 func GetTrafficPaths(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewTool[RepositoryInput, []TrafficPathOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_traffic_paths",
@@ -2637,14 +2637,14 @@ func GetTrafficPaths(t translations.TranslationHelperFunc) inventory.ServerTool 
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryInput) (*mcp.CallToolResult, []TrafficPathOutput, error) {
+			owner := input.Owner
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			repo := input.Repo
+			if repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2666,15 +2666,20 @@ func GetTrafficPaths(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic paths", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(paths)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			output := make([]TrafficPathOutput, 0, len(paths))
+			for _, p := range paths {
+				output = append(output, TrafficPathOutput{
+					Path:    p.GetPath(),
+					Title:   p.GetTitle(),
+					Count:   p.GetCount(),
+					Uniques: p.GetUniques(),
+				})
 			}
 
-			result := utils.NewToolResultText(string(r))
+			result := MarshalledTextResult(output)
 			// Traffic analytics require push access to read; never world-readable.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }

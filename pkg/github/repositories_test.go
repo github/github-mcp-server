@@ -5280,10 +5280,14 @@ func Test_GetTrafficViews(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockViews := &github.TrafficViews{
-		Count:   github.Ptr(1234),
-		Uniques: github.Ptr(567),
+		Count:   new(1234),
+		Uniques: new(567),
 		Views: []*github.TrafficData{
-			{Count: github.Ptr(100), Uniques: github.Ptr(40)},
+			{
+				Timestamp: &github.Timestamp{Time: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)},
+				Count:     new(100),
+				Uniques:   new(40),
+			},
 		},
 	}
 
@@ -5355,6 +5359,9 @@ func Test_GetTrafficViews(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returned)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedCount, returned.GetCount())
+			require.Len(t, returned.Views, 1)
+			assert.Equal(t, mockViews.Views[0].GetTimestamp().Time, returned.Views[0].GetTimestamp().Time)
+			assert.Equal(t, 100, returned.Views[0].GetCount())
 		})
 	}
 }
@@ -5375,10 +5382,10 @@ func Test_GetTrafficClones(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockClones := &github.TrafficClones{
-		Count:   github.Ptr(88),
-		Uniques: github.Ptr(42),
+		Count:   new(88),
+		Uniques: new(42),
 		Clones: []*github.TrafficData{
-			{Count: github.Ptr(10), Uniques: github.Ptr(6)},
+			{Count: new(10), Uniques: new(6)},
 		},
 	}
 
@@ -5455,8 +5462,8 @@ func Test_GetTrafficReferrers(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockReferrers := []*github.TrafficReferrer{
-		{Referrer: github.Ptr("google.com"), Count: github.Ptr(120), Uniques: github.Ptr(50)},
-		{Referrer: github.Ptr("github.com"), Count: github.Ptr(80), Uniques: github.Ptr(30)},
+		{Referrer: new("google.com"), Count: new(120), Uniques: new(50)},
+		{Referrer: new("github.com"), Count: new(80), Uniques: new(30)},
 	}
 
 	tests := []struct {
@@ -5533,8 +5540,8 @@ func Test_GetTrafficPaths(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockPaths := []*github.TrafficPath{
-		{Path: github.Ptr("/owner/repo"), Title: github.Ptr("owner/repo"), Count: github.Ptr(200), Uniques: github.Ptr(90)},
-		{Path: github.Ptr("/owner/repo/issues"), Title: github.Ptr("Issues"), Count: github.Ptr(50), Uniques: github.Ptr(20)},
+		{Path: new("/owner/repo"), Title: new("owner/repo"), Count: new(200), Uniques: new(90)},
+		{Path: new("/owner/repo/issues"), Title: new("Issues"), Count: new(50), Uniques: new(20)},
 	}
 
 	tests := []struct {
