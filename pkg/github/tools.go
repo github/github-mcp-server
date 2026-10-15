@@ -319,6 +319,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		MarkAllNotificationsRead(t),
 		ManageNotificationSubscription(t),
 		ManageRepositoryNotificationSubscription(t),
+		GetSubjectSubscription(t),
+		ManageSubjectSubscription(t),
 
 		// Discussion tools
 		ListDiscussions(t),
