@@ -50,17 +50,27 @@ const (
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
 	// First, get all jobs for the workflow run
-	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
-		Filter: "latest",
-	})
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+	opts := &github.ListWorkflowJobsOptions{
+		Filter:      "latest",
+		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	defer func() { _ = resp.Body.Close() }()
+	var allJobs []*github.WorkflowJob
+	for {
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+		}
+		_ = resp.Body.Close()
+		allJobs = append(allJobs, jobs.Jobs...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
 
 	// Filter for failed jobs
 	var failedJobs []*github.WorkflowJob
-	for _, job := range jobs.Jobs {
+	for _, job := range allJobs {
 		if job.GetConclusion() == "failure" {
 			failedJobs = append(failedJobs, job)
 		}
@@ -70,7 +80,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		result := &ActionsFailedJobLogsOutput{
 			Message:   "No failed jobs found in this workflow run",
 			RunID:     runID,
-			TotalJobs: len(jobs.Jobs),
+			TotalJobs: len(allJobs),
 		}
 		r, _ := json.Marshal(result)
 		return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Failed: result}, nil
@@ -95,7 +105,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	result := &ActionsFailedJobLogsOutput{
 		Message:      fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
 		RunID:        runID,
-		TotalJobs:    len(jobs.Jobs),
+		TotalJobs:    len(allJobs),
 		FailedJobs:   len(failedJobs),
 		Logs:         &logResults,
 		ReturnFormat: &ActionsLogsReturnFormat{Content: returnContent, URLs: !returnContent},
