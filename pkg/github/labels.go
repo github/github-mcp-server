@@ -145,7 +145,7 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. Returns up to 100 labels per page by default. If 'pageInfo.hasNextPage' is true, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter to get the rest. Use get_label to check a specific label by name."),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,

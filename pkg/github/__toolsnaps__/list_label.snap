@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "List labels from a repository"
   },
-  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. Returns up to 100 labels per page by default. If 'pageInfo.hasNextPage' is true, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter to get the rest. Use get_label to check a specific label by name.",
+  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
     "properties": {
       "after": {
