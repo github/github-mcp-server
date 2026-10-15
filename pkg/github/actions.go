@@ -34,9 +34,12 @@ const (
 	actionsMethodListWorkflowRuns         = "list_workflow_runs"
 	actionsMethodListWorkflowJobs         = "list_workflow_jobs"
 	actionsMethodListWorkflowArtifacts    = "list_workflow_run_artifacts"
+	actionsMethodListCheckRuns            = "list_check_runs"
+	actionsMethodListCheckRunAnnotations  = "list_check_run_annotations"
 	actionsMethodGetWorkflow              = "get_workflow"
 	actionsMethodGetWorkflowRun           = "get_workflow_run"
 	actionsMethodGetWorkflowJob           = "get_workflow_job"
+	actionsMethodGetCheckRun              = "get_check_run"
 	actionsMethodGetWorkflowRunUsage      = "get_workflow_run_usage"
 	actionsMethodGetWorkflowRunLogsURL    = "get_workflow_run_logs_url"
 	actionsMethodDownloadWorkflowArtifact = "download_workflow_run_artifact"
@@ -200,11 +203,13 @@ func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:         "actions_list",
 			OutputSchema: actionsListOutputSchema(),
 			Description: t("TOOL_ACTIONS_LIST_DESCRIPTION",
-				`Tools for listing GitHub Actions resources.
-Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
+				`List GitHub Actions resources and CI checks from any provider.
+List workflows, workflow runs, jobs, and artifacts, or use list_check_runs for a commit ref or check suite.
+Workflow runs expose check_suite_id and jobs expose check_run_id. Check lists contain summaries only.
+Use actions_get with get_check_run for a selected check's output, or list_check_run_annotations for its paginated annotations.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ACTIONS_LIST_USER_TITLE", "List GitHub Actions workflows in a repository"),
+				Title:        t("TOOL_ACTIONS_LIST_USER_TITLE", "List GitHub Actions resources and CI checks"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -229,7 +234,23 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 - Do not provide any resource ID for 'list_workflows' method.
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
 - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
+- Provide a check suite ID for 'list_check_runs', or omit it and provide 'ref' instead.
+- Provide a check run ID for 'list_check_run_annotations'.
 `,
+					},
+					"ref": {
+						Type:        "string",
+						Description: "Commit SHA, branch, or tag for list_check_runs. Provide exactly one of ref or resource_id (a check suite ID). Use a SHA to keep the lookup stable.",
+					},
+					"check_runs_filter": {
+						Type:        "object",
+						Description: "Filters used only by list_check_runs.",
+						Properties: map[string]*jsonschema.Schema{
+							"check_name": {Type: "string", Description: "Exact check name."},
+							"status":     {Type: "string", Description: "Check lifecycle status.", Enum: []any{"queued", "in_progress", "completed"}},
+							"filter":     {Type: "string", Description: "Return the latest checks (default) or all attempts.", Enum: []any{"latest", "all"}},
+							"app_id":     {Type: "integer", Description: "GitHub App ID. Only supported with ref.", Minimum: new(1.0)},
+						},
 					},
 					"workflow_runs_filter": {
 						Type:        "object",
@@ -319,6 +340,12 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			owner, repo, method, resourceID := args.Owner, args.Repo, args.Method, args.ResourceID
 			pagination := PaginationParams{Page: args.Page, PerPage: args.PerPage}
 
+			if method == actionsMethodListCheckRuns || method == actionsMethodListCheckRunAnnotations {
+				if err := validateActionsChecksListInput(args); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -340,6 +367,13 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			case actionsMethodListWorkflowRuns:
 				// resource_id is optional for list_workflow_runs
 				// If not provided, list all workflow runs in the repository
+			case actionsMethodListCheckRuns:
+				if resourceID != "" {
+					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+					if parseErr != nil || resourceIDInt <= 0 {
+						return utils.NewToolResultError("resource_id must be a positive check suite ID"), nil, nil
+					}
+				}
 			default:
 				if resourceID == "" {
 					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
@@ -349,6 +383,9 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
+				}
+				if method == actionsMethodListCheckRunAnnotations && resourceIDInt <= 0 {
+					return utils.NewToolResultError("resource_id must be a positive check run ID"), nil, nil
 				}
 			}
 
@@ -364,6 +401,12 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowArtifacts:
 				result, payload, err := listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
+				return attachIFC(result), payload, err
+			case actionsMethodListCheckRuns:
+				result, payload, err := listActionsCheckRuns(ctx, client, owner, repo, args.Ref, resourceIDInt, args.CheckRunsFilter, pagination)
+				return attachIFC(result), payload, err
+			case actionsMethodListCheckRunAnnotations:
+				result, payload, err := listActionsCheckRunAnnotations(ctx, client, owner, repo, resourceIDInt, pagination)
 				return attachIFC(result), payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -381,11 +424,13 @@ func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 		mcp.Tool{
 			Name:         "actions_get",
 			OutputSchema: actionsGetOutputSchema(),
-			Description: t("TOOL_ACTIONS_GET_DESCRIPTION", `Get details about specific GitHub Actions resources.
-Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.
+			Description: t("TOOL_ACTIONS_GET_DESCRIPTION", `Get GitHub Actions resources and CI check details by ID.
+Use get_check_run for a check's output title, summary, text, and annotation count, including checks from external providers.
+Pass a check ID from actions_list, a job's check_run_id, or pull_request_read with get_check_runs as resource_id.
+Use actions_list with list_check_run_annotations to read annotations separately. Use get_job_logs for Actions logs.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ACTIONS_GET_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
+				Title:        t("TOOL_ACTIONS_GET_USER_TITLE", "Get GitHub Actions resources and CI check details"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -411,6 +456,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
 - Provide an artifact ID for 'download_workflow_run_artifact' method.
 - Provide a job ID for 'get_workflow_job' method.
+- Provide a check run ID for 'get_check_run' method.
 `,
 					},
 				},
@@ -445,6 +491,9 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				if parseErr != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 				}
+				if method == actionsMethodGetCheckRun && resourceIDInt <= 0 {
+					return utils.NewToolResultError("resource_id must be a positive check run ID"), nil, nil
+				}
 			}
 
 			switch method {
@@ -456,6 +505,9 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowJob:
 				result, payload, err := getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
+			case actionsMethodGetCheckRun:
+				result, payload, err := getActionsCheckRun(ctx, client, owner, repo, resourceIDInt)
 				return attachIFC(result), payload, err
 			case actionsMethodDownloadWorkflowArtifact:
 				result, payload, err := downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
@@ -713,7 +765,10 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 	}
 	var output *MinimalWorkflowJob
 	if workflowJob != nil {
-		job := convertToMinimalWorkflowJob(workflowJob)
+		job, err := convertToMinimalWorkflowJob(workflowJob)
+		if err != nil {
+			return nil, nil, err
+		}
 		output = &job
 	}
 	return utils.NewToolResultText(string(r)), &ActionsGetOutput{Method: actionsMethodGetWorkflowJob, Job: output}, nil
@@ -797,11 +852,12 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, filter Actions
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
 	}
 
-	response := &ActionsJobsOutput{
-		Jobs: convertToMinimalWorkflowJobs(workflowJobs),
-	}
-
 	defer func() { _ = resp.Body.Close() }()
+	jobs, err := convertToMinimalWorkflowJobs(workflowJobs)
+	if err != nil {
+		return nil, nil, err
+	}
+	response := &ActionsJobsOutput{Jobs: jobs}
 	r, err := json.Marshal(response)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow jobs: %w", err)

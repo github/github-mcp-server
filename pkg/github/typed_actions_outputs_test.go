@@ -82,13 +82,13 @@ type actionsWireCase struct {
 }
 
 func actionsWireCases() []actionsWireCase {
-	run := `{"id":7,"name":"CI","workflow_id":2,"run_number":3,"run_attempt":1,"status":"completed","conclusion":"failure","head_branch":"main","head_commit":{"message":"change"}}`
+	run := `{"id":7,"name":"CI","workflow_id":2,"check_suite_id":42,"run_number":3,"run_attempt":1,"status":"completed","conclusion":"failure","head_branch":"main","head_commit":{"message":"change"}}`
 	return []actionsWireCase{
-		{"actions_list", "list_workflows", nil, "/repos/owner/repo/actions/workflows", "page=1&per_page=30", `{"total_count":1,"workflows":[{"id":2,"name":"CI","created_at":"2026-01-01T00:00:00Z"}]}`, `{"total_count":1,"workflows":[{"id":2,"name":"CI","created_at":"2026-01-01T00:00:00Z"}]}`, 200},
+		{"actions_list", "list_workflows", map[string]any{"ref": false, "check_runs_filter": false}, "/repos/owner/repo/actions/workflows", "page=1&per_page=30", `{"total_count":1,"workflows":[{"id":2,"name":"CI","created_at":"2026-01-01T00:00:00Z"}]}`, `{"total_count":1,"workflows":[{"id":2,"name":"CI","created_at":"2026-01-01T00:00:00Z"}]}`, 200},
 		{"actions_list", "list_workflow_runs", map[string]any{"workflow_runs_filter": map[string]any{"actor": "octocat", "branch": false, "event": 1}}, "/repos/owner/repo/actions/runs", "actor=octocat&page=1&per_page=30", `{"total_count":1,"workflow_runs":[` + run + `]}`, `{"total_count":1,"workflow_runs":[` + run + `]}`, 200},
 		{"actions_list", "list_workflow_runs", map[string]any{"resource_id": "ci.yml", "page": "2e0", "perPage": "5.0"}, "/repos/owner/repo/actions/workflows/ci.yml/runs", "page=2&per_page=5", `{"total_count":0,"workflow_runs":[]}`, `{"total_count":0,"workflow_runs":[]}`, 200},
 		{"actions_list", "list_workflow_runs", map[string]any{"resource_id": "2"}, "/repos/owner/repo/actions/workflows/2/runs", "page=1&per_page=30", `null`, `{"total_count":0,"workflow_runs":[]}`, 200},
-		{"actions_list", "list_workflow_jobs", map[string]any{"resource_id": "7", "workflow_jobs_filter": map[string]any{"filter": "all"}}, "/repos/owner/repo/actions/runs/7/jobs", "filter=all&page=1&per_page=30", `{"total_count":1,"jobs":[{"id":8,"run_id":7,"name":"test","status":"completed"}]}`, `{"jobs":{"total_count":1,"jobs":[{"id":8,"run_id":7,"name":"test","status":"completed"}]}}`, 200},
+		{"actions_list", "list_workflow_jobs", map[string]any{"resource_id": "7", "workflow_jobs_filter": map[string]any{"filter": "all"}}, "/repos/owner/repo/actions/runs/7/jobs", "filter=all&page=1&per_page=30", `{"total_count":1,"jobs":[{"id":8,"run_id":7,"name":"test","status":"completed","check_run_url":"https://api.github.com/repos/owner/repo/check-runs/101"}]}`, `{"jobs":{"total_count":1,"jobs":[{"id":8,"run_id":7,"check_run_id":101,"name":"test","status":"completed"}]}}`, 200},
 		{"actions_list", "list_workflow_run_artifacts", map[string]any{"resource_id": "7", "workflow_jobs_filter": false}, "/repos/owner/repo/actions/runs/7/artifacts", "page=1&per_page=30", `{"total_count":1,"artifacts":[{"id":9,"digest":"sha256:abc","workflow_run":{"id":7}}]}`, `{"total_count":1,"artifacts":[{"id":9,"digest":"sha256:abc","workflow_run":{"id":7}}]}`, 200},
 		{"actions_get", "get_workflow", map[string]any{"resource_id": "ci.yml"}, "/repos/owner/repo/actions/workflows/ci.yml", "", `{"id":2,"name":"CI"}`, `{"id":2,"name":"CI"}`, 200},
 		{"actions_get", "get_workflow_run", map[string]any{"resource_id": "7"}, "/repos/owner/repo/actions/runs/7", "", run, run, 200},
@@ -222,7 +222,9 @@ func actionsProjectedEnvelope(t *testing.T, method, projected string) string {
 	field := map[string]string{
 		"list_workflows": "workflows", "list_workflow_runs": "workflow_runs",
 		"list_workflow_jobs": "workflow_jobs", "list_workflow_run_artifacts": "artifacts",
+		"list_check_runs": "check_runs", "list_check_run_annotations": "check_run_annotations",
 		"get_workflow": "workflow", "get_workflow_run": "workflow_run", "get_workflow_job": "workflow_job",
+		"get_check_run":          "check_run",
 		"get_workflow_run_usage": "usage", "download_workflow_run_artifact": "artifact", "get_workflow_run_logs_url": "logs",
 		"run_workflow": "dispatch", "rerun_workflow_run": "rerun", "rerun_failed_jobs": "rerun_failed",
 		"cancel_workflow_run": "cancel", "delete_workflow_run_logs": "delete_logs",
@@ -411,9 +413,9 @@ func TestTypedActionsMinimalProjection(t *testing.T) {
 			raw: &github.WorkflowJob{
 				ID: new(int64(8)), RunID: new(int64(7)), Name: new("test"), Status: new("completed"), Conclusion: new("failure"),
 				NodeID: new("node"), URL: new("https://api.github.com/jobs/8"), RunURL: new("https://api.github.com/runs/7"),
-				HTMLURL: new("https://github.com/owner/repo/actions/runs/7/job/8"),
+				HTMLURL: new("https://github.com/owner/repo/actions/runs/7/job/8"), CheckRunURL: new("https://api.github.com/repos/owner/repo/check-runs/101"),
 			},
-			projected: `{"id":8,"run_id":7,"name":"test","status":"completed","conclusion":"failure","html_url":"https://github.com/owner/repo/actions/runs/7/job/8"}`,
+			projected: `{"id":8,"run_id":7,"check_run_id":101,"name":"test","status":"completed","conclusion":"failure","html_url":"https://github.com/owner/repo/actions/runs/7/job/8"}`,
 		},
 		{
 			actionsWireCase: actionsWireCase{name: "actions_get", method: "get_workflow_run_usage", args: map[string]any{"resource_id": "7"}, path: "/repos/owner/repo/actions/runs/7/timing", status: 200},
@@ -506,8 +508,8 @@ func TestActionsAdvertisedInputMetadata(t *testing.T) {
 	list := ActionsList(tr).Tool.InputSchema.(*jsonschema.Schema)
 	get := ActionsGet(tr).Tool.InputSchema.(*jsonschema.Schema)
 	trigger := ActionsRunTrigger(tr).Tool.InputSchema.(*jsonschema.Schema)
-	assert.Equal(t, []any{"list_workflows", "list_workflow_runs", "list_workflow_jobs", "list_workflow_run_artifacts"}, list.Properties["method"].Enum)
-	assert.Equal(t, []any{"get_workflow", "get_workflow_run", "get_workflow_job", "download_workflow_run_artifact", "get_workflow_run_usage", "get_workflow_run_logs_url"}, get.Properties["method"].Enum)
+	assert.Equal(t, []any{"list_workflows", "list_workflow_runs", "list_workflow_jobs", "list_workflow_run_artifacts", "list_check_runs", "list_check_run_annotations"}, list.Properties["method"].Enum)
+	assert.Equal(t, []any{"get_workflow", "get_workflow_run", "get_workflow_job", "download_workflow_run_artifact", "get_workflow_run_usage", "get_workflow_run_logs_url", "get_check_run"}, get.Properties["method"].Enum)
 	assert.Equal(t, []any{"run_workflow", "rerun_workflow_run", "rerun_failed_jobs", "cancel_workflow_run", "delete_workflow_run_logs"}, trigger.Properties["method"].Enum)
 	runs := list.Properties["workflow_runs_filter"]
 	assert.Equal(t, "object", runs.Type)
