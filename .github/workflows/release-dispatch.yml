@@ -1,0 +1,71 @@
+name: Dispatch release events
+
+# Fires a `repository_dispatch` on release events to an optional downstream
+# repository, configured at runtime via the `RELEASE_AUTOMATION_REPO`
+# repository variable. When the variable is not set, this workflow is a no-op,
+# so adopters and forks pay no overhead unless they opt in.
+#
+# Event types emitted:
+#   mcp-server-release-drafted   on release: { types: [created] }
+#   mcp-server-released          on release: { types: [published] }
+#
+# Prereleases are skipped for both event types.
+#
+# Required when RELEASE_AUTOMATION_REPO is set:
+#   Variable  RELEASE_AUTOMATION_REPO        owner/repo of the downstream repo
+#   Secret    RELEASE_AUTOMATION_DISPATCH_PAT  PAT with actions:write on that repo
+
+on:
+  release:
+    types: [created, published]
+
+permissions: {}
+
+concurrency:
+  group: release-dispatch-${{ github.event.release.id }}-${{ github.event.action }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: ${{ vars.RELEASE_AUTOMATION_REPO != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve event type
+        id: event
+        env:
+          ACTION: ${{ github.event.action }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            echo "::notice::Skipping prerelease"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$ACTION" in
+            created)   echo "type=mcp-server-release-drafted" >> "$GITHUB_OUTPUT" ;;
+            published) echo "type=mcp-server-released"        >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::notice::Unhandled release action: $ACTION"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Send repository_dispatch
+        if: steps.event.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_AUTOMATION_DISPATCH_PAT }}
+          TARGET_REPO: ${{ vars.RELEASE_AUTOMATION_REPO }}
+          EVENT_TYPE: ${{ steps.event.outputs.type }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::RELEASE_AUTOMATION_DISPATCH_PAT secret is not set"
+            exit 1
+          fi
+          gh api "repos/${TARGET_REPO}/dispatches" \
+            -f "event_type=${EVENT_TYPE}" \
+            -F "client_payload[tag]=${TAG}" \
+            -F "client_payload[url]=${URL}"
