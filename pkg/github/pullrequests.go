@@ -123,6 +123,17 @@ Possible options:
 				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelRepoUserContent)
 			}
 
+			// Each method honours exactly one pagination style: get_review_comments
+			// takes a GraphQL cursor (`after`), the other list methods take
+			// `page`/`perPage`. A parameter the selected method cannot use is an
+			// error rather than a silent no-op, so an LLM caller that passes
+			// `after` to get_files (or `page` to get_review_comments) learns that
+			// it did not advance the page instead of receiving the first page
+			// again as if it had.
+			if err := rejectUnsupportedPagination(method, args); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			switch method {
 			case "get":
 				result, output, err := getPullRequest(ctx, client, deps, owner, repo, pullNumber)
@@ -2665,4 +2676,33 @@ func newGQLIntPtr(i *int32) *githubv4.Int {
 	}
 	gi := githubv4.Int(*i)
 	return &gi
+}
+
+// rejectUnsupportedPagination returns an error when the caller supplies a
+// pagination parameter the selected pull_request_read method does not honour.
+// get_review_comments paginates by GraphQL cursor (`after`); the other list
+// methods paginate by `page`/`perPage`; `get`, `get_diff` and `get_status`
+// return a single object and paginate by nothing. Without this check the
+// unsupported parameter is dropped silently and the caller receives the first
+// page again, indistinguishable from a successful advance.
+func rejectUnsupportedPagination(method string, args map[string]any) error {
+	_, hasAfter := args["after"]
+	_, hasPage := args["page"]
+	_, hasPerPage := args["perPage"]
+
+	switch method {
+	case "get_review_comments":
+		if hasPage {
+			return fmt.Errorf("method %q paginates by cursor (perPage, after); \"page\" is not supported", method)
+		}
+	case "get_files", "get_commits", "get_reviews", "get_comments", "get_check_runs":
+		if hasAfter {
+			return fmt.Errorf("method %q paginates by page/perPage; \"after\" is not supported", method)
+		}
+	case "get", "get_diff", "get_status":
+		if hasAfter || hasPage || hasPerPage {
+			return fmt.Errorf("method %q returns a single result and does not accept pagination parameters", method)
+		}
+	}
+	return nil
 }
