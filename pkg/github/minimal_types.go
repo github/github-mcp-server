@@ -1099,6 +1099,11 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 		Comments:       pr.GetComments(),
 	}
 
+	// The list endpoint omits merged but includes merged_at.
+	if pr.Merged == nil && pr.MergedAt != nil {
+		m.Merged = !pr.MergedAt.IsZero()
+	}
+
 	if pr.CreatedAt != nil {
 		m.CreatedAt = pr.CreatedAt.Format(time.RFC3339)
 	}
