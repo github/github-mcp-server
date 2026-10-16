@@ -3203,7 +3203,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	assert.Contains(t, schema.Properties, "body")
 	assert.Contains(t, schema.Properties, "event")
 	assert.Contains(t, schema.Properties, "commitID")
-	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
 	tests := []struct {
 		name               string
@@ -3460,7 +3460,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.Contains(t, schema.Properties, "commitID")
-	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
 	tests := []struct {
 		name               string
@@ -3918,7 +3918,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.Contains(t, schema.Properties, "event")
 	assert.Contains(t, schema.Properties, "body")
-	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
 	tests := []struct {
 		name               string
@@ -4019,7 +4019,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "pullNumber")
-	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
 	tests := []struct {
 		name               string
@@ -4681,6 +4681,12 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 func TestResolveReviewThread(t *testing.T) {
 	t.Parallel()
 
+	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	assert.ElementsMatch(t, schema.Required, []string{"method"})
+	assert.Contains(t, schema.Properties["owner"].Description, "required for create")
+	assert.Contains(t, schema.Properties["threadId"].Description, "Required for resolve_thread")
+
 	tests := []struct {
 		name                 string
 		requestArgs          map[string]any
@@ -4698,6 +4704,38 @@ func TestResolveReviewThread(t *testing.T) {
 				"repo":       "repo",
 				"pullNumber": float64(42),
 				"threadId":   "PRRT_kwDOTest123",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": true,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread resolved successfully",
+		},
+		{
+			name: "successful resolve thread without owner repo pullNumber",
+			requestArgs: map[string]any{
+				"method":   "resolve_thread",
+				"threadId": "PRRT_kwDOTest123",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewMutationMatcher(

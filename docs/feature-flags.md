@@ -414,9 +414,9 @@ as output formatting) won't appear here.
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)
   - `method`: The write operation to perform on pull request review. (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
+  - `owner`: Repository owner (required for create, submit_pending, and delete_pending methods) (string, optional)
+  - `pullNumber`: Pull request number (required for create, submit_pending, and delete_pending methods) (number, optional)
+  - `repo`: Repository name (required for create, submit_pending, and delete_pending methods) (string, optional)
   - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
