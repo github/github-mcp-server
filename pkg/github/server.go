@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -71,6 +72,13 @@ type MCPServerConfig struct {
 	// TokenProvider, when non-nil, supplies the GitHub token for each API
 	// request instead of the static Token.
 	TokenProvider func() string
+
+	// RequestTokenProvider, when non-nil, supplies the GitHub token for each API
+	// request based on the request itself, taking precedence over TokenProvider
+	// and Token. It carries GitHub App authentication that spans several
+	// installations, where the token depends on which account owns the resource
+	// being addressed.
+	RequestTokenProvider func(*http.Request) string
 
 	// ToolHandlerMiddleware wraps every registered tool handler. Unlike MCP
 	// receiving middleware, these wrappers execute inside Server.callTool, so
