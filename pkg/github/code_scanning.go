@@ -133,7 +133,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 	}
 	WithPagination(schema)
 
-	return NewToolWithSchemaOptions[ListCodeScanningAlertsInput, []*CodeScanningAlertOutput](
+	return NewToolWithSchemaOptions[ListCodeScanningAlertsInput, CodeScanningAlertsOutput](
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
@@ -148,18 +148,18 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 		inventory.TypedSchemaOptions{
 			ValidationInputSchema: inventory.CloneSchemaWithoutDefaults(schema),
 		},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListCodeScanningAlertsInput) (*mcp.CallToolResult, []*CodeScanningAlertOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListCodeScanningAlertsInput) (*mcp.CallToolResult, CodeScanningAlertsOutput, error) {
 			if args.Owner == "" {
-				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+				return utils.NewToolResultError("missing required parameter: owner"), CodeScanningAlertsOutput{}, nil
 			}
 			if args.Repo == "" {
-				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+				return utils.NewToolResultError("missing required parameter: repo"), CodeScanningAlertsOutput{}, nil
 			}
 
 			pagination := securityPagination(args.Page, args.PerPage)
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), CodeScanningAlertsOutput{}, nil
 			}
 			alerts, resp, err := client.CodeScanning.ListAlertsForRepo(ctx, args.Owner, args.Repo, &github.AlertListOptions{
 				Ref:      args.Ref,
@@ -176,21 +176,34 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 					"failed to list alerts",
 					resp,
 					err,
-				), nil, nil
+				), CodeScanningAlertsOutput{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), CodeScanningAlertsOutput{}, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), CodeScanningAlertsOutput{}, nil
 			}
 
-			r, err := json.Marshal(alerts)
+			apiPageInfo := buildOffsetPageInfo(resp)
+			output := CodeScanningAlertsOutput{
+				Alerts:   mapSecurityOutputs(alerts, codeScanningAlertOutput),
+				PageInfo: SecurityPageInfo(apiPageInfo),
+			}
+
+			response := struct {
+				Alerts   []*github.Alert `json:"alerts"`
+				PageInfo pageInfo        `json:"pageInfo"`
+			}{
+				Alerts:   alerts,
+				PageInfo: apiPageInfo,
+			}
+			r, err := json.Marshal(response)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), CodeScanningAlertsOutput{}, nil
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -198,7 +211,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			// visibility and embed attacker-influenceable code snippets, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, mapSecurityOutputs(alerts, codeScanningAlertOutput), nil
+			return result, output, nil
 		},
 		normalizeSecurityIntegerArguments("page", "perPage"),
 		normalizeTypedReadArguments(nil, false),
