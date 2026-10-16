@@ -376,6 +376,34 @@ func Test_OptionalIntParam(t *testing.T) {
 			expected:    0,
 			expectError: true,
 		},
+		{
+			name:        "2^63 string parameter",
+			params:      map[string]any{"count": "9223372036854775808"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "MaxInt64 string parameter rounds up to 2^63",
+			params:      map[string]any{"count": "9223372036854775807"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "2^63 float64 parameter",
+			params:      map[string]any{"count": math.Pow(2, 63)},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "MaxInt32 float64 parameter",
+			params:      map[string]any{"count": float64(math.MaxInt32)},
+			paramName:   "count",
+			expected:    math.MaxInt32,
+			expectError: false,
+		},
 	}
 
 	for _, tc := range tests {
