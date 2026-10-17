@@ -1,20 +1,31 @@
-import { StrictMode, useState, useCallback, useEffect } from "react";
+import { StrictMode, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Box,
   Text,
   TextInput,
   Button,
-  Flash,
+  Banner,
   Spinner,
   FormControl,
+  CounterLabel,
+  ActionMenu,
+  ActionList,
+  Label,
 } from "@primer/react";
+import styles from "../../styles.module.css";
 import {
   IssueOpenedIcon,
   CheckCircleIcon,
+  TagIcon,
+  PersonIcon,
+  RepoIcon,
+  MilestoneIcon,
+  LockIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
+import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface IssueResult {
@@ -27,11 +38,251 @@ interface IssueResult {
   URL?: string;
 }
 
+interface LabelItem {
+  id: string;
+  text: string;
+  color: string;
+}
+
+interface AssigneeItem {
+  id: string;
+  text: string;
+}
+
+interface MilestoneItem {
+  id: string;
+  number: number;
+  text: string;
+  description: string;
+}
+
+interface IssueTypeItem {
+  id: string;
+  text: string;
+}
+
+type IssueState = "open" | "closed";
+type StateReason = "completed" | "not_planned" | "duplicate";
+type IssueFieldPrimitive = string | number | boolean;
+
+interface IssueFieldOption {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+}
+
+interface IssueFieldItem {
+  id: string;
+  name: string;
+  data_type: string;
+  description: string;
+  options: IssueFieldOption[];
+}
+
+interface IssueFieldValue {
+  value?: IssueFieldPrimitive;
+  optionName?: string;
+  cleared?: boolean;
+}
+
+interface IssueFieldSubmission {
+  field_name: string;
+  value?: IssueFieldPrimitive;
+  field_option_name?: string;
+  delete?: boolean;
+}
+
+interface RepositoryItem {
+  id: string;
+  owner: string;
+  name: string;
+  fullName: string;
+  isPrivate: boolean;
+}
+
+// Calculate text color based on background luminance
+function getContrastColor(hexColor: string): string {
+  const r = parseInt(hexColor.substring(0, 2), 16);
+  const g = parseInt(hexColor.substring(2, 4), 16);
+  const b = parseInt(hexColor.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#ffffff";
+}
+
+const stateReasonOptions: Array<{ value: StateReason; label: string; description: string }> = [
+  { value: "completed", label: "Completed", description: "The work is done" },
+  { value: "not_planned", label: "Not planned", description: "The issue won't be worked on" },
+  { value: "duplicate", label: "Duplicate", description: "Another issue tracks this" },
+];
+
+function normalizeSwatchColor(color: string): string {
+  const trimmed = color.trim();
+  if (!trimmed) return "var(--borderColor-default, var(--color-border-default))";
+  if (/^#?[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  }
+  return trimmed.toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+function parseIssueState(value: unknown): IssueState | null {
+  return value === "open" || value === "closed" ? value : null;
+}
+
+function parseStateReason(value: unknown): StateReason | null {
+  return value === "completed" || value === "not_planned" || value === "duplicate" ? value : null;
+}
+
+function normalizeRawIssueFieldValue(
+  field: IssueFieldItem | undefined,
+  rawValue: unknown
+): IssueFieldValue | null {
+  if (rawValue === null || rawValue === undefined) return null;
+
+  if (isRecord(rawValue)) {
+    const optionName =
+      stringValue(rawValue.optionName) ||
+      stringValue(rawValue.field_option_name) ||
+      stringValue(rawValue.name);
+    if (field?.data_type === "single_select" && optionName) {
+      return { optionName };
+    }
+    return normalizeRawIssueFieldValue(
+      field,
+      rawValue.value ?? rawValue.text ?? rawValue.number ?? rawValue.date ?? rawValue.name
+    );
+  }
+
+  if (field?.data_type === "single_select") {
+    const optionName = stringValue(rawValue);
+    return optionName ? { optionName } : null;
+  }
+
+  if (
+    typeof rawValue === "string" ||
+    typeof rawValue === "number" ||
+    typeof rawValue === "boolean"
+  ) {
+    return { value: rawValue };
+  }
+
+  return null;
+}
+
+function parseStringIssueFieldValue(
+  entry: string,
+  fieldsByName: Map<string, IssueFieldItem>
+): [string, IssueFieldValue] | null {
+  const match = entry.match(/^([^:=]+)\s*[:=]\s*(.*)$/);
+  if (!match) return null;
+
+  const fieldName = match[1].trim();
+  const field = fieldsByName.get(fieldName);
+  if (!field) return null;
+
+  const normalized = normalizeRawIssueFieldValue(field, match[2].trim());
+  return normalized ? [fieldName, normalized] : null;
+}
+
+function normalizeIssueFieldEntry(
+  entry: unknown,
+  fieldsByName: Map<string, IssueFieldItem>
+): [string, IssueFieldValue] | null {
+  if (typeof entry === "string") return parseStringIssueFieldValue(entry, fieldsByName);
+  if (!isRecord(entry)) return null;
+
+  const fieldRecord = isRecord(entry.field) ? entry.field : undefined;
+  const entryName = stringValue(entry.name);
+  const fieldName =
+    stringValue(entry.field_name) ||
+    stringValue(entry.fieldName) ||
+    (fieldRecord ? stringValue(fieldRecord.name) : undefined) ||
+    entryName;
+  if (!fieldName) return null;
+
+  const field = fieldsByName.get(fieldName);
+  if (!field) return null;
+
+  if (entry.delete === true || entry.cleared === true) {
+    return [fieldName, { cleared: true }];
+  }
+
+  const directOptionName =
+    stringValue(entry.field_option_name) ||
+    stringValue(entry.fieldOptionName) ||
+    stringValue(entry.optionName) ||
+    (field.data_type === "single_select" && entryName && entryName !== fieldName ? entryName : undefined);
+  if (directOptionName) return [fieldName, { optionName: directOptionName }];
+
+  const optionRecord = isRecord(entry.option) ? entry.option : undefined;
+  const optionName = optionRecord ? stringValue(optionRecord.name) : undefined;
+  if (optionName) return [fieldName, { optionName }];
+
+  const normalized = normalizeRawIssueFieldValue(
+    field,
+    entry.value ?? entry.text ?? entry.number ?? entry.date
+  );
+  return normalized ? [fieldName, normalized] : null;
+}
+
+function normalizeIssueFieldValues(
+  input: unknown,
+  fields: IssueFieldItem[]
+): Record<string, IssueFieldValue> {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]));
+  const values: Record<string, IssueFieldValue> = {};
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const normalized = normalizeIssueFieldEntry(item, fieldsByName);
+      if (normalized) values[normalized[0]] = normalized[1];
+    }
+    return values;
+  }
+
+  if (!isRecord(input)) return values;
+
+  const normalizedEntry = normalizeIssueFieldEntry(input, fieldsByName);
+  if (normalizedEntry) {
+    values[normalizedEntry[0]] = normalizedEntry[1];
+    return values;
+  }
+
+  for (const [fieldName, rawValue] of Object.entries(input)) {
+    const field = fieldsByName.get(fieldName);
+    if (!field) continue;
+
+    if (isRecord(rawValue)) {
+      const nested = normalizeIssueFieldEntry({ ...rawValue, field_name: fieldName }, fieldsByName);
+      if (nested) {
+        values[fieldName] = nested[1];
+        continue;
+      }
+    }
+
+    const normalized = normalizeRawIssueFieldValue(field, rawValue);
+    if (normalized) values[fieldName] = normalized;
+  }
+
+  return values;
+}
+
 function SuccessView({
   issue,
   owner,
   repo,
   submittedTitle,
+  submittedLabels,
   isUpdate,
   openLink,
 }: {
@@ -39,52 +290,72 @@ function SuccessView({
   owner: string;
   repo: string;
   submittedTitle: string;
+  submittedLabels: LabelItem[];
   isUpdate: boolean;
   openLink: (url: string) => Promise<void>;
 }) {
   const issueUrl = issue.html_url || issue.url || issue.URL || "#";
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+      }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        mb={3}
-        pb={3}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
+        <div
+          style={{
+            color: "var(--fgColor-success)",
+            flexShrink: 0,
+            marginRight: 8,
+          }}
+        >
           <CheckCircleIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold" }}>
+        </div>
+        <Text style={{ fontWeight: 500 }}>
           {isUpdate ? "Issue updated successfully" : "Issue created successfully"}
         </Text>
-      </Box>
+      </div>
 
-      <Box
-        display="flex"
-        alignItems="flex-start"
-        gap={2}
-        p={3}
-        bg="canvas.subtle"
-        borderRadius={2}
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 2,
+          padding: 16,
+          backgroundColor: "var(--bgColor-muted)",
+          borderRadius: 6,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
+        <div
+          style={{
+            color: "var(--fgColor-open)",
+            flexShrink: 0,
+            marginTop: "2px",
+            marginRight: 4,
+          }}
+        >
           <IssueOpenedIcon size={16} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
+        </div>
+        <div style={{ minWidth: 0 }}>
           <a
             href={issueUrl}
             target="_blank"
@@ -110,17 +381,46 @@ function SuccessView({
           >
             {issue.title || submittedTitle}
             {issue.number && (
-              <Text sx={{ color: "fg.muted", fontWeight: "normal", ml: 1 }}>
+              <Text
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontWeight: 400,
+                  marginLeft: 4,
+                }}
+              >
                 #{issue.number}
               </Text>
             )}
           </a>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>
             {owner}/{repo}
           </Text>
-        </Box>
-      </Box>
-    </Box>
+          {submittedLabels.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 1,
+                marginTop: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              {submittedLabels.map((label) => (
+                <Label
+                  key={label.id}
+                  style={{
+                    backgroundColor: `#${label.color}`,
+                    color: getContrastColor(label.color),
+                    borderColor: `#${label.color}`,
+                  }}
+                >
+                  {label.text}
+                </Label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -131,23 +431,590 @@ function CreateIssueApp() {
   const [error, setError] = useState<string | null>(null);
   const [successIssue, setSuccessIssue] = useState<IssueResult | null>(null);
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
+  // Labels state
+  const [availableLabels, setAvailableLabels] = useState<LabelItem[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<LabelItem[]>([]);
+  const [labelsLoading, setLabelsLoading] = useState(false);
+  const [labelsFilter, setLabelsFilter] = useState("");
+
+  // Assignees state
+  const [availableAssignees, setAvailableAssignees] = useState<AssigneeItem[]>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<AssigneeItem[]>([]);
+  const [assigneesLoading, setAssigneesLoading] = useState(false);
+  const [assigneesFilter, setAssigneesFilter] = useState("");
+
+  // Milestones state
+  const [availableMilestones, setAvailableMilestones] = useState<MilestoneItem[]>([]);
+  const [selectedMilestone, setSelectedMilestone] = useState<MilestoneItem | null>(null);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+
+  // Issue types state
+  const [availableIssueTypes, setAvailableIssueTypes] = useState<IssueTypeItem[]>([]);
+  const [selectedIssueType, setSelectedIssueType] = useState<IssueTypeItem | null>(null);
+  const [issueTypeCleared, setIssueTypeCleared] = useState(false);
+  const [issueTypesLoading, setIssueTypesLoading] = useState(false);
+
+  // State transition state
+  const [currentState, setCurrentState] = useState<IssueState>("open");
+  const [stateReason, setStateReason] = useState<StateReason>("completed");
+  const [duplicateOf, setDuplicateOf] = useState("");
+  const [prefilledStateChange, setPrefilledStateChange] = useState<IssueState | null>(null);
+
+  // Issue fields state
+  const [availableIssueFields, setAvailableIssueFields] = useState<IssueFieldItem[]>([]);
+  const [fieldValues, setFieldValues] = useState<Record<string, IssueFieldValue>>({});
+
+  // Repository state
+  const [selectedRepo, setSelectedRepo] = useState<RepositoryItem | null>(null);
+  const [repoSearchResults, setRepoSearchResults] = useState<RepositoryItem[]>([]);
+  const [repoSearchLoading, setRepoSearchLoading] = useState(false);
+  const [repoFilter, setRepoFilter] = useState("");
+
+  const { app, error: appError, toolInput, toolResult, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-issue-write",
   });
 
+  // When the server created/updated the issue up-front instead of deferring to
+  // this form (e.g. the agent passed show_ui=false or parameters the form can't
+  // represent, such as labels/assignees/issue_fields), the host still renders
+  // this View and delivers the result via tool-result. Render that completed
+  // result as success so we never show a create/update form for an issue that
+  // is already done. The deferral sentinel (awaiting_user_submission) returns
+  // null here, keeping the form for the normal deferred flow.
+  // See github/copilot-mcp-core#1864.
+  const resultIssue = useMemo(() => completedToolResult<IssueResult>(toolResult), [toolResult]);
+  const shownIssue = successIssue ?? resultIssue;
+
+  // Get method and issue_number from toolInput
   const method = (toolInput?.method as string) || "create";
   const issueNumber = toolInput?.issue_number as number | undefined;
   const isUpdateMode = method === "update" && issueNumber !== undefined;
-  const owner = (toolInput?.owner as string) || "";
-  const repo = (toolInput?.repo as string) || "";
 
-  // Pre-fill from toolInput
+  // Initialize from toolInput or selected repo
+  const owner = selectedRepo?.owner || (toolInput?.owner as string) || "";
+  const repo = selectedRepo?.name || (toolInput?.repo as string) || "";
+
+  // Search repositories when filter changes
   useEffect(() => {
-    if (toolInput?.title) setTitle(toolInput.title as string);
-    if (toolInput?.body) setBody(toolInput.body as string);
+    if (!app || !repoFilter.trim()) {
+      setRepoSearchResults([]);
+      return;
+    }
+
+    const searchRepos = async () => {
+      setRepoSearchLoading(true);
+      try {
+        const result = await callTool("search_repositories", {
+          query: repoFilter,
+          perPage: 10,
+        });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c) => c.type === "text"
+          );
+          if (textContent && textContent.type === "text" && textContent.text) {
+            const data = JSON.parse(textContent.text);
+            const repos = (data.repositories || data.items || []).map(
+              (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
+                id: String(r.id || r.full_name),
+                owner:
+                  typeof r.owner === "string"
+                    ? r.owner
+                    : r.owner?.login || r.full_name?.split("/")[0] || "",
+                name: r.name || r.full_name?.split("/")[1] || "",
+                fullName: r.full_name || "",
+                isPrivate: r.private || false,
+              })
+            );
+            setRepoSearchResults(repos);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to search repositories:", e);
+      } finally {
+        setRepoSearchLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(searchRepos, 300);
+    return () => clearTimeout(debounce);
+  }, [app, callTool, repoFilter]);
+
+  // Load labels, assignees, milestones, issue types, and issue fields when owner/repo available
+  useEffect(() => {
+    if (!owner || !repo || !app) return;
+
+    const loadLabels = async () => {
+      setLabelsLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "labels", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("labels", textContent.text as string);
+            const labels = (data.labels || []).map(
+              (l: { name: string; color: string; id: string }) => ({
+                id: l.id || l.name,
+                text: l.name,
+                color: l.color,
+              })
+            );
+            setAvailableLabels(labels);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load labels:", e);
+      } finally {
+        setLabelsLoading(false);
+      }
+    };
+
+    const loadAssignees = async () => {
+      setAssigneesLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "assignees", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("assignees", textContent.text as string);
+            const assignees = (data.assignees || []).map(
+              (a: { login: string }) => ({
+                id: a.login,
+                text: a.login,
+              })
+            );
+            setAvailableAssignees(assignees);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load assignees:", e);
+      } finally {
+        setAssigneesLoading(false);
+      }
+    };
+
+    const loadMilestones = async () => {
+      setMilestonesLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "milestones", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("milestones", textContent.text as string);
+            const milestones = (data.milestones || []).map(
+              (m: { number: number; title: string; description: string }) => ({
+                id: String(m.number),
+                number: m.number,
+                text: m.title,
+                description: m.description || "",
+              })
+            );
+            setAvailableMilestones(milestones);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load milestones:", e);
+      } finally {
+        setMilestonesLoading(false);
+      }
+    };
+
+    const loadIssueTypes = async () => {
+      setIssueTypesLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "issue_types", owner });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const typesArray = parseUIGetResult("issue_types", textContent.text as string);
+            const types = typesArray.filter(t => t !== null).map(
+              (t: { id: number; name: string; description?: string } | string) => {
+                if (typeof t === "string") {
+                  return { id: t, text: t };
+                }
+                return { id: String(t.id || t.name), text: t.name };
+              }
+            );
+            setAvailableIssueTypes(types);
+          }
+        }
+      } catch (e) {
+        // Issue types may not be available for all repos/orgs
+        console.debug("Issue types not available:", e);
+      } finally {
+        setIssueTypesLoading(false);
+      }
+    };
+
+    const loadIssueFields = async () => {
+      try {
+        const result = await callTool("ui_get", { method: "issue_fields", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("issue_fields", textContent.text as string);
+            const fields = (data.fields || [])
+              .map(
+                (field: {
+                  id?: string;
+                  name?: string;
+                  data_type?: string;
+                  description?: string;
+                  options?: Array<{ id?: string; name?: string; description?: string; color?: string }>;
+                }) => ({
+                  id: String(field.id || field.name || ""),
+                  name: field.name || "",
+                  data_type: field.data_type || "text",
+                  description: field.description || "",
+                  options: (field.options || [])
+                    .map((option) => ({
+                      id: String(option.id || option.name || ""),
+                      name: option.name || "",
+                      description: option.description || "",
+                      color: option.color || "",
+                    }))
+                    .filter((option) => option.name),
+                })
+              )
+              .filter((field: IssueFieldItem) => field.name);
+            setAvailableIssueFields(fields);
+          }
+        }
+      } catch (e) {
+        console.debug("Issue fields not available:", e);
+        setAvailableIssueFields([]);
+      }
+    };
+
+    loadLabels();
+    loadAssignees();
+    loadMilestones();
+    loadIssueTypes();
+    loadIssueFields();
+  }, [owner, repo, app, callTool]);
+
+  // Track which prefill fields have been applied to avoid re-applying after user edits
+  const prefillApplied = useRef<{
+    title: boolean;
+    body: boolean;
+    labels: boolean;
+    assignees: boolean;
+    milestone: boolean;
+    type: boolean;
+    issueFields: boolean;
+  }>({
+    title: false,
+    body: false,
+    labels: false,
+    assignees: false,
+    milestone: false,
+    type: false,
+    issueFields: false,
+  });
+
+  // Store existing issue data for matching when available lists load
+  interface ExistingIssueData {
+    labels: string[];
+    assignees: string[];
+    milestoneNumber: number | null;
+    issueType: string | null;
+    fieldValues: unknown;
+  }
+  const [existingIssueData, setExistingIssueData] = useState<ExistingIssueData | null>(null);
+
+  // Reset all transient form/result state when toolInput changes (new invocation).
+  // Without this, the SuccessView from a previous submit stays visible and stale
+  // form values (e.g. body) bleed through because prefill effects use truthy guards
+  // that won't overwrite with empty values. The repo is re-initialized from the new
+  // invocation here (rather than in a separate effect) so it isn't wiped by this reset.
+  useEffect(() => {
+    prefillApplied.current = {
+      title: false,
+      body: false,
+      labels: false,
+      assignees: false,
+      milestone: false,
+      type: false,
+      issueFields: false,
+    };
+    setExistingIssueData(null);
+    setTitle("");
+    setBody("");
+    setSelectedLabels([]);
+    setSelectedAssignees([]);
+    setSelectedMilestone(null);
+    const inputIssueType = toolInput?.type;
+    setSelectedIssueType(
+      typeof inputIssueType === "string" ? { id: inputIssueType, text: inputIssueType } : null
+    );
+    setIssueTypeCleared(inputIssueType === null);
+    setCurrentState("open");
+    setStateReason("completed");
+    setDuplicateOf("");
+    setPrefilledStateChange(null);
+    setFieldValues({});
+    setSuccessIssue(null);
+    setError(null);
+    // Clear available metadata (and filters) so prefill effects, which are gated
+    // on these lists being non-empty, can't match against the previous repo's data
+    // before the new repo's ui_get calls resolve.
+    setAvailableLabels([]);
+    setAvailableAssignees([]);
+    setAvailableMilestones([]);
+    setAvailableIssueTypes([]);
+    setAvailableIssueFields([]);
+    setLabelsFilter("");
+    setAssigneesFilter("");
+    if (toolInput?.owner && toolInput?.repo) {
+      setSelectedRepo({
+        id: `${toolInput.owner}/${toolInput.repo}`,
+        owner: toolInput.owner as string,
+        name: toolInput.repo as string,
+        fullName: `${toolInput.owner}/${toolInput.repo}`,
+        isPrivate: false,
+      });
+    } else {
+      setSelectedRepo(null);
+    }
   }, [toolInput]);
 
-  const handleSubmit = useCallback(async () => {
+  // Load existing issue data when in update mode
+  useEffect(() => {
+    if (!isUpdateMode || !owner || !repo || !issueNumber || !app || existingIssueData !== null) {
+      return;
+    }
+
+    const loadExistingIssue = async () => {
+      try {
+        const result = await callTool("issue_read", {
+          method: "get",
+          owner,
+          repo,
+          issue_number: issueNumber,
+        });
+
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c) => c.type === "text"
+          );
+          if (textContent && textContent.type === "text" && textContent.text) {
+            const issueData = JSON.parse(textContent.text);
+
+            const issueState = parseIssueState(issueData.state);
+            if (issueState) {
+              setCurrentState(issueState);
+            }
+
+            // Pre-fill title and body immediately
+            if (issueData.title && !prefillApplied.current.title) {
+              setTitle(issueData.title);
+              prefillApplied.current.title = true;
+            }
+            if (issueData.body && !prefillApplied.current.body) {
+              setBody(issueData.body);
+              prefillApplied.current.body = true;
+            }
+
+            // Pre-fill assignees immediately from issue data
+            const assigneeLogins = (issueData.assignees || [])
+              .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
+              .filter(Boolean) as string[];
+            if (assigneeLogins.length > 0 && !prefillApplied.current.assignees) {
+              setSelectedAssignees(assigneeLogins.map(login => ({ id: login, text: login })));
+              prefillApplied.current.assignees = true;
+            }
+
+            // Pre-fill issue type immediately from issue data
+            const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
+            if (issueTypeName && toolInput?.type === undefined && !prefillApplied.current.type) {
+              setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
+              prefillApplied.current.type = true;
+            }
+
+            // Extract data for deferred matching when available lists load (for labels and milestones)
+            const labelNames = (issueData.labels || [])
+              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
+              .filter(Boolean) as string[];
+            
+            const milestoneNumber = issueData.milestone 
+              ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
+              : null;
+
+            setExistingIssueData({
+              labels: labelNames,
+              assignees: assigneeLogins,
+              milestoneNumber,
+              issueType: issueTypeName,
+              fieldValues: issueData.field_values || issueData.fieldValues || [],
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Error loading existing issue:", e);
+      }
+    };
+
+    loadExistingIssue();
+  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, existingIssueData, toolInput]);
+
+  // Apply existing labels when available labels load
+  useEffect(() => {
+    if (!existingIssueData?.labels.length || !availableLabels.length || prefillApplied.current.labels) return;
+    const matched = availableLabels.filter((l) => existingIssueData.labels.includes(l.text));
+    if (matched.length > 0) {
+      setSelectedLabels(matched);
+      prefillApplied.current.labels = true;
+    }
+  }, [existingIssueData, availableLabels]);
+
+  // Apply existing milestone when available milestones load
+  useEffect(() => {
+    if (!existingIssueData?.milestoneNumber || !availableMilestones.length || prefillApplied.current.milestone) return;
+    const matched = availableMilestones.find((m) => m.number === existingIssueData.milestoneNumber);
+    if (matched) {
+      setSelectedMilestone(matched);
+    }
+    prefillApplied.current.milestone = true;
+  }, [existingIssueData, availableMilestones]);
+
+  // Pre-fill title and body immediately (don't wait for data loading)
+  useEffect(() => {
+    if (toolInput?.title && !prefillApplied.current.title) {
+      setTitle(toolInput.title as string);
+      prefillApplied.current.title = true;
+    }
+    if (toolInput?.body && !prefillApplied.current.body) {
+      setBody(toolInput.body as string);
+      prefillApplied.current.body = true;
+    }
+  }, [toolInput]);
+
+  // Pre-fill requested state transition controls from tool input
+  useEffect(() => {
+    const state = parseIssueState(toolInput?.state);
+    if (state) {
+      setPrefilledStateChange(state);
+    }
+
+    const reason = parseStateReason(toolInput?.state_reason);
+    if (reason) {
+      setStateReason(reason);
+    }
+
+    if (toolInput?.duplicate_of !== undefined && toolInput?.duplicate_of !== null) {
+      setDuplicateOf(String(toolInput.duplicate_of));
+    }
+  }, [toolInput]);
+
+  // Pre-fill labels once available data is loaded
+  useEffect(() => {
+    if (
+      toolInput?.labels &&
+      Array.isArray(toolInput.labels) &&
+      availableLabels.length > 0 &&
+      !prefillApplied.current.labels
+    ) {
+      const prefillLabels = availableLabels.filter((l) =>
+        (toolInput.labels as string[]).includes(l.text)
+      );
+      if (prefillLabels.length > 0) {
+        setSelectedLabels(prefillLabels);
+        prefillApplied.current.labels = true;
+      }
+    }
+  }, [toolInput, availableLabels]);
+
+  // Pre-fill assignees once available data is loaded
+  useEffect(() => {
+    if (
+      toolInput?.assignees &&
+      Array.isArray(toolInput.assignees) &&
+      availableAssignees.length > 0 &&
+      !prefillApplied.current.assignees
+    ) {
+      const prefillAssignees = availableAssignees.filter((a) =>
+        (toolInput.assignees as string[]).includes(a.text)
+      );
+      if (prefillAssignees.length > 0) {
+        setSelectedAssignees(prefillAssignees);
+        prefillApplied.current.assignees = true;
+      }
+    }
+  }, [toolInput, availableAssignees]);
+
+  // Pre-fill milestone once available data is loaded
+  useEffect(() => {
+    if (
+      toolInput?.milestone &&
+      availableMilestones.length > 0 &&
+      !prefillApplied.current.milestone
+    ) {
+      const milestone = availableMilestones.find(
+        (m) => m.number === Number(toolInput.milestone)
+      );
+      if (milestone) {
+        setSelectedMilestone(milestone);
+        prefillApplied.current.milestone = true;
+      }
+    }
+  }, [toolInput, availableMilestones]);
+
+  // Pre-fill issue type once available data is loaded
+  useEffect(() => {
+    if (
+      toolInput?.type &&
+      availableIssueTypes.length > 0 &&
+      !prefillApplied.current.type
+    ) {
+      const issueType = availableIssueTypes.find(
+        (t) => t.text === toolInput.type
+      );
+      if (issueType) {
+        setSelectedIssueType(issueType);
+        prefillApplied.current.type = true;
+      }
+    }
+  }, [toolInput, availableIssueTypes]);
+
+  // Pre-fill custom fields once field definitions are loaded
+  useEffect(() => {
+    if (!availableIssueFields.length || prefillApplied.current.issueFields) return;
+
+    const toolInputValues = normalizeIssueFieldValues(toolInput?.issue_fields, availableIssueFields);
+    if (Object.keys(toolInputValues).length > 0) {
+      setFieldValues(toolInputValues);
+      prefillApplied.current.issueFields = true;
+      return;
+    }
+
+    const existingValues = normalizeIssueFieldValues(existingIssueData?.fieldValues, availableIssueFields);
+    if (Object.keys(existingValues).length > 0) {
+      setFieldValues(existingValues);
+      prefillApplied.current.issueFields = true;
+    }
+  }, [toolInput, existingIssueData, availableIssueFields]);
+
+  const issueFieldsByName = useMemo(
+    () => new Map(availableIssueFields.map((field) => [field.name, field])),
+    [availableIssueFields]
+  );
+
+  const updateIssueFieldValue = useCallback((fieldName: string, value: IssueFieldValue) => {
+    prefillApplied.current.issueFields = true;
+    setFieldValues((prev) => ({ ...prev, [fieldName]: value }));
+  }, []);
+
+  const handleSubmit = useCallback(async (stateChange?: IssueState) => {
     if (!title.trim()) {
       setError("Title is required");
       return;
@@ -155,6 +1022,16 @@ function CreateIssueApp() {
     if (!owner || !repo) {
       setError("Repository information not available");
       return;
+    }
+
+    const requestedState = isUpdateMode ? stateChange || prefilledStateChange : null;
+    let duplicateIssueNumber: number | undefined;
+    if (requestedState === "closed" && stateReason === "duplicate") {
+      duplicateIssueNumber = Number(duplicateOf);
+      if (!Number.isInteger(duplicateIssueNumber) || duplicateIssueNumber <= 0) {
+        setError("Duplicate issue number is required");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -171,8 +1048,61 @@ function CreateIssueApp() {
         _ui_submitted: true
       };
 
+      delete params.state;
+      delete params.state_reason;
+      delete params.duplicate_of;
+      delete params.issue_fields;
+      delete params.type;
+
       if (isUpdateMode && issueNumber) {
         params.issue_number = issueNumber;
+      }
+
+      if (selectedLabels.length > 0) {
+        params.labels = selectedLabels.map((l) => l.text);
+      }
+      if (selectedAssignees.length > 0) {
+        params.assignees = selectedAssignees.map((a) => a.text);
+      }
+      if (selectedMilestone) {
+        params.milestone = selectedMilestone.number;
+      }
+      if (selectedIssueType) {
+        params.type = selectedIssueType.text;
+      } else if (issueTypeCleared) {
+        params.type = null;
+      }
+
+      if (requestedState) {
+        params.state = requestedState;
+        if (requestedState === "closed") {
+          params.state_reason = stateReason;
+          if (stateReason === "duplicate" && duplicateIssueNumber !== undefined) {
+            params.duplicate_of = duplicateIssueNumber;
+          }
+        }
+      }
+
+      const issueFields = Object.entries(fieldValues)
+        .map(([fieldName, value]): IssueFieldSubmission | null => {
+          if (value.cleared) return { field_name: fieldName, delete: true };
+          if (value.optionName !== undefined) {
+            return { field_name: fieldName, field_option_name: value.optionName };
+          }
+          if (value.value !== undefined && value.value !== "") {
+            const field = issueFieldsByName.get(fieldName);
+            const fieldValue =
+              field?.data_type === "number" && typeof value.value === "string"
+                ? Number(value.value)
+                : value.value;
+            if (typeof fieldValue === "number" && Number.isNaN(fieldValue)) return null;
+            return { field_name: fieldName, value: fieldValue };
+          }
+          return null;
+        })
+        .filter((field): field is IssueFieldSubmission => field !== null);
+      if (issueFields.length > 0) {
+        params.issue_fields = issueFields;
       }
 
       const result = await callTool("issue_write", params);
@@ -215,32 +1145,144 @@ function CreateIssueApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, isUpdateMode, issueNumber, toolInput, callTool, setModelContext]);
+  }, [
+    title,
+    body,
+    owner,
+    repo,
+    selectedLabels,
+    selectedAssignees,
+    selectedMilestone,
+    selectedIssueType,
+    issueTypeCleared,
+    isUpdateMode,
+    issueNumber,
+    stateReason,
+    duplicateOf,
+    prefilledStateChange,
+    fieldValues,
+    issueFieldsByName,
+    toolInput,
+    callTool,
+    setModelContext,
+  ]);
+
+  // Filtered items for dropdowns
+  const filteredLabels = useMemo(() => {
+    if (!labelsFilter) return availableLabels;
+    const lowerFilter = labelsFilter.toLowerCase();
+    return availableLabels.filter((l) =>
+      l.text.toLowerCase().includes(lowerFilter)
+    );
+  }, [availableLabels, labelsFilter]);
+
+  const filteredAssignees = useMemo(() => {
+    if (!assigneesFilter) return availableAssignees;
+    const lowerFilter = assigneesFilter.toLowerCase();
+    return availableAssignees.filter((a) =>
+      a.text.toLowerCase().includes(lowerFilter)
+    );
+  }, [availableAssignees, assigneesFilter]);
+
+  const selectedStateReason = stateReasonOptions.find((option) => option.value === stateReason) || stateReasonOptions[0];
+
+  const renderIssueFieldInput = (field: IssueFieldItem) => {
+    const fieldValue = fieldValues[field.name] || {};
+
+    if (field.data_type === "single_select") {
+      const selectedOptionName = fieldValue.cleared ? undefined : fieldValue.optionName;
+      const selectedOption = field.options.find((option) => option.name === selectedOptionName);
+      return (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <ActionMenu>
+            <ActionMenu.Button size="small" style={{ maxWidth: "100%" }}>
+              {selectedOption ? selectedOption.name : "Select option"}
+            </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <ActionList selectionVariant="single">
+                {field.options.length === 0 ? (
+                  <ActionList.Item disabled>No options available</ActionList.Item>
+                ) : (
+                  field.options.map((option) => (
+                    <ActionList.Item
+                      key={option.id || option.name}
+                      selected={selectedOptionName === option.name}
+                      onSelect={() => updateIssueFieldValue(field.name, { optionName: option.name })}
+                    >
+                      <ActionList.LeadingVisual>
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            backgroundColor: normalizeSwatchColor(option.color),
+                            borderWidth: 1,
+                            borderStyle: "solid",
+                            borderColor: "var(--borderColor-default)",
+                          }}
+                        />
+                      </ActionList.LeadingVisual>
+                      {option.name}
+                    </ActionList.Item>
+                  ))
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+        </div>
+      );
+    }
+
+    return (
+      <TextInput
+        type={
+          field.data_type === "number"
+            ? "number"
+            : field.data_type === "date"
+              ? "date"
+              : "text"
+        }
+        value={fieldValue.cleared ? "" : String(fieldValue.value ?? "")}
+        onChange={(e) =>
+          updateIssueFieldValue(field.name, { value: e.target.value })
+        }
+        block
+        contrast
+        style={{ flex: 1 }}
+      />
+    );
+  };
 
   const body_node = (() => {
   if (appError) {
     return (
-      <Flash variant="danger" sx={{ m: 2 }}>
-        Connection error: {appError.message}
-      </Flash>
+      <Banner variant="critical" title={`Connection error: ${appError.message}`} style={{ margin: 8 }} />
     );
   }
 
   if (!app) {
     return (
-      <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+      <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
         <Spinner size="medium" />
-      </Box>
+      </div>
     );
   }
 
-  if (successIssue) {
+  if (shownIssue) {
     return (
       <SuccessView
-        issue={successIssue}
+        issue={shownIssue}
         owner={owner}
         repo={repo}
         submittedTitle={title}
+        submittedLabels={selectedLabels}
         isUpdate={isUpdateMode}
         openLink={openLink}
       />
@@ -248,46 +1290,139 @@ function CreateIssueApp() {
   }
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
-    >
-      {/* Header */}
-      <Box
-        display="flex"
-        alignItems="center"
-        gap={2}
-        mb={3}
-        pb={2}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+    <div
+        style={{
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+          borderRadius: 6,
+          backgroundColor: "var(--bgColor-muted)",
+          padding: 16,
+        }}
       >
-        <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex", mr: 1 }}>
-          <IssueOpenedIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold", whiteSpace: "nowrap" }}>
-          {isUpdateMode ? `Update issue #${issueNumber}` : "New issue"}
-        </Text>
-        <Text sx={{ color: "fg.muted", fontSize: 0, ml: 1 }}>
-          {owner}/{repo}
-        </Text>
-      </Box>
+      {/* Repository picker */}
+      <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            marginBottom: 16,
+            paddingBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--borderColor-default)",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+        <div style={{ minWidth: 0, maxWidth: "100%" }}>
+          <ActionMenu>
+            <ActionMenu.Button
+                size="small"
+                leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+                style={{ maxWidth: "100%", overflow: "hidden" }}
+                className={styles.truncateLastChild}
+              >
+              {selectedRepo ? selectedRepo.fullName : "Select repository"}
+            </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
+            <ActionList selectionVariant="single">
+              <div
+                    style={{
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                    }}
+                  >
+                <TextInput
+                      placeholder="Search repositories..."
+                      value={repoFilter}
+                      onChange={(e) => setRepoFilter(e.target.value)}
+                      size="small"
+                      autoFocus
+                      style={{ width: "100%" }}
+                    />
+              </div>
+              <ActionList.Divider />
+              {repoSearchLoading ? (
+                <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: 16,
+                      }}
+                    >
+                  <Spinner size="small" />
+                </div>
+              ) : repoSearchResults.length > 0 ? (
+                repoSearchResults.map((r) => (
+                  <ActionList.Item
+                    key={r.id}
+                    selected={selectedRepo?.id === r.id}
+                    onSelect={() => {
+                      setSelectedRepo(r);
+                      setRepoFilter("");
+                      // Clear metadata when switching repos
+                      setAvailableLabels([]);
+                      setSelectedLabels([]);
+                      setAvailableAssignees([]);
+                      setSelectedAssignees([]);
+                      setAvailableMilestones([]);
+                      setSelectedMilestone(null);
+                      setAvailableIssueTypes([]);
+                      setSelectedIssueType(null);
+                      setAvailableIssueFields([]);
+                      setFieldValues({});
+                    }}
+                  >
+                    <ActionList.LeadingVisual>
+                      {r.isPrivate ? <LockIcon /> : <RepoIcon />}
+                    </ActionList.LeadingVisual>
+                    {r.fullName}
+                  </ActionList.Item>
+                ))
+              ) : selectedRepo ? (
+                <ActionList.Item
+                  key={selectedRepo.id}
+                  selected
+                  onSelect={() => setRepoFilter("")}
+                >
+                  <ActionList.LeadingVisual>
+                    {selectedRepo.isPrivate ? <LockIcon /> : <RepoIcon />}
+                  </ActionList.LeadingVisual>
+                  {selectedRepo.fullName}
+                </ActionList.Item>
+              ) : (
+                <div
+                      style={{
+                        paddingLeft: 16,
+                        paddingRight: 16,
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                      }}
+                    >
+                  <Text
+                        style={{ color: "var(--fgColor-muted)", fontSize: 14 }}
+                      >
+                    Type to search repositories...
+                  </Text>
+                </div>
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
+        </div>
+      </div>
 
       {/* Error banner */}
       {error && (
-        <Flash variant="danger" sx={{ mb: 3 }}>
-          {error}
-        </Flash>
+        <Banner variant="critical" title={error} style={{ marginBottom: 16 }} />
       )}
 
       {/* Title */}
-      <FormControl sx={{ mb: 3 }}>
-        <FormControl.Label sx={{ fontWeight: "semibold" }}>
+      <FormControl style={{ marginBottom: 16 }}>
+        <FormControl.Label style={{ fontWeight: 500 }}>
           Title
         </FormControl.Label>
         <TextInput
@@ -300,11 +1435,16 @@ function CreateIssueApp() {
       </FormControl>
 
       {/* Description */}
-      <Box sx={{ mb: 3 }}>
+      <div style={{ marginBottom: 16 }}>
         <Text
-          as="label"
-          sx={{ fontWeight: "semibold", fontSize: 1, display: "block", mb: 2 }}
-        >
+            as="label"
+            style={{
+              fontWeight: 500,
+              fontSize: 14,
+              display: "block",
+              marginBottom: 8,
+            }}
+          >
           Description
         </Text>
         <MarkdownEditor
@@ -312,26 +1452,447 @@ function CreateIssueApp() {
           onChange={setBody}
           placeholder="Add a description..."
         />
-      </Box>
+      </div>
 
-      {/* Submit button */}
-      <Box display="flex" justifyContent="flex-end" gap={2}>
+      {/* Metadata section */}
+      <div
+          style={{
+            display: "flex",
+            gap: 4,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+        {/* Labels dropdown */}
+        <ActionMenu>
+          <ActionMenu.Button size="small" leadingVisual={TagIcon}>
+            Labels
+            {selectedLabels.length > 0 && (
+              <CounterLabel style={{ marginLeft: 4 }}>{selectedLabels.length}</CounterLabel>
+            )}
+          </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
+            <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
+              <TextInput
+                placeholder="Filter labels"
+                value={labelsFilter}
+                onChange={(e) => setLabelsFilter(e.target.value)}
+                size="small"
+                block
+              />
+            </div>
+            <ActionList selectionVariant="multiple">
+              {labelsLoading ? (
+                <ActionList.Item disabled>
+                  <Spinner size="small" /> Loading...
+                </ActionList.Item>
+              ) : filteredLabels.length === 0 ? (
+                <ActionList.Item disabled>No labels available</ActionList.Item>
+              ) : (
+                filteredLabels.map((label) => (
+                  <ActionList.Item
+                    key={label.id}
+                    selected={selectedLabels.some((l) => l.id === label.id)}
+                    onSelect={() => {
+                      setSelectedLabels((prev) =>
+                        prev.some((l) => l.id === label.id)
+                          ? prev.filter((l) => l.id !== label.id)
+                          : [...prev, label]
+                      );
+                    }}
+                  >
+                    <ActionList.LeadingVisual>
+                      <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            backgroundColor: `#${label.color}`,
+                          }}
+                        />
+                    </ActionList.LeadingVisual>
+                    {label.text}
+                  </ActionList.Item>
+                ))
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
+
+        {/* Assignees dropdown */}
+        <ActionMenu>
+          <ActionMenu.Button size="small" leadingVisual={PersonIcon}>
+            Assignees
+            {selectedAssignees.length > 0 && (
+              <CounterLabel style={{ marginLeft: 4 }}>{selectedAssignees.length}</CounterLabel>
+            )}
+          </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
+            <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
+              <TextInput
+                placeholder="Search people"
+                value={assigneesFilter}
+                onChange={(e) => setAssigneesFilter(e.target.value)}
+                size="small"
+                block
+              />
+            </div>
+            <ActionList selectionVariant="multiple">
+              {assigneesLoading ? (
+                <ActionList.Item disabled>
+                  <Spinner size="small" /> Loading...
+                </ActionList.Item>
+              ) : filteredAssignees.length === 0 ? (
+                <ActionList.Item disabled>No assignees available</ActionList.Item>
+              ) : (
+                filteredAssignees.map((assignee) => (
+                  <ActionList.Item
+                    key={assignee.id}
+                    selected={selectedAssignees.some((a) => a.id === assignee.id)}
+                    onSelect={() => {
+                      setSelectedAssignees((prev) =>
+                        prev.some((a) => a.id === assignee.id)
+                          ? prev.filter((a) => a.id !== assignee.id)
+                          : [...prev, assignee]
+                      );
+                    }}
+                  >
+                    {assignee.text}
+                  </ActionList.Item>
+                ))
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
+
+        {/* Milestones dropdown */}
+        <ActionMenu>
+          <ActionMenu.Button size="small" leadingVisual={MilestoneIcon}>
+            {selectedMilestone ? selectedMilestone.text : "Milestone"}
+          </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
+            <ActionList selectionVariant="single">
+              {milestonesLoading ? (
+                <ActionList.Item disabled>
+                  <Spinner size="small" /> Loading...
+                </ActionList.Item>
+              ) : availableMilestones.length === 0 ? (
+                <ActionList.Item disabled>No milestones</ActionList.Item>
+              ) : (
+                <>
+                  {selectedMilestone && (
+                    <ActionList.Item
+                      onSelect={() => setSelectedMilestone(null)}
+                    >
+                      Clear selection
+                    </ActionList.Item>
+                  )}
+                  {availableMilestones.map((milestone) => (
+                    <ActionList.Item
+                      key={milestone.id}
+                      selected={selectedMilestone?.id === milestone.id}
+                      onSelect={() => setSelectedMilestone(milestone)}
+                    >
+                      {milestone.text}
+                      {milestone.description && (
+                        <ActionList.Description>
+                          {milestone.description}
+                        </ActionList.Description>
+                      )}
+                    </ActionList.Item>
+                  ))}
+                </>
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
+
+        {/* Issue Types dropdown */}
+        <ActionMenu>
+          <ActionMenu.Button size="small" leadingVisual={IssueOpenedIcon}>
+            {selectedIssueType ? selectedIssueType.text : "Type"}
+          </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
+            <ActionList selectionVariant="single">
+              {issueTypesLoading ? (
+                <ActionList.Item disabled>
+                  <Spinner size="small" /> Loading...
+                </ActionList.Item>
+              ) : availableIssueTypes.length === 0 ? (
+                <ActionList.Item disabled>No issue types</ActionList.Item>
+              ) : (
+                <>
+                  {selectedIssueType && (
+                    <ActionList.Item
+                      onSelect={() => {
+                        setSelectedIssueType(null);
+                        setIssueTypeCleared(true);
+                        prefillApplied.current.type = true;
+                      }}
+                    >
+                      Clear selection
+                    </ActionList.Item>
+                  )}
+                  {availableIssueTypes.map((type) => (
+                    <ActionList.Item
+                      key={type.id}
+                      selected={selectedIssueType?.id === type.id}
+                      onSelect={() => {
+                        setSelectedIssueType(type);
+                        setIssueTypeCleared(false);
+                        prefillApplied.current.type = true;
+                      }}
+                    >
+                      {type.text}
+                    </ActionList.Item>
+                  ))}
+                </>
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
+      </div>
+
+      {/* Fields section */}
+      {availableIssueFields.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <Text
+              style={{ fontWeight: 500, display: "block", marginBottom: 16 }}
+            >
+            Fields
+          </Text>
+          <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 8,
+              }}
+            >
+            {availableIssueFields.map((field) => {
+              const fieldValue = fieldValues[field.name];
+              const hasFieldValue =
+                fieldValue &&
+                !fieldValue.cleared &&
+                (fieldValue.optionName !== undefined ||
+                  (fieldValue.value !== undefined && fieldValue.value !== ""));
+
+              return (
+                <div key={field.id || field.name}>
+                  <Text
+                      style={{
+                        fontWeight: 500,
+                        fontSize: 14,
+                        display: "block",
+                      }}
+                    >
+                    {field.name}
+                  </Text>
+                  {field.description && (
+                    <Text
+                        style={{
+                          color: "var(--fgColor-muted)",
+                          fontSize: 12,
+                          display: "block",
+                          marginTop: 4,
+                          marginBottom: 8,
+                        }}
+                      >
+                      {field.description}
+                    </Text>
+                  )}
+                  <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        marginTop: field.description ? 0 : 8,
+                      }}
+                    >
+                    {renderIssueFieldInput(field)}
+                    {hasFieldValue && (
+                      <Button
+                          variant="invisible"
+                          size="small"
+                          onClick={() =>
+                            updateIssueFieldValue(field.name, { cleared: true })
+                          }
+                          style={{
+                            fontSize: 12,
+                            color: "var(--fgColor-muted)",
+                          }}
+                        >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Selected labels display */}
+      {selectedLabels.length > 0 && (
+        <div
+            style={{
+              display: "flex",
+              gap: 1,
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
+          >
+          {selectedLabels.map((label) => (
+            <Label
+                key={label.id}
+                style={{
+                  backgroundColor: `#${label.color}`,
+                  color: getContrastColor(label.color),
+                  borderColor: `#${label.color}`,
+                }}
+              >
+              {label.text}
+            </Label>
+          ))}
+        </div>
+      )}
+
+      {/* Selected metadata display */}
+      {(selectedAssignees.length > 0 || selectedMilestone) && (
+        <div
+            style={{
+              marginBottom: 16,
+              fontSize: 12,
+              color: "var(--fgColor-muted)",
+            }}
+          >
+          {selectedAssignees.length > 0 && (
+            <Text as="div">
+              Assigned to: {selectedAssignees.map((a) => a.text).join(", ")}
+            </Text>
+          )}
+          {selectedMilestone && (
+            <Text as="div">Milestone: {selectedMilestone.text}</Text>
+          )}
+        </div>
+      )}
+
+      {/* State and submit actions */}
+      <div
+          style={{
+            display: "flex",
+            justifyContent: isUpdateMode ? "space-between" : "flex-end",
+            alignItems: "center",
+            gap: 3,
+            flexWrap: "wrap",
+          }}
+        >
+        {isUpdateMode && (
+          <div>
+            {currentState === "open" ? (
+              <>
+                <div
+                    style={{ display: "flex", alignItems: "center", gap: 0 }}
+                  >
+                  <Button
+                      size="small"
+                      variant="danger"
+                      onClick={() => void handleSubmit("closed")}
+                      disabled={
+                        isSubmitting ||
+                        !title.trim() ||
+                        (stateReason === "duplicate" && !duplicateOf.trim())
+                      }
+                      style={{
+                        borderTopRightRadius: 0,
+                        borderBottomRightRadius: 0,
+                      }}
+                    >
+                    Close issue
+                  </Button>
+                  <ActionMenu>
+                    <ActionMenu.Button
+                        size="small"
+                        style={{
+                          marginLeft: "-1px",
+                          borderTopLeftRadius: 0,
+                          borderBottomLeftRadius: 0,
+                        }}
+                      >
+                      {selectedStateReason.label}
+                    </ActionMenu.Button>
+                    <ActionMenu.Overlay width="medium">
+                      <ActionList selectionVariant="single">
+                        {stateReasonOptions.map((option) => (
+                          <ActionList.Item
+                            key={option.value}
+                            selected={stateReason === option.value}
+                            onSelect={() => setStateReason(option.value)}
+                          >
+                            {option.label}
+                            <ActionList.Description>{option.description}</ActionList.Description>
+                          </ActionList.Item>
+                        ))}
+                      </ActionList>
+                    </ActionMenu.Overlay>
+                  </ActionMenu>
+                </div>
+                {stateReason === "duplicate" && (
+                  <FormControl style={{ marginTop: 8 }}>
+                    <FormControl.Label style={{ fontSize: 12 }}>Duplicate of</FormControl.Label>
+                    <TextInput
+                        type="number"
+                        placeholder="Issue number"
+                        value={duplicateOf}
+                        onChange={(e) => setDuplicateOf(e.target.value)}
+                        size="small"
+                        style={{ width: 140 }}
+                      />
+                  </FormControl>
+                )}
+              </>
+            ) : (
+              <Button
+                size="small"
+                onClick={() => void handleSubmit("open")}
+                disabled={isSubmitting || !title.trim()}
+              >
+                Reopen issue
+              </Button>
+            )}
+          </div>
+        )}
+
         <Button
           variant="primary"
-          onClick={handleSubmit}
+          onClick={() => void handleSubmit()}
           disabled={isSubmitting || !title.trim()}
         >
           {isSubmitting ? (
             <>
-              <Spinner size="small" sx={{ mr: 1 }} />
+              <Spinner size="small" style={{ marginRight: 4 }} />
               {isUpdateMode ? "Updating..." : "Creating..."}
             </>
           ) : (
             isUpdateMode ? "Update issue" : "Create issue"
           )}
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
   })();
 

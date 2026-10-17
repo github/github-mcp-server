@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -26,8 +26,9 @@ func Test_ListIssueFields(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
-	assert.ElementsMatch(t, serverTool.RequiredScopes, []string{"repo", "read:org"})
-	assert.ElementsMatch(t, serverTool.AcceptedScopes, []string{"repo", "read:org", "write:org", "admin:org"})
+	assert.Equal(t, []string{"repo", "read:org"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
 
 	queryStruct := issueFieldsRepoQuery{}
 	defaultVars := map[string]any{

@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,4 +85,36 @@ func Test_clientSupportsUI_fromContext(t *testing.T) {
 	t.Run("no context or session", func(t *testing.T) {
 		assert.False(t, clientSupportsUI(context.Background(), nil))
 	})
+}
+
+func Test_shouldDeferToForm_featureFlags(t *testing.T) {
+	t.Parallel()
+
+	ctx := ghcontext.WithUISupport(context.Background(), true)
+	args := map[string]any{"owner": "octocat"}
+	formParams := map[string]struct{}{"owner": {}}
+
+	tests := []struct {
+		name         string
+		enabledFlags []inventory.FeatureFlag
+		want         bool
+	}{
+		{
+			name: "defers to form by default",
+			want: true,
+		},
+		{
+			name:         "form deferral disabled executes directly",
+			enabledFlags: []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
+			want:         false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			deps := BaseDeps{featureChecker: featureCheckerFor(tc.enabledFlags...)}
+			assert.Equal(t, tc.want, shouldDeferToForm(ctx, deps, nil, args, formParams))
+		})
+	}
 }

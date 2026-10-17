@@ -29,6 +29,8 @@ Xcode runs with a minimal `PATH` that typically excludes common binary locations
 | Homebrew (Intel Mac) | `/usr/local/bin/` |
 | Homebrew (Apple Silicon) | `/opt/homebrew/bin/` |
 
+> **Logging in with OAuth?** You can run the local server with no PAT — it opens a browser login on first use and keeps the token in memory only. With Docker this needs a fixed callback port published to loopback (`-p 127.0.0.1:8085:8085 -e GITHUB_OAUTH_CALLBACK_PORT` with `GITHUB_OAUTH_CALLBACK_PORT=8085`); a native binary uses a random loopback port and needs no extra configuration. See **[Local Server OAuth Login](../oauth-login.md)**.
+
 ## Troubleshooting
 
 | Issue | Possible Cause | Fix |

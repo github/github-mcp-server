@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,19 +46,19 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposActionsWorkflowsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					workflows := &github.Workflows{
-						TotalCount: github.Ptr(2),
+						TotalCount: new(2),
 						Workflows: []*github.Workflow{
 							{
-								ID:    github.Ptr(int64(1)),
-								Name:  github.Ptr("CI"),
-								Path:  github.Ptr(".github/workflows/ci.yml"),
-								State: github.Ptr("active"),
+								ID:    new(int64(1)),
+								Name:  new("CI"),
+								Path:  new(".github/workflows/ci.yml"),
+								State: new("active"),
 							},
 							{
-								ID:    github.Ptr(int64(2)),
-								Name:  github.Ptr("Deploy"),
-								Path:  github.Ptr(".github/workflows/deploy.yml"),
-								State: github.Ptr("active"),
+								ID:    new(int64(2)),
+								Name:  new("Deploy"),
+								Path:  new(".github/workflows/deploy.yml"),
+								State: new("active"),
 							},
 						},
 					}
@@ -121,13 +122,13 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				runs := &github.WorkflowRuns{
-					TotalCount: github.Ptr(1),
+					TotalCount: new(1),
 					WorkflowRuns: []*github.WorkflowRun{
 						{
-							ID:         github.Ptr(int64(123)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(123)),
+							Name:       new("CI"),
+							Status:     new("completed"),
+							Conclusion: new("success"),
 						},
 					},
 				}
@@ -154,28 +155,30 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRuns
+		var response MinimalWorkflowRunsResult
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response.TotalCount)
+		assert.Equal(t, 1, response.TotalCount)
+		require.Len(t, response.WorkflowRuns, 1)
+		assert.Equal(t, int64(123), response.WorkflowRuns[0].ID)
 	})
 
 	t.Run("list all workflow runs without resource_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				runs := &github.WorkflowRuns{
-					TotalCount: github.Ptr(2),
+					TotalCount: new(2),
 					WorkflowRuns: []*github.WorkflowRun{
 						{
-							ID:         github.Ptr(int64(123)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(123)),
+							Name:       new("CI"),
+							Status:     new("completed"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(456)),
-							Name:       github.Ptr("Deploy"),
-							Status:     github.Ptr("in_progress"),
+							ID:         new(int64(456)),
+							Name:       new("Deploy"),
+							Status:     new("in_progress"),
 							Conclusion: nil,
 						},
 					},
@@ -202,11 +205,45 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRuns
+		var response MinimalWorkflowRunsResult
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.Equal(t, 2, *response.TotalCount)
+		assert.Equal(t, 2, response.TotalCount)
+		assert.Len(t, response.WorkflowRuns, 2)
 	})
+}
+
+func Test_ActionsList_ListWorkflowJobs(t *testing.T) {
+	toolDef := ActionsList(translations.NullTranslationHelper)
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsRunsJobsByOwnerByRepoByRunID: mockResponse(t, http.StatusOK, &github.Jobs{
+			TotalCount: new(1),
+			Jobs:       []*github.WorkflowJob{actionsTestWorkflowJob()},
+		}),
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":      "list_workflow_jobs",
+		"owner":       "owner",
+		"repo":        "repo",
+		"resource_id": "30433642",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var response struct {
+		Jobs MinimalWorkflowJobsResult `json:"jobs"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, 1, response.Jobs.TotalCount)
+	require.Len(t, response.Jobs.Jobs, 1)
+	assert.Equal(t, int64(399444496), response.Jobs.Jobs[0].ID)
+	assert.Len(t, response.Jobs.Jobs[0].Steps, 2)
 }
 
 func Test_ActionsGet(t *testing.T) {
@@ -231,10 +268,10 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsWorkflowsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				workflow := &github.Workflow{
-					ID:    github.Ptr(int64(1)),
-					Name:  github.Ptr("CI"),
-					Path:  github.Ptr(".github/workflows/ci.yml"),
-					State: github.Ptr("active"),
+					ID:    new(int64(1)),
+					Name:  new("CI"),
+					Path:  new(".github/workflows/ci.yml"),
+					State: new("active"),
 				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(workflow)
@@ -271,14 +308,9 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run get", func(t *testing.T) {
+		run := actionsTestWorkflowRun()
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				run := &github.WorkflowRun{
-					ID:         github.Ptr(int64(12345)),
-					Name:       github.Ptr("CI"),
-					Status:     github.Ptr("completed"),
-					Conclusion: github.Ptr("success"),
-				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(run)
 			}),
@@ -302,11 +334,21 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRun
+		var response MinimalWorkflowRun
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response.ID)
-		assert.Equal(t, int64(12345), *response.ID)
+
+		expected := convertToMinimalWorkflowRun(run)
+		assert.Equal(t, expected, response)
+
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal([]byte(textContent.Text), &payload))
+		assert.Equal(t, marshalActionsObject(t, expected), payload)
+		assert.NotContains(t, payload, "node_id")
+		assert.NotContains(t, payload, "repository")
+		assert.NotContains(t, payload, "head_repository")
+		assert.NotContains(t, payload, "url")
+		assert.NotContains(t, payload, "jobs_url")
 	})
 }
 
@@ -529,10 +571,8 @@ func Test_ActionsGetJobLogs(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
-	// Note: consolidated ActionsGetJobLogs has same tool name "get_job_logs" as the individual tool
-	// but with different descriptions. We skip toolsnap validation here since the individual
-	// tool's toolsnap already exists and is tested in Test_GetJobLogs.
-	// The consolidated tool has FeatureFlagEnable set, so only one will be active at a time.
+	// The legacy individual tool has a different contract under the same name.
+	require.NoError(t, toolsnaps.Test("get_job_logs_actions", toolDef.Tool))
 	assert.Equal(t, "get_job_logs", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
 	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
@@ -583,6 +623,25 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 	})
 }
 
+func TestGetJobLogData_DownloadTransportErrorReturnsNilResponse(t *testing.T) {
+	logServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	logURL := logServer.URL
+	logServer.Close()
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsJobsLogsByOwnerByRepoByJobID: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Location", logURL)
+			w.WriteHeader(http.StatusFound)
+		},
+	}))
+
+	_, resp, err := getJobLogData(t.Context(), client, "owner", "repo", 123, "", true, 100, 5000)
+
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "failed to download log content for job 123")
+}
+
 func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
@@ -590,22 +649,22 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				jobs := &github.Jobs{
-					TotalCount: github.Ptr(3),
+					TotalCount: new(3),
 					Jobs: []*github.WorkflowJob{
 						{
-							ID:         github.Ptr(int64(1)),
-							Name:       github.Ptr("test-job-1"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(1)),
+							Name:       new("test-job-1"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(2)),
-							Name:       github.Ptr("test-job-2"),
-							Conclusion: github.Ptr("failure"),
+							ID:         new(int64(2)),
+							Name:       new("test-job-2"),
+							Conclusion: new("failure"),
 						},
 						{
-							ID:         github.Ptr(int64(3)),
-							Name:       github.Ptr("test-job-3"),
-							Conclusion: github.Ptr("failure"),
+							ID:         new(int64(3)),
+							Name:       new("test-job-3"),
+							Conclusion: new("failure"),
 						},
 					},
 				}
@@ -649,17 +708,17 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				jobs := &github.Jobs{
-					TotalCount: github.Ptr(2),
+					TotalCount: new(2),
 					Jobs: []*github.WorkflowJob{
 						{
-							ID:         github.Ptr(int64(1)),
-							Name:       github.Ptr("test-job-1"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(1)),
+							Name:       new("test-job-1"),
+							Conclusion: new("success"),
 						},
 						{
-							ID:         github.Ptr(int64(2)),
-							Name:       github.Ptr("test-job-2"),
-							Conclusion: github.Ptr("success"),
+							ID:         new(int64(2)),
+							Name:       new("test-job-2"),
+							Conclusion: new("success"),
 						},
 					},
 				}

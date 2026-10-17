@@ -59,7 +59,37 @@ You can also connect to the hosted MCP server directly. After securely storing y
 
 ### Method 3: Local Docker
 
-With docker running, you can run the GitHub MCP server in a container:
+With docker running, you can run the GitHub MCP server in a container.
+
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+// ~/.gemini/settings.json
+{
+    "mcpServers": {
+        "github": {
+            "command": "docker",
+            "args": [
+                "run",
+                "-i",
+                "--rm",
+                "-p",
+                "127.0.0.1:8085:8085",
+                "-e",
+                "GITHUB_OAUTH_CALLBACK_PORT",
+                "ghcr.io/github/github-mcp-server"
+            ],
+            "env": {
+                "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+            }
+        }
+    }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 
 ```json
 // ~/.gemini/settings.json
@@ -103,6 +133,8 @@ Then, replacing `/path/to/binary` with the actual path to your binary, configure
     }
 }
 ```
+
+To log in with OAuth instead of a PAT (no token to create or store), omit `GITHUB_PERSONAL_ACCESS_TOKEN` — the native binary uses a random loopback callback port, so no extra configuration is needed. See **[Local Server OAuth Login](../oauth-login.md)**.
 
 ## Verification
 

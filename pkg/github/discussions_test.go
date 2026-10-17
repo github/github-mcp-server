@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -552,6 +552,30 @@ func Test_GetDiscussion(t *testing.T) {
 			response:    githubv4mock.ErrorResponse("discussion not found"),
 			expectError: true,
 			errContains: "discussion not found",
+		},
+		{
+			name: "sanitizes malicious title and body",
+			response: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{"discussion": map[string]any{
+					"number":     1,
+					"title":      maliciousText,
+					"body":       maliciousText,
+					"url":        "https://github.com/owner/repo/discussions/1",
+					"createdAt":  "2025-04-25T12:00:00Z",
+					"closed":     false,
+					"isAnswered": false,
+					"category":   map[string]any{"name": "General"},
+				}},
+			}),
+			expectError: false,
+			expected: map[string]any{
+				"number":     float64(1),
+				"title":      sanitizedText,
+				"body":       sanitizedContentText,
+				"url":        "https://github.com/owner/repo/discussions/1",
+				"closed":     false,
+				"isAnswered": false,
+			},
 		},
 	}
 	for _, tc := range tests {

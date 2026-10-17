@@ -6,19 +6,28 @@ import (
 	"fmt"
 	"strings"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
+// labelOrderFieldIssueCount orders labels by the number of issues they are assigned to.
+// It is not part of the githubv4.LabelOrderField constants shipped with the client library
+// (or GitHub's public GraphQL schema docs), but the API accepts it, so we define it locally.
+const labelOrderFieldIssueCount githubv4.LabelOrderField = "ISSUE_COUNT"
+
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(getLabelLegacy(t), labelOutputSchema(), decodeGovernanceJSON[MinimalLabel])
+}
+
+func getLabelLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -47,7 +56,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "name"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -123,18 +132,25 @@ func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) inventory.Se
 	return tool
 }
 
+// listLabelsDefaultPerPage keeps the first page as large as GraphQL allows, so most repositories need one call.
+const listLabelsDefaultPerPage = 100
+
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(listLabelsLegacy(t), listLabelsOutputSchema(), decodeGovernanceJSON[ListLabelsOutput])
+}
+
+func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
@@ -147,9 +163,9 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 				},
 				Required: []string{"owner", "repo"},
-			},
+			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -157,6 +173,19 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			perPage, err := OptionalIntParamWithDefault(args, "perPage", listLabelsDefaultPerPage)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			after, err := OptionalParam[string](args, "after")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			paginationParams, err := CursorPaginationParams{PerPage: perPage, After: after}.ToGraphQLParams()
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -176,13 +205,28 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Description githubv4.String
 						}
 						TotalCount githubv4.Int
-					} `graphql:"labels(first: 100)"`
+						PageInfo   struct {
+							HasNextPage     githubv4.Boolean
+							HasPreviousPage githubv4.Boolean
+							StartCursor     githubv4.String
+							EndCursor       githubv4.String
+						}
+					} `graphql:"labels(first: $first, after: $after, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
 			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
+				"first": githubv4.Int(*paginationParams.First),
+				// Order labels by issue count (descending) so the most-used labels are returned first.
+				"orderByField":     labelOrderFieldIssueCount,
+				"orderByDirection": githubv4.OrderDirectionDesc,
+			}
+			if paginationParams.After != nil {
+				vars["after"] = githubv4.String(*paginationParams.After)
+			} else {
+				vars["after"] = (*githubv4.String)(nil)
 			}
 
 			if err := client.Query(ctx, &query, vars); err != nil {
@@ -199,9 +243,16 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
+			labelsPage := query.Repository.Labels.PageInfo
 			response := map[string]any{
 				"labels":     labels,
 				"totalCount": int(query.Repository.Labels.TotalCount),
+				"pageInfo": MinimalPageInfo{
+					HasNextPage:     bool(labelsPage.HasNextPage),
+					HasPreviousPage: bool(labelsPage.HasPreviousPage),
+					StartCursor:     string(labelsPage.StartCursor),
+					EndCursor:       string(labelsPage.EndCursor),
+				},
 			}
 
 			out, err := json.Marshal(response)
@@ -220,14 +271,21 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // LabelWrite handles create, update, and delete operations for GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(labelWriteLegacy(t), labelWriteOutputSchema(), func(raw []byte, args map[string]json.RawMessage) (LabelWriteOutput, error) {
+		return LabelWriteOutput{Method: strings.ToLower(governanceArgument(args, "method")), Message: string(raw)}, nil
+	})
+}
+
+func labelWriteLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
+				ReadOnlyHint:    false,
+				DestructiveHint: new(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -265,7 +323,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner", "repo", "name"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Get and validate required parameters
 			method, err := RequiredParam[string](args, "method")

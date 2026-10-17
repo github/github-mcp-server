@@ -1,9 +1,11 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Manage GitHub Projects"
   },
-  "description": "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields.",
+  "description": "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, manage views, create status updates, and add iteration fields.",
   "inputSchema": {
     "properties": {
       "body": {
@@ -14,20 +16,31 @@
         "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
         "type": "string"
       },
+      "filter": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Saved view filter; omit on update to preserve it, or pass null to clear it."
+      },
       "issue_number": {
-        "description": "The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+        "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
         "type": "number"
       },
       "item_id": {
-        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+        "description": "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue.",
         "type": "number"
       },
       "item_owner": {
-        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
         "type": "string"
       },
       "item_repo": {
-        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
         "type": "string"
       },
       "item_type": {
@@ -37,6 +50,64 @@
           "pull_request"
         ],
         "type": "string"
+      },
+      "items": {
+        "description": "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call.",
+        "items": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "node_id": {
+                  "description": "The project item's GraphQL node ID, as returned by 'list_project_items' or 'add_project_item'.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "item_id": {
+                  "description": "The numeric project item ID.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "issue_number": {
+                  "description": "Issue number used to resolve the project item.",
+                  "type": "integer"
+                },
+                "item_owner": {
+                  "description": "Owner of the repository containing the issue.",
+                  "type": "string"
+                },
+                "item_repo": {
+                  "description": "Repository containing the issue.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item_owner",
+                "item_repo",
+                "issue_number"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "object"
+        },
+        "type": "array"
       },
       "iteration_duration": {
         "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
@@ -69,16 +140,33 @@
         },
         "type": "array"
       },
+      "layout": {
+        "description": "View layout; required when creating a view.",
+        "enum": [
+          "table",
+          "board",
+          "roadmap"
+        ],
+        "type": "string"
+      },
       "method": {
         "description": "The method to execute",
         "enum": [
           "add_project_item",
           "update_project_item",
+          "update_project_items",
           "delete_project_item",
           "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
           "create_project",
           "create_iteration_field"
         ],
+        "type": "string"
+      },
+      "name": {
+        "description": "View name; required when creating a view.",
         "type": "string"
       },
       "owner": {
@@ -125,8 +213,62 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The numeric project field ID.",
+                "type": "integer"
+              },
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+              }
+            },
+            "required": [
+              "id",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "description": "The project field name. Matching is case-insensitive.",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          }
+        ],
         "type": "object"
+      },
+      "view_id": {
+        "description": "Project view node ID for update or delete; must belong to owner/project_number.",
+        "type": "string"
+      },
+      "visible_field_names": {
+        "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "visible_fields": {
+        "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       }
     },
     "required": [
@@ -135,5 +277,509 @@
     ],
     "type": "object"
   },
-  "name": "projects_write"
+  "name": "projects_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "added": {
+        "additionalProperties": false,
+        "properties": {
+          "full_database_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "item_id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message"
+        ],
+        "type": "object"
+      },
+      "batch": {
+        "additionalProperties": false,
+        "properties": {
+          "failed": {
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "error": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "candidates": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "data_type": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "item": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "full_database_id": {
+                      "type": "string"
+                    },
+                    "item_id": {
+                      "type": "integer"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "ref": {
+                  "additionalProperties": true,
+                  "description": "Original batch reference, including malformed or extra fields.",
+                  "type": "object"
+                },
+                "status": {
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "unknown"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "succeeded": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "unknown": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "unknown",
+          "results"
+        ],
+        "type": "object"
+      },
+      "deleted_item": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "deleted_view": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted_view_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deleted_view_id"
+        ],
+        "type": "object"
+      },
+      "issue_fields": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "item": {
+        "additionalProperties": false,
+        "properties": {
+          "archived_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": false,
+            "properties": {
+              "assignees": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "author": {
+                "type": "string"
+              },
+              "closed_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              },
+              "comments": {
+                "type": "integer"
+              },
+              "created_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              },
+              "draft": {
+                "type": "boolean"
+              },
+              "html_url": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "labels": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "merged": {
+                "type": "boolean"
+              },
+              "merged_at": {
+                "type": "string"
+              },
+              "milestone": {
+                "type": "string"
+              },
+              "node_id": {
+                "type": "string"
+              },
+              "number": {
+                "type": "integer"
+              },
+              "repository": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "state_reason": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "updated_at": {
+                "description": "RFC3339 timestamp.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data_type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Recursively compacted JSON field value; unknown field types retain arbitrary object keys."
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "iteration_field": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "additionalProperties": false,
+            "properties": {
+              "iterations": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duration": {
+                      "description": "Iteration duration in days.",
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "start_date": {
+                      "description": "Date in YYYY-MM-DD format.",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "start_date",
+                    "duration"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "iterations"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "configuration"
+        ],
+        "type": "object"
+      },
+      "method": {
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "update_project_items",
+          "delete_project_item",
+          "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
+          "create_project",
+          "create_iteration_field"
+        ],
+        "type": "string"
+      },
+      "project": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "status_update": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "description": "RFC3339 timestamp.",
+            "type": "string"
+          },
+          "creator": {
+            "additionalProperties": false,
+            "properties": {
+              "avatar_url": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              },
+              "profile_url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "start_date": {
+            "description": "Date in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "INACTIVE",
+              "ON_TRACK",
+              "AT_RISK",
+              "OFF_TRACK",
+              "COMPLETE"
+            ],
+            "type": "string"
+          },
+          "target_date": {
+            "description": "Date in YYYY-MM-DD format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "view": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "layout": {
+            "enum": [
+              "board",
+              "table",
+              "roadmap"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "visible_fields": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "name",
+          "layout",
+          "filter",
+          "visible_fields"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  }
 }

@@ -18,13 +18,25 @@
       "runtimeArguments": [
         {
           "type": "named",
+          "name": "-p",
+          "description": "Publish the OAuth callback port to loopback so the in-container login callback is reachable",
+          "value": "127.0.0.1:8085:8085"
+        },
+        {
+          "type": "named",
           "name": "-e",
-          "description": "Set an environment variable in the runtime",
+          "description": "Fixed OAuth callback port, matching the published port above",
+          "value": "GITHUB_OAUTH_CALLBACK_PORT=8085"
+        },
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Optional GitHub Personal Access Token. Omit to log in with OAuth on first use.",
           "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
-          "isRequired": true,
+          "isRequired": false,
           "variables": {
             "token": {
-              "isRequired": true,
+              "isRequired": false,
               "isSecret": true,
               "format": "string"
             }

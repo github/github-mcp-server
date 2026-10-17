@@ -19,6 +19,7 @@ bell
 book
 check-circle
 codescan
+code-square
 comment-discussion
 copilot
 dependabot
@@ -28,6 +29,7 @@ git-commit
 git-merge
 git-pull-request
 issue-opened
+law
 logo-gist
 mark-github
 organization

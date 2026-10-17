@@ -22,6 +22,15 @@ When the server starts with a classic PAT, it makes a lightweight HTTP HEAD requ
 
 With OAuth, the remote server can dynamically request additional scopes as needed. With PATs, scopes are fixed at token creation, so the server proactively hides tools you can't use.
 
+## Scope Checks
+
+Each tool defines two small checks:
+
+- A visibility check decides whether to show the tool for a classic PAT.
+- A per-call check returns the exact scopes for an OAuth challenge, or no scopes when the call can continue.
+
+The per-call check receives the tool arguments, so it can make direct decisions. Listing issue fields uses `repo` for a repository request and `read:org` for an organization request. File writes request `workflow` in addition to `repo` only when the call changes a workflow file.
+
 ## OAuth Scope Challenges (Remote Server)
 
 When using the [remote MCP server](./remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
@@ -58,7 +67,7 @@ Some scopes implicitly include others:
 
 This means if your token has `repo`, tools requiring `security_events` will also be available.
 
-Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
+Each tool in the [README](../README.md#tools) lists the OAuth scopes it may challenge for.
 
 ## Public Repository Access
 

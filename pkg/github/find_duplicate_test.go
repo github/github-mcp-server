@@ -1,0 +1,474 @@
+package github
+
+import (
+	"context"
+	"encoding/json"
+	"maps"
+	"net/http"
+	"net/url"
+	"testing"
+
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const endpointSemanticallySimilar = EndpointPattern("GET /repos/{owner}/{repo}/issues/{issue_number}/semantically_similar")
+
+func Test_FindDuplicate(t *testing.T) {
+	// Verify tool definition once (flag-gated variant snap).
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+string(FeatureFlagDuplicateDetection), tool))
+	require.Equal(t, []inventory.FeatureFlag{FeatureFlagDuplicateDetection}, serverTool.FeatureRule.Features())
+
+	assert.Equal(t, "find_duplicate", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+	assert.Equal(t, []string{"repo"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
+
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "issue_number")
+	assert.Contains(t, schema.Properties, "confidence_threshold")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+
+	assert.Equal(t, 0.0, *schema.Properties["page"].Minimum)
+	assert.Equal(t, 0.0, *schema.Properties["perPage"].Minimum)
+	assert.Equal(t, 100.0, *schema.Properties["perPage"].Maximum)
+	assert.Equal(t, "Page number for pagination (min 0). Zero is forwarded for the GitHub API default.", schema.Properties["page"].Description)
+	assert.Equal(t, "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default.", schema.Properties["perPage"].Description)
+}
+
+func Test_FindDuplicate_RankedResults(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	rankedResults := []map[string]any{
+		{
+			"issue": map[string]any{
+				"number":   456,
+				"title":    "Example failure when saving",
+				"state":    "open",
+				"html_url": "https://github.com/owner/repo/issues/456",
+			},
+			"score":            0.95,
+			"confidence":       "high",
+			"likely_duplicate": true,
+		},
+		{
+			"issue": map[string]any{
+				"number":   789,
+				"title":    "Possibly related",
+				"state":    "closed",
+				"html_url": "https://github.com/owner/repo/issues/789",
+			},
+			"score":            nil, // score is nullable
+			"confidence":       "low",
+			"likely_duplicate": false,
+		},
+	}
+
+	var capturedURL *url.URL
+	var capturedMethod string
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL
+		capturedMethod = r.Method
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(MustMarshal(rankedResults))
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(endpointSemanticallySimilar, http.HandlerFunc(handler))))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":                "owner",
+		"repo":                 "repo",
+		"issue_number":         float64(123),
+		"confidence_threshold": float64(0.8),
+		"perPage":              float64(10),
+		"page":                 float64(1),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	// The tool must be read-only: only a GET is issued.
+	assert.Equal(t, http.MethodGet, capturedMethod)
+
+	// confidence_threshold maps to threshold; perPage maps to per_page; page is forwarded.
+	require.NotNil(t, capturedURL)
+	assert.Equal(t, "0.8", capturedURL.Query().Get("threshold"))
+	assert.Equal(t, "10", capturedURL.Query().Get("per_page"))
+	assert.Equal(t, "1", capturedURL.Query().Get("page"))
+
+	text := getTextResult(t, result)
+	var candidates []LegacyDuplicateCandidate
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
+	require.Len(t, candidates, 2)
+
+	assert.Equal(t, "high", string(candidates[0].Confidence))
+	assert.True(t, candidates[0].LikelyDuplicate)
+	require.NotNil(t, candidates[0].Score)
+	assert.InDelta(t, 0.95, *candidates[0].Score, 0.0001)
+	assert.Equal(t, 456, candidates[0].Issue.Number)
+	assert.Equal(t, "Example failure when saving", candidates[0].Issue.Title)
+	assert.Equal(t, "open", candidates[0].Issue.State)
+	assert.Equal(t, "https://github.com/owner/repo/issues/456", candidates[0].Issue.URL)
+
+	// A null score must decode successfully.
+	assert.Nil(t, candidates[1].Score)
+	assert.Equal(t, "low", string(candidates[1].Confidence))
+	assert.False(t, candidates[1].LikelyDuplicate)
+}
+
+func Test_FindDuplicate_ZeroPaginationIsForwarded(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+	var capturedRawQuery string
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(
+		endpointSemanticallySimilar,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedRawQuery = r.URL.RawQuery
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("[]"))
+		}),
+	)))
+	deps := BaseDeps{Client: client}
+
+	request := createMCPRequest(map[string]any{
+		"owner":                "owner",
+		"repo":                 "repo",
+		"issue_number":         float64(123),
+		"confidence_threshold": float64(0),
+		"page":                 float64(0),
+		"perPage":              float64(0),
+	})
+	result, err := serverTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, "page=0&per_page=0&threshold=0", capturedRawQuery)
+
+	advertised := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	validation, err := advertised.Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, validation.Validate(map[string]any{
+		"owner": "owner", "repo": "repo", "issue_number": float64(123),
+		"page":    float64(0),
+		"perPage": float64(0),
+	}))
+}
+
+func Test_FindDuplicate_PaginationContracts(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+	advertised := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	for name, schema := range map[string]*jsonschema.Schema{
+		"advertised": advertised,
+		"runtime":    issuePaginationValidationSchema(advertised),
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolved, err := schema.Resolve(nil)
+			require.NoError(t, err)
+			for _, tc := range []struct {
+				name   string
+				params map[string]any
+				valid  bool
+			}{
+				{"omitted", map[string]any{}, true},
+				{"zero", map[string]any{"page": float64(0), "perPage": float64(0)}, true},
+				{"positive", map[string]any{"page": float64(1), "perPage": float64(30)}, true},
+				{"maximum perPage", map[string]any{"page": float64(101), "perPage": float64(100)}, true},
+				{"negative page", map[string]any{"page": float64(-1)}, false},
+				{"negative perPage", map[string]any{"perPage": float64(-1)}, false},
+				{"excessive perPage", map[string]any{"perPage": float64(101)}, false},
+				{"invalid page type", map[string]any{"page": "invalid"}, false},
+				{"invalid perPage type", map[string]any{"perPage": "invalid"}, false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": float64(123)}
+					maps.Copy(args, tc.params)
+					if tc.valid {
+						assert.NoError(t, resolved.Validate(args))
+					} else {
+						assert.Error(t, resolved.Validate(args))
+					}
+				})
+			}
+			for _, field := range schema.Required {
+				args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": float64(123)}
+				delete(args, field)
+				assert.Error(t, resolved.Validate(args), field)
+			}
+		})
+	}
+}
+
+// Test_FindDuplicate_SanitizesIssueTitle asserts that candidate issue titles, which are
+// user-authored content from an arbitrary repository, are sanitized before being returned.
+// Without this the tool would forward hidden-instruction payloads straight to the model.
+func Test_FindDuplicate_SanitizesIssueTitle(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	rankedResults := []map[string]any{
+		{
+			"issue": map[string]any{
+				"number":   456,
+				"title":    maliciousText,
+				"state":    "open",
+				"html_url": "https://github.com/owner/repo/issues/456",
+			},
+			"score":            0.95,
+			"confidence":       "high",
+			"likely_duplicate": true,
+		},
+	}
+
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(MustMarshal(rankedResults))
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(endpointSemanticallySimilar, http.HandlerFunc(handler))))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(123),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	text := getTextResult(t, result)
+	var candidates []DuplicateCandidate
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
+	require.Len(t, candidates, 1)
+	assert.Equal(t, sanitizedText, candidates[0].Issue.Title)
+}
+
+func Test_FindDuplicate_OmitsUnsetParams(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	var capturedURL *url.URL
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[]`))
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(endpointSemanticallySimilar, http.HandlerFunc(handler))))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(123),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	require.NotNil(t, capturedURL)
+	q := capturedURL.Query()
+	_, hasThreshold := q["threshold"]
+	_, hasPerPage := q["per_page"]
+	_, hasPage := q["page"]
+	assert.False(t, hasThreshold, "threshold should be omitted when unset")
+	assert.False(t, hasPerPage, "per_page should be omitted when unset")
+	assert.False(t, hasPage, "page should be omitted when unset")
+}
+
+func Test_FindDuplicate_EmptyResults(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatch(endpointSemanticallySimilar, []map[string]any{})))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(123),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "empty results is a successful search")
+
+	text := getTextResult(t, result)
+	var candidates []DuplicateCandidate
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
+	assert.Empty(t, candidates)
+}
+
+func Test_FindDuplicate_LegacyBareIssueResponse(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	// When ranked duplicate detection is disabled the endpoint returns bare
+	// issue resources (no ranking metadata), which must fail clearly.
+	bareIssues := []map[string]any{
+		{
+			"number":   456,
+			"title":    "Example",
+			"state":    "open",
+			"html_url": "https://github.com/owner/repo/issues/456",
+		},
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatch(endpointSemanticallySimilar, bareIssues)))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(123),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	getErrorResult(t, result)
+}
+
+func Test_FindDuplicate_Errors(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	t.Run("missing required param", func(t *testing.T) {
+		client := mustNewGHClient(t, NewMockedHTTPClient())
+		deps := BaseDeps{Client: client}
+		toolHandler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+		})
+		result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		getErrorResult(t, result)
+	})
+
+	t.Run("API error is surfaced", func(t *testing.T) {
+		client := mustNewGHClient(t, NewMockedHTTPClient(
+			WithRequestMatchHandler(endpointSemanticallySimilar, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+			})),
+		))
+		deps := BaseDeps{Client: client}
+		toolHandler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(123),
+		})
+		result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		getErrorResult(t, result)
+	})
+}
+
+func Test_FindDuplicate_IFCLabels(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	rankedResults := []map[string]any{
+		{
+			"issue": map[string]any{
+				"number":   585,
+				"title":    "Improve the onboarding flow for new users",
+				"state":    "open",
+				"html_url": "https://github.com/owner/repo/issues/585",
+			},
+			"score":            1.93,
+			"confidence":       "high",
+			"likely_duplicate": true,
+		},
+	}
+
+	// makeClient serves the semantic-similarity endpoint plus the repo lookup
+	// that the IFC labeler uses to resolve visibility.
+	makeClient := func(isPrivate bool, repoStatus int) *http.Client {
+		handlers := map[string]http.HandlerFunc{
+			string(endpointSemanticallySimilar): mockResponse(t, http.StatusOK, rankedResults),
+		}
+		if repoStatus != 0 && repoStatus != http.StatusOK {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, repoStatus, "boom")
+		} else {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, http.StatusOK, map[string]any{
+				"name":    "repo",
+				"private": isPrivate,
+			})
+		}
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	req := map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(769),
+	}
+
+	t.Run("flag disabled omits ifc label", func(t *testing.T) {
+		deps := BaseDeps{Client: mustNewGHClient(t, makeClient(false, 0))}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("flag enabled on public repo emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(false, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("flag enabled on private repo emits private trusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(true, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("visibility lookup failure omits label but still succeeds", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(false, http.StatusInternalServerError)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "label must be omitted on visibility lookup failure")
+		}
+	})
+}

@@ -1,0 +1,162 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get code quality finding"
+  },
+  "description": "Get details of a specific code quality finding in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "findingNumber": {
+        "description": "The number of the finding.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "findingNumber"
+    ],
+    "type": "object"
+  },
+  "name": "get_code_quality_finding",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "created_at": {
+        "description": "Finding creation time (RFC 3339).",
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "location": {
+        "additionalProperties": false,
+        "properties": {
+          "end_column": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "end_line": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "path": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "start_column": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "start_line": {
+            "type": [
+              "null",
+              "integer"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "message": {
+        "additionalProperties": false,
+        "properties": {
+          "markdown": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "markdown"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "number": {
+        "type": [
+          "null",
+          "integer"
+        ]
+      },
+      "rule": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "help": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "severity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "state": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "null",
+      "object"
+    ]
+  }
+}

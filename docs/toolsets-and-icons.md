@@ -151,6 +151,7 @@ icons := octicons.Icons("repo")
 | Users | `people` |
 | Organizations | `organization` |
 | Actions | `workflow` |
+| Code Quality | `code-square` |
 | Code Security | `codescan` |
 | Secret Protection | `shield-lock` |
 | Dependabot | `dependabot` |

@@ -9,6 +9,8 @@
     }
   },
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Open new pull request"
   },
   "description": "Create a new pull request in a GitHub repository.",
@@ -42,6 +44,13 @@
         "description": "Repository name",
         "type": "string"
       },
+      "reviewers": {
+        "description": "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "title": {
         "description": "PR title",
         "type": "string"
@@ -56,5 +65,44 @@
     ],
     "type": "object"
   },
-  "name": "create_pull_request"
+  "name": "create_pull_request",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "Browser URL.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "awaiting_user_submission"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "type": "object"
+      }
+    ]
+  }
 }

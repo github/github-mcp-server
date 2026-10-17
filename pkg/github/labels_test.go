@@ -2,12 +2,13 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,6 +157,7 @@ func TestListLabels(t *testing.T) {
 		mockedClient       *http.Client
 		expectToolError    bool
 		expectedToolErrMsg string
+		expectedPageInfo   MinimalPageInfo
 	}{
 		{
 			name: "successful repository labels listing",
@@ -163,49 +165,57 @@ func TestListLabels(t *testing.T) {
 				"owner": "owner",
 				"repo":  "repo",
 			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							Labels struct {
-								Nodes []struct {
-									ID          githubv4.ID
-									Name        githubv4.String
-									Color       githubv4.String
-									Description githubv4.String
-								}
-								TotalCount githubv4.Int
-							} `graphql:"labels(first: 100)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"labels": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":          githubv4.ID("label-1"),
-										"name":        githubv4.String("bug"),
-										"color":       githubv4.String("d73a4a"),
-										"description": githubv4.String("Something isn't working"),
-									},
-									map[string]any{
-										"id":          githubv4.ID("label-2"),
-										"name":        githubv4.String("enhancement"),
-										"color":       githubv4.String("a2eeef"),
-										"description": githubv4.String("New feature or request"),
-									},
-								},
-								"totalCount": githubv4.Int(2),
-							},
-						},
-					}),
-				),
-			),
-			expectToolError: false,
+			mockedClient: githubv4mock.NewMockedHTTPClient(listLabelsMatcher(100, (*githubv4.String)(nil), map[string]any{
+				"hasNextPage":     githubv4.Boolean(false),
+				"hasPreviousPage": githubv4.Boolean(false),
+				"startCursor":     githubv4.String("c1"),
+				"endCursor":       githubv4.String("c2"),
+			})),
+			expectToolError:  false,
+			expectedPageInfo: MinimalPageInfo{StartCursor: "c1", EndCursor: "c2"},
+		},
+		{
+			name: "reports the next page when the repository has more labels",
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"perPage": float64(2),
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(listLabelsMatcher(2, (*githubv4.String)(nil), map[string]any{
+				"hasNextPage":     githubv4.Boolean(true),
+				"hasPreviousPage": githubv4.Boolean(false),
+				"startCursor":     githubv4.String("c1"),
+				"endCursor":       githubv4.String("c2"),
+			})),
+			expectToolError:  false,
+			expectedPageInfo: MinimalPageInfo{HasNextPage: true, StartCursor: "c1", EndCursor: "c2"},
+		},
+		{
+			name: "passes the after cursor to fetch the next page",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"after": "c2",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(listLabelsMatcher(100, githubv4.String("c2"), map[string]any{
+				"hasNextPage":     githubv4.Boolean(false),
+				"hasPreviousPage": githubv4.Boolean(true),
+				"startCursor":     githubv4.String("c3"),
+				"endCursor":       githubv4.String("c4"),
+			})),
+			expectToolError:  false,
+			expectedPageInfo: MinimalPageInfo{HasPreviousPage: true, StartCursor: "c3", EndCursor: "c4"},
+		},
+		{
+			name: "rejects a page size above 100",
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"perPage": float64(101),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "perPage value 101 exceeds maximum of 100",
 		},
 	}
 
@@ -231,9 +241,59 @@ func TestListLabels(t *testing.T) {
 				}
 			} else {
 				assert.False(t, result.IsError)
+				var response ListLabelsOutput
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+				assert.Len(t, response.Labels, 2)
+				assert.Equal(t, 5, response.TotalCount)
+				assert.Equal(t, tc.expectedPageInfo, response.PageInfo)
 			}
 		})
 	}
+}
+
+// listLabelsMatcher matches one list_label page request and answers with two labels and the given page info.
+func listLabelsMatcher(first int32, after any, pageInfo map[string]any) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Labels struct {
+					Nodes []struct {
+						ID          githubv4.ID
+						Name        githubv4.String
+						Color       githubv4.String
+						Description githubv4.String
+					}
+					TotalCount githubv4.Int
+					PageInfo   struct {
+						HasNextPage     githubv4.Boolean
+						HasPreviousPage githubv4.Boolean
+						StartCursor     githubv4.String
+						EndCursor       githubv4.String
+					}
+				} `graphql:"labels(first: $first, after: $after, orderBy: {field: $orderByField, direction: $orderByDirection})"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":            githubv4.String("owner"),
+			"repo":             githubv4.String("repo"),
+			"first":            githubv4.Int(first),
+			"after":            after,
+			"orderByField":     labelOrderFieldIssueCount,
+			"orderByDirection": githubv4.OrderDirectionDesc,
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"labels": map[string]any{
+					"nodes": []any{
+						map[string]any{"id": githubv4.ID("label-1"), "name": githubv4.String("bug"), "color": githubv4.String("d73a4a"), "description": githubv4.String("Something isn't working")},
+						map[string]any{"id": githubv4.ID("label-2"), "name": githubv4.String("enhancement"), "color": githubv4.String("a2eeef"), "description": githubv4.String("New feature or request")},
+					},
+					"totalCount": githubv4.Int(5),
+					"pageInfo":   pageInfo,
+				},
+			},
+		}),
+	)
 }
 
 func TestWriteLabel(t *testing.T) {
@@ -247,6 +307,8 @@ func TestWriteLabel(t *testing.T) {
 	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.False(t, tool.Annotations.ReadOnlyHint, "label_write tool should not be read-only")
+	assert.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint, "label_write delete removes labels repository-wide")
 
 	tests := []struct {
 		name               string

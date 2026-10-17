@@ -1,0 +1,74 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Hide Pull Request Review"
+  },
+  "description": "Hide (minimize) the body of a submitted pull request review. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "classifier": {
+        "description": "The reason for hiding the comment",
+        "enum": [
+          "SPAM",
+          "ABUSE",
+          "OFF_TOPIC",
+          "OUTDATED",
+          "DUPLICATE",
+          "RESOLVED",
+          "LOW_QUALITY"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "review_id": {
+        "description": "The numeric ID of the pull request review",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "review_id",
+      "classifier"
+    ],
+    "type": "object"
+  },
+  "name": "hide_pull_request_review",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "description": "GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden.",
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
+}

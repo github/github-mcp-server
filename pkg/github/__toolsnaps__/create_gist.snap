@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Create Gist"
   },
   "description": "Create a new gist",
@@ -29,5 +31,21 @@
     ],
     "type": "object"
   },
-  "name": "create_gist"
+  "name": "create_gist",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "url"
+    ],
+    "type": "object"
+  }
 }

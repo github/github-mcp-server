@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v87/github"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -61,10 +62,12 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 func (s stubDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCache, error) {
 	return s.repoAccessCache, nil
 }
-func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
-func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
-func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
+func (s stubDeps) GetFlags(_ context.Context) FeatureFlags  { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool {
+	return false
+}
 func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 	return s.obsv.Logger()
 }
@@ -120,7 +123,7 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 			}
 		}
 		resp := gogithub.RepositoryPermissionLevel{
-			Permission: gogithub.Ptr(perm),
+			Permission: new(perm),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -189,6 +192,181 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
+}
+
+func TestNewMCPServerTypedLegacyPreflightAndHandlerReceiveDependencies(t *testing.T) {
+	type output struct {
+		OK bool `json:"ok"`
+	}
+	deps := stubDeps{obsv: stubExporters()}
+	tool := NewToolWithSchemaOptions[struct{}, output](
+		inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test"},
+		mcp.Tool{Name: "typed_dependency_tool"},
+		inventory.ScopeAccess{},
+		inventory.TypedSchemaOptions{
+			Preflight: func(ctx context.Context, _ *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+				if _, ok := DepsFromContext(ctx); !ok {
+					return ctx, nil, errors.New("dependencies missing in preflight")
+				}
+				return ctx, nil, nil
+			},
+		},
+		func(ctx context.Context, handlerDeps ToolDependencies, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, output, error) {
+			if _, ok := DepsFromContext(ctx); !ok || handlerDeps == nil {
+				return nil, output{}, errors.New("dependencies missing in handler")
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text"}},
+			}, output{OK: true}, nil
+		},
+	)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+	cfg := MCPServerConfig{
+		Version:    "test",
+		Translator: translations.NullTranslationHelper,
+		Logger:     slog.New(slog.DiscardHandler),
+	}
+	server, err := NewMCPServer(context.Background(), &cfg, deps, inv)
+	require.NoError(t, err)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "legacy-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, &mcp.ClientSessionOptions{
+		ProtocolVersion: "2025-11-25",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	list, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_dependency_tool"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Nil(t, result.StructuredContent)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "legacy text", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
+	var calls int
+	checker := func(_ context.Context, flag string) (bool, error) {
+		calls++
+		return flag == "enabled", nil
+	}
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithFeatureChecker(checker).
+		Build()
+	require.NoError(t, err)
+
+	next := func(ctx context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		return nil, nil
+	}
+	_, err = injectFeatureStateMiddleware(inv)(next)(context.Background(), "tools/call", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+}
+
+// advertisedServerCapabilities connects an in-memory client to the given server
+// and returns the capabilities the server advertised during initialization.
+func advertisedServerCapabilities(t *testing.T, server *mcp.Server) *mcp.ServerCapabilities {
+	t.Helper()
+
+	ctx := context.Background()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err, "expected server to connect")
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err, "expected client to connect")
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result := clientSession.InitializeResult()
+	require.NotNil(t, result, "expected an initialize result")
+	return result.Capabilities
+}
+
+// TestNewMCPServer_AdvertisedCapabilities locks in the capability contract set by
+// NewMCPServer: tools, prompts, and resources are advertised without list-changed
+// notifications (the server has a static item set and never emits list_changed),
+// the deprecated logging capability is not advertised, and the inferred
+// completions capability is preserved. This is asserted for both the stdio path
+// (full inventory, items present) and the HTTP path (inventory emptied for the
+// discovery/initialize request), which share the same NewMCPServer entry point.
+func TestNewMCPServer_AdvertisedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Token:             "test-token",
+		EnabledToolsets:   []string{"context"},
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+	}
+
+	deps := stubDeps{obsv: stubExporters()}
+
+	fullInventory, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+	require.NoError(t, err, "expected inventory build to succeed")
+
+	tests := []struct {
+		name string
+		inv  *inventory.Inventory
+	}{
+		{
+			name: "stdio path with registered items",
+			inv:  fullInventory,
+		},
+		{
+			// The HTTP handler registers only the items relevant to a request;
+			// for initialize/discover that is nothing, so capabilities must come
+			// from the explicit declaration rather than being inferred from items.
+			name: "http path with no registered items for discovery",
+			inv:  fullInventory.ForMCPRequest(inventory.MCPMethodDiscover, ""),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, err := NewMCPServer(context.Background(), &cfg, deps, tt.inv)
+			require.NoError(t, err, "expected server creation to succeed")
+
+			caps := advertisedServerCapabilities(t, server)
+
+			require.NotNil(t, caps.Tools, "tools capability should be advertised")
+			assert.False(t, caps.Tools.ListChanged, "tools list-changed must not be advertised")
+
+			require.NotNil(t, caps.Prompts, "prompts capability should be advertised")
+			assert.False(t, caps.Prompts.ListChanged, "prompts list-changed must not be advertised")
+
+			require.NotNil(t, caps.Resources, "resources capability should be advertised")
+			assert.False(t, caps.Resources.ListChanged, "resources list-changed must not be advertised")
+			assert.False(t, caps.Resources.Subscribe, "resources subscribe must not be advertised")
+
+			assert.NotNil(t, caps.Completions, "completions capability should be preserved")
+			// Intentionally asserting the deprecated logging capability is absent.
+			assert.Nil(t, caps.Logging, "deprecated logging capability should not be advertised") //nolint:staticcheck // SA1019: verifying the deprecated capability is not advertised
+		})
+	}
 }
 
 // TestNewServer_NameAndTitleViaTranslation verifies that server name and title

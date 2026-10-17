@@ -1,25 +1,34 @@
-import { StrictMode, useState, useCallback, useEffect } from "react";
+import { StrictMode, useState, useCallback, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Box,
   Text,
   TextInput,
   Button,
-  Flash,
+  Banner,
   Spinner,
   FormControl,
   ActionMenu,
   ActionList,
   Checkbox,
   ButtonGroup,
+  CounterLabel,
+  Label,
 } from "@primer/react";
+import styles from "../../styles.module.css";
 import {
   GitPullRequestIcon,
   CheckCircleIcon,
+  RepoIcon,
+  LockIcon,
+  GitBranchIcon,
   TriangleDownIcon,
+  PersonIcon,
+  PeopleIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
+import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -29,6 +38,33 @@ interface PRResult {
   url?: string;
   html_url?: string;
   URL?: string;
+}
+
+interface RepositoryItem {
+  id: string;
+  owner: string;
+  name: string;
+  fullName: string;
+  isPrivate: boolean;
+}
+
+interface BranchItem {
+  name: string;
+  protected: boolean;
+}
+
+type ReviewerItem = { kind: "user" | "team"; id: string; text: string; avatar?: string; org?: string };
+
+function reviewerFromValue(value: string): ReviewerItem {
+  if (value.includes("/")) {
+    const [org, slug] = value.split("/", 2);
+    return { kind: "team", id: `${org}/${slug}`, text: `${org}/${slug}`, org };
+  }
+  return { kind: "user", id: value, text: value };
+}
+
+function reviewerValue(reviewer: ReviewerItem): string {
+  return reviewer.kind === "team" ? reviewer.id : reviewer.text;
 }
 
 function SuccessView({
@@ -47,46 +83,65 @@ function SuccessView({
   const prUrl = pr.html_url || pr.url || pr.URL || "#";
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+      }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        mb={3}
-        pb={3}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
+        <div
+          style={{
+            color: "var(--fgColor-success)",
+            flexShrink: 0,
+            marginRight: 8,
+          }}
+        >
           <CheckCircleIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold" }}>
+        </div>
+        <Text style={{ fontWeight: 500 }}>
           Pull request created successfully
         </Text>
-      </Box>
+      </div>
 
-      <Box
-        display="flex"
-        alignItems="flex-start"
-        gap={2}
-        p={3}
-        bg="canvas.subtle"
-        borderRadius={2}
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 2,
+          padding: 16,
+          backgroundColor: "var(--bgColor-muted)",
+          borderRadius: 6,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
+        <div
+          style={{
+            color: "var(--fgColor-open)",
+            flexShrink: 0,
+            marginTop: "2px",
+            marginRight: 4,
+          }}
+        >
           <GitPullRequestIcon size={16} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
+        </div>
+        <div style={{ minWidth: 0 }}>
           <a
             href={prUrl}
             target="_blank"
@@ -112,17 +167,23 @@ function SuccessView({
           >
             {pr.title || submittedTitle}
             {pr.number && (
-              <Text sx={{ color: "fg.muted", fontWeight: "normal", ml: 1 }}>
+              <Text
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontWeight: 400,
+                  marginLeft: 4,
+                }}
+              >
                 #{pr.number}
               </Text>
             )}
           </a>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>
             {owner}/{repo}
           </Text>
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -133,32 +194,241 @@ function CreatePRApp() {
   const [error, setError] = useState<string | null>(null);
   const [successPR, setSuccessPR] = useState<PRResult | null>(null);
 
+  // Branch state
+  const [availableBranches, setAvailableBranches] = useState<BranchItem[]>([]);
+  const [baseBranch, setBaseBranch] = useState<string>("");
+  const [headBranch, setHeadBranch] = useState<string>("");
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [baseFilter, setBaseFilter] = useState("");
+  const [headFilter, setHeadFilter] = useState("");
+
+  // Options
   const [isDraft, setIsDraft] = useState(false);
   const [maintainerCanModify, setMaintainerCanModify] = useState(true);
+  const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([]);
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerItem[]>([]);
+  const [reviewersLoading, setReviewersLoading] = useState(false);
+  const [reviewersFilter, setReviewersFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
+  // Repository state
+  const [selectedRepo, setSelectedRepo] = useState<RepositoryItem | null>(null);
+  const [repoSearchResults, setRepoSearchResults] = useState<RepositoryItem[]>([]);
+  const [repoSearchLoading, setRepoSearchLoading] = useState(false);
+  const [repoFilter, setRepoFilter] = useState("");
+
+  const { app, error: appError, toolInput, toolResult, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-create-pull-request",
   });
 
-  const owner = (toolInput?.owner as string) || "";
-  const repo = (toolInput?.repo as string) || "";
-  const head = (toolInput?.head as string) || "";
-  const base = (toolInput?.base as string) || "";
+  const owner = selectedRepo?.owner || (toolInput?.owner as string) || "";
+  const repo = selectedRepo?.name || (toolInput?.repo as string) || "";
   const [submittedTitle, setSubmittedTitle] = useState("");
+
+  // When the server executed up-front instead of deferring to this form (e.g.
+  // the agent passed show_ui=false or parameters the form can't represent), the
+  // host still renders this View and delivers the created PR via tool-result.
+  // Treat that completed result as a success so we never show a "Create pull
+  // request" form for a PR that already exists. The deferral sentinel
+  // (awaiting_user_submission) returns null here, keeping the form for the
+  // normal deferred flow. See github/copilot-mcp-core#1864.
+  const resultPR = useMemo(() => completedToolResult<PRResult>(toolResult), [toolResult]);
+  const shownPR = successPR ?? resultPR;
+
+  // Reset all transient form/result state when toolInput changes (new invocation).
+  // Without this, the SuccessView from a previous submit stays visible and stale
+  // form values bleed through because the prefill effect below only sets when
+  // toolInput has truthy values and never clears. The repo is re-initialized from
+  // the new invocation here (rather than in a separate effect) so it isn't wiped
+  // by this reset.
+  useEffect(() => {
+    setTitle("");
+    setBody("");
+    setHeadBranch("");
+    setBaseBranch("");
+    setIsDraft(false);
+    setMaintainerCanModify(true);
+    setSuccessPR(null);
+    setError(null);
+    setSubmittedTitle("");
+    // Clear branch list and filters so a new invocation doesn't briefly show stale
+    // branches from the previous repo (or allow selecting invalid options) before the
+    // new repo's ui_get branches call resolves.
+    setAvailableBranches([]);
+    setBaseFilter("");
+    setHeadFilter("");
+    setAvailableReviewers([]);
+    setSelectedReviewers([]);
+    setReviewersFilter("");
+    if (toolInput?.owner && toolInput?.repo) {
+      setSelectedRepo({
+        id: `${toolInput.owner}/${toolInput.repo}`,
+        owner: toolInput.owner as string,
+        name: toolInput.repo as string,
+        fullName: `${toolInput.owner}/${toolInput.repo}`,
+        isPrivate: false,
+      });
+    } else {
+      setSelectedRepo(null);
+    }
+  }, [toolInput]);
 
   // Pre-fill from toolInput
   useEffect(() => {
     if (toolInput?.title) setTitle(toolInput.title as string);
     if (toolInput?.body) setBody(toolInput.body as string);
+    if (toolInput?.head) setHeadBranch(toolInput.head as string);
+    if (toolInput?.base) setBaseBranch(toolInput.base as string);
     if (toolInput?.draft) setIsDraft(toolInput.draft as boolean);
     if (toolInput?.maintainer_can_modify !== undefined) {
       setMaintainerCanModify(toolInput.maintainer_can_modify as boolean);
     }
+    if (Array.isArray(toolInput?.reviewers)) {
+      setSelectedReviewers((toolInput.reviewers as string[]).map(reviewerFromValue));
+    }
   }, [toolInput]);
+
+  // Search repositories
+  useEffect(() => {
+    if (!app || !repoFilter.trim()) {
+      setRepoSearchResults([]);
+      return;
+    }
+
+    const searchRepos = async () => {
+      setRepoSearchLoading(true);
+      try {
+        const result = await callTool("search_repositories", { query: repoFilter, perPage: 10 });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find((c) => c.type === "text");
+          if (textContent && textContent.type === "text" && textContent.text) {
+            const data = JSON.parse(textContent.text);
+            const repos = (data.repositories || data.items || []).map(
+              (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
+                id: String(r.id || r.full_name),
+                owner: typeof r.owner === 'string' ? r.owner : r.owner?.login || r.full_name?.split('/')[0] || '',
+                name: r.name || '',
+                fullName: r.full_name || '',
+                isPrivate: r.private || false,
+              })
+            );
+            setRepoSearchResults(repos);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to search repositories:", e);
+      } finally {
+        setRepoSearchLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(searchRepos, 300);
+    return () => clearTimeout(debounce);
+  }, [app, callTool, repoFilter]);
+
+  // Load branches and reviewers when repo is selected
+  useEffect(() => {
+    if (!owner || !repo || !app) return;
+
+    const loadBranches = async () => {
+      setBranchesLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "branches", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find((c: { type: string }) => c.type === "text");
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("branches", textContent.text as string);
+            const branches = (data.branches || []).map(
+              (b: { name: string; protected?: boolean }) => ({ name: b.name, protected: b.protected || false })
+            );
+            setAvailableBranches(branches);
+            if (branches.length > 0) {
+              const defaultBranch = branches.find((b: BranchItem) => b.name === 'main' || b.name === 'master');
+              // Functional update so a base branch already prefilled from
+              // toolInput.base (or chosen by the user) isn't overwritten by a
+              // stale closure value captured before the request resolved.
+              if (defaultBranch) setBaseBranch((prev) => prev || defaultBranch.name);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load branches:", e);
+      } finally {
+        setBranchesLoading(false);
+      }
+    };
+
+    const loadReviewers = async () => {
+      setReviewersLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "reviewers", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find((c: { type: string }) => c.type === "text");
+          if (textContent && "text" in textContent) {
+            const data = parseUIGetResult("reviewers", textContent.text as string);
+            const users = (data.users || []).map(
+              (u: { login: string; avatar_url?: string }) => ({
+                kind: "user" as const,
+                id: u.login,
+                text: u.login,
+                avatar: u.avatar_url,
+              })
+            );
+            const teams = (data.teams || []).map(
+              (t: { slug: string; name?: string; org: string }) => ({
+                kind: "team" as const,
+                id: `${t.org}/${t.slug}`,
+                text: `${t.org}/${t.slug}`,
+                org: t.org,
+              })
+            );
+            setAvailableReviewers([...users, ...teams]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load reviewers:", e);
+      } finally {
+        setReviewersLoading(false);
+      }
+    };
+
+    loadBranches();
+    loadReviewers();
+  }, [owner, repo, app, callTool]);
+
+  useEffect(() => {
+    if (availableReviewers.length === 0) return;
+    setSelectedReviewers((prev) =>
+      prev.map((reviewer) =>
+        availableReviewers.find((available) => available.id === reviewer.id || available.text === reviewer.text) || reviewer
+      )
+    );
+  }, [availableReviewers]);
+
+  // Filters
+  const filteredBaseBranches = useMemo(() => {
+    if (!baseFilter.trim()) return availableBranches;
+    return availableBranches.filter((b) => b.name.toLowerCase().includes(baseFilter.toLowerCase()));
+  }, [availableBranches, baseFilter]);
+
+  const filteredHeadBranches = useMemo(() => {
+    if (!headFilter.trim()) return availableBranches;
+    return availableBranches.filter((b) => b.name.toLowerCase().includes(headFilter.toLowerCase()));
+  }, [availableBranches, headFilter]);
+
+  const filteredReviewers = useMemo(() => {
+    if (!reviewersFilter.trim()) return availableReviewers;
+    const lowerFilter = reviewersFilter.toLowerCase();
+    return availableReviewers.filter((reviewer) =>
+      reviewer.text.toLowerCase().includes(lowerFilter) || reviewer.id.toLowerCase().includes(lowerFilter)
+    );
+  }, [availableReviewers, reviewersFilter]);
 
   const handleSubmit = useCallback(async () => {
     if (!title.trim()) { setError("Title is required"); return; }
     if (!owner || !repo) { setError("Repository information not available"); return; }
+    if (!baseBranch) { setError("Base branch is required"); return; }
+    if (!headBranch) { setError("Head branch is required"); return; }
+    if (baseBranch === headBranch) { setError("Base and head branches cannot be the same"); return; }
 
     setIsSubmitting(true);
     setError(null);
@@ -170,10 +440,11 @@ function CreatePRApp() {
         owner, repo,
         title: title.trim(),
         body: body.trim(),
-        head,
-        base,
+        head: headBranch,
+        base: baseBranch,
         draft: isDraft,
         maintainer_can_modify: maintainerCanModify,
+        reviewers: selectedReviewers.map(reviewerValue),
         _ui_submitted: true
       });
 
@@ -204,12 +475,12 @@ function CreatePRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, head, base, isDraft, maintainerCanModify, toolInput, callTool, setModelContext]);
+  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, selectedReviewers, toolInput, callTool, setModelContext]);
 
-  if (successPR) {
+  if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
       </AppProvider>
     );
   }
@@ -217,9 +488,16 @@ function CreatePRApp() {
   if (!app && !appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
           <Spinner size="medium" />
-        </Box>
+        </div>
       </AppProvider>
     );
   }
@@ -227,52 +505,256 @@ function CreatePRApp() {
   if (appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Flash variant="danger">{appError.message}</Flash>
+        <Banner variant="critical" title={appError.message} />
       </AppProvider>
     );
   }
 
   return (
     <AppProvider hostContext={hostContext}>
-      <Box
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
-        borderRadius={2}
-        bg="canvas.subtle"
-        p={3}
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+          borderRadius: 6,
+          backgroundColor: "var(--bgColor-muted)",
+          padding: 16,
+        }}
       >
-        {/* Header */}
-        <Box
-          display="flex"
-          alignItems="center"
-          gap={2}
-          mb={3}
-          pb={2}
-          borderBottomWidth={1}
-          borderBottomStyle="solid"
-          borderBottomColor="border.default"
+        {/* Repository picker */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            marginBottom: 16,
+            paddingBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--borderColor-default)",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
         >
-          <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex", mr: 1 }}>
-            <GitPullRequestIcon size={16} />
-          </Box>
-          <Text sx={{ fontWeight: "semibold", whiteSpace: "nowrap" }}>New pull request</Text>
-          <Text sx={{ color: "fg.muted", fontSize: 0, ml: 1 }}>
-            {owner}/{repo}
-          </Text>
-          {head && base && (
-            <Text sx={{ color: "fg.muted", fontSize: 0 }}>
-              {base} ← {head}
-            </Text>
-          )}
-        </Box>
+          <div style={{ minWidth: 0, maxWidth: "100%" }}>
+            <ActionMenu>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+                style={{ maxWidth: "100%", overflow: "hidden" }}
+                className={styles.truncateLastChild}
+              >
+                {selectedRepo ? selectedRepo.fullName : "Select repository"}
+              </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <ActionList selectionVariant="single">
+                <div
+                    style={{
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                    }}
+                  >
+                  <TextInput
+                      placeholder="Search repositories..."
+                      value={repoFilter}
+                      onChange={(e) => setRepoFilter(e.target.value)}
+                      size="small"
+                      autoFocus
+                      style={{ width: "100%" }}
+                    />
+                </div>
+                <ActionList.Divider />
+                {repoSearchLoading ? (
+                  <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: 16,
+                      }}
+                    >
+                    <Spinner size="small" />
+                  </div>
+                ) : repoSearchResults.length > 0 ? (
+                  repoSearchResults.map((r) => (
+                    <ActionList.Item
+                      key={r.id}
+                      selected={selectedRepo?.id === r.id}
+                      onSelect={() => {
+                        setSelectedRepo(r);
+                        setRepoFilter("");
+                        setAvailableBranches([]);
+                        setBaseBranch("");
+                        setHeadBranch("");
+                        setAvailableReviewers([]);
+                        setSelectedReviewers([]);
+                        setReviewersFilter("");
+                      }}
+                    >
+                      <ActionList.LeadingVisual>
+                        {r.isPrivate ? <LockIcon /> : <RepoIcon />}
+                      </ActionList.LeadingVisual>
+                      {r.fullName}
+                    </ActionList.Item>
+                  ))
+                ) : selectedRepo ? (
+                  <ActionList.Item key={selectedRepo.id} selected onSelect={() => setRepoFilter("")}>
+                    <ActionList.LeadingVisual>
+                      {selectedRepo.isPrivate ? <LockIcon /> : <RepoIcon />}
+                    </ActionList.LeadingVisual>
+                    {selectedRepo.fullName}
+                  </ActionList.Item>
+                ) : (
+                  <div
+                      style={{
+                        paddingLeft: 16,
+                        paddingRight: 16,
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                      }}
+                    >
+                    <Text
+                        style={{ color: "var(--fgColor-muted)", fontSize: 14 }}
+                      >Type to search repositories...</Text>
+                  </div>
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+          </div>
+        </div>
+
+        {/* Branch selectors */}
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            marginBottom: 16,
+            alignItems: "flex-end",
+            minWidth: 0,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "var(--fgColor-muted)",
+                marginBottom: 4,
+                display: "block",
+              }}
+            >base</Text>
+            <ActionMenu>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                style={{ width: "100%" }}
+                className={styles.truncateChildren}
+              >
+                {baseBranch || "Select base"}
+              </ActionMenu.Button>
+              <ActionMenu.Overlay width="medium">
+                <ActionList selectionVariant="single">
+                  <div style={{ padding: 8 }}>
+                    <TextInput
+                      placeholder="Filter branches..."
+                      value={baseFilter}
+                      onChange={(e) => setBaseFilter(e.target.value)}
+                      size="small"
+                      block
+                    />
+                  </div>
+                  <ActionList.Divider />
+                  {branchesLoading ? (
+                    <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
+                  ) : filteredBaseBranches.length === 0 ? (
+                    <ActionList.Item disabled>No branches found</ActionList.Item>
+                  ) : (
+                    filteredBaseBranches.map((branch) => (
+                      <ActionList.Item
+                        key={branch.name}
+                        selected={baseBranch === branch.name}
+                        onSelect={() => { setBaseBranch(branch.name); setBaseFilter(""); }}
+                      >
+                        {branch.name}
+                        {branch.protected && <ActionList.TrailingVisual><LockIcon size={12} /></ActionList.TrailingVisual>}
+                      </ActionList.Item>
+                    ))
+                  )}
+                </ActionList>
+              </ActionMenu.Overlay>
+            </ActionMenu>
+          </div>
+
+          <Text
+            style={{
+              color: "var(--fgColor-muted)",
+              paddingBottom: 4,
+              paddingLeft: 4,
+              paddingRight: 4,
+              flexShrink: 0,
+            }}
+          >←</Text>
+
+          <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "var(--fgColor-muted)",
+                marginBottom: 4,
+                display: "block",
+              }}
+            >compare</Text>
+            <ActionMenu>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={GitBranchIcon}
+                style={{ width: "100%" }}
+                className={styles.truncateChildren}
+              >
+                {headBranch || "Select head"}
+              </ActionMenu.Button>
+              <ActionMenu.Overlay width="medium">
+                <ActionList selectionVariant="single">
+                  <div style={{ padding: 8 }}>
+                    <TextInput
+                      placeholder="Filter branches..."
+                      value={headFilter}
+                      onChange={(e) => setHeadFilter(e.target.value)}
+                      size="small"
+                      block
+                    />
+                  </div>
+                  <ActionList.Divider />
+                  {branchesLoading ? (
+                    <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
+                  ) : filteredHeadBranches.length === 0 ? (
+                    <ActionList.Item disabled>No branches found</ActionList.Item>
+                  ) : (
+                    filteredHeadBranches.map((branch) => (
+                      <ActionList.Item
+                        key={branch.name}
+                        selected={headBranch === branch.name}
+                        onSelect={() => { setHeadBranch(branch.name); setHeadFilter(""); }}
+                      >
+                        {branch.name}
+                      </ActionList.Item>
+                    ))
+                  )}
+                </ActionList>
+              </ActionMenu.Overlay>
+            </ActionMenu>
+          </div>
+        </div>
 
         {/* Error banner */}
-        {error && <Flash variant="danger" sx={{ mb: 3 }}>{error}</Flash>}
+        {error && <Banner variant="critical" title={error} style={{ marginBottom: 16 }} />}
 
         {/* Title */}
-        <FormControl sx={{ mb: 3 }}>
-          <FormControl.Label sx={{ fontWeight: "semibold" }}>Title</FormControl.Label>
+        <FormControl style={{ marginBottom: 16 }}>
+          <FormControl.Label style={{ fontWeight: 500 }}>Title</FormControl.Label>
           <TextInput
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -283,28 +765,161 @@ function CreatePRApp() {
         </FormControl>
 
         {/* Description */}
-        <Box sx={{ mb: 3 }}>
-          <Text as="label" sx={{ fontWeight: "semibold", fontSize: 1, display: "block", mb: 2 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Text
+            as="label"
+            style={{
+              fontWeight: 500,
+              fontSize: 14,
+              display: "block",
+              marginBottom: 8,
+            }}
+          >
             Description
           </Text>
           <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
-        </Box>
+        </div>
+
+        {/* Reviewers */}
+        <div style={{ marginBottom: 16 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              color: "var(--fgColor-muted)",
+              marginBottom: 4,
+              display: "block",
+            }}
+          >reviewers</Text>
+          <ActionMenu>
+            <ActionMenu.Button
+              size="small"
+              leadingVisual={PersonIcon}
+              style={{ minWidth: 160 }}
+            >
+              {selectedReviewers.length === 0 ? (
+                "No reviewers"
+              ) : (
+                <>
+                  Reviewers
+                  <CounterLabel style={{ marginLeft: 4 }}>{selectedReviewers.length}</CounterLabel>
+                </>
+              )}
+            </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <div
+                style={{
+                  padding: 8,
+                  borderBottomWidth: 1,
+                  borderBottomStyle: "solid",
+                  borderBottomColor: "var(--borderColor-default)",
+                }}
+              >
+                <TextInput
+                  placeholder="Search reviewers"
+                  value={reviewersFilter}
+                  onChange={(e) => setReviewersFilter(e.target.value)}
+                  size="small"
+                  block
+                />
+              </div>
+              <ActionList selectionVariant="multiple">
+                {reviewersLoading ? (
+                  <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
+                ) : filteredReviewers.length === 0 ? (
+                  <ActionList.Item disabled>No reviewers available</ActionList.Item>
+                ) : (
+                  filteredReviewers.map((reviewer) => (
+                    <ActionList.Item
+                      key={reviewer.id}
+                      selected={selectedReviewers.some((r) => r.id === reviewer.id)}
+                      onSelect={() => {
+                        setSelectedReviewers((prev) =>
+                          prev.some((r) => r.id === reviewer.id)
+                            ? prev.filter((r) => r.id !== reviewer.id)
+                            : [...prev, reviewer]
+                        );
+                      }}
+                    >
+                      <ActionList.LeadingVisual>
+                        {reviewer.kind === "user" ? (
+                          reviewer.avatar ? (
+                            <img
+                              src={reviewer.avatar}
+                              alt=""
+                              width={16}
+                              height={16}
+                              style={{ borderRadius: "50%", display: "block" }}
+                            />
+                          ) : (
+                            <PersonIcon />
+                          )
+                        ) : (
+                          <PeopleIcon />
+                        )}
+                      </ActionList.LeadingVisual>
+                      {reviewer.text}
+                    </ActionList.Item>
+                  ))
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+          {selectedReviewers.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 1,
+                marginTop: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              {selectedReviewers.map((reviewer) => (
+                <Label
+                  key={reviewer.id}
+                  style={{
+                    backgroundColor: "var(--bgColor-inset)",
+                    color: "var(--fgColor-muted)",
+                    borderColor: "var(--borderColor-default)",
+                  }}
+                >
+                  {reviewer.text}
+                </Label>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Options and Submit */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3}>
-          <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+            gap: 3,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              cursor: "pointer",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             <Checkbox checked={maintainerCanModify} onChange={(e) => setMaintainerCanModify(e.target.checked)} />
-            <Text sx={{ fontSize: 1, color: "fg.muted" }}>Allow maintainer edits</Text>
-          </Box>
+            <Text style={{ fontSize: 14, color: "var(--fgColor-muted)" }}>Allow maintainer edits</Text>
+          </label>
 
           <ButtonGroup>
             <Button
               variant="primary"
               onClick={handleSubmit}
-              disabled={isSubmitting || !owner || !repo}
+              disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
             >
               {isSubmitting ? (
-                <><Spinner size="small" sx={{ mr: 1 }} />Creating...</>
+                <><Spinner size="small" style={{ marginRight: 4 }} />Creating...</>
               ) : isDraft ? (
                 "Draft pull request"
               ) : (
@@ -315,9 +930,15 @@ function CreatePRApp() {
               <ActionMenu.Anchor>
                 <Button
                   variant="primary"
-                  disabled={isSubmitting || !owner || !repo}
-                  sx={{ px: 2 }}
+                  disabled={
+                    isSubmitting ||
+                    !owner ||
+                    !repo ||
+                    !baseBranch ||
+                    !headBranch
+                  }
                   aria-label="Select pull request type"
+                  style={{ paddingLeft: 8, paddingRight: 8 }}
                 >
                   <TriangleDownIcon />
                 </Button>
@@ -346,8 +967,8 @@ function CreatePRApp() {
               </ActionMenu.Overlay>
             </ActionMenu>
           </ButtonGroup>
-        </Box>
-      </Box>
+        </div>
+      </div>
     </AppProvider>
   );
 }

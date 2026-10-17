@@ -107,4 +107,31 @@ func RegisterUIResources(s *mcp.Server, readOnly bool) {
 			}, nil
 		},
 	)
+
+	s.AddResource(
+		&mcp.Resource{
+			URI:         PullRequestEditUIResourceURI,
+			Name:        "pr_edit_ui",
+			Description: "MCP App UI for editing GitHub pull requests",
+			MIMEType:    MCPAppMIMEType,
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("pr-edit.html")
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      PullRequestEditUIResourceURI,
+						MIMEType: MCPAppMIMEType,
+						Text:     html,
+						Meta: mcp.Meta{
+							"ui": map[string]any{
+								"csp":           map[string]any{},
+								"prefersBorder": true,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	)
 }

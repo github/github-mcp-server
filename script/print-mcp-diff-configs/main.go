@@ -36,8 +36,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	mcphdr "github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	mcphdr "github.com/github/github-mcp-server/v2/pkg/http/headers"
 )
 
 type config struct {
@@ -141,7 +141,7 @@ func baseEntries() []baseEntry {
 		}},
 	}
 
-	flags := append([]string(nil), github.AllowedFeatureFlags...)
+	flags := github.HeaderAllowedFeatureFlags()
 	sort.Strings(flags)
 	for _, f := range flags {
 		entries = append(entries, baseEntry{
@@ -208,7 +208,7 @@ func (s settings) toHeaders() map[string]string {
 }
 
 func firstFeatureFlag() string {
-	flags := append([]string(nil), github.AllowedFeatureFlags...)
+	flags := github.HeaderAllowedFeatureFlags()
 	if len(flags) == 0 {
 		return ""
 	}

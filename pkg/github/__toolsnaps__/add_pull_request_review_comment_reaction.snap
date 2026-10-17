@@ -1,0 +1,81 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Add Pull Request Review Comment Reaction"
+  },
+  "description": "Add a reaction to a pull request review comment.",
+  "icons": [
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAACwUlEQVRIie2Vz28UZRjHP993pi0QIC3YahNjirtmd3bS3Q1eUHvQEPUiEv8A4kXjwRJ78MCFBLjBBRKCHowHE38cNCbGGx6IUoKiodtNpoNmTJp4oSJNQ3pw29l5POxus2wo3QTwxPc0887zfD7zvu9kXnjEUfdNrjj5vJOmMP4e9JrfR1G02tuQD8tvgpck0dxCPwK30ViqnJTcr4bOmfRlI/PrhUJ5313woDpDpu8ss7f6nYHrvDnGcYlPsoY/bKaXwHY3HWfvgmNnMX0zvMM7069A3c3pkEYWa7UVgFxQPSfs7SSeH3k2rEy5jMubMBoG1yQ+SBbm53of+gCybMkk/H8VAFdbZisZLAFsJ11oyL+BUURcwrjWAZixXeIwxs/5UuVAr0QAYRjubGR+HWy3mb6QCIBXQe8nce0jgIkwfMo3/xLG085x8I9ofkMyUa0O+w2rgS0mcf3lboEDiKJo1cvsIDDr4D1DhTb8407hYhTdTJW+AvrdMnuhG9Je1m9BBzbfjXbyQcXypeqJLQt7+0rVE/mgYr3j7l7FDzOPBY8FDx6vc1EolPeNjI5/Jpgw7Lm9o+Pry//c/K0PhnLFyrSMDxE79jwxvn9079gvt28vrUD7V1EoFHalbltd2C7DfS4sAF4DTSdx7cL96LliZVriPPADuL+geRh0Z8il5SiKVn2ATENvCCYw78U/b8xdBcgHlYuGHQXuK5A4ClxM4vnXW8Lqp5JdWWt6h4CvWnsgxgDSbRZ3Gg0tCJ7sY4nGwDZOt/WBZtzN9FswLgM2sGann5mcPDaw5pWEHQH7cUu86SdkR3LF6tfrA814MNVpwNrM1leUxPXrSKfMeHcwdctyNotY8c3NbMX3LJsB3ZHsymDqlkHvYHYyievXWxPpSj4o75eYIuPWZof+vRKG4c61pncIx6gZsx34/5L/ACy3ElqUYhuvAAAAAElFTkSuQmCC",
+      "theme": "light"
+    },
+    {
+      "mimeType": "image/png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABn0lEQVRIie2Vvy5EURDGvyMUkhUU/pS2Q2clwvIKqL0Cm9ArrBcQShJPoLFR2YaIhIjQ7a7E39IiCgqVn8KsPY697E3oTHPumTPf990z986M9Mfm/A0wKGlMUlnSlnPuOQQAE5LOnXOFWErAIvBK1S6BZBAzZ2fzcckHjXwVaAXSwD2wWYN8A2iKK1ABt3m+ZeDRnseIthdgDxioxd1o662tfZIO7Lnf8xcklST1StqRdORxNEualHQIDDvnTmvdIGE5vwdWgLy93bQX0w0UgSdgKMC3AdfA7ndpSgKbduUbYBoI/7Ju4BiYrYFfAl4iBbxAgOyPgV9xWYDQ3xCXKK79C/wL/KJZoeW8QpsJCy0C54AMULaGmQu7sIAW4MpaxTKwbQU3U4dAxmLzwLpxXAIJP2jKgkY8Xx4o1SFwBmx7+7RxTUnVb9Bpa9HDFiR1/SRgWH+6FT3/h2qK6sBpB0aBB7yB880NcpaWtGHXjCsVBmb5PDIvgJ46BJKW84q9AguV87Adp/Q+9O8UMfQjRBKSxiV1SNp3zp3Ug/sVewPruexhKwhGXQAAAABJRU5ErkJggg==",
+      "theme": "dark"
+    }
+  ],
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "content": {
+        "description": "The emoji reaction type",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string",
+        "x-mcp-header": "owner"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string",
+        "x-mcp-header": "repo"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "content"
+    ],
+    "type": "object"
+  },
+  "name": "add_pull_request_review_comment_reaction",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "description": "Reaction ID",
+        "type": "string"
+      },
+      "url": {
+        "description": "Reaction URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "url"
+    ],
+    "type": "object"
+  }
+}

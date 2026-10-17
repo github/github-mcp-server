@@ -98,15 +98,15 @@ func GetExcludeTools(ctx context.Context) []string {
 	return nil
 }
 
-// headerFeaturesCtxKey is a context key for raw header feature flags
+// headerFeaturesCtxKey is a context key for raw HTTP request feature flags.
 type headerFeaturesCtxKey struct{}
 
-// WithHeaderFeatures stores the raw feature flags from the X-MCP-Features header into context
+// WithHeaderFeatures stores raw HTTP request feature flags in context.
 func WithHeaderFeatures(ctx context.Context, features []string) context.Context {
 	return context.WithValue(ctx, headerFeaturesCtxKey{}, features)
 }
 
-// GetHeaderFeatures retrieves the raw feature flags from context
+// GetHeaderFeatures retrieves raw HTTP request feature flags from context.
 func GetHeaderFeatures(ctx context.Context) []string {
 	if features, ok := ctx.Value(headerFeaturesCtxKey{}).([]string); ok {
 		return features
