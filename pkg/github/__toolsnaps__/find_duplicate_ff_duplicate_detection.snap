@@ -20,14 +20,14 @@
         "type": "string"
       },
       "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
+        "description": "Page number for pagination (min 0). Zero is forwarded for the GitHub API default.",
+        "minimum": 0,
         "type": "number"
       },
       "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
+        "description": "Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default.",
         "maximum": 100,
-        "minimum": 1,
+        "minimum": 0,
         "type": "number"
       },
       "repo": {
@@ -42,5 +42,66 @@
     ],
     "type": "object"
   },
-  "name": "find_duplicate"
+  "name": "find_duplicate",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "description": "The API-provided confidence category.",
+          "type": "string"
+        },
+        "issue": {
+          "additionalProperties": false,
+          "properties": {
+            "html_url": {
+              "description": "The web URL of the candidate issue.",
+              "type": "string"
+            },
+            "number": {
+              "description": "The candidate issue number.",
+              "type": "integer"
+            },
+            "state": {
+              "description": "The candidate issue state.",
+              "type": "string"
+            },
+            "title": {
+              "description": "The sanitized candidate issue title.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "title",
+            "state",
+            "html_url"
+          ],
+          "type": "object"
+        },
+        "likely_duplicate": {
+          "description": "Whether the API considers this candidate a likely duplicate.",
+          "type": "boolean"
+        },
+        "score": {
+          "description": "Similarity score on the API-defined scale; null when the API does not return a score.",
+          "type": [
+            "null",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "issue",
+        "score",
+        "confidence",
+        "likely_duplicate"
+      ],
+      "type": "object"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }

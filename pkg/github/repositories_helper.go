@@ -12,10 +12,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,9 +34,9 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	defaultBranch := repository.GetDefaultBranch()
 
 	fileOpts := &github.RepositoryContentFileOptions{
-		Message: github.Ptr("Initial commit"),
+		Message: new("Initial commit"),
 		Content: []byte(""),
-		Branch:  github.Ptr(defaultBranch),
+		Branch:  new(defaultBranch),
 	}
 
 	// Create an initial empty commit to create the default branch
@@ -214,7 +214,8 @@ func inspectRepositoryFile(ctx context.Context, client *github.Client, owner, re
 }
 
 func repositoryContentBytes(file *github.RepositoryContent) ([]byte, bool, error) {
-	if file.Content == nil {
+	// Files over 1 MB come back with encoding "none" and no content.
+	if file.Content == nil || file.GetEncoding() == "none" {
 		return []byte{}, file.GetType() != "symlink" && file.GetSize() == 0, nil
 	}
 	content, err := file.GetContent()

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	gherrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	gherrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/octicons"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -110,13 +110,6 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
-	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
-	// and any middleware that needs to read or modify the context should be before it.
-	ghServer.AddReceivingMiddleware(middleware...)
-	ghServer.AddReceivingMiddleware(injectFeatureStateMiddleware(inv))
-	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
-	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
-
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
 	}
@@ -124,11 +117,20 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// Register GitHub tools/resources/prompts from the inventory.
 	inv.RegisterAll(ctx, ghServer, deps, cfg.ToolHandlerMiddleware...)
 
+	// Add request middleware after registering tools so it wraps the protocol
+	// adapter. Preflight and legacy typed calls then receive the same request
+	// context as modern typed calls.
+	// Middleware order matters: the error context wrapper is applied last so it
+	// runs first and can observe errors from every inner middleware.
+	ghServer.AddReceivingMiddleware(middleware...)
+	ghServer.AddReceivingMiddleware(injectFeatureStateMiddleware(inv))
+	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+
 	// Register MCP App UI resources whenever the embedded UI assets are
-	// available. The resources are static HTML and are only referenced by
-	// tools when the remote_mcp_ui_apps feature flag is enabled for the
-	// request (the inventory strips the _meta.ui block otherwise via
-	// stripMCPAppsMetadata), so registering them unconditionally is safe.
+	// available. The resources are static HTML referenced by tools' _meta.ui
+	// block (the inventory strips that block for clients that do not support
+	// MCP Apps), so registering them unconditionally is safe.
 	// Registering here — rather than in the stdio bootstrap — ensures the
 	// remote/HTTP server also serves them, fixing the "-32002 Resource not
 	// found" error clients hit after the tool returns a ui:// URI.

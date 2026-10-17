@@ -5,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/buildinfo"
-	"github.com/github/github-mcp-server/internal/ghmcp"
-	"github.com/github/github-mcp-server/internal/githubapp"
-	"github.com/github/github-mcp-server/internal/oauth"
-	"github.com/github/github-mcp-server/pkg/github"
-	ghhttp "github.com/github/github-mcp-server/pkg/http"
-	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/internal/buildinfo"
+	"github.com/github/github-mcp-server/v2/internal/ghmcp"
+	"github.com/github/github-mcp-server/v2/internal/githubapp"
+	"github.com/github/github-mcp-server/v2/internal/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	ghhttp "github.com/github/github-mcp-server/v2/pkg/http"
+	ghoauth "github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -38,7 +39,13 @@ var (
 		Use:   "stdio",
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info, _ := debug.ReadBuildInfo()
+			serverVersion := resolveServerVersion(version, commit, info)
+			if serverVersion == developmentServerVersion {
+				cmd.PrintErrln("Warning: no usable server build version metadata; using development version dev")
+			}
+
 			token := viper.GetString("personal_access_token")
 			appID := viper.GetString("app-id")
 			appInstallationID := viper.GetString("app-installation-id")
@@ -110,7 +117,7 @@ var (
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
-				Version:              version,
+				Version:              serverVersion,
 				Host:                 viper.GetString("host"),
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,

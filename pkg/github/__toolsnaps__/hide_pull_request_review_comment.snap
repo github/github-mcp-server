@@ -1,0 +1,68 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Hide Pull Request Review Comment"
+  },
+  "description": "Hide (minimize) an inline review comment on a pull request diff. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "classifier": {
+        "description": "The reason for hiding the comment",
+        "enum": [
+          "SPAM",
+          "ABUSE",
+          "OFF_TOPIC",
+          "OUTDATED",
+          "DUPLICATE",
+          "RESOLVED",
+          "LOW_QUALITY"
+        ],
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "classifier"
+    ],
+    "type": "object"
+  },
+  "name": "hide_pull_request_review_comment",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "description": "GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden.",
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
+}

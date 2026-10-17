@@ -17,5 +17,97 @@
     ],
     "type": "object"
   },
-  "name": "get_gist"
+  "name": "get_gist",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "Creation time in RFC3339 format.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "files": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "raw_url": {
+                  "type": "string"
+                },
+                "size": {
+                  "description": "File size in bytes.",
+                  "type": "integer"
+                },
+                "type": {
+                  "description": "File MIME type, when available.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "git_pull_url": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "additionalProperties": false,
+            "properties": {
+              "avatar_url": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "login": {
+                "type": "string"
+              },
+              "profile_url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "login"
+            ],
+            "type": "object"
+          },
+          "public": {
+            "description": "True for a public gist; false for a secret, URL-accessible gist.",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "description": "Last update time in RFC3339 format.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    ]
+  }
 }
