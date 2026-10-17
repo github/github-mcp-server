@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "destructiveHint": true,
     "idempotentHint": false,
     "readOnlyHint": false,
     "title": "Write operations (create, submit, delete) on pull request reviews"

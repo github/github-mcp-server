@@ -1704,8 +1704,9 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			OutputSchema: subIssueWriteOutputSchema(),
 			Description:  t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_SUB_ISSUE_WRITE_USER_TITLE", "Change sub-issue"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_SUB_ISSUE_WRITE_USER_TITLE", "Change sub-issue"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
