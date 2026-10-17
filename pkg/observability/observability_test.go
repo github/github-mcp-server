@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

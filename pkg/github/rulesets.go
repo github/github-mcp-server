@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"strings"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -93,6 +93,10 @@ func rulesetWriteScopeAccess() inventory.ScopeAccess {
 
 // RepositoryRulesetRead creates a tool for ruleset and rule-suite reads.
 func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(repositoryRulesetReadLegacy(t), rulesetReadOutputSchema(), decodeRulesetRead, normalizeGovernanceLevelRouting)
+}
+
+func repositoryRulesetReadLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
 		mcp.Tool{
@@ -403,7 +407,7 @@ func GetRepositoryRulesForBranch(ctx context.Context, client *github.Client, own
 		PerPage: pagination.PerPage,
 	}
 
-	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, url.PathEscape(branch), opts)
+	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, branch, opts)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
@@ -639,6 +643,15 @@ func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client
 // at the repository, organization, or enterprise level. The level is
 // selected with the "level" parameter.
 func CreateRepositoryRuleset(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return typedGovernanceTool(
+		createRepositoryRulesetLegacy(t),
+		createdRulesetOutputSchema(),
+		decodeGovernanceJSON[RulesetOutput],
+		normalizeGovernanceLevelRouting,
+	)
+}
+
+func createRepositoryRulesetLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 	properties := rulesetWriteProperties()
 	properties["level"] = &jsonschema.Schema{
 		Type:        "string",

@@ -39,6 +39,8 @@ const (
 
 	// MCP-specific headers.
 
+	// MCPProtocolVersionHeader carries the protocol version for HTTP MCP requests.
+	MCPProtocolVersionHeader = "MCP-Protocol-Version"
 	// MCPMethodHeader mirrors the JSON-RPC method for request routing.
 	MCPMethodHeader = "Mcp-Method"
 	// MCPNameHeader identifies the requested MCP primitive.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +20,7 @@ func TestWithMCPParse(t *testing.T) {
 		method           string
 		path             string
 		body             string
+		headerVersion    string
 		expectInfo       bool
 		expectedMethod   string
 		expectedItem     string
@@ -91,6 +92,16 @@ func TestWithMCPParse(t *testing.T) {
 			expectedMethod:   "tools/list",
 			expectedProtocol: "2026-07-28",
 			expectedForm:     true,
+		},
+		{
+			name:             "tools/list falls back to protocol version header",
+			method:           http.MethodPost,
+			path:             "/mcp",
+			body:             `{"jsonrpc":"2.0","method":"tools/list"}`,
+			headerVersion:    "2026-07-28",
+			expectInfo:       true,
+			expectedMethod:   "tools/list",
+			expectedProtocol: "2026-07-28",
 		},
 		{
 			name:           "tools/call parses name",
@@ -165,6 +176,9 @@ func TestWithMCPParse(t *testing.T) {
 			handler := middleware(nextHandler)
 
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.headerVersion != "" {
+				req.Header.Set("MCP-Protocol-Version", tt.headerVersion)
+			}
 			rr := httptest.NewRecorder()
 
 			handler.ServeHTTP(rr, req)

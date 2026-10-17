@@ -1,0 +1,148 @@
+.truncateLastChild > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncateChildren > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorTab {
+  color: var(--fgColor-muted);
+}
+
+.editorTab[data-active="true"],
+.editorTab:hover {
+  color: var(--fgColor-default);
+}
+
+.markdownPreview > :first-child {
+  margin-top: 0;
+}
+
+.markdownPreview h1,
+.markdownPreview h2,
+.markdownPreview h3,
+.markdownPreview h4,
+.markdownPreview h5,
+.markdownPreview h6 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.markdownPreview h1 {
+  font-size: 24px;
+  border-bottom: 1px solid;
+  border-color: var(--borderColor-default);
+  padding-bottom: 8px;
+}
+
+.markdownPreview h2 {
+  font-size: 20px;
+  border-bottom: 1px solid;
+  border-color: var(--borderColor-default);
+  padding-bottom: 8px;
+}
+
+.markdownPreview h3 {
+  font-size: 16px;
+}
+
+.markdownPreview p {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.markdownPreview ul,
+.markdownPreview ol {
+  padding-left: 24px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.markdownPreview li {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.markdownPreview code {
+  background-color: var(--bgColor-neutral-muted);
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  border-radius: 3px;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 85%;
+}
+
+.markdownPreview pre {
+  background-color: var(--bgColor-neutral-muted);
+  padding: 16px;
+  border-radius: 6px;
+  overflow: auto;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.markdownPreview pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdownPreview blockquote {
+  border-left: 4px solid;
+  border-color: var(--borderColor-default);
+  padding-left: 16px;
+  margin-left: 0;
+  margin-right: 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  color: var(--fgColor-muted);
+  background-color: var(--bgColor-muted);
+}
+
+.markdownPreview a {
+  color: var(--fgColor-accent);
+  text-decoration: none;
+}
+.markdownPreview a:hover {
+  text-decoration: underline;
+}
+
+.markdownPreview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.markdownPreview th,
+.markdownPreview td {
+  border: 1px solid;
+  border-color: var(--borderColor-default);
+  padding: 8px;
+}
+
+.markdownPreview th {
+  background-color: var(--bgColor-muted);
+  font-weight: 500;
+}
+
+.markdownPreview input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.markdownPreview hr {
+  border: none;
+  border-top: 1px solid;
+  border-color: var(--borderColor-default);
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
