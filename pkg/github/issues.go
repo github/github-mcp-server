@@ -3438,6 +3438,14 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = new(issueType)
 	}
 
+	closeWithREST := state == "closed" && stateReason != "duplicate"
+	if closeWithREST {
+		issueRequest.State = github.Ptr(state)
+		if stateReason != "" {
+			issueRequest.StateReason = github.Ptr(stateReason)
+		}
+	}
+
 	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
 	// for why we can't just rely on REST set semantics.
 	var fallbackDeleteFieldIDs []int64
@@ -3537,7 +3545,7 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	// Use GraphQL API for state updates
-	if state != "" {
+	if state != "" && !closeWithREST {
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
