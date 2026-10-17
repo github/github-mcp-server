@@ -49,6 +49,13 @@ The GitHub MCP Server provides access to GitHub resources and capabilities throu
 
 For integration architecture and implementation details, see the [Host Integration Guide](https://github.com/github/github-mcp-server/blob/main/docs/host-integration.md).
 
+Organizations that route GitHub MCP Server traffic through an enterprise MCP
+gateway can also use a provider authorization contract to describe per-tool
+blast radius, required context, approval requirements, and receipt bindings.
+See the [AgentID provider authorization contract example](./agentid-provider-contract.md)
+for an optional pattern that complements toolsets, read-only mode, token scopes,
+and GitHub's native API authorization model.
+
 ## Where It's Used
 
 The GitHub MCP server can be accessed in various environments (referred to as "host" applications):
