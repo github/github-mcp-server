@@ -73,9 +73,9 @@ jobs:
           language: ${{ matrix.language }}
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
+        if: matrix.language == 'go'
         with:
-          go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
+          go-version-file: "go.mod"
           cache: false
 
       - name: Set up Node.js (for JavaScript CodeQL)
