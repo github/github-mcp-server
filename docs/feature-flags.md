@@ -37,6 +37,28 @@ end users. Insiders-only flags are not user-toggleable.
 
 ## Declaring tool availability
 
+### Experimental issue artifacts
+
+Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
+expose `create_issue_artifact`, `update_issue_artifact`, `delete_issue_artifact`,
+`list_issue_artifacts`, and `get_issue_artifact` in the `issues` toolset.
+This flag is **off by default**, including in Insiders mode. Read-only mode
+exposes only list and get.
+
+The MCP flag only exposes tools; it does not grant API access. The tools
+use the configured authenticated GitHub client and base URL without an
+endpoint-specific preview header. They declare `repo` in their OAuth challenge
+metadata; API access also depends on the token's permissions and repository
+access. API failures are returned explicitly; writes are not retried.
+
+Artifact numbers are scoped to their owning issue, not global IDs. Updates
+preserve omitted fields, allow `body: ""` to clear the body, and cannot change
+type. Lists return one explicit `page`/`perPage` with bodies; request successive
+pages until fewer than `perPage` artifacts are returned (there are no `Link`
+headers). Artifact names and bodies are sanitized as user-authored content.
+All five tools fail closed in lockdown mode because the reference artifact
+response does not identify authors for content-trust checks.
+
 Tools, resources, and prompts use `inventory.NewFeatureRule` when feature flags
 change whether they are available. Each rule declares the flags it references
 and evaluates them with a fail-closed `FeatureResolver`, so normal Go boolean

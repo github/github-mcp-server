@@ -28,6 +28,10 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
+// FeatureFlagIssueArtifacts explicitly opts into the experimental issue artifact
+// endpoints. Access requirements are unverified; insiders mode does not enable it.
+const FeatureFlagIssueArtifacts = "issue_artifacts"
+
 // FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
 // tool, which returns ranked duplicate candidates for an existing issue. It is
 // gated so the extra tool is not advertised by default, and is deliberately
@@ -51,6 +55,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagIssueArtifacts,
 	FeatureFlagDuplicateDetection,
 	FeatureFlagThreadResolutionReason,
 }
