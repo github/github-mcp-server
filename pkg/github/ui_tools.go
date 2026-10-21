@@ -247,8 +247,8 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 	}
 
 	opts := &github.MilestoneListOptions{
-		State:       "open",
-		ListOptions: github.ListOptions{PerPage: 100},
+		State:   "open",
+		PerPage: 100,
 	}
 
 	var allMilestones []*github.Milestone
@@ -340,7 +340,7 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 	}
 
 	opts := &github.BranchListOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
+		PerPage: 100,
 	}
 
 	var allBranches []*github.Branch
@@ -479,7 +479,7 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 
 	collaboratorOpts := &github.ListCollaboratorsOptions{
 		Affiliation: "all",
-		ListOptions: github.ListOptions{PerPage: 100},
+		PerPage:     100,
 	}
 	var allCollaborators []*github.User
 	hasMore := false
