@@ -66,11 +66,6 @@ jobs:
           registries_credentials: ${{ secrets.GITHUB_REGISTRIES_PROXY }}
           language: ${{ matrix.language }}
 
-      - name: Configure
-        uses: github/codeql-action/resolve-environment@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        id: resolve-environment
-        with:
-          language: ${{ matrix.language }}
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: matrix.language == 'go'
