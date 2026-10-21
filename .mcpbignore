@@ -1,0 +1,42 @@
+# Source code - not needed for binary bundle
+*.go
+go.mod
+go.sum
+
+# Build and development
+cmd/
+internal/
+pkg/
+script/
+e2e/
+e2e.test
+.vscode/
+.github/
+.golangci.yml
+.goreleaser.yaml
+Dockerfile
+.dockerignore
+
+# Documentation (keep README for reference)
+docs/
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+SUPPORT.md
+third-party-licenses.*.md
+third-party/
+
+# Git
+.git/
+.gitignore
+
+# Misc
+server.json
+gemini-extension.json
+
+# Keep only:
+# - manifest.json
+# - icon.png
+# - bin/ (with all binaries)
+# - README.md
+# - LICENSE
