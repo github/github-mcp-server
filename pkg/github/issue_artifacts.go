@@ -216,11 +216,11 @@ func issueArtifactRequest(ctx context.Context, deps ToolDependencies, coordinate
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	request, err := client.NewRequest(method, path, body)
+	request, err := client.NewRequest(ctx, method, path, body)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to create issue artifact request", err)
 	}
-	response, err := client.Do(ctx, request, output)
+	response, err := client.Do(request, output)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to "+strings.ToLower(method)+" issue artifact", response, err)
 	}
