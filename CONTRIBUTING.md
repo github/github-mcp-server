@@ -26,7 +26,7 @@ Thanks for contributing and for helping us build toolsets that are truly valuabl
 
 These are one time installations required to be able to test your changes locally as part of the pull request (PR) submission process.
 
-1. Install Go 1.26.8 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
+1. Install Go 1.27.3 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
 2. [Install golangci-lint v2.14.0](https://golangci-lint.run/welcome/install/#local-installation), or let `script/lint` install the repository-pinned version. The pinned version supports both Go 1.26 and Go 1.27.
 
 ### UI development
