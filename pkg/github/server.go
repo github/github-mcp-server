@@ -108,7 +108,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
-	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
+	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
@@ -176,14 +176,20 @@ func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
 
 // NewServer creates a new GitHub MCP server with the given version, server
 // name, display title, and options. If name or title are empty the defaults
-// "github-mcp-server" and "GitHub MCP Server" are used.
+// "github" and "GitHub MCP Server" are used.
+//
+// The "github" name aligns with the configuration key VS Code derives from
+// the human-readable title, so tool prefixes like "github/*" resolve. It
+// intentionally diverges from the MCP registry identifier
+// (io.github.github/github-mcp-server in server.json), which uses the source
+// repo's last segment per the registry naming convention.
 func NewServer(version, name, title string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
 		opts = &mcp.ServerOptions{}
 	}
 
 	if name == "" {
-		name = "github-mcp-server"
+		name = "github"
 	}
 	if title == "" {
 		title = "GitHub MCP Server"
