@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -116,10 +116,11 @@ func TestIssueArtifactRequests(t *testing.T) {
 				_, _ = w.Write([]byte(tc.result))
 			}))
 			defer server.Close()
-			client := mustNewGHClient(t, server.Client())
-			baseURL, err := url.Parse(server.URL + "/api/v3/")
+			client, err := gogithub.NewClient(
+				gogithub.WithHTTPClient(server.Client()),
+				gogithub.WithEnterpriseURLs(server.URL+"/api/v3/", server.URL+"/api/uploads/"),
+			)
 			require.NoError(t, err)
-			client.BaseURL = baseURL
 			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
 			for key, value := range tc.args {
 				args[key] = value
@@ -222,10 +223,11 @@ func TestIssueArtifactFailures(t *testing.T) {
 						_, _ = w.Write([]byte(`{"message":"artifact access failed"}`))
 					}))
 					defer server.Close()
-					client := mustNewGHClient(t, server.Client())
-					baseURL, err := url.Parse(server.URL + "/")
+					client, err := gogithub.NewClient(
+						gogithub.WithHTTPClient(server.Client()),
+						gogithub.WithEnterpriseURLs(server.URL+"/", server.URL+"/"),
+					)
 					require.NoError(t, err)
-					client.BaseURL = baseURL
 					result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
 					assert.True(t, result.IsError)
 					assert.Contains(t, getTextResult(t, result).Text, "artifact")
