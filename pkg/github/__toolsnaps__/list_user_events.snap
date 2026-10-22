@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List user activity"
+  },
+  "description": "List recent GitHub activity performed by a user, such as pushes, pull requests, issues, and stars. GitHub returns public events for other users and may include private events when querying the authenticated user's own activity, subject to token permissions. Returns event metadata, visibility, and event-specific payloads. GitHub limits the feed to up to 300 events from the past 30 days; events may be delayed from 30 seconds to 6 hours. This is not a complete or real-time contribution history.",
+  "inputSchema": {
+    "properties": {
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "username": {
+        "description": "GitHub username whose activity to list",
+        "type": "string"
+      }
+    },
+    "required": [
+      "username"
+    ],
+    "type": "object"
+  },
+  "name": "list_user_events"
+}
