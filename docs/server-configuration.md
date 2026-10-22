@@ -7,7 +7,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 
 | Configuration | Remote Server | Local Server |
 |---------------|---------------|--------------|
-| Toolsets | `X-MCP-Toolsets` header or `/x/{toolset}` URL | `--toolsets` flag or `GITHUB_TOOLSETS` env var |
+| Toolsets | `X-MCP-Toolsets` header or `/x/{toolsets}` URL | `--toolsets` flag or `GITHUB_TOOLSETS` env var |
 | Individual Tools | `X-MCP-Tools` header | `--tools` flag or `GITHUB_TOOLS` env var |
 | Exclude Tools | `X-MCP-Exclude-Tools` header | `--exclude-tools` flag or `GITHUB_EXCLUDE_TOOLS` env var |
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
@@ -86,6 +86,8 @@ The examples below use VS Code configuration format to illustrate the concepts. 
 ### Enabling Specific Toolsets
 
 **Best for:** Users who want to enable multiple related toolsets.
+
+Remote clients that cannot set custom headers can put the same comma-separated toolset list in the URL path, for example `/mcp/x/issues,pull_requests`. URL-based toolsets take precedence if both the path and `X-MCP-Toolsets` are provided.
 
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>

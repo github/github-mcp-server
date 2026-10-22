@@ -183,11 +183,12 @@ func withReadonly(next http.Handler) http.Handler {
 	})
 }
 
-// withToolset is middleware that extracts the toolset from the URL and sets it in the request context
+// withToolset is middleware that extracts one or more comma-separated toolsets
+// from the URL and sets them in the request context.
 func withToolset(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		toolset := chi.URLParam(r, "toolset")
-		ctx := ghcontext.WithToolsets(r.Context(), []string{toolset})
+		toolsets := headers.ParseCommaSeparated(chi.URLParam(r, "toolset"))
+		ctx := ghcontext.WithToolsets(r.Context(), toolsets)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
