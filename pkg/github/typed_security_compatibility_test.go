@@ -148,7 +148,9 @@ func TestSecurityEmptyAndErrorOutputs(t *testing.T) {
 						return
 					}
 					if protocol == "2025-11-25" {
-						if tt.tool.Tool.Name == "list_dependabot_alerts" {
+						if tt.tool.Tool.Name == "list_dependabot_alerts" ||
+							tt.tool.Tool.Name == "list_code_scanning_alerts" ||
+							tt.tool.Tool.Name == "list_secret_scanning_alerts" {
 							assert.JSONEq(t, `{"alerts":`+body+`,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, getTextResult(t, result).Text)
 						} else {
 							assert.Equal(t, body, getTextResult(t, result).Text)
@@ -175,7 +177,9 @@ func TestSecurityEmptyAndErrorOutputs(t *testing.T) {
 					}
 					if tt.list {
 						assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text, "modern lists expose the same DTO through both channels")
-						if tt.tool.Tool.Name == "list_dependabot_alerts" {
+						if tt.tool.Tool.Name == "list_dependabot_alerts" ||
+							tt.tool.Tool.Name == "list_code_scanning_alerts" ||
+							tt.tool.Tool.Name == "list_secret_scanning_alerts" {
 							assert.JSONEq(t, getTextResult(t, result).Text, mustMarshalJSON(t, result.StructuredContent))
 						} else {
 							assert.Equal(t, body, mustMarshalJSON(t, result.StructuredContent))

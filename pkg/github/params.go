@@ -471,6 +471,15 @@ func buildPageInfo(resp *github.Response) pageInfo {
 	}
 }
 
+// buildOffsetPageInfo builds pageInfo for REST list endpoints that paginate with
+// page/per_page Link headers (NextPage/PrevPage) rather than cursor tokens.
+func buildOffsetPageInfo(resp *github.Response) pageInfo {
+	return pageInfo{
+		HasNextPage:     resp.NextPage != 0,
+		HasPreviousPage: resp.PrevPage != 0,
+	}
+}
+
 // ToGraphQLParams converts cursor pagination parameters to GraphQL-specific parameters.
 func (p CursorPaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
 	if p.PerPage > 100 {
