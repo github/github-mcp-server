@@ -83,7 +83,14 @@ func toInt(val any) (int, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	if f > math.MaxInt || f < math.MinInt {
+	// Compare before converting, against the exact power of two. math.MaxInt is
+	// 2^(strconv.IntSize-1) - 1, which a float64 cannot represent: on 64-bit
+	// targets it rounds up to exactly 2^63, so comparing against it lets 2^63
+	// through. Converting an out-of-range float64 to int is implementation-defined
+	// - MinInt on amd64, MaxInt on the targets whose conversion saturates - so the
+	// bound has to reject the value before the conversion rather than inspect the
+	// result of it. math.Ldexp gives the exact bound on every target.
+	if limit := math.Ldexp(1, strconv.IntSize-1); f >= limit || f < -limit {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil
