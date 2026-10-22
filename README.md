@@ -1825,3 +1825,19 @@ Please do not report security vulnerabilities through public issues. Follow the 
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+
+### Zero-Docker quick start
+
+**Docker is optional.** You can use the GitHub MCP Server without
+installing or running Docker.
+
+Choose the setup that fits your environment:
+
+- **Hosted server:** Use a supported MCP client with the hosted
+  server and its supported authentication method.
+- **Native execution:** Run a native Go build by following the
+  project's installation instructions.
+- **Docker:** Use the existing Docker setup if you prefer
+  containerized execution.
+
+See the Local GitHub MCP Server section for more details.
