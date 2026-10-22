@@ -43,6 +43,8 @@ type Inventory struct {
 	// Filters - these control what's returned by Available* methods
 	// readOnly when true filters out write tools
 	readOnly bool
+	// readOnlyToolsets filters write tools by their owning toolset.
+	readOnlyToolsets map[ToolsetID]bool
 	// enabledToolsets when non-nil, only include tools/resources/prompts from these toolsets
 	// when nil, all toolsets are enabled
 	enabledToolsets map[ToolsetID]bool
@@ -110,8 +112,9 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		prompts:              r.prompts,
 		deprecatedAliases:    r.deprecatedAliases,
 		readOnly:             r.readOnly,
-		enabledToolsets:      r.enabledToolsets, // shared, not modified
-		additionalTools:      r.additionalTools, // shared, not modified
+		readOnlyToolsets:     r.readOnlyToolsets, // shared, not modified
+		enabledToolsets:      r.enabledToolsets,  // shared, not modified
+		additionalTools:      r.additionalTools,  // shared, not modified
 		featureChecker:       r.featureChecker,
 		filters:              r.filters, // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
