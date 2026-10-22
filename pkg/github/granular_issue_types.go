@@ -564,7 +564,7 @@ func normalizeGranularUpdateIssueAssigneesArguments(raw json.RawMessage) (json.R
 		}
 	}
 
-	return marshalGranularIssueArguments(args, GranularIssueAssigneesInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, Assignees: payload})
+	return marshalGranularIssueArguments(args, GranularIssueAssigneesInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Assignees: payload})
 }
 
 func normalizeGranularUpdateIssueLabelsArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -644,7 +644,7 @@ func normalizeGranularUpdateIssueLabelsArguments(raw json.RawMessage) (json.RawM
 		}
 	}
 
-	return marshalGranularIssueArguments(args, GranularIssueLabelsInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, Labels: payload})
+	return marshalGranularIssueArguments(args, GranularIssueLabelsInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Labels: payload})
 }
 
 func normalizeGranularUpdateIssueTypeArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -695,7 +695,7 @@ func normalizeGranularUpdateIssueTypeArguments(raw json.RawMessage) (json.RawMes
 	if issueType == nil && (rationale != "" || confidence != "" || isSuggestion) {
 		return nil, fmt.Errorf("suggestion metadata is not supported when removing an issue type; omit rationale, confidence, and is_suggestion")
 	}
-	return marshalGranularIssueArguments(args, GranularIssueTypeInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, IssueType: issueType, Rationale: rationale, Confidence: confidence, IsSuggestion: isSuggestion})
+	return marshalGranularIssueArguments(args, GranularIssueTypeInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, IssueType: issueType, Rationale: rationale, Confidence: confidence, IsSuggestion: isSuggestion})
 }
 
 func normalizeGranularUpdateIssueStateArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -761,7 +761,7 @@ func normalizeGranularUpdateIssueStateArguments(raw json.RawMessage) (json.RawMe
 		delete(args, "duplicate_of")
 	}
 
-	return marshalGranularIssueArguments(args, GranularIssueStateInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, State: state, StateReason: stateReason, Rationale: rationale, Confidence: confidence, IsSuggestion: isSuggestion, DuplicateOf: duplicateOf})
+	return marshalGranularIssueArguments(args, GranularIssueStateInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, State: state, StateReason: stateReason, Rationale: rationale, Confidence: confidence, IsSuggestion: isSuggestion, DuplicateOf: duplicateOf})
 }
 
 func normalizeGranularAddSubIssueArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -792,7 +792,7 @@ func normalizeGranularAddSubIssueArguments(raw json.RawMessage) (json.RawMessage
 		args["replace_parent"] = replaceParent
 	}
 
-	return marshalGranularIssueArguments(args, GranularAddSubIssueInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, SubIssueID: subIssueID, ReplaceParent: replaceParent})
+	return marshalGranularIssueArguments(args, GranularAddSubIssueInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, SubIssueID: subIssueID, ReplaceParent: replaceParent})
 }
 
 func normalizeGranularRemoveSubIssueArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -818,7 +818,7 @@ func normalizeGranularRemoveSubIssueArguments(raw json.RawMessage) (json.RawMess
 		return nil, err
 	}
 
-	return marshalGranularIssueArguments(args, GranularRemoveSubIssueInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, SubIssueID: subIssueID})
+	return marshalGranularIssueArguments(args, GranularRemoveSubIssueInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, SubIssueID: subIssueID})
 }
 
 func normalizeGranularReprioritizeSubIssueArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -858,7 +858,7 @@ func normalizeGranularReprioritizeSubIssueArguments(raw json.RawMessage) (json.R
 		delete(args, "before_id")
 	}
 
-	return marshalGranularIssueArguments(args, GranularReprioritizeSubIssueInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, SubIssueID: subIssueID, AfterID: afterID, BeforeID: beforeID})
+	return marshalGranularIssueArguments(args, GranularReprioritizeSubIssueInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, SubIssueID: subIssueID, AfterID: afterID, BeforeID: beforeID})
 }
 
 func granularIssueInputNormalizer(normalize inventory.InputNormalizer) inventory.InputNormalizer {
@@ -1003,7 +1003,7 @@ func normalizeGranularSetIssueFieldsArguments(raw json.RawMessage) (json.RawMess
 		issueFields = append(issueFields, input)
 	}
 
-	return marshalGranularIssueArguments(args, GranularSetIssueFieldsInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, Fields: granularIssueFieldsFromMutation(issueFields)})
+	return marshalGranularIssueArguments(args, GranularSetIssueFieldsInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Fields: granularIssueFieldsFromMutation(issueFields)})
 }
 
 func normalizeGranularAddIssueReactionArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -1029,7 +1029,7 @@ func normalizeGranularAddIssueReactionArguments(raw json.RawMessage) (json.RawMe
 		return nil, err
 	}
 
-	return marshalGranularIssueArguments(args, GranularAddIssueReactionInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, Content: content})
+	return marshalGranularIssueArguments(args, GranularAddIssueReactionInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Content: content})
 }
 
 func normalizeGranularRemoveIssueReactionArguments(raw json.RawMessage) (json.RawMessage, error) {
@@ -1055,7 +1055,7 @@ func normalizeGranularRemoveIssueReactionArguments(raw json.RawMessage) (json.Ra
 		return nil, err
 	}
 
-	return marshalGranularIssueArguments(args, GranularRemoveIssueReactionInput{GranularIssueCoordinate: GranularIssueCoordinate{Owner: owner, Repo: repo, IssueNumber: issueNumber}, ReactionID: reactionID})
+	return marshalGranularIssueArguments(args, GranularRemoveIssueReactionInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, ReactionID: reactionID})
 }
 
 func normalizeGranularAddIssueCommentReactionArguments(raw json.RawMessage) (json.RawMessage, error) {

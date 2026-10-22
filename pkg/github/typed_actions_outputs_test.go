@@ -381,7 +381,7 @@ func TestTypedActionsMinimalProjection(t *testing.T) {
 		projected string
 	}{
 		{
-			actionsWireCase: actionsWireCase{name: "actions_get", method: "get_workflow", args: map[string]any{"resource_id": "ci.yml"}, path: "/repos/owner/repo/actions/workflows/ci.yml", status: 200},
+			name: "actions_get", method: "get_workflow", args: map[string]any{"resource_id": "ci.yml"}, path: "/repos/owner/repo/actions/workflows/ci.yml", status: 200,
 			raw: &github.Workflow{
 				ID: new(int64(2)), Name: new("CI"), State: new("active"), Path: new(".github/workflows/ci.yml"),
 				NodeID: new("node"), URL: new("https://api.github.com/workflows/2"),
@@ -390,14 +390,14 @@ func TestTypedActionsMinimalProjection(t *testing.T) {
 			projected: `{"id":2,"name":"CI","state":"active","path":".github/workflows/ci.yml","html_url":"https://github.com/owner/repo/actions/workflows/ci.yml"}`,
 		},
 		{
-			actionsWireCase: actionsWireCase{name: "actions_list", method: "list_workflows", path: "/repos/owner/repo/actions/workflows", query: "page=1&per_page=30", status: 200},
+			name: "actions_list", method: "list_workflows", path: "/repos/owner/repo/actions/workflows", query: "page=1&per_page=30", status: 200,
 			raw: &github.Workflows{TotalCount: new(1), Workflows: []*github.Workflow{{
 				ID: new(int64(2)), Name: new("CI"), URL: new("https://api.github.com/workflows/2"), BadgeURL: new("https://badge"),
 			}}},
 			projected: `{"total_count":1,"workflows":[{"id":2,"name":"CI"}]}`,
 		},
 		{
-			actionsWireCase: actionsWireCase{name: "actions_list", method: "list_workflow_run_artifacts", args: map[string]any{"resource_id": "7"}, path: "/repos/owner/repo/actions/runs/7/artifacts", query: "page=1&per_page=30", status: 200},
+			name: "actions_list", method: "list_workflow_run_artifacts", args: map[string]any{"resource_id": "7"}, path: "/repos/owner/repo/actions/runs/7/artifacts", query: "page=1&per_page=30", status: 200,
 			raw: &github.ArtifactList{TotalCount: new(int64(1)), Artifacts: []*github.Artifact{{
 				ID: new(int64(9)), Name: new("build"), SizeInBytes: new(int64(0)), Expired: new(false),
 				Digest: new("sha256:abc"), NodeID: new("node"), URL: new("https://api.github.com/artifacts/9"),
@@ -407,7 +407,7 @@ func TestTypedActionsMinimalProjection(t *testing.T) {
 			projected: `{"total_count":1,"artifacts":[{"id":9,"name":"build","size_in_bytes":0,"expired":false,"digest":"sha256:abc","workflow_run":{"id":7,"head_branch":"main","head_sha":"abc"}}]}`,
 		},
 		{
-			actionsWireCase: actionsWireCase{name: "actions_get", method: "get_workflow_job", args: map[string]any{"resource_id": "8"}, path: "/repos/owner/repo/actions/jobs/8", status: 200},
+			name: "actions_get", method: "get_workflow_job", args: map[string]any{"resource_id": "8"}, path: "/repos/owner/repo/actions/jobs/8", status: 200,
 			raw: &github.WorkflowJob{
 				ID: new(int64(8)), RunID: new(int64(7)), Name: new("test"), Status: new("completed"), Conclusion: new("failure"),
 				NodeID: new("node"), URL: new("https://api.github.com/jobs/8"), RunURL: new("https://api.github.com/runs/7"),
@@ -416,7 +416,7 @@ func TestTypedActionsMinimalProjection(t *testing.T) {
 			projected: `{"id":8,"run_id":7,"name":"test","status":"completed","conclusion":"failure","html_url":"https://github.com/owner/repo/actions/runs/7/job/8"}`,
 		},
 		{
-			actionsWireCase: actionsWireCase{name: "actions_get", method: "get_workflow_run_usage", args: map[string]any{"resource_id": "7"}, path: "/repos/owner/repo/actions/runs/7/timing", status: 200},
+			name: "actions_get", method: "get_workflow_run_usage", args: map[string]any{"resource_id": "7"}, path: "/repos/owner/repo/actions/runs/7/timing", status: 200,
 			raw: &github.WorkflowRunUsage{RunDurationMS: new(int64(42)), Billable: &github.WorkflowRunBillMap{
 				"CUSTOM":  {TotalMS: new(int64(42)), Jobs: new(1), JobRuns: []*github.WorkflowRunJobRun{{JobID: new(8), DurationMS: new(int64(42))}}},
 				"ANOTHER": nil,

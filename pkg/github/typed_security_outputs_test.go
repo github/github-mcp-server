@@ -326,7 +326,7 @@ func TestGlobalSecurityAdvisoryCWEIDs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			advisory := github.GlobalSecurityAdvisory{
-				SecurityAdvisory: github.SecurityAdvisory{CWEIDs: tc.cweIDs, CWEs: tc.cwes},
+				CWEIDs: tc.cweIDs, CWEs: tc.cwes,
 			}
 			assert.Equal(t, tc.expected, globalSecurityAdvisoryOutput(&advisory).CWEIDs)
 			assert.Equal(t, tc.cweIDs, advisory.CWEIDs, "projection must not mutate the API model")
