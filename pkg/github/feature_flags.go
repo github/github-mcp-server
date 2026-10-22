@@ -28,7 +28,7 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
-// FeatureFlagIssueArtifacts explicitly opts into the experimental issue artifact
+// FeatureFlagIssueArtifacts explicitly opts into the issue artifact
 // endpoints. Access requirements are unverified; insiders mode does not enable it.
 const FeatureFlagIssueArtifacts = "issue_artifacts"
 

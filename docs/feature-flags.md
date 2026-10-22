@@ -37,7 +37,7 @@ end users. Insiders-only flags are not user-toggleable.
 
 ## Declaring tool availability
 
-### Experimental issue artifacts
+### Issue artifacts
 
 Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
 expose `create_issue_artifact`, `update_issue_artifact`, `delete_issue_artifact`,
