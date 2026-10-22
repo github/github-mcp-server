@@ -18,7 +18,7 @@
     "@github/markdown-toolbar-element": "^2.2.3",
     "@modelcontextprotocol/client": "^2.3.1",
     "@modelcontextprotocol/ext-apps": "^2.0.3",
-    "@primer/octicons-react": "^19.38.0",
+    "@primer/octicons-react": "^19.40.0",
     "@primer/primitives": "^11.10.0",
     "@primer/react": "^38.40.1",
     "react": "^19.3.0",
