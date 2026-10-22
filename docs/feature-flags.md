@@ -417,6 +417,49 @@ as output formatting) won't appear here.
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
+### `issue_artifacts`
+
+- **create_issue_artifact** - Create issue artifact
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: Markdown body; may be empty (string, required)
+  - `issue_number`: Positive issue number (integer, required)
+  - `name`: Nonempty artifact name (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `type`:  (string, required)
+
+- **delete_issue_artifact** - Delete issue artifact
+  - **OAuth Challenge Scopes**: `repo`
+  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
+  - `issue_number`: Positive issue number (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_issue_artifact** - Get issue artifact
+  - **OAuth Challenge Scopes**: `repo`
+  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
+  - `issue_number`: Positive issue number (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_issue_artifacts** - List issue artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `issue_number`: Positive issue number (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1 (default 1) (integer, optional)
+  - `perPage`: Results per page, from 1 to 100 (default 30) (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`:  (string, optional)
+
+- **update_issue_artifact** - Update issue artifact
+  - **OAuth Challenge Scopes**: `repo`
+  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
+  - `body`: Replacement Markdown body; an empty string clears it (string, optional)
+  - `issue_number`: Positive issue number (integer, required)
+  - `name`: Replacement nonempty name (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 ### `duplicate_detection`
 
 - **find_duplicate** - Find duplicate issues

@@ -16,7 +16,6 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -46,7 +45,6 @@ func newIssueArtifactTool[In, Out any](t translations.TranslationHelperFunc, nam
 	if schema.Properties["name"] != nil && !slices.Contains(schema.Required, "name") {
 		schema.Properties["name"].Type, schema.Properties["name"].Types = "string", nil
 		schema.Properties["body"].Type, schema.Properties["body"].Types = "string", nil
-		schema.AnyOf = []*jsonschema.Schema{{Required: []string{"name"}}, {Required: []string{"body"}}}
 	}
 	st := NewToolWithSchemaOptions(ToolsetMetadataIssues, mcp.Tool{
 		Name: name, Description: t(key+"_DESCRIPTION", description),

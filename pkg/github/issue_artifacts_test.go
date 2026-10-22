@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,14 +25,23 @@ func artifactTestTools() []inventory.ServerTool {
 }
 
 func TestIssueArtifactTools(t *testing.T) {
+	session := artifactTestSession(t, artifactTestTools(), BaseDeps{})
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	registered := make(map[string]*mcp.Tool, len(list.Tools))
+	for _, tool := range list.Tools {
+		registered[tool.Name] = tool
+	}
 	for _, tool := range artifactTestTools() {
 		t.Run(tool.Tool.Name, func(t *testing.T) {
-			require.NoError(t, toolsnaps.Test(tool.Tool.Name+"_ff_"+FeatureFlagIssueArtifacts, tool.Tool))
-			assert.Equal(t, ToolsetMetadataIssues, tool.Toolset)
+			wireTool := registered[tool.Tool.Name]
+			require.NotNil(t, wireTool)
+			require.NoError(t, toolsnaps.Test(tool.Tool.Name+"_ff_"+FeatureFlagIssueArtifacts, wireTool))
+			assert.Equal(t, ToolsetMetadataIssues.ID, tool.Toolset.ID)
 			assert.Equal(t, []inventory.FeatureFlag{FeatureFlagIssueArtifacts}, tool.FeatureRule.Features())
 			schema := tool.Tool.InputSchema.(*jsonschema.Schema)
 			assert.Subset(t, schema.Required, []string{"owner", "repo", "issue_number"})
-			assert.NotNil(t, tool.Tool.OutputSchema)
+			assert.NotNil(t, wireTool.OutputSchema)
 			assert.Equal(t, strings.HasPrefix(tool.Tool.Name, "get_") || strings.HasPrefix(tool.Tool.Name, "list_"), tool.IsReadOnly())
 		})
 	}
@@ -70,10 +80,20 @@ func TestIssueArtifactTools(t *testing.T) {
 	}
 }
 
+func artifactTestSession(t *testing.T, tools []inventory.ServerTool, deps BaseDeps) *mcp.ClientSession {
+	t.Helper()
+	server := mcp.NewServer(&mcp.Implementation{Name: "issue-artifacts-test", Version: "v1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	for _, tool := range tools {
+		tool.RegisterFunc(server, deps)
+	}
+	return connectCommentVisibilityClient(t, server, inventory.ProtocolVersionMultiRoundTrip)
+}
+
 func callArtifactTool(t *testing.T, tool inventory.ServerTool, deps BaseDeps, args map[string]any) *mcp.CallToolResult {
 	t.Helper()
-	request := createMCPRequest(args)
-	result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	session := artifactTestSession(t, []inventory.ServerTool{tool}, deps)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: args})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	return result
@@ -122,9 +142,7 @@ func TestIssueArtifactRequests(t *testing.T) {
 			)
 			require.NoError(t, err)
 			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
-			for key, value := range tc.args {
-				args[key] = value
-			}
+			maps.Copy(args, tc.args)
 			tool := artifactTestTools()[tc.index]
 			result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
 			require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
@@ -188,9 +206,7 @@ func TestIssueArtifactInvalidInputs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
-			for key, value := range tc.args {
-				args[key] = value
-			}
+			maps.Copy(args, tc.args)
 			result := callArtifactTool(t, artifactTestTools()[tc.index], BaseDeps{}, args)
 			assert.True(t, result.IsError)
 		})
