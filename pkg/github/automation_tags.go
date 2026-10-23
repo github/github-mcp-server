@@ -51,6 +51,18 @@ func ListAutomationTags(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryListInput) (*mcp.CallToolResult, *ListAutomationTagsResponse, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+			}
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+			}
+			if input.Page != nil && *input.Page < 1 {
+				return utils.NewToolResultError("page must be at least 1"), nil, nil
+			}
+			if input.PerPage != nil && (*input.PerPage < 1 || *input.PerPage > 100) {
+				return utils.NewToolResultError("perPage must be between 1 and 100"), nil, nil
+			}
 			if input.Owner == "." || input.Owner == ".." {
 				return utils.NewToolResultError(fmt.Sprintf("owner must not be %q", input.Owner)), nil, nil
 			}
