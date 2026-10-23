@@ -148,6 +148,12 @@ var (
 		Icon:        "copilot",
 	}
 
+	ToolsetMetadataCopilotAutomations = inventory.ToolsetMetadata{
+		ID:          "copilot_automations",
+		Description: "Copilot Automation related tools",
+		Icon:        "workflow",
+	}
+
 	// ToolsetMetadataCopilotIssueIntents is a non-default toolset that gates the
 	// opt-in intent-aware Copilot issue assignment tool. Kept out of the default
 	// configuration so its inputs (rationale, confidence, is_suggestion) do not
@@ -293,6 +299,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Copilot tools
 		AssignCopilotToIssue(t),
 		RequestCopilotReview(t),
+		ListAutomationTags(t),
 
 		// Copilot issue intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),
