@@ -419,6 +419,37 @@ func Test_CreateAutomationTag(t *testing.T) {
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 	assert.False(t, toolDef.Tool.Annotations.ReadOnlyHint)
 
+	t.Run("requires owner and repo", func(t *testing.T) {
+		for _, tc := range []struct {
+			name      string
+			args      map[string]any
+			wantError string
+		}{
+			{"missing owner", map[string]any{"repo": "repo", "name": "Release"}, "owner"},
+			{"empty owner", map[string]any{"owner": "", "repo": "repo", "name": "Release"}, "owner"},
+			{"missing repo", map[string]any{"owner": "owner", "name": "Release"}, "repo"},
+			{"empty repo", map[string]any{"owner": "owner", "repo": "", "name": "Release"}, "repo"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				calls := 0
+				client := mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, _ *http.Request) {
+					calls++
+					w.WriteHeader(http.StatusCreated)
+					_, err := fmt.Fprint(w, `{}`)
+					require.NoError(t, err)
+				}))
+				deps := BaseDeps{Client: client}
+				handler := toolDef.Handler(deps)
+				request := createMCPRequest(tc.args)
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+				assert.Zero(t, calls)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.wantError)
+			})
+		}
+	})
+
 	t.Run("discovery", func(t *testing.T) {
 		for _, tc := range []struct {
 			name     string
