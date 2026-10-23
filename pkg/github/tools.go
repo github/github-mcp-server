@@ -301,6 +301,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		RequestCopilotReview(t),
 		ListAutomationTags(t),
 		GetAutomationTag(t),
+		CreateAutomationTag(t),
 
 		// Copilot issue intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),

@@ -413,3 +413,179 @@ func Test_GetAutomationTag(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateAutomationTag(t *testing.T) {
+	toolDef := CreateAutomationTag(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	assert.False(t, toolDef.Tool.Annotations.ReadOnlyHint)
+
+	t.Run("discovery", func(t *testing.T) {
+		for _, tc := range []struct {
+			name     string
+			toolsets []string
+			scopes   []string
+			readOnly bool
+			want     bool
+		}{
+			{"default", []string{"default"}, []string{"repo"}, false, false},
+			{"opt in", []string{"copilot_automations"}, []string{"repo"}, false, true},
+			{"opt in read only", []string{"copilot_automations"}, []string{"repo"}, true, false},
+			{"missing scope", []string{"copilot_automations"}, []string{}, false, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				inv, err := NewInventory(translations.NullTranslationHelper).
+					WithToolsets(tc.toolsets).WithReadOnly(tc.readOnly).
+					WithFilter(CreateToolScopeFilter(tc.scopes)).Build()
+				require.NoError(t, err)
+				require.Empty(t, inv.UnrecognizedToolsets())
+				var found bool
+				for _, tool := range inv.AvailableTools(context.Background()) {
+					found = found || tool.Tool.Name == "create_automation_tag"
+				}
+				assert.Equal(t, tc.want, found)
+			})
+		}
+	})
+
+	seen := make(map[string]bool)
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			for _, tc := range []struct {
+				name            string
+				args            map[string]any
+				status          int
+				body            string
+				escapedPath     string
+				wantRequestBody string
+				want            string
+				wantError       string
+			}{
+				{
+					name:   "internal and additive fields",
+					status: http.StatusCreated,
+					body:   `{"id":"tag-1","name":"Release","description":"","version":"opaque-version","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z","can_delete":true,"deletion_pending":false,"has_known_unavailable_members":false,"future_field":true}`,
+					want:   `{"id":"tag-1","name":"Release","description":"","version":"opaque-version","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
+				},
+				{
+					name:            "description",
+					args:            map[string]any{"owner": "owner", "repo": "repo", "name": "Release", "description": "Release automations"},
+					wantRequestBody: `{"name":"Release","description":"Release automations"}`,
+					status:          http.StatusCreated,
+					body:            `{"id":"tag-1","name":"Release","description":"Release automations","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
+					want:            `{"id":"tag-1","name":"Release","description":"Release automations","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
+				},
+				{
+					name:        "escaped path segments",
+					args:        map[string]any{"owner": "own er", "repo": "re/po", "name": "Release"},
+					escapedPath: "/agents/repos/own%20er/re%2Fpo/automation-tags",
+					status:      http.StatusCreated,
+					body:        `{"id":"tag-1","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
+					want:        `{"id":"tag-1","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
+				},
+				{
+					name:            "blank name",
+					args:            map[string]any{"owner": "owner", "repo": "repo", "name": " "},
+					wantRequestBody: `{"name":" "}`,
+					status:          http.StatusUnprocessableEntity,
+					body:            `{"message":"Validation Failed","errors":[{"code":"invalid"}],"documentation_url":"https://docs.github.com/rest"}`,
+					wantError:       "Validation Failed",
+				},
+				{name: "conflict", status: http.StatusConflict, body: `{"message":"Conflict","code":"automation_tag_deleted","documentation_url":"https://docs.github.com/rest"}`, wantError: "409"},
+				{name: "non-disclosure", status: http.StatusNotFound, body: `{"message":"not found","documentation_url":"https://docs.github.com/rest"}`, wantError: "404"},
+				{name: "empty denial", status: http.StatusNotFound, wantError: "404"},
+				{name: "bad request", status: http.StatusBadRequest, body: `{"message":"Bad Request"}`, wantError: "400"},
+				{name: "permission denied", status: http.StatusForbidden, body: `{"message":"Forbidden"}`, wantError: "403"},
+				{name: "unauthenticated", status: http.StatusUnauthorized, body: `{"message":"Requires authentication"}`, wantError: "401"},
+				{name: "temporarily unavailable", status: http.StatusServiceUnavailable, body: `{"message":"automation tagging is unavailable","documentation_url":"https://docs.github.com/rest"}`, wantError: "503"},
+				{name: "server error", status: http.StatusInternalServerError, body: `{"message":"Internal Server Error"}`, wantError: "500"},
+				{name: "unexpected success status", status: http.StatusOK, body: `{"id":"tag-1","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`, wantError: "200"},
+				{name: "missing name", args: map[string]any{"owner": "owner", "repo": "repo"}, wantError: `missing properties: ["name"]`},
+				{name: "dot owner", args: map[string]any{"owner": ".", "repo": "repo", "name": "Release"}, wantError: `owner must not be "."`},
+				{name: "dot repo", args: map[string]any{"owner": "owner", "repo": ".", "name": "Release"}, wantError: `repo must not be "."`},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					calls := 0
+					client := mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+						calls++
+						if tc.status == 0 {
+							w.WriteHeader(http.StatusCreated)
+							_, err := fmt.Fprint(w, `{}`)
+							require.NoError(t, err)
+							return
+						}
+						escapedPath := tc.escapedPath
+						if escapedPath == "" {
+							escapedPath = "/agents/repos/owner/repo/automation-tags"
+						}
+						assert.Equal(t, "api.github.com", r.URL.Host)
+						assert.Equal(t, http.MethodPost, r.Method)
+						assert.Equal(t, escapedPath, r.URL.EscapedPath())
+						assert.Empty(t, r.URL.RawQuery)
+						var requestBody map[string]any
+						require.NoError(t, json.NewDecoder(r.Body).Decode(&requestBody))
+						idempotencyKey, _ := requestBody["idempotency_key"].(string)
+						assert.NotEmpty(t, idempotencyKey)
+						assert.False(t, seen[idempotencyKey], "reused idempotency key %q", idempotencyKey)
+						seen[idempotencyKey] = true
+						delete(requestBody, "idempotency_key")
+						wantRequestBody := tc.wantRequestBody
+						if wantRequestBody == "" {
+							wantRequestBody = `{"name":"Release"}`
+						}
+						encoded, err := json.Marshal(requestBody)
+						require.NoError(t, err)
+						assert.JSONEq(t, wantRequestBody, string(encoded))
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(tc.status)
+						_, err = fmt.Fprint(w, tc.body)
+						require.NoError(t, err)
+					}))
+					deps := BaseDeps{Client: client}
+					inv, err := NewInventory(translations.NullTranslationHelper).
+						WithToolsets([]string{"copilot_automations"}).Build()
+					require.NoError(t, err)
+					server := mcp.NewServer(&mcp.Implementation{Name: "automation-tags", Version: "v1"}, nil)
+					server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+					inv.RegisterTools(context.Background(), server, deps)
+					session := connectCommentVisibilityClient(t, server, protocol)
+					list, err := session.ListTools(context.Background(), nil)
+					require.NoError(t, err)
+					byName := map[string]*mcp.Tool{}
+					for _, tool := range list.Tools {
+						byName[tool.Name] = tool
+					}
+					require.Contains(t, byName, "create_automation_tag")
+					args := tc.args
+					if args == nil {
+						args = map[string]any{"owner": "owner", "repo": "repo", "name": "Release"}
+					}
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: "create_automation_tag", Arguments: args,
+					})
+					require.NoError(t, err)
+					if tc.status == 0 {
+						assert.Zero(t, calls)
+					} else {
+						assert.Equal(t, 1, calls)
+					}
+					if tc.wantError != "" {
+						require.True(t, result.IsError)
+						assert.Contains(t, getErrorResult(t, result).Text, tc.wantError)
+						assert.Nil(t, result.StructuredContent)
+						return
+					}
+					require.False(t, result.IsError)
+					assert.JSONEq(t, tc.want, getTextResult(t, result).Text)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						require.NotNil(t, byName["create_automation_tag"].OutputSchema)
+						encoded, err := json.Marshal(result.StructuredContent)
+						require.NoError(t, err)
+						assert.JSONEq(t, tc.want, string(encoded))
+					} else {
+						assert.Nil(t, result.StructuredContent)
+					}
+				})
+			}
+		})
+	}
+}
