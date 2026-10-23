@@ -213,7 +213,7 @@ func formatGitHubValidationError(resp *github.Response, err error) error {
 		return err
 	}
 
-	parts := make([]string, 0, len(ghErr.Errors)+1)
+	parts := make([]string, 0, len(ghErr.Errors))
 	if summary := sanitizeGitHubValidationText(ghErr.Message); summary != "" {
 		parts = append(parts, summary)
 	}
