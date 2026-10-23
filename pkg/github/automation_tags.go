@@ -107,6 +107,71 @@ func ListAutomationTags(t translations.TranslationHelperFunc) inventory.ServerTo
 	)
 }
 
+type GetAutomationTagInput struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	TagID string `json:"tag_id"`
+}
+
+func GetAutomationTag(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool[GetAutomationTagInput, *AutomationTag](
+		ToolsetMetadataCopilotAutomations,
+		mcp.Tool{
+			Name:        "get_automation_tag",
+			Description: t("TOOL_GET_AUTOMATION_TAG_DESCRIPTION", "Get a caller-visible automation tag in a repository by ID. Tags organize automations; they do not execute them. A tag that is missing, deleted, or not visible to the caller returns a 404 error."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_AUTOMATION_TAG_USER_TITLE", "Get automation tag"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner":  {Type: "string", Description: "Repository owner", MinLength: new(1)},
+					"repo":   {Type: "string", Description: "Repository name", MinLength: new(1)},
+					"tag_id": {Type: "string", Description: "Automation tag ID, as returned by list_automation_tags", MinLength: new(1)},
+				},
+				Required: []string{"owner", "repo", "tag_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetAutomationTagInput) (*mcp.CallToolResult, *AutomationTag, error) {
+			if input.Owner == "." {
+				return utils.NewToolResultError(`owner must not be "."`), nil, nil
+			}
+			if input.Repo == "." {
+				return utils.NewToolResultError(`repo must not be "."`), nil, nil
+			}
+			// URL resolution removes a "." segment, which would send this request to
+			// ".../automation-tags/". NewRequest already rejects "..".
+			if input.TagID == "." {
+				return utils.NewToolResultError(`tag_id must not be "."`), nil, nil
+			}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			apiURL := fmt.Sprintf("agents/repos/%s/%s/automation-tags/%s",
+				url.PathEscape(input.Owner), url.PathEscape(input.Repo), url.PathEscape(input.TagID))
+			req, err := client.NewRequest(ctx, http.MethodGet, apiURL, nil)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create automation tag request", err), nil, nil
+			}
+			var output AutomationTag
+			resp, err := client.Do(req, &output)
+			if resp != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get automation tag", resp, err), nil, nil
+			}
+			if resp.StatusCode != http.StatusOK {
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get automation tag", resp, nil), nil, nil
+			}
+			return MarshalledTextResult(&output), &output, nil
+		},
+	)
+}
+
 func sanitizeAutomationTagNameAndDescription(tag *AutomationTag) {
 	tag.Name = sanitize.PlainText(tag.Name)
 	tag.Description = sanitize.Content(tag.Description)

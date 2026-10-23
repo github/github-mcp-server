@@ -192,8 +192,11 @@ func Test_ListAutomationTags(t *testing.T) {
 					session := connectCommentVisibilityClient(t, server, protocol)
 					list, err := session.ListTools(context.Background(), nil)
 					require.NoError(t, err)
-					require.Len(t, list.Tools, 1)
-					assert.Equal(t, "list_automation_tags", list.Tools[0].Name)
+					byName := map[string]*mcp.Tool{}
+					for _, tool := range list.Tools {
+						byName[tool.Name] = tool
+					}
+					require.Contains(t, byName, "list_automation_tags")
 					args := tc.args
 					if args == nil {
 						args = map[string]any{"owner": "owner", "repo": "repo"}
@@ -216,7 +219,151 @@ func Test_ListAutomationTags(t *testing.T) {
 					require.False(t, result.IsError)
 					assert.JSONEq(t, tc.want, getTextResult(t, result).Text)
 					if protocol == inventory.ProtocolVersionMultiRoundTrip {
-						require.NotNil(t, list.Tools[0].OutputSchema)
+						require.NotNil(t, byName["list_automation_tags"].OutputSchema)
+						encoded, err := json.Marshal(result.StructuredContent)
+						require.NoError(t, err)
+						assert.JSONEq(t, tc.want, string(encoded))
+					} else {
+						assert.Nil(t, result.StructuredContent)
+					}
+				})
+			}
+		})
+	}
+}
+
+func Test_GetAutomationTag(t *testing.T) {
+	toolDef := GetAutomationTag(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	assert.True(t, toolDef.Tool.Annotations.ReadOnlyHint)
+
+	t.Run("discovery", func(t *testing.T) {
+		for _, tc := range []struct {
+			name     string
+			toolsets []string
+			scopes   []string
+			want     bool
+		}{
+			{"default", []string{"default"}, []string{"repo"}, false},
+			{"opt in read only", []string{"copilot_automations"}, []string{"repo"}, true},
+			{"missing scope", []string{"copilot_automations"}, []string{}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				inv, err := NewInventory(translations.NullTranslationHelper).
+					WithToolsets(tc.toolsets).WithReadOnly(true).
+					WithFilter(CreateToolScopeFilter(tc.scopes)).Build()
+				require.NoError(t, err)
+				require.Empty(t, inv.UnrecognizedToolsets())
+				var found bool
+				for _, tool := range inv.AvailableTools(context.Background()) {
+					found = found || tool.Tool.Name == "get_automation_tag"
+				}
+				assert.Equal(t, tc.want, found)
+			})
+		}
+	})
+
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			for _, tc := range []struct {
+				name        string
+				args        map[string]any
+				status      int
+				body        string
+				escapedPath string
+				want        string
+				wantError   string
+			}{
+				{
+					name:   "internal and additive fields",
+					status: http.StatusOK,
+					body:   `{"id":"tag-1","name":"Release","description":"","version":"opaque-version","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z","deleted_at":"2026-10-03T00:00:00Z","can_delete":true,"deletion_pending":false,"has_known_unavailable_members":false,"future_field":true}`,
+					want:   `{"id":"tag-1","name":"Release","description":"","version":"opaque-version","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z"}`,
+				},
+				{
+					name:        "escaped path segments",
+					args:        map[string]any{"owner": "own er", "repo": "re/po", "tag_id": "a/b c"},
+					escapedPath: "/agents/repos/own%20er/re%2Fpo/automation-tags/a%2Fb%20c",
+					status:      http.StatusOK,
+					body:        `{"id":"a/b c","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z"}`,
+					want:        `{"id":"a/b c","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z"}`,
+				},
+				{name: "non-disclosure", status: http.StatusNotFound, body: `{"message":"not found","documentation_url":"https://docs.github.com/rest"}`, wantError: "404"},
+				{name: "empty denial", status: http.StatusNotFound, wantError: "404"},
+				{name: "bad request", status: http.StatusBadRequest, body: `{"message":"Bad Request"}`, wantError: "400"},
+				{name: "permission denied", status: http.StatusForbidden, body: `{"message":"Forbidden"}`, wantError: "403"},
+				{name: "unauthenticated", status: http.StatusUnauthorized, body: `{"message":"Requires authentication"}`, wantError: "401"},
+				{name: "conflict", status: http.StatusConflict, body: `{"message":"Conflict"}`, wantError: "409"},
+				{name: "temporarily unavailable", status: http.StatusServiceUnavailable, body: `{"message":"automation tagging is unavailable","documentation_url":"https://docs.github.com/rest"}`, wantError: "503"},
+				{name: "server error", status: http.StatusInternalServerError, body: `{"message":"Internal Server Error"}`, wantError: "500"},
+				{name: "validation", status: http.StatusUnprocessableEntity, body: `{"message":"Validation Failed"}`, wantError: "Validation Failed"},
+				{name: "unexpected success status", status: http.StatusNoContent, wantError: "204"},
+				{name: "missing tag id", args: map[string]any{"owner": "owner", "repo": "repo"}, wantError: "tag_id"},
+				{name: "empty tag id", args: map[string]any{"owner": "owner", "repo": "repo", "tag_id": ""}, wantError: "tag_id"},
+				{name: "dot tag id", args: map[string]any{"owner": "owner", "repo": "repo", "tag_id": "."}, wantError: `tag_id must not be "."`},
+				{name: "dot owner", args: map[string]any{"owner": ".", "repo": "repo", "tag_id": "tag-1"}, wantError: `owner must not be "."`},
+				{name: "dot repo", args: map[string]any{"owner": "owner", "repo": ".", "tag_id": "tag-1"}, wantError: `repo must not be "."`},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					calls := 0
+					client := mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+						calls++
+						if tc.status == 0 {
+							_, err := fmt.Fprint(w, `{}`)
+							require.NoError(t, err)
+							return
+						}
+						escapedPath := tc.escapedPath
+						if escapedPath == "" {
+							escapedPath = "/agents/repos/owner/repo/automation-tags/tag-1"
+						}
+						assert.Equal(t, "api.github.com", r.URL.Host)
+						assert.Equal(t, http.MethodGet, r.Method)
+						assert.Equal(t, escapedPath, r.URL.EscapedPath())
+						assert.Empty(t, r.URL.RawQuery)
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(tc.status)
+						_, err := fmt.Fprint(w, tc.body)
+						require.NoError(t, err)
+					}))
+					deps := BaseDeps{Client: client}
+					inv, err := NewInventory(translations.NullTranslationHelper).
+						WithToolsets([]string{"copilot_automations"}).WithReadOnly(true).Build()
+					require.NoError(t, err)
+					server := mcp.NewServer(&mcp.Implementation{Name: "automation-tags", Version: "v1"}, nil)
+					server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+					inv.RegisterTools(context.Background(), server, deps)
+					session := connectCommentVisibilityClient(t, server, protocol)
+					list, err := session.ListTools(context.Background(), nil)
+					require.NoError(t, err)
+					byName := map[string]*mcp.Tool{}
+					for _, tool := range list.Tools {
+						byName[tool.Name] = tool
+					}
+					require.Contains(t, byName, "get_automation_tag")
+					args := tc.args
+					if args == nil {
+						args = map[string]any{"owner": "owner", "repo": "repo", "tag_id": "tag-1"}
+					}
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: "get_automation_tag", Arguments: args,
+					})
+					require.NoError(t, err)
+					if tc.status == 0 {
+						assert.Zero(t, calls)
+					} else {
+						assert.Equal(t, 1, calls)
+					}
+					if tc.wantError != "" {
+						require.True(t, result.IsError)
+						assert.Contains(t, getErrorResult(t, result).Text, tc.wantError)
+						assert.Nil(t, result.StructuredContent)
+						return
+					}
+					require.False(t, result.IsError)
+					assert.JSONEq(t, tc.want, getTextResult(t, result).Text)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						require.NotNil(t, byName["get_automation_tag"].OutputSchema)
 						encoded, err := json.Marshal(result.StructuredContent)
 						require.NoError(t, err)
 						assert.JSONEq(t, tc.want, string(encoded))
