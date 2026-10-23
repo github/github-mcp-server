@@ -57,18 +57,6 @@ func ListAutomationTags(t translations.TranslationHelperFunc) inventory.ServerTo
 			if input.Repo == "." || input.Repo == ".." {
 				return utils.NewToolResultError(fmt.Sprintf("repo must not be %q", input.Repo)), nil, nil
 			}
-			if input.Owner == "" {
-				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
-			}
-			if input.Repo == "" {
-				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
-			}
-			if input.Page != nil && *input.Page < 1 {
-				return utils.NewToolResultError("page must be at least 1"), nil, nil
-			}
-			if input.PerPage != nil && (*input.PerPage < 1 || *input.PerPage > 100) {
-				return utils.NewToolResultError("perPage must be between 1 and 100"), nil, nil
-			}
 			pagination := PaginationParams{Page: 1, PerPage: 30}
 			if input.Page != nil {
 				pagination.Page = *input.Page
