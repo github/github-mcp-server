@@ -253,6 +253,7 @@ func CreateAutomationTag(t translations.TranslationHelperFunc) inventory.ServerT
 			if resp.StatusCode != http.StatusCreated {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create automation tag", resp, nil), nil, nil
 			}
+			sanitizeAutomationTagNameAndDescription(&output)
 			return MarshalledTextResult(&output), &output, nil
 		},
 	)

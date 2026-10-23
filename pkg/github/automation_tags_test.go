@@ -514,6 +514,12 @@ func Test_CreateAutomationTag(t *testing.T) {
 					want:        `{"id":"tag-1","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:00:00Z"}`,
 				},
 				{
+					name:   "sanitized name and description",
+					status: http.StatusCreated,
+					body:   `{"id":"tag-1","name":"<script>alert(1)</script>Hello\u200bWorld","description":"<script>alert(1)</script>Hello\u200bWorld","version":"v1","created_at":"","updated_at":""}`,
+					want:   `{"id":"tag-1","name":"HelloWorld","description":"<script>alert(1)</script>HelloWorld","version":"v1","created_at":"","updated_at":""}`,
+				},
+				{
 					name:            "blank name",
 					args:            map[string]any{"owner": "owner", "repo": "repo", "name": " "},
 					wantRequestBody: `{"name":" "}`,
