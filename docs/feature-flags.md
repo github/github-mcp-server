@@ -37,6 +37,37 @@ end users. Insiders-only flags are not user-toggleable.
 
 ## Declaring tool availability
 
+### Issue artifacts
+
+Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
+expose `issue_artifact_read` (`method: list | get`) and `issue_artifact_write`
+(`method: create | update | delete`) in the `issues` toolset.
+This flag is **off by default**, including in Insiders mode. Read-only mode
+exposes only `issue_artifact_read`.
+
+The MCP flag only exposes tools; it does not grant API access. The tools
+use the configured authenticated GitHub client and base URL without an
+endpoint-specific preview header. They declare `repo` in their OAuth challenge
+metadata; API access also depends on the token's permissions and repository
+access. API failures are returned explicitly; writes are not retried.
+
+Artifact numbers are scoped to their owning issue, not global IDs. Updates
+preserve omitted fields, allow `body: ""` to clear the body, and cannot change
+type. Lists return one explicit `page`/`perPage` with bodies; request successive
+pages until fewer than `perPage` artifacts are returned (there are no `Link`
+headers). Artifact names and bodies are sanitized as user-authored content.
+Both tools fail closed in lockdown mode because the reference artifact
+response does not identify authors for content-trust checks.
+
+All methods require `owner`, `repo`, and `issue_number`. Get, update, and delete
+also require `artifact_number`. Create requires `type`, `name`, and `body`;
+an empty body is allowed. Update requires `name`, `body`, or both. Method-specific
+fields are rejected when used with another method.
+
+Get, create, and update return an `artifact` object. List returns a `list` object
+containing `artifacts`, `page`, and `perPage`; delete returns a `deleted` object
+containing `issue_number`, `artifact_number`, and a confirmation message.
+
 Tools, resources, and prompts use `inventory.NewFeatureRule` when feature flags
 change whether they are available. Each rule declares the flags it references
 and evaluates them with a fail-closed `FeatureResolver`, so normal Go boolean
@@ -394,6 +425,30 @@ as output formatting) won't appear here.
     Options are:
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
+
+### `issue_artifacts`
+
+- **issue_artifact_read** - Read issue artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `artifact_number`: Required for get: positive issue-scoped artifact number, not its global ID (integer, optional)
+  - `issue_number`: Positive issue number (integer, required)
+  - `method`:  (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: For list only: page number, starting at 1 (default 1) (integer, optional)
+  - `perPage`: For list only: results per page, from 1 to 100 (default 30) (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`:  (string, optional)
+
+- **issue_artifact_write** - Write issue artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `artifact_number`: Required for update and delete: positive issue-scoped artifact number, not its global ID (integer, optional)
+  - `body`: Required for create, optional for update: Markdown body; an empty string clears it (string, optional)
+  - `issue_number`: Positive issue number (integer, required)
+  - `method`:  (string, required)
+  - `name`: Required for create, optional for update: nonempty artifact name (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `type`:  (string, optional)
 
 ### `duplicate_detection`
 
