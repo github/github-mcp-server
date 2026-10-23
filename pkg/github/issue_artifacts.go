@@ -60,132 +60,146 @@ func newIssueArtifactTool[In, Out any](t translations.TranslationHelperFunc, nam
 	return st
 }
 
-// CreateIssueArtifact creates a Markdown artifact attached to an issue.
-func CreateIssueArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newIssueArtifactTool(t, "create_issue_artifact", "Create issue artifact",
-		"Create a Markdown artifact attached to a GitHub issue. Experimental: endpoint availability and access requirements are unverified.",
-		false, false, []inventory.SchemaEnum{{Path: "type", Values: issueArtifactTypes}},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CreateIssueArtifactInput) (*mcp.CallToolResult, *IssueArtifact, error) {
-			if !slices.Contains(issueArtifactTypes, input.Type) {
-				return utils.NewToolResultError("unsupported artifact type"), nil, nil
-			}
-			if strings.TrimSpace(input.Name) == "" {
-				return utils.NewToolResultError("name must not be empty"), nil, nil
-			}
-			body := struct {
-				Type string `json:"type"`
-				Name string `json:"name"`
-				Body string `json:"body"`
-			}{input.Type, input.Name, input.Body}
-			var output IssueArtifact
-			if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, 0, http.MethodPost, nil, body, &output, http.StatusCreated); result != nil {
-				return result, nil, nil
-			}
-			return issueArtifactResult(ctx, deps, input.IssueArtifactCoordinates, &output, 0)
-		})
-}
-
-// UpdateIssueArtifact updates only the supplied name and/or body.
-func UpdateIssueArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newIssueArtifactTool(t, "update_issue_artifact", "Update issue artifact",
-		"Update an issue artifact by its issue-scoped number. Supply name, body, or both. An empty body clears it; type is immutable.",
-		false, true, nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input UpdateIssueArtifactInput) (*mcp.CallToolResult, *IssueArtifact, error) {
-			if input.ArtifactNumber <= 0 {
-				return utils.NewToolResultError("artifact_number must be positive"), nil, nil
-			}
-			if input.Name == nil && input.Body == nil {
-				return utils.NewToolResultError("supply name, body, or both"), nil, nil
-			}
-			if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
-				return utils.NewToolResultError("name must not be empty"), nil, nil
-			}
-			body := struct {
-				Name *string `json:"name,omitempty"`
-				Body *string `json:"body,omitempty"`
-			}{input.Name, input.Body}
-			var output IssueArtifact
-			if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodPatch, nil, body, &output, http.StatusOK); result != nil {
-				return result, nil, nil
-			}
-			return issueArtifactResult(ctx, deps, input.IssueArtifactCoordinates, &output, input.ArtifactNumber)
-		})
-}
-
-// DeleteIssueArtifact deletes an artifact by its issue-scoped number.
-func DeleteIssueArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newIssueArtifactTool(t, "delete_issue_artifact", "Delete issue artifact",
-		"Delete a GitHub issue artifact by its issue-scoped number, not its global ID.",
-		false, true, nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetIssueArtifactInput) (*mcp.CallToolResult, *DeleteIssueArtifactOutput, error) {
-			if input.ArtifactNumber <= 0 {
-				return utils.NewToolResultError("artifact_number must be positive"), nil, nil
-			}
-			if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodDelete, nil, nil, nil, http.StatusNoContent); result != nil {
-				return result, nil, nil
-			}
-			output := &DeleteIssueArtifactOutput{IssueNumber: input.IssueNumber, ArtifactNumber: input.ArtifactNumber, Message: "artifact deleted"}
-			return MarshalledTextResult(output), output, nil
-		})
-}
-
-// GetIssueArtifact reads one artifact, including its body.
-func GetIssueArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newIssueArtifactTool(t, "get_issue_artifact", "Get issue artifact",
-		"Get a GitHub issue artifact including its body by its issue-scoped number, not its global ID.",
-		true, false, nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetIssueArtifactInput) (*mcp.CallToolResult, *IssueArtifact, error) {
-			if input.ArtifactNumber <= 0 {
-				return utils.NewToolResultError("artifact_number must be positive"), nil, nil
-			}
-			var response struct {
-				Artifact *IssueArtifact `json:"artifact"`
-			}
-			if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodGet, nil, nil, &response, http.StatusOK); result != nil {
-				return result, nil, nil
-			}
-			return issueArtifactResult(ctx, deps, input.IssueArtifactCoordinates, response.Artifact, input.ArtifactNumber)
-		})
-}
-
-// ListIssueArtifacts reads an explicit page of artifacts, including bodies.
-func ListIssueArtifacts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newIssueArtifactTool(t, "list_issue_artifacts", "List issue artifacts",
-		"List a page of GitHub issue artifacts including their bodies, optionally filtered by type. No Link headers are provided: request successive pages until a page is shorter than perPage.",
-		true, false, []inventory.SchemaEnum{{Path: "type", Values: issueArtifactTypes}},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListIssueArtifactsInput) (*mcp.CallToolResult, *ListIssueArtifactsOutput, error) {
-			if input.Type != "" && !slices.Contains(issueArtifactTypes, input.Type) {
-				return utils.NewToolResultError("unsupported artifact type"), nil, nil
-			}
-			if input.Page < 0 || input.PerPage < 0 || input.PerPage > 100 {
-				return utils.NewToolResultError("page must be positive and perPage must be between 1 and 100"), nil, nil
-			}
-			if input.Page == 0 {
-				input.Page = 1
-			}
-			if input.PerPage == 0 {
-				input.PerPage = 30
-			}
-			query := url.Values{"page": {strconv.Itoa(input.Page)}, "per_page": {strconv.Itoa(input.PerPage)}}
-			if input.Type != "" {
-				query.Set("type", input.Type)
-			}
-			var artifacts []IssueArtifact
-			if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, 0, http.MethodGet, query, nil, &artifacts, http.StatusOK); result != nil {
-				return result, nil, nil
-			}
-			if artifacts == nil || len(artifacts) > input.PerPage {
-				return utils.NewToolResultError("invalid artifact list response"), nil, nil
-			}
-			for i := range artifacts {
-				if err := validateIssueArtifact(&artifacts[i], 0); err != nil {
-					return utils.NewToolResultErrorFromErr("invalid artifact list response", err), nil, nil
+// IssueArtifactWrite creates, updates, or deletes an issue artifact.
+func IssueArtifactWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newIssueArtifactTool(t, "issue_artifact_write", "Write issue artifacts",
+		"Create, update, or delete a GitHub issue artifact. Create requires type, name, and body (which may be empty). Update requires artifact_number and name, body, or both; an empty body clears it and type is immutable. Delete requires artifact_number. Artifact numbers are issue-scoped, not global IDs. Experimental: endpoint availability and access requirements are unverified.",
+		false, true, []inventory.SchemaEnum{{Path: "method", Values: []string{"create", "update", "delete"}}, {Path: "type", Values: issueArtifactTypes}},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueArtifactWriteInput) (*mcp.CallToolResult, *IssueArtifactWriteOutput, error) {
+			var artifact IssueArtifact
+			switch input.Method {
+			case "create":
+				if input.ArtifactNumber != 0 {
+					return utils.NewToolResultError("artifact_number is not supported for create"), nil, nil
 				}
-				sanitizeIssueArtifact(&artifacts[i])
+				if !slices.Contains(issueArtifactTypes, input.Type) {
+					return utils.NewToolResultError("unsupported artifact type"), nil, nil
+				}
+				if input.Name == nil || strings.TrimSpace(*input.Name) == "" {
+					return utils.NewToolResultError("name must not be empty"), nil, nil
+				}
+				if input.Body == nil {
+					return utils.NewToolResultError("body is required for create; use an empty string for an empty body"), nil, nil
+				}
+				body := struct {
+					Type string `json:"type"`
+					Name string `json:"name"`
+					Body string `json:"body"`
+				}{input.Type, *input.Name, *input.Body}
+				if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, 0, http.MethodPost, nil, body, &artifact, http.StatusCreated); result != nil {
+					return result, nil, nil
+				}
+			case "update":
+				if input.ArtifactNumber <= 0 {
+					return utils.NewToolResultError("artifact_number must be positive"), nil, nil
+				}
+				if input.Type != "" {
+					return utils.NewToolResultError("type is immutable; only supported for create"), nil, nil
+				}
+				if input.Name == nil && input.Body == nil {
+					return utils.NewToolResultError("supply name, body, or both"), nil, nil
+				}
+				if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
+					return utils.NewToolResultError("name must not be empty"), nil, nil
+				}
+				body := struct {
+					Name *string `json:"name,omitempty"`
+					Body *string `json:"body,omitempty"`
+				}{input.Name, input.Body}
+				if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodPatch, nil, body, &artifact, http.StatusOK); result != nil {
+					return result, nil, nil
+				}
+			case "delete":
+				if input.ArtifactNumber <= 0 {
+					return utils.NewToolResultError("artifact_number must be positive"), nil, nil
+				}
+				if input.Type != "" || input.Name != nil || input.Body != nil {
+					return utils.NewToolResultError("type, name, and body are not supported for delete"), nil, nil
+				}
+				if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodDelete, nil, nil, nil, http.StatusNoContent); result != nil {
+					return result, nil, nil
+				}
+				output := &IssueArtifactWriteOutput{Deleted: &DeleteIssueArtifactOutput{IssueNumber: input.IssueNumber, ArtifactNumber: input.ArtifactNumber, Message: "artifact deleted"}}
+				return MarshalledTextResult(output), output, nil
+			default:
+				return utils.NewToolResultError("method must be create, update, or delete"), nil, nil
 			}
-			output := &ListIssueArtifactsOutput{Artifacts: artifacts, Page: input.Page, PerPage: input.PerPage}
+			if err := validateIssueArtifact(&artifact, input.ArtifactNumber); err != nil {
+				return utils.NewToolResultErrorFromErr("invalid artifact response", err), nil, nil
+			}
+			sanitizeIssueArtifact(&artifact)
+			output := &IssueArtifactWriteOutput{Artifact: &artifact}
 			result := attachRepoVisibilityIFCLabelLazy(ctx, deps, input.Owner, input.Repo, MarshalledTextResult(output), ifc.LabelRepoUserContent)
 			return result, output, nil
+		})
+}
+
+// IssueArtifactRead lists issue artifacts or gets one artifact, including bodies.
+func IssueArtifactRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newIssueArtifactTool(t, "issue_artifact_read", "Read issue artifacts",
+		"List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page is shorter than perPage because no Link headers are provided.",
+		true, false, []inventory.SchemaEnum{{Path: "method", Values: []string{"list", "get"}}, {Path: "type", Values: issueArtifactTypes}},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueArtifactReadInput) (*mcp.CallToolResult, *IssueArtifactReadOutput, error) {
+			switch input.Method {
+			case "get":
+				if input.ArtifactNumber <= 0 {
+					return utils.NewToolResultError("artifact_number must be positive"), nil, nil
+				}
+				if input.Type != "" || input.Page != 0 || input.PerPage != 0 {
+					return utils.NewToolResultError("type, page, and perPage are only supported for list"), nil, nil
+				}
+				var response struct {
+					Artifact *IssueArtifact `json:"artifact"`
+				}
+				if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, input.ArtifactNumber, http.MethodGet, nil, nil, &response, http.StatusOK); result != nil {
+					return result, nil, nil
+				}
+				if err := validateIssueArtifact(response.Artifact, input.ArtifactNumber); err != nil {
+					return utils.NewToolResultErrorFromErr("invalid artifact response", err), nil, nil
+				}
+				sanitizeIssueArtifact(response.Artifact)
+				output := &IssueArtifactReadOutput{Artifact: response.Artifact}
+				result := attachRepoVisibilityIFCLabelLazy(ctx, deps, input.Owner, input.Repo, MarshalledTextResult(output), ifc.LabelRepoUserContent)
+				return result, output, nil
+			case "list":
+				if input.ArtifactNumber != 0 {
+					return utils.NewToolResultError("artifact_number is only supported for get"), nil, nil
+				}
+				if input.Type != "" && !slices.Contains(issueArtifactTypes, input.Type) {
+					return utils.NewToolResultError("unsupported artifact type"), nil, nil
+				}
+				if input.Page < 0 || input.PerPage < 0 || input.PerPage > 100 {
+					return utils.NewToolResultError("page must be positive and perPage must be between 1 and 100"), nil, nil
+				}
+				if input.Page == 0 {
+					input.Page = 1
+				}
+				if input.PerPage == 0 {
+					input.PerPage = 30
+				}
+				query := url.Values{"page": {strconv.Itoa(input.Page)}, "per_page": {strconv.Itoa(input.PerPage)}}
+				if input.Type != "" {
+					query.Set("type", input.Type)
+				}
+				var artifacts []IssueArtifact
+				if result := issueArtifactRequest(ctx, deps, input.IssueArtifactCoordinates, 0, http.MethodGet, query, nil, &artifacts, http.StatusOK); result != nil {
+					return result, nil, nil
+				}
+				if artifacts == nil || len(artifacts) > input.PerPage {
+					return utils.NewToolResultError("invalid artifact list response"), nil, nil
+				}
+				for i := range artifacts {
+					if err := validateIssueArtifact(&artifacts[i], 0); err != nil {
+						return utils.NewToolResultErrorFromErr("invalid artifact list response", err), nil, nil
+					}
+					sanitizeIssueArtifact(&artifacts[i])
+				}
+				output := &IssueArtifactReadOutput{List: &ListIssueArtifactsOutput{Artifacts: artifacts, Page: input.Page, PerPage: input.PerPage}}
+				result := attachRepoVisibilityIFCLabelLazy(ctx, deps, input.Owner, input.Repo, MarshalledTextResult(output), ifc.LabelRepoUserContent)
+				return result, output, nil
+			default:
+				return utils.NewToolResultError("method must be list or get"), nil, nil
+			}
 		})
 }
 
@@ -241,13 +255,4 @@ func validateIssueArtifact(artifact *IssueArtifact, number int) error {
 func sanitizeIssueArtifact(artifact *IssueArtifact) {
 	artifact.Name = sanitize.PlainText(artifact.Name)
 	artifact.Body = sanitize.Content(artifact.Body)
-}
-
-func issueArtifactResult(ctx context.Context, deps ToolDependencies, coordinates IssueArtifactCoordinates, artifact *IssueArtifact, number int) (*mcp.CallToolResult, *IssueArtifact, error) {
-	if err := validateIssueArtifact(artifact, number); err != nil {
-		return utils.NewToolResultErrorFromErr("invalid artifact response", err), nil, nil
-	}
-	sanitizeIssueArtifact(artifact)
-	result := attachRepoVisibilityIFCLabelLazy(ctx, deps, coordinates.Owner, coordinates.Repo, MarshalledTextResult(artifact), ifc.LabelRepoUserContent)
-	return result, artifact, nil
 }

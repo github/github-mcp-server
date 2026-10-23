@@ -3,9 +3,9 @@
     "destructiveHint": true,
     "idempotentHint": false,
     "readOnlyHint": false,
-    "title": "Delete issue artifact"
+    "title": "Write issue artifacts"
   },
-  "description": "Delete a GitHub issue artifact by its issue-scoped number, not its global ID.",
+  "description": "Create, update, or delete a GitHub issue artifact. Create requires type, name, and body (which may be empty). Update requires artifact_number and name, body, or both; an empty body clears it and type is immutable. Delete requires artifact_number. Artifact numbers are issue-scoped, not global IDs. Experimental: endpoint availability and access requirements are unverified.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -22,14 +22,31 @@
     "additionalProperties": false,
     "properties": {
       "artifact_number": {
-        "description": "Positive issue-scoped artifact number, not its global ID",
+        "description": "Required for update and delete: positive issue-scoped artifact number, not its global ID",
         "minimum": 1,
         "type": "integer"
+      },
+      "body": {
+        "description": "Required for create, optional for update: Markdown body; an empty string clears it",
+        "type": "string"
       },
       "issue_number": {
         "description": "Positive issue number",
         "minimum": 1,
         "type": "integer"
+      },
+      "method": {
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "description": "Required for create, optional for update: nonempty artifact name",
+        "minLength": 1,
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner",
@@ -42,35 +59,89 @@
         "minLength": 1,
         "type": "string",
         "x-mcp-header": "repo"
+      },
+      "type": {
+        "enum": [
+          "plan",
+          "generic",
+          "link",
+          "instruction",
+          "skill",
+          "mcp_config",
+          "reference"
+        ],
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "issue_number",
-      "artifact_number"
+      "method"
     ],
     "type": "object"
   },
-  "name": "delete_issue_artifact",
+  "name": "issue_artifact_write",
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
-      "artifact_number": {
-        "type": "integer"
+      "artifact": {
+        "additionalProperties": false,
+        "description": "Artifact returned by create or update",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "type",
+          "name",
+          "body"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      "issue_number": {
-        "type": "integer"
-      },
-      "message": {
-        "type": "string"
+      "deleted": {
+        "additionalProperties": false,
+        "description": "Confirmation returned by delete",
+        "properties": {
+          "artifact_number": {
+            "type": "integer"
+          },
+          "issue_number": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_number",
+          "artifact_number",
+          "message"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
       }
     },
-    "required": [
-      "issue_number",
-      "artifact_number",
-      "message"
-    ],
     "type": [
       "null",
       "object"

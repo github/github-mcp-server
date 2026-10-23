@@ -2,10 +2,10 @@
   "annotations": {
     "destructiveHint": false,
     "idempotentHint": false,
-    "readOnlyHint": false,
-    "title": "Create issue artifact"
+    "readOnlyHint": true,
+    "title": "Read issue artifacts"
   },
-  "description": "Create a Markdown artifact attached to a GitHub issue. Experimental: endpoint availability and access requirements are unverified.",
+  "description": "List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page is shorter than perPage because no Link headers are provided.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -21,18 +21,21 @@
   "inputSchema": {
     "additionalProperties": false,
     "properties": {
-      "body": {
-        "description": "Markdown body; may be empty",
-        "type": "string"
+      "artifact_number": {
+        "description": "Required for get: positive issue-scoped artifact number, not its global ID",
+        "minimum": 1,
+        "type": "integer"
       },
       "issue_number": {
         "description": "Positive issue number",
         "minimum": 1,
         "type": "integer"
       },
-      "name": {
-        "description": "Nonempty artifact name",
-        "minLength": 1,
+      "method": {
+        "enum": [
+          "list",
+          "get"
+        ],
         "type": "string"
       },
       "owner": {
@@ -40,6 +43,17 @@
         "minLength": 1,
         "type": "string",
         "x-mcp-header": "owner"
+      },
+      "page": {
+        "description": "For list only: page number, starting at 1 (default 1)",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "perPage": {
+        "description": "For list only: results per page, from 1 to 100 (default 30)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
       },
       "repo": {
         "description": "Repository name",
@@ -64,39 +78,102 @@
       "owner",
       "repo",
       "issue_number",
-      "type",
-      "name",
-      "body"
+      "method"
     ],
     "type": "object"
   },
-  "name": "create_issue_artifact",
+  "name": "issue_artifact_read",
   "outputSchema": {
     "additionalProperties": false,
     "properties": {
-      "body": {
-        "type": "string"
+      "artifact": {
+        "additionalProperties": false,
+        "description": "Artifact returned by get",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "type",
+          "name",
+          "body"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
       },
-      "id": {
-        "type": "integer"
-      },
-      "name": {
-        "type": "string"
-      },
-      "number": {
-        "type": "integer"
-      },
-      "type": {
-        "type": "string"
+      "list": {
+        "additionalProperties": false,
+        "description": "Page of artifacts returned by list",
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "number",
+                "type",
+                "name",
+                "body"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "page": {
+            "type": "integer"
+          },
+          "perPage": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifacts",
+          "page",
+          "perPage"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
       }
     },
-    "required": [
-      "id",
-      "number",
-      "type",
-      "name",
-      "body"
-    ],
     "type": [
       "null",
       "object"

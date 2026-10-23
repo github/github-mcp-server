@@ -17,35 +17,36 @@ type IssueArtifactCoordinates struct {
 	IssueNumber int    `json:"issue_number" jsonschema:"Positive issue number"`
 }
 
-// CreateIssueArtifactInput creates an artifact, including an optionally empty body.
-type CreateIssueArtifactInput struct {
+// IssueArtifactReadInput selects a list or get operation on an issue's artifacts.
+type IssueArtifactReadInput struct {
 	IssueArtifactCoordinates
-	Type string `json:"type" jsonschema:"Artifact type"`
-	Name string `json:"name" jsonschema:"Nonempty artifact name"`
-	Body string `json:"body" jsonschema:"Markdown body; may be empty"`
+	Method         string `json:"method" jsonschema:"Read operation: list or get"`
+	ArtifactNumber int    `json:"artifact_number,omitempty" jsonschema:"Required for get: positive issue-scoped artifact number, not its global ID"`
+	Type           string `json:"type,omitempty" jsonschema:"Optional artifact type filter for list only"`
+	Page           int    `json:"page,omitempty" jsonschema:"For list only: page number, starting at 1 (default 1)"`
+	PerPage        int    `json:"perPage,omitempty" jsonschema:"For list only: results per page, from 1 to 100 (default 30)"`
 }
 
-// UpdateIssueArtifactInput preserves omitted fields; an empty body clears it.
-// The artifact's type cannot be changed.
-type UpdateIssueArtifactInput struct {
+// IssueArtifactWriteInput selects a create, update, or delete operation.
+type IssueArtifactWriteInput struct {
 	IssueArtifactCoordinates
-	ArtifactNumber int     `json:"artifact_number" jsonschema:"Positive issue-scoped artifact number, not its global ID"`
-	Name           *string `json:"name,omitempty" jsonschema:"Replacement nonempty name"`
-	Body           *string `json:"body,omitempty" jsonschema:"Replacement Markdown body; an empty string clears it"`
+	Method         string  `json:"method" jsonschema:"Write operation: create, update, or delete"`
+	ArtifactNumber int     `json:"artifact_number,omitempty" jsonschema:"Required for update and delete: positive issue-scoped artifact number, not its global ID"`
+	Type           string  `json:"type,omitempty" jsonschema:"Required for create only: artifact type; immutable after creation"`
+	Name           *string `json:"name,omitempty" jsonschema:"Required for create, optional for update: nonempty artifact name"`
+	Body           *string `json:"body,omitempty" jsonschema:"Required for create, optional for update: Markdown body; an empty string clears it"`
 }
 
-// GetIssueArtifactInput addresses one artifact for reading or deletion.
-type GetIssueArtifactInput struct {
-	IssueArtifactCoordinates
-	ArtifactNumber int `json:"artifact_number" jsonschema:"Positive issue-scoped artifact number, not its global ID"`
+// IssueArtifactReadOutput contains the result of the selected read method.
+type IssueArtifactReadOutput struct {
+	Artifact *IssueArtifact            `json:"artifact,omitempty" jsonschema:"Artifact returned by get"`
+	List     *ListIssueArtifactsOutput `json:"list,omitempty" jsonschema:"Page of artifacts returned by list"`
 }
 
-// ListIssueArtifactsInput selects an explicit page, without relying on Link headers.
-type ListIssueArtifactsInput struct {
-	IssueArtifactCoordinates
-	Type    string `json:"type,omitempty" jsonschema:"Optional artifact type filter"`
-	Page    int    `json:"page,omitempty" jsonschema:"Page number, starting at 1 (default 1)"`
-	PerPage int    `json:"perPage,omitempty" jsonschema:"Results per page, from 1 to 100 (default 30)"`
+// IssueArtifactWriteOutput contains the result of the selected write method.
+type IssueArtifactWriteOutput struct {
+	Artifact *IssueArtifact             `json:"artifact,omitempty" jsonschema:"Artifact returned by create or update"`
+	Deleted  *DeleteIssueArtifactOutput `json:"deleted,omitempty" jsonschema:"Confirmation returned by delete"`
 }
 
 // ListIssueArtifactsOutput includes bodies and the requested page coordinates.

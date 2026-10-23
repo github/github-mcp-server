@@ -21,13 +21,23 @@ import (
 
 func artifactTestTools() []inventory.ServerTool {
 	t := translations.NullTranslationHelper
-	return []inventory.ServerTool{CreateIssueArtifact(t), UpdateIssueArtifact(t), DeleteIssueArtifact(t), ListIssueArtifacts(t), GetIssueArtifact(t)}
+	return []inventory.ServerTool{IssueArtifactRead(t), IssueArtifactWrite(t)}
+}
+
+func artifactTestOperation(index int) (inventory.ServerTool, string) {
+	method := []string{"create", "update", "delete", "list", "get"}[index]
+	tool := IssueArtifactWrite(translations.NullTranslationHelper)
+	if method == "list" || method == "get" {
+		tool = IssueArtifactRead(translations.NullTranslationHelper)
+	}
+	return tool, method
 }
 
 func TestIssueArtifactTools(t *testing.T) {
 	session := artifactTestSession(t, artifactTestTools(), BaseDeps{})
 	list, err := session.ListTools(context.Background(), nil)
 	require.NoError(t, err)
+	require.Len(t, list.Tools, 2)
 	registered := make(map[string]*mcp.Tool, len(list.Tools))
 	for _, tool := range list.Tools {
 		registered[tool.Name] = tool
@@ -40,9 +50,19 @@ func TestIssueArtifactTools(t *testing.T) {
 			assert.Equal(t, ToolsetMetadataIssues.ID, tool.Toolset.ID)
 			assert.Equal(t, []inventory.FeatureFlag{FeatureFlagIssueArtifacts}, tool.FeatureRule.Features())
 			schema := tool.Tool.InputSchema.(*jsonschema.Schema)
-			assert.Subset(t, schema.Required, []string{"owner", "repo", "issue_number"})
+			assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "issue_number"})
 			assert.NotNil(t, wireTool.OutputSchema)
-			assert.Equal(t, strings.HasPrefix(tool.Tool.Name, "get_") || strings.HasPrefix(tool.Tool.Name, "list_"), tool.IsReadOnly())
+			assert.Equal(t, tool.Tool.Name == "issue_artifact_read", tool.IsReadOnly())
+			assert.Equal(t, tool.Tool.Name == "issue_artifact_write", *tool.Tool.Annotations.DestructiveHint)
+			methods := []string{"list", "get"}
+			if tool.Tool.Name == "issue_artifact_write" {
+				methods = []string{"create", "update", "delete"}
+			}
+			var actualMethods []string
+			for _, method := range schema.Properties["method"].Enum {
+				actualMethods = append(actualMethods, method.(string))
+			}
+			assert.ElementsMatch(t, methods, actualMethods)
 		})
 	}
 	assert.False(t, ResolveFeatureFlags(nil, true)[FeatureFlagIssueArtifacts])
@@ -54,8 +74,8 @@ func TestIssueArtifactTools(t *testing.T) {
 		count    int
 	}{
 		{"default", false, false, 0},
-		{"enabled", true, false, 5},
-		{"read only", true, true, 2},
+		{"enabled", true, false, 2},
+		{"read only", true, true, 1},
 		{"read only default", false, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -68,7 +88,7 @@ func TestIssueArtifactTools(t *testing.T) {
 			require.NoError(t, err)
 			count := 0
 			for _, tool := range inv.AvailableTools(context.Background()) {
-				if strings.HasSuffix(tool.Tool.Name, "_issue_artifact") || tool.Tool.Name == "list_issue_artifacts" {
+				if strings.HasPrefix(tool.Tool.Name, "issue_artifact_") {
 					count++
 					if tc.readOnly {
 						assert.True(t, tool.IsReadOnly())
@@ -143,17 +163,24 @@ func TestIssueArtifactRequests(t *testing.T) {
 			require.NoError(t, err)
 			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
 			maps.Copy(args, tc.args)
-			tool := artifactTestTools()[tc.index]
+			tool, method := artifactTestOperation(tc.index)
+			args["method"] = method
 			result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
 			require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
 			assert.Equal(t, 1, calls)
 			text := getTextResult(t, result).Text
+			var structured any
+			require.NoError(t, json.Unmarshal([]byte(text), &structured))
+			assert.Equal(t, structured, result.StructuredContent)
 			switch tc.index {
 			case 2:
-				assert.JSONEq(t, `{"issue_number":12,"artifact_number":3,"message":"artifact deleted"}`, text)
+				assert.JSONEq(t, `{"deleted":{"issue_number":12,"artifact_number":3,"message":"artifact deleted"}}`, text)
 			case 3:
-				var output ListIssueArtifactsOutput
-				require.NoError(t, json.Unmarshal([]byte(text), &output))
+				var readOutput IssueArtifactReadOutput
+				require.NoError(t, json.Unmarshal([]byte(text), &readOutput))
+				require.Nil(t, readOutput.Artifact)
+				output := readOutput.List
+				require.NotNil(t, output)
 				if tc.name == "list empty" {
 					require.NotNil(t, output.Artifacts)
 					assert.Empty(t, output.Artifacts)
@@ -169,10 +196,13 @@ func TestIssueArtifactRequests(t *testing.T) {
 					assert.Equal(t, 30, output.PerPage)
 				}
 			default:
-				var output IssueArtifact
+				var output struct {
+					Artifact *IssueArtifact `json:"artifact"`
+				}
 				require.NoError(t, json.Unmarshal([]byte(text), &output))
-				assert.Equal(t, int64(999), output.ID)
-				assert.Equal(t, 3, output.Number)
+				require.NotNil(t, output.Artifact)
+				assert.Equal(t, int64(999), output.Artifact.ID)
+				assert.Equal(t, 3, output.Artifact.Number)
 			}
 		})
 	}
@@ -203,26 +233,58 @@ func TestIssueArtifactInvalidInputs(t *testing.T) {
 		{"too large page size", 3, map[string]any{"perPage": 101}},
 		{"zero page size", 3, map[string]any{"perPage": 0}},
 		{"unsupported filter", 3, map[string]any{"type": "unknown"}},
+		{"missing read method", 3, map[string]any{"method": nil}},
+		{"missing write method", 0, map[string]any{"method": nil}},
+		{"unknown read method", 3, map[string]any{"method": "create"}},
+		{"unknown write method", 0, map[string]any{"method": "get"}},
+		{"get without number", 4, nil},
+		{"update without number", 1, map[string]any{"body": ""}},
+		{"delete without number", 2, nil},
+		{"create without type", 0, map[string]any{"name": "Plan", "body": ""}},
+		{"create without name", 0, map[string]any{"type": "plan", "body": ""}},
+		{"create with null body", 0, map[string]any{"type": "plan", "name": "Plan", "body": nil}},
+		{"create with number", 0, map[string]any{"artifact_number": 3, "type": "plan", "name": "Plan", "body": ""}},
+		{"delete with body", 2, map[string]any{"artifact_number": 3, "body": ""}},
+		{"delete with name", 2, map[string]any{"artifact_number": 3, "name": "Plan"}},
+		{"delete with type", 2, map[string]any{"artifact_number": 3, "type": "plan"}},
+		{"get with page", 4, map[string]any{"artifact_number": 3, "page": 1}},
+		{"get with page size", 4, map[string]any{"artifact_number": 3, "perPage": 1}},
+		{"get with filter", 4, map[string]any{"artifact_number": 3, "type": "plan"}},
+		{"list with number", 3, map[string]any{"artifact_number": 3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
+			tool, method := artifactTestOperation(tc.index)
+			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12, "method": method}
 			maps.Copy(args, tc.args)
-			result := callArtifactTool(t, artifactTestTools()[tc.index], BaseDeps{}, args)
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer server.Close()
+			client, err := gogithub.NewClient(
+				gogithub.WithHTTPClient(server.Client()),
+				gogithub.WithEnterpriseURLs(server.URL+"/", server.URL+"/"),
+			)
+			require.NoError(t, err)
+			result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
 			assert.True(t, result.IsError)
+			assert.Zero(t, calls, "invalid arguments must not make API requests")
 		})
 	}
 }
 
 func TestIssueArtifactFailures(t *testing.T) {
-	for _, tool := range artifactTestTools() {
-		t.Run(tool.Tool.Name, func(t *testing.T) {
-			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12}
-			switch tool.Tool.Name {
-			case "create_issue_artifact":
+	for index := range 5 {
+		tool, method := artifactTestOperation(index)
+		t.Run(method, func(t *testing.T) {
+			args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12, "method": method}
+			switch method {
+			case "create":
 				args["name"], args["type"], args["body"] = "Plan", "plan", ""
-			case "update_issue_artifact":
+			case "update":
 				args["artifact_number"], args["body"] = 3, ""
-			case "get_issue_artifact", "delete_issue_artifact":
+			case "get", "delete":
 				args["artifact_number"] = 3
 			}
 			t.Run("lockdown", func(t *testing.T) {

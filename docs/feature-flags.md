@@ -40,10 +40,10 @@ end users. Insiders-only flags are not user-toggleable.
 ### Issue artifacts
 
 Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
-expose `create_issue_artifact`, `update_issue_artifact`, `delete_issue_artifact`,
-`list_issue_artifacts`, and `get_issue_artifact` in the `issues` toolset.
+expose `issue_artifact_read` (`method: list | get`) and `issue_artifact_write`
+(`method: create | update | delete`) in the `issues` toolset.
 This flag is **off by default**, including in Insiders mode. Read-only mode
-exposes only list and get.
+exposes only `issue_artifact_read`.
 
 The MCP flag only exposes tools; it does not grant API access. The tools
 use the configured authenticated GitHub client and base URL without an
@@ -56,8 +56,17 @@ preserve omitted fields, allow `body: ""` to clear the body, and cannot change
 type. Lists return one explicit `page`/`perPage` with bodies; request successive
 pages until fewer than `perPage` artifacts are returned (there are no `Link`
 headers). Artifact names and bodies are sanitized as user-authored content.
-All five tools fail closed in lockdown mode because the reference artifact
+Both tools fail closed in lockdown mode because the reference artifact
 response does not identify authors for content-trust checks.
+
+All methods require `owner`, `repo`, and `issue_number`. Get, update, and delete
+also require `artifact_number`. Create requires `type`, `name`, and `body`;
+an empty body is allowed. Update requires `name`, `body`, or both. Method-specific
+fields are rejected when used with another method.
+
+Get, create, and update return an `artifact` object. List returns a `list` object
+containing `artifacts`, `page`, and `perPage`; delete returns a `deleted` object
+containing `issue_number`, `artifact_number`, and a confirmation message.
 
 Tools, resources, and prompts use `inventory.NewFeatureRule` when feature flags
 change whether they are available. Each rule declares the flags it references
@@ -419,46 +428,27 @@ as output formatting) won't appear here.
 
 ### `issue_artifacts`
 
-- **create_issue_artifact** - Create issue artifact
+- **issue_artifact_read** - Read issue artifacts
   - **OAuth Challenge Scopes**: `repo`
-  - `body`: Markdown body; may be empty (string, required)
+  - `artifact_number`: Required for get: positive issue-scoped artifact number, not its global ID (integer, optional)
   - `issue_number`: Positive issue number (integer, required)
-  - `name`: Nonempty artifact name (string, required)
+  - `method`:  (string, required)
   - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `type`:  (string, required)
-
-- **delete_issue_artifact** - Delete issue artifact
-  - **OAuth Challenge Scopes**: `repo`
-  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
-  - `issue_number`: Positive issue number (integer, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_issue_artifact** - Get issue artifact
-  - **OAuth Challenge Scopes**: `repo`
-  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
-  - `issue_number`: Positive issue number (integer, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **list_issue_artifacts** - List issue artifacts
-  - **OAuth Challenge Scopes**: `repo`
-  - `issue_number`: Positive issue number (integer, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number, starting at 1 (default 1) (integer, optional)
-  - `perPage`: Results per page, from 1 to 100 (default 30) (integer, optional)
+  - `page`: For list only: page number, starting at 1 (default 1) (integer, optional)
+  - `perPage`: For list only: results per page, from 1 to 100 (default 30) (integer, optional)
   - `repo`: Repository name (string, required)
   - `type`:  (string, optional)
 
-- **update_issue_artifact** - Update issue artifact
+- **issue_artifact_write** - Write issue artifacts
   - **OAuth Challenge Scopes**: `repo`
-  - `artifact_number`: Positive issue-scoped artifact number, not its global ID (integer, required)
-  - `body`: Replacement Markdown body; an empty string clears it (string, optional)
+  - `artifact_number`: Required for update and delete: positive issue-scoped artifact number, not its global ID (integer, optional)
+  - `body`: Required for create, optional for update: Markdown body; an empty string clears it (string, optional)
   - `issue_number`: Positive issue number (integer, required)
-  - `name`: Replacement nonempty name (string, optional)
+  - `method`:  (string, required)
+  - `name`: Required for create, optional for update: nonempty artifact name (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `type`:  (string, optional)
 
 ### `duplicate_detection`
 
