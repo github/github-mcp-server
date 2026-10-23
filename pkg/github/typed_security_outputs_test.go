@@ -390,3 +390,88 @@ func TestSecurityOutputDTOs(t *testing.T) {
 		check(typ)
 	}
 }
+
+func TestNormalizeSecurityIntegerArguments(t *testing.T) {
+	normalize := normalizeSecurityIntegerArguments("alertNumber", "page")
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		expectError bool
+	}{
+		{
+			name:        "valid numeric integer",
+			input:       `{"alertNumber": 42}`,
+			expected:    `{"alertNumber": 42}`,
+			expectError: false,
+		},
+		{
+			name:        "valid string integer",
+			input:       `{"alertNumber": "42"}`,
+			expected:    `{"alertNumber": 42}`,
+			expectError: false,
+		},
+		{
+			name:        "valid MaxInt32 string",
+			input:       `{"alertNumber": "2147483647"}`,
+			expected:    `{"alertNumber": 2147483647}`,
+			expectError: false,
+		},
+		{
+			name:        "2^63 string parameter rejected",
+			input:       `{"alertNumber": "9223372036854775808"}`,
+			expectError: true,
+		},
+		{
+			name:        "MaxInt64 string parameter rounds up to 2^63 rejected",
+			input:       `{"alertNumber": "9223372036854775807"}`,
+			expectError: true,
+		},
+		{
+			name:        "2^63 numeric parameter rejected",
+			input:       `{"alertNumber": 9223372036854775808}`,
+			expectError: true,
+		},
+		{
+			name:        "non-integer string rejected",
+			input:       `{"alertNumber": "1.5"}`,
+			expectError: true,
+		},
+		{
+			name:        "invalid syntax string rejected",
+			input:       `{"alertNumber": "abc"}`,
+			expectError: true,
+		},
+		{
+			name:        "null value rejected",
+			input:       `{"alertNumber": null}`,
+			expectError: true,
+		},
+		{
+			name:        "omitted field preserved",
+			input:       `{"other": "value"}`,
+			expected:    `{"other": "value"}`,
+			expectError: false,
+		},
+		{
+			name:        "multiple fields normalized",
+			input:       `{"alertNumber": "10", "page": "2"}`,
+			expected:    `{"alertNumber": 10, "page": 2}`,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			normalized, err := normalize(json.RawMessage(tc.input))
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "is not a valid number")
+			} else {
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.expected, string(normalized))
+			}
+		})
+	}
+}
