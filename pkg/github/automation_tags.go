@@ -8,6 +8,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
@@ -97,8 +98,16 @@ func ListAutomationTags(t translations.TranslationHelperFunc) inventory.ServerTo
 			if resp.StatusCode != http.StatusOK {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list automation tags", resp, nil), nil, nil
 			}
+			for i := range output.Tags {
+				sanitizeAutomationTagNameAndDescription(&output.Tags[i])
+			}
 			output.NextPage = resp.NextPage
 			return MarshalledTextResult(&output), &output, nil
 		},
 	)
+}
+
+func sanitizeAutomationTagNameAndDescription(tag *AutomationTag) {
+	tag.Name = sanitize.PlainText(tag.Name)
+	tag.Description = sanitize.Content(tag.Description)
 }

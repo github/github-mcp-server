@@ -128,6 +128,12 @@ func Test_ListAutomationTags(t *testing.T) {
 					escapedPath: "/agents/repos/own%20er%2Fteam/re%2Fpo/automation-tags",
 					want:        `{"tags":[],"total_count":0,"nextPage":0}`,
 				},
+				{
+					name:   "sanitized name and description",
+					status: http.StatusOK,
+					body:   `{"tags":[{"id":"tag-1","name":"<script>alert(1)</script>Hello\u200bWorld","description":"<script>alert(1)</script>Hello\u200bWorld","version":"v1","created_at":"","updated_at":""}],"total_count":1}`,
+					want:   `{"tags":[{"id":"tag-1","name":"HelloWorld","description":"<script>alert(1)</script>HelloWorld","version":"v1","created_at":"","updated_at":""}],"total_count":1,"nextPage":0}`,
+				},
 				{name: "non-disclosure", status: http.StatusNotFound, body: `{"message":"Not Found"}`, wantError: "404"},
 				{name: "empty denial", status: http.StatusNotFound, wantError: "404"},
 				{name: "bad request", status: http.StatusBadRequest, body: `{"message":"Bad Request"}`, wantError: "400"},
