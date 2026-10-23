@@ -135,6 +135,15 @@ func GetAutomationTag(t translations.TranslationHelperFunc) inventory.ServerTool
 		},
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetAutomationTagInput) (*mcp.CallToolResult, *AutomationTag, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+			}
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+			}
+			if input.TagID == "" {
+				return utils.NewToolResultError("missing required parameter: tag_id"), nil, nil
+			}
 			if input.Owner == "." {
 				return utils.NewToolResultError(`owner must not be "."`), nil, nil
 			}
