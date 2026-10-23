@@ -12,7 +12,7 @@
         "type": "string"
       },
       "direction": {
-        "description": "The direction to sort the results by. Defaults to desc",
+        "description": "Sort by creation date: `desc` (newest first, default) or `asc` (oldest first).",
         "enum": [
           "asc",
           "desc"

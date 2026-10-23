@@ -121,7 +121,7 @@ func ListCodeQualityFindings(t translations.TranslationHelperFunc) inventory.Ser
 			},
 			"direction": {
 				Type:        "string",
-				Description: "The direction to sort the results by. Defaults to desc",
+				Description: "Sort by creation date: `desc` (newest first, default) or `asc` (oldest first).",
 				Enum:        []any{"asc", "desc"},
 			},
 		},
