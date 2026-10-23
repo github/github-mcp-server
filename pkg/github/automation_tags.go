@@ -51,11 +51,11 @@ func ListAutomationTags(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input RepositoryListInput) (*mcp.CallToolResult, *ListAutomationTagsResponse, error) {
-			if input.Owner == "." {
-				return utils.NewToolResultError(`owner must not be "."`), nil, nil
+			if input.Owner == "." || input.Owner == ".." {
+				return utils.NewToolResultError(fmt.Sprintf("owner must not be %q", input.Owner)), nil, nil
 			}
-			if input.Repo == "." {
-				return utils.NewToolResultError(`repo must not be "."`), nil, nil
+			if input.Repo == "." || input.Repo == ".." {
+				return utils.NewToolResultError(fmt.Sprintf("repo must not be %q", input.Repo)), nil, nil
 			}
 			pagination := PaginationParams{Page: 1, PerPage: 30}
 			if input.Page != nil {
