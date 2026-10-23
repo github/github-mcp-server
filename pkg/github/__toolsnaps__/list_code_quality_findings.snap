@@ -1,0 +1,222 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List code quality findings"
+  },
+  "description": "List code quality findings in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "direction": {
+        "description": "The direction to sort the results by. Defaults to desc",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      },
+      "state": {
+        "default": "open",
+        "description": "Filter code quality findings by state. Defaults to open",
+        "enum": [
+          "open",
+          "dismissed"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_code_quality_findings",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "findings": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "description": "Finding creation time (RFC 3339).",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "location": {
+              "additionalProperties": false,
+              "properties": {
+                "end_column": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "end_line": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "path": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "start_column": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "start_line": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "message": {
+              "additionalProperties": false,
+              "properties": {
+                "markdown": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "markdown"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "number": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "rule": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "help": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "severity": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "title": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "state": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "prevCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "findings",
+      "pageInfo"
+    ],
+    "type": "object"
+  }
+}

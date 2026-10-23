@@ -43,6 +43,18 @@ func TestSecurityRegisteredFilters(t *testing.T) {
 			wantQuery: url.Values{"per_page": {"2"}},
 		},
 		{
+			name: "code quality omitted state and direction",
+			tool: ListCodeQualityFindings(translations.NullTranslationHelper), route: GetReposCodeQualityFindingsByOwnerByRepo,
+			arguments: map[string]any{"owner": "owner", "repo": "repo"},
+			wantQuery: url.Values{"per_page": {"30"}},
+		},
+		{
+			name: "code quality explicit state and direction",
+			tool: ListCodeQualityFindings(translations.NullTranslationHelper), route: GetReposCodeQualityFindingsByOwnerByRepo,
+			arguments: map[string]any{"owner": "owner", "repo": "repo", "state": "dismissed", "direction": "asc"},
+			wantQuery: url.Values{"per_page": {"30"}, "state": {"dismissed"}, "direction": {"asc"}},
+		},
+		{
 			name: "code scanning omitted state",
 			tool: ListCodeScanningAlerts(translations.NullTranslationHelper), route: GetReposCodeScanningAlertsByOwnerByRepo,
 			arguments: map[string]any{"owner": "owner", "repo": "repo"},
@@ -99,6 +111,7 @@ func TestSecurityEmptyAndErrorOutputs(t *testing.T) {
 		list      bool
 	}{
 		{GetCodeQualityFinding(translations.NullTranslationHelper), GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber, map[string]any{"owner": "owner", "repo": "repo", "findingNumber": 42}, false},
+		{ListCodeQualityFindings(translations.NullTranslationHelper), GetReposCodeQualityFindingsByOwnerByRepo, map[string]any{"owner": "owner", "repo": "repo"}, true},
 		{GetCodeScanningAlert(translations.NullTranslationHelper), GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber, map[string]any{"owner": "owner", "repo": "repo", "alertNumber": 42}, false},
 		{ListCodeScanningAlerts(translations.NullTranslationHelper), GetReposCodeScanningAlertsByOwnerByRepo, map[string]any{"owner": "owner", "repo": "repo"}, true},
 		{GetSecretScanningAlert(translations.NullTranslationHelper), GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber, map[string]any{"owner": "owner", "repo": "repo", "alertNumber": 42}, false},
@@ -148,9 +161,12 @@ func TestSecurityEmptyAndErrorOutputs(t *testing.T) {
 						return
 					}
 					if protocol == "2025-11-25" {
-						if tt.tool.Tool.Name == "list_dependabot_alerts" {
+						switch tt.tool.Tool.Name {
+						case "list_dependabot_alerts":
 							assert.JSONEq(t, `{"alerts":`+body+`,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, getTextResult(t, result).Text)
-						} else {
+						case "list_code_quality_findings":
+							assert.JSONEq(t, `{"findings":`+body+`,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, getTextResult(t, result).Text)
+						default:
 							assert.Equal(t, body, getTextResult(t, result).Text)
 						}
 						assert.Nil(t, result.StructuredContent)
@@ -175,7 +191,7 @@ func TestSecurityEmptyAndErrorOutputs(t *testing.T) {
 					}
 					if tt.list {
 						assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text, "modern lists expose the same DTO through both channels")
-						if tt.tool.Tool.Name == "list_dependabot_alerts" {
+						if tt.tool.Tool.Name == "list_dependabot_alerts" || tt.tool.Tool.Name == "list_code_quality_findings" {
 							assert.JSONEq(t, getTextResult(t, result).Text, mustMarshalJSON(t, result.StructuredContent))
 						} else {
 							assert.Equal(t, body, mustMarshalJSON(t, result.StructuredContent))
@@ -196,6 +212,7 @@ func TestLegacyCodeQualityFindingFormatting(t *testing.T) {
 
 func TestSecurityInputSchemasPreserveEnums(t *testing.T) {
 	for _, tool := range []inventory.ServerTool{
+		ListCodeQualityFindings(translations.NullTranslationHelper),
 		ListCodeScanningAlerts(translations.NullTranslationHelper),
 		ListDependabotAlerts(translations.NullTranslationHelper),
 		ListGlobalSecurityAdvisories(translations.NullTranslationHelper),

@@ -18,6 +18,15 @@ type GetCodeQualityFindingInput struct {
 	FindingNumber int    `json:"findingNumber"`
 }
 
+type ListCodeQualityFindingsInput struct {
+	Owner     string `json:"owner"`
+	Repo      string `json:"repo"`
+	State     string `json:"state,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	PerPage   *int   `json:"perPage,omitempty"`
+	After     string `json:"after,omitempty"`
+}
+
 type GetSecurityAlertInput struct {
 	Owner       string `json:"owner"`
 	Repo        string `json:"repo"`
@@ -252,6 +261,11 @@ type SecurityPageInfo struct {
 	HasPreviousPage bool   `json:"hasPreviousPage"`
 	NextCursor      string `json:"nextCursor,omitempty"`
 	PrevCursor      string `json:"prevCursor,omitempty"`
+}
+
+type CodeQualityFindingsOutput struct {
+	Findings []*CodeQualityFindingOutput `json:"findings"`
+	PageInfo SecurityPageInfo            `json:"pageInfo"`
 }
 
 type DependabotAlertsOutput struct {
