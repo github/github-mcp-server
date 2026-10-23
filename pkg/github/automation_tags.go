@@ -176,6 +176,7 @@ func GetAutomationTag(t translations.TranslationHelperFunc) inventory.ServerTool
 			if resp.StatusCode != http.StatusOK {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get automation tag", resp, nil), nil, nil
 			}
+			sanitizeAutomationTagNameAndDescription(&output)
 			return MarshalledTextResult(&output), &output, nil
 		},
 	)

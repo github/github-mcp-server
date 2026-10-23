@@ -320,6 +320,12 @@ func Test_GetAutomationTag(t *testing.T) {
 					body:        `{"id":"a/b c","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z"}`,
 					want:        `{"id":"a/b c","name":"Release","description":"","version":"v","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-02T00:00:00Z"}`,
 				},
+				{
+					name:   "sanitized name and description",
+					status: http.StatusOK,
+					body:   `{"id":"tag-1","name":"<script>alert(1)</script>Hello\u200bWorld","description":"<script>alert(1)</script>Hello\u200bWorld","version":"v1","created_at":"","updated_at":""}`,
+					want:   `{"id":"tag-1","name":"HelloWorld","description":"<script>alert(1)</script>HelloWorld","version":"v1","created_at":"","updated_at":""}`,
+				},
 				{name: "non-disclosure", status: http.StatusNotFound, body: `{"message":"not found","documentation_url":"https://docs.github.com/rest"}`, wantError: "404"},
 				{name: "empty denial", status: http.StatusNotFound, wantError: "404"},
 				{name: "bad request", status: http.StatusBadRequest, body: `{"message":"Bad Request"}`, wantError: "400"},
