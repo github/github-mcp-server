@@ -49,14 +49,15 @@ func Test_ListAutomationTags(t *testing.T) {
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
 		t.Run(protocol, func(t *testing.T) {
 			for _, tc := range []struct {
-				name      string
-				args      map[string]any
-				status    int
-				body      string
-				link      string
-				query     string
-				want      string
-				wantError string
+				name        string
+				args        map[string]any
+				status      int
+				body        string
+				link        string
+				query       string
+				escapedPath string
+				want        string
+				wantError   string
 			}{
 				{
 					name:   "page and additive fields",
@@ -77,6 +78,14 @@ func Test_ListAutomationTags(t *testing.T) {
 					args:   map[string]any{"owner": "owner", "repo": "repo", "page": 3, "perPage": 1},
 					status: http.StatusOK, body: `{"tags":[],"total_count":2}`,
 					query: "page=3&per_page=1", want: `{"tags":[],"total_count":2,"nextPage":0}`,
+				},
+				{
+					name:        "escaped path segments",
+					args:        map[string]any{"owner": "own er/team", "repo": "re/po"},
+					status:      http.StatusOK,
+					body:        `{"tags":[],"total_count":0}`,
+					escapedPath: "/agents/repos/own%20er%2Fteam/re%2Fpo/automation-tags",
+					want:        `{"tags":[],"total_count":0,"nextPage":0}`,
 				},
 				{name: "non-disclosure", status: http.StatusNotFound, body: `{"message":"Not Found"}`, wantError: "404"},
 				{name: "empty denial", status: http.StatusNotFound, wantError: "404"},
@@ -109,7 +118,11 @@ func Test_ListAutomationTags(t *testing.T) {
 							}
 							assert.Equal(t, "api.github.com", r.URL.Host)
 							assert.Equal(t, http.MethodGet, r.Method)
-							assert.Equal(t, "/agents/repos/owner/repo/automation-tags", r.URL.EscapedPath())
+							escapedPath := tc.escapedPath
+							if escapedPath == "" {
+								escapedPath = "/agents/repos/owner/repo/automation-tags"
+							}
+							assert.Equal(t, escapedPath, r.URL.EscapedPath())
 							query := tc.query
 							if query == "" {
 								query = "page=1&per_page=30"
