@@ -133,15 +133,15 @@ func (out PullRequestReadOutput) MarshalJSON() ([]byte, error) {
 	case out.Status != nil:
 		return json.Marshal(out.Status)
 	case out.Files != nil:
-		return json.Marshal(out.Files)
+		return json.Marshal(map[string]any{"files": out.Files})
 	case out.Commits != nil:
-		return json.Marshal(out.Commits)
+		return json.Marshal(map[string]any{"commits": out.Commits})
 	case out.ReviewThreads != nil:
 		return json.Marshal(out.ReviewThreads)
 	case out.Reviews != nil:
-		return json.Marshal(out.Reviews)
+		return json.Marshal(map[string]any{"reviews": out.Reviews})
 	case out.Comments != nil:
-		return json.Marshal(out.Comments)
+		return json.Marshal(map[string]any{"comments": out.Comments})
 	case out.CheckRuns != nil:
 		return json.Marshal(out.CheckRuns)
 	default:
@@ -168,8 +168,15 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 	for _, array := range arrays {
 		array.Defs = nil
 	}
-	// An empty array is valid for every list method, so the list shapes form
-	// one anyOf array variant instead of ambiguous oneOf branches.
+	// MCP requires structuredContent to be a JSON object, so each list method
+	// returns its array under a named key rather than as a top-level array.
+	wrapped := func(name string, items *jsonschema.Schema) *jsonschema.Schema {
+		return &jsonschema.Schema{
+			Type:       "object",
+			Properties: map[string]*jsonschema.Schema{name: items},
+			Required:   []string{name},
+		}
+	}
 	return repositoryUnionSchema(
 		&jsonschema.Schema{Type: "null"},
 		pullRequestOutputSchema[MinimalPullRequest](),
@@ -177,7 +184,10 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 		pullRequestOutputSchema[MinimalCombinedStatus](),
 		pullRequestOutputSchema[MinimalReviewThreadsResponse](),
 		pullRequestOutputSchema[MinimalCheckRunsResult](),
-		&jsonschema.Schema{Type: "array", AnyOf: arrays},
+		wrapped("files", arrays[0]),
+		wrapped("commits", arrays[1]),
+		wrapped("reviews", arrays[2]),
+		wrapped("comments", arrays[3]),
 	)
 }
 

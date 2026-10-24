@@ -63,6 +63,11 @@ malformed versions also retain the legacy text result. Normal `Inventory.Registe
 protocol era is already known before server construction, such as a stateless
 request-scoped server.
 
+The MCP schema for `structuredContent` is an object, so a typed output must not
+be a top-level array. Wrap list results in a named field (for example
+`ListCommitsOutput{Commits: [...]}`) and give the output schema the matching
+object shape; the handler text may still be a bare array for legacy clients.
+
 If a handler intentionally returns non-JSON text or content blocks, set
 `PreserveHandlerContent` in `TypedSchemaOptions`, or call
 `inventory.PreserveToolHandlerContent(ctx)` from the handler middleware for
