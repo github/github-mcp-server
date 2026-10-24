@@ -218,6 +218,22 @@ type typedPullRequestCase struct {
 	text string
 }
 
+// pullRequestListOutputKey names the object field that envelopes a list
+// method's array in structuredContent. Legacy text keeps the bare array.
+func pullRequestListOutputKey(method any) string {
+	switch method {
+	case "get_files":
+		return "files"
+	case "get_commits":
+		return "commits"
+	case "get_reviews":
+		return "reviews"
+	case "get_comments":
+		return "comments"
+	}
+	return ""
+}
+
 func runTypedPullRequestCases(t *testing.T, session *mcp.ClientSession, schemas map[string]*jsonschema.Resolved, cases []typedPullRequestCase) {
 	t.Helper()
 	for _, tc := range cases {
@@ -242,6 +258,10 @@ func runTypedPullRequestCases(t *testing.T, session *mcp.ClientSession, schemas 
 			continue
 		}
 		require.NotNil(t, result.StructuredContent, "%s %v", tc.tool, tc.args)
+		expected := tc.text
+		if key := pullRequestListOutputKey(tc.args["method"]); key != "" {
+			expected = `{"` + key + `":` + tc.text + `}`
+		}
 		var value any
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &value))
 		require.NoError(t, schema.Validate(value), "%s %v", tc.tool, tc.args)
@@ -267,7 +287,7 @@ func runTypedPullRequestCases(t *testing.T, session *mcp.ClientSession, schemas 
 				assert.JSONEq(t, `{"id":"77"}`, mustMarshalJSON(t, value))
 			}
 		default:
-			assert.JSONEq(t, tc.text, mustMarshalJSON(t, value))
+			assert.JSONEq(t, expected, mustMarshalJSON(t, value))
 		}
 	}
 }
@@ -537,8 +557,8 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 	}{
 		{
 			pullRequestReadOutputSchema(),
-			[]string{`null`, `[]`, `{"diff":""}`, `{"number":1,"title":"","state":"","draft":false,"merged":false,"html_url":""}`, `{"state":"","sha":"","total_count":0,"statuses":[]}`, `{"total_count":0,"check_runs":[]}`, `{"review_threads":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, `[{"filename":"f"}]`, `[{"id":1,"html_url":""}]`},
-			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `{"number":1}`, `{"number":1,"title":"","state":"unknown","draft":false,"merged":false,"html_url":""}`},
+			[]string{`null`, `{"files":[]}`, `{"commits":[]}`, `{"reviews":[]}`, `{"comments":[]}`, `{"diff":""}`, `{"number":1,"title":"","state":"","draft":false,"merged":false,"html_url":""}`, `{"state":"","sha":"","total_count":0,"statuses":[]}`, `{"total_count":0,"check_runs":[]}`, `{"review_threads":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, `{"files":[{"filename":"f"}]}`, `{"comments":[{"id":1,"html_url":""}]}`},
+			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `[]`, `[{"filename":"f"}]`, `{"number":1}`, `{"number":1,"title":"","state":"unknown","draft":false,"merged":false,"html_url":""}`},
 		},
 		{
 			pullRequestWriteOutputSchema(),

@@ -155,7 +155,12 @@ func TestTypedCompatibilityPullRequestAfter(t *testing.T) {
 				assert.Contains(t, getErrorResult(t, result).Text, "after")
 			} else {
 				require.False(t, result.IsError, mustMarshalJSON(t, result))
-				assert.Equal(t, "[]", getTextResult(t, result).Text)
+				expected := "[]"
+				if protocol != "2025-11-25" {
+					// Modern text serializes the enveloped DTO.
+					expected = `{"files":[]}`
+				}
+				assert.Equal(t, expected, getTextResult(t, result).Text)
 			}
 
 		}
