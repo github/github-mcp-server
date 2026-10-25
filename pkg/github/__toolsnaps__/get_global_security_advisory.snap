@@ -4,17 +4,18 @@
     "readOnlyHint": true,
     "title": "Get a global security advisory"
   },
-  "description": "Get a global security advisory",
+  "description": "Get a global security advisory by GHSA ID or CVE ID",
   "inputSchema": {
     "properties": {
+      "cveId": {
+        "description": "CVE ID of the advisory (format: CVE-YYYY-NNNNN). Provide this or ghsaId.",
+        "type": "string"
+      },
       "ghsaId": {
-        "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+        "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). Provide this or cveId.",
         "type": "string"
       }
     },
-    "required": [
-      "ghsaId"
-    ],
     "type": "object"
   },
   "name": "get_global_security_advisory",

@@ -138,11 +138,13 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "ghsaId")
-	assert.ElementsMatch(t, schema.Required, []string{"ghsaId"})
+	assert.Contains(t, schema.Properties, "cveId")
+	assert.Empty(t, schema.Required, "ghsaId and cveId are alternatives, so neither is required on its own")
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
 		GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
+		CVEID:       new("CVE-2026-0001"),
 		Summary:     new("Test advisory"),
 		Description: new("This is a test advisory."),
 		Severity:    new("high"),
@@ -153,6 +155,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		mockedClient     *http.Client
 		requestArgs      map[string]any
 		expectError      bool
+		expectToolError  bool
 		expectedAdvisory *github.GlobalSecurityAdvisory
 		expectedErrMsg   string
 	}{
@@ -195,6 +198,59 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get advisory",
 		},
+		{
+			name: "successful advisory fetch by cveId",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{mockAdvisory}),
+			}),
+			requestArgs: map[string]any{
+				"cveId": "CVE-2026-0001",
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name: "cveId matching no advisory",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{}),
+			}),
+			requestArgs: map[string]any{
+				"cveId": "CVE-2026-9999",
+			},
+			expectToolError: true,
+			expectedErrMsg:  "no global security advisory found for CVE-2026-9999",
+		},
+		{
+			name: "cveId matching several advisories",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{
+					mockAdvisory,
+					{GHSAID: new("GHSA-yyyy-yyyy-yyyy"), CVEID: new("CVE-2026-0001")},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"cveId": "CVE-2026-0001",
+			},
+			expectToolError: true,
+			expectedErrMsg:  "matches 2 global security advisories (GHSA-xxxx-xxxx-xxxx, GHSA-yyyy-yyyy-yyyy)",
+		},
+		{
+			name:            "neither identifier provided",
+			mockedClient:    MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs:     map[string]any{},
+			expectToolError: true,
+			expectedErrMsg:  "provide either ghsaId or cveId",
+		},
+		{
+			name:         "both identifiers provided",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"ghsaId": "GHSA-xxxx-xxxx-xxxx",
+				"cveId":  "CVE-2026-0001",
+			},
+			expectToolError: true,
+			expectedErrMsg:  "provide only one of ghsaId or cveId",
+		},
 	}
 
 	for _, tc := range tests {
@@ -218,6 +274,12 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
+			if tc.expectToolError {
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
