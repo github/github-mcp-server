@@ -154,7 +154,10 @@ func completeBranch(ctx context.Context, client *github.Client, resolved map[str
 	if owner == "" || repo == "" {
 		return values, errors.New("owner or repo not specified")
 	}
-	branches, _, _ := client.Repositories.ListBranches(ctx, owner, repo, nil)
+	branches, _, err := client.Repositories.ListBranches(ctx, owner, repo, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, branch := range branches {
 		if argValue == "" || strings.HasPrefix(branch.GetName(), argValue) {
@@ -174,7 +177,10 @@ func completeSHA(ctx context.Context, client *github.Client, resolved map[string
 	if owner == "" || repo == "" {
 		return values, errors.New("owner or repo not specified")
 	}
-	commits, _, _ := client.Repositories.ListCommits(ctx, owner, repo, nil)
+	commits, _, err := client.Repositories.ListCommits(ctx, owner, repo, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, commit := range commits {
 		sha := commit.GetSHA()
@@ -194,7 +200,10 @@ func completeTag(ctx context.Context, client *github.Client, resolved map[string
 	if owner == "" || repo == "" {
 		return nil, errors.New("owner or repo not specified")
 	}
-	tags, _, _ := client.Repositories.ListTags(ctx, owner, repo, nil)
+	tags, _, err := client.Repositories.ListTags(ctx, owner, repo, nil)
+	if err != nil {
+		return nil, err
+	}
 	var values []string
 	for _, tag := range tags {
 		if argValue == "" || strings.Contains(tag.GetName(), argValue) {
