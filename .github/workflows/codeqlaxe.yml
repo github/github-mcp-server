@@ -32,20 +32,20 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      uses: actions/checkout # v4.2.2
 
     # Initializes the CodeQL tools with optional matrix keys
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      uses: github/codeql-action/init # v4.38.3
       with:
         languages: ${{ matrix.language }}
 
     # Runs compilation rules dynamically ONLY when explicitly set in matrix properties
     - name: Autobuild
       if: matrix.build-mode == 'autobuild'
-      uses: github/codeql-action/autobuild@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      uses: github/codeql-action/autobuild # v4.38.3
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      uses: github/codeql-action/analyze # v4.38.3
       with:
         category: "/language:${{ matrix.language }}"
