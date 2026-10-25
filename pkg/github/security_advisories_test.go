@@ -201,7 +201,10 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		{
 			name: "successful advisory fetch by cveId",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetAdvisories: mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{mockAdvisory}),
+				GetAdvisories: func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, "CVE-2026-0001", r.URL.Query().Get("cve_id"), "the CVE ID must reach the API as a filter")
+					mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{mockAdvisory})(w, r)
+				},
 			}),
 			requestArgs: map[string]any{
 				"cveId": "CVE-2026-0001",
