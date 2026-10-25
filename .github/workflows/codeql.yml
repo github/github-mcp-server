@@ -24,10 +24,10 @@ jobs:
         include:
           # JavaScript/TypeScript explicitly skips compilation
           - language: javascript-typescript
-            build-mode: none
+            build-mode: autobuild
 
           # C# compiles dynamically via autobuild execution
-          - language: csharp
+          - language: javascript-typescipt
             build-mode: autobuild
 
     steps:
