@@ -1,16 +1,23 @@
 package sanitize
 
 import (
+	stdhtml "html"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/microcosm-cc/bluemonday"
+	nethtml "golang.org/x/net/html"
 )
 
-var policy *bluemonday.Policy
-var policyOnce sync.Once
+var (
+	policy              *bluemonday.Policy
+	policyOnce          sync.Once
+	plainTextPolicy     *bluemonday.Policy
+	plainTextPolicyOnce sync.Once
+)
 
 func Sanitize(input string) string {
 	// The invisible-character and code-fence filters both run before and after
@@ -34,6 +41,110 @@ func Sanitize(input string) string {
 		return normalized
 	}
 	return FilterCodeFenceMetadata(FilterInvisibleCharacters(normalized))
+}
+
+func Content(input string) string {
+	return FilterInvisibleCharacters(input)
+}
+
+// PlainText sanitizes user-authored text that must not contain HTML.
+func PlainText(input string) string {
+	filtered := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+	if filtered == "" {
+		return ""
+	}
+
+	tokenizer := nethtml.NewTokenizer(strings.NewReader(filtered))
+	var marked strings.Builder
+	var text []string
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == nethtml.ErrorToken {
+			break
+		}
+		if tokenType == nethtml.TextToken {
+			marker := plainTextMarker(len(text))
+			marked.WriteString(marker)
+			text = append(text, neutralizePlainTextAngles(tokenizer.Token().Data))
+			continue
+		}
+		marked.Write(tokenizer.Raw())
+	}
+
+	sanitized := restorePlainText(getPlainTextPolicy().Sanitize(marked.String()), text)
+	return FilterCodeFenceMetadata(FilterInvisibleCharacters(sanitized))
+}
+
+const plainTextMarkerPrefix = "githubmcpplaintexttoken"
+
+func plainTextMarker(index int) string {
+	return plainTextMarkerPrefix + strconv.Itoa(index) + "x"
+}
+
+func restorePlainText(marked string, values []string) string {
+	var restored strings.Builder
+	for marked != "" {
+		start := strings.Index(marked, plainTextMarkerPrefix)
+		if start < 0 {
+			restored.WriteString(marked)
+			break
+		}
+		restored.WriteString(marked[:start])
+		marked = marked[start+len(plainTextMarkerPrefix):]
+
+		end := strings.IndexByte(marked, 'x')
+		if end < 0 {
+			restored.WriteString(plainTextMarkerPrefix)
+			restored.WriteString(marked)
+			break
+		}
+		index, err := strconv.Atoi(marked[:end])
+		if err != nil || index < 0 || index >= len(values) {
+			restored.WriteString(plainTextMarkerPrefix)
+			restored.WriteString(marked[:end+1])
+		} else {
+			restored.WriteString(values[index])
+		}
+		marked = marked[end+1:]
+	}
+	return restored.String()
+}
+
+func neutralizePlainTextAngles(input string) string {
+	input = FilterInvisibleCharacters(input)
+	input = strings.ReplaceAll(input, "\x00", string(utf8.RuneError))
+	input = strings.ReplaceAll(input, "\r\n", "\n")
+	input = strings.ReplaceAll(input, "\r", "\n")
+	input = neutralizeNestedEntities(input)
+	input = strings.ReplaceAll(input, "<", "&lt;")
+	return strings.ReplaceAll(input, ">", "&gt;")
+}
+
+func neutralizeNestedEntities(input string) string {
+	var neutralized strings.Builder
+	for {
+		start := strings.IndexByte(input, '&')
+		if start < 0 {
+			neutralized.WriteString(input)
+			return neutralized.String()
+		}
+		neutralized.WriteString(input[:start])
+		input = input[start:]
+
+		end := strings.IndexByte(input[1:], '&')
+		if end < 0 {
+			end = len(input)
+		} else {
+			end++
+		}
+		if candidate := input[:end]; stdhtml.UnescapeString(candidate) != candidate {
+			neutralized.WriteString("&amp;")
+			input = input[1:]
+		} else {
+			neutralized.WriteByte('&')
+			input = input[1:]
+		}
+	}
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
@@ -333,6 +444,13 @@ func getPolicy() *bluemonday.Policy {
 		policy = p
 	})
 	return policy
+}
+
+func getPlainTextPolicy() *bluemonday.Policy {
+	plainTextPolicyOnce.Do(func() {
+		plainTextPolicy = bluemonday.StrictPolicy()
+	})
+	return plainTextPolicy
 }
 
 func shouldRemoveRune(r rune) bool {

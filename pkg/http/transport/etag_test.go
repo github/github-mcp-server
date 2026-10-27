@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,10 +46,10 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 	const etag = `"abc123"`
 	const body = `{"number":1}`
 
-	var requests int32
+	var requests atomic.Int32
 	var lastIfNoneMatch string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&requests, 1)
+		n := requests.Add(1)
 		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
 		w.Header().Set(headers.ETagHeader, etag)
 		if n == 1 {
@@ -62,7 +62,7 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	do := func() (int, string) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -84,7 +84,7 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 	assert.Equal(t, http.StatusOK, status2, "304 is translated to the cached 200")
 	assert.Equal(t, body, body2, "cached body is served on 304")
 	assert.Equal(t, etag, lastIfNoneMatch, "second request sends the cached ETag")
-	assert.Equal(t, int32(2), atomic.LoadInt32(&requests), "every request still reaches the server")
+	assert.Equal(t, int32(2), requests.Load(), "every request still reaches the server")
 }
 
 // TestETagTransport_UpdatesRateLimitHeadersFrom304 verifies that a cache-served
@@ -95,9 +95,9 @@ func TestETagTransport_UpdatesRateLimitHeadersFrom304(t *testing.T) {
 
 	const etag = `"v1"`
 
-	var requests int32
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		n := atomic.AddInt32(&requests, 1)
+		n := requests.Add(1)
 		w.Header().Set(headers.ETagHeader, etag)
 		if n == 1 {
 			w.Header().Set("X-RateLimit-Remaining", "100")
@@ -110,7 +110,7 @@ func TestETagTransport_UpdatesRateLimitHeadersFrom304(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	do := func() http.Header {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -143,11 +143,11 @@ func TestETagTransport_ScopesCacheByAuthorization(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, r.Header.Get(headers.AuthorizationHeader))
+		_, _ = io.WriteString(w, r.Header.Get(headers.AuthorizationHeader)) //nolint:gosec // G705: Test server echoes synthetic tokens to verify cache isolation; no browser consumes the response.
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	get := func(auth string) string {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -181,7 +181,7 @@ func TestETagTransport_OnlyCachesGET(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	do := func() {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, nil)
@@ -209,7 +209,7 @@ func TestETagTransport_DoesNotOverrideCallerConditional(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestETagTransport_SkipsBodiesOverEntryByteBudget(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport, MaxEntryBytes: 16}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t), MaxEntryBytes: 16}
 
 	do := func() []byte {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -316,7 +316,7 @@ func TestETagTransport_EvictsByTotalByteBudget(t *testing.T) {
 	defer server.Close()
 
 	// Budget holds a single 10-byte entry; a second entry evicts the first.
-	rt := &ETagTransport{Transport: http.DefaultTransport, MaxTotalBytes: 15}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t), MaxTotalBytes: 15}
 
 	get := func(path string) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+path, nil)
@@ -349,7 +349,7 @@ func TestETagTransport_DoesNotCacheNoStoreResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	do := func() {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -380,7 +380,7 @@ func TestETagTransport_DoesNotCacheVaryStar(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	do := func() {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
@@ -411,7 +411,7 @@ func TestETagTransport_RequestNoStoreBypassesCache(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rt := &ETagTransport{Transport: http.DefaultTransport}
+	rt := &ETagTransport{Transport: newIsolatedTransport(t)}
 
 	// Prime the cache with a normal GET.
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)

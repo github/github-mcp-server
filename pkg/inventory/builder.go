@@ -14,11 +14,6 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
-// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
-// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
-// The value must match github.MCPAppsFeatureFlag.
-const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
-
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
@@ -65,19 +60,19 @@ func NewBuilder() *Builder {
 
 // SetTools sets the tools for the inventory. Returns self for chaining.
 func (b *Builder) SetTools(tools []ServerTool) *Builder {
-	b.tools = tools
+	b.tools = slices.Clone(tools)
 	return b
 }
 
 // SetResources sets the resource templates for the inventory. Returns self for chaining.
 func (b *Builder) SetResources(resources []ServerResourceTemplate) *Builder {
-	b.resourceTemplates = resources
+	b.resourceTemplates = slices.Clone(resources)
 	return b
 }
 
 // SetPrompts sets the prompts for the inventory. Returns self for chaining.
 func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
-	b.prompts = prompts
+	b.prompts = slices.Clone(prompts)
 	return b
 }
 
@@ -125,15 +120,10 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 	return b
 }
 
-// WithFeatureChecker sets the feature flag checker function.
-// The checker receives a context (for actor extraction) and feature flag name,
-// and returns (enabled, error). Errors are logged and treated as "not enabled".
-//
-// When the checker is non-nil, Build() installs a feature-flag ToolFilter
-// at the head of the filter pipeline so that tools annotated with
-// FeatureFlagEnable / FeatureFlagDisable are gated accordingly. Resources
-// and prompts use the same checker via an explicit guard at their iteration
-// site.
+// WithFeatureChecker sets the feature flag checker function. Inventory items
+// declare their feature dependencies and functional availability rules through
+// FeatureRule. Checks are deduplicated into request-owned resolution state;
+// errors are logged and treated as disabled.
 //
 // When the checker is nil, no feature-flag filter is installed; tools,
 // resources, and prompts pass through feature-flag gating unchanged. The
@@ -212,15 +202,7 @@ func cleanTools(tools []string) []string {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
-	// Install the feature-flag filter at the head of the pipeline so that
-	// flag-gated tools are excluded before any user-supplied WithFilter sees
-	// them. Doing this in Build() (rather than inside WithFeatureChecker)
-	// keeps the install idempotent — repeated WithFeatureChecker calls
-	// replace the checker without stacking duplicate filters.
 	filters := b.filters
-	if b.featureChecker != nil {
-		filters = append([]ToolFilter{createFeatureFlagFilter(b.featureChecker)}, filters...)
-	}
 
 	r := &Inventory{
 		tools:             tools,
@@ -387,16 +369,21 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 }
 
-// mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.
+// mcpAppsMetaKeys lists the Meta keys that carry MCP Apps UI metadata.
 var mcpAppsMetaKeys = []string{
 	"ui", // MCP Apps UI metadata
 }
 
 // stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
-// remote_mcp_ui_apps feature flag is not enabled.
+// client does not support MCP Apps UI. App-only tools (ui.visibility without
+// "model") are omitted entirely rather than being exposed as ordinary
+// model-visible tools.
 func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	result := make([]ServerTool, 0, len(tools))
 	for _, tool := range tools {
+		if isAppOnlyTool(&tool) {
+			continue
+		}
 		if stripped := stripMetaKeys(tool, mcpAppsMetaKeys); stripped != nil {
 			result = append(result, *stripped)
 		} else {
@@ -404,6 +391,30 @@ func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 		}
 	}
 	return result
+}
+
+// isAppOnlyTool reports whether a tool declares MCP Apps visibility that
+// excludes the model (e.g. `_meta.ui.visibility: ["app"]`). Such tools are
+// only meant to be called by MCP App views, never by the model directly.
+func isAppOnlyTool(tool *ServerTool) bool {
+	ui, ok := tool.Tool.Meta["ui"].(map[string]any)
+	if !ok {
+		return false
+	}
+	var visibility []string
+	switch v := ui["visibility"].(type) {
+	case []string:
+		visibility = v
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				visibility = append(visibility, s)
+			}
+		}
+	default:
+		return false
+	}
+	return len(visibility) > 0 && !slices.Contains(visibility, "model")
 }
 
 // stripMetaKeys removes the specified Meta keys from a single tool.

@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -62,10 +62,12 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 func (s stubDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCache, error) {
 	return s.repoAccessCache, nil
 }
-func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
-func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
-func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
+func (s stubDeps) GetFlags(_ context.Context) FeatureFlags  { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool {
+	return false
+}
 func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 	return s.obsv.Logger()
 }
@@ -121,7 +123,7 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 			}
 		}
 		resp := gogithub.RepositoryPermissionLevel{
-			Permission: gogithub.Ptr(perm),
+			Permission: new(perm),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -190,6 +192,90 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
+}
+
+func TestNewMCPServerTypedLegacyPreflightAndHandlerReceiveDependencies(t *testing.T) {
+	type output struct {
+		OK bool `json:"ok"`
+	}
+	deps := stubDeps{obsv: stubExporters()}
+	tool := NewToolWithSchemaOptions[struct{}, output](
+		inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test"},
+		mcp.Tool{Name: "typed_dependency_tool"},
+		inventory.ScopeAccess{},
+		inventory.TypedSchemaOptions{
+			Preflight: func(ctx context.Context, _ *mcp.CallToolRequest) (context.Context, *mcp.CallToolResult, error) {
+				if _, ok := DepsFromContext(ctx); !ok {
+					return ctx, nil, errors.New("dependencies missing in preflight")
+				}
+				return ctx, nil, nil
+			},
+		},
+		func(ctx context.Context, handlerDeps ToolDependencies, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, output, error) {
+			if _, ok := DepsFromContext(ctx); !ok || handlerDeps == nil {
+				return nil, output{}, errors.New("dependencies missing in handler")
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text"}},
+			}, output{OK: true}, nil
+		},
+	)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+	cfg := MCPServerConfig{
+		Version:    "test",
+		Translator: translations.NullTranslationHelper,
+		Logger:     slog.New(slog.DiscardHandler),
+	}
+	server, err := NewMCPServer(context.Background(), &cfg, deps, inv)
+	require.NoError(t, err)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "legacy-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, &mcp.ClientSessionOptions{
+		ProtocolVersion: "2025-11-25",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	list, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Nil(t, list.Tools[0].OutputSchema)
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "typed_dependency_tool"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Nil(t, result.StructuredContent)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "legacy text", result.Content[0].(*mcp.TextContent).Text)
+}
+
+func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
+	var calls int
+	checker := func(_ context.Context, flag string) (bool, error) {
+		calls++
+		return flag == "enabled", nil
+	}
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithFeatureChecker(checker).
+		Build()
+	require.NoError(t, err)
+
+	next := func(ctx context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		return nil, nil
+	}
+	_, err = injectFeatureStateMiddleware(inv)(next)(context.Background(), "tools/call", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
 }
 
 // advertisedServerCapabilities connects an in-memory client to the given server

@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Unhide Pull Request Review Comment"
+  },
+  "description": "Unhide (unminimize) a previously hidden inline review comment on a pull request diff. Requires triage or write access to the repository, or being its author.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id"
+    ],
+    "type": "object"
+  },
+  "name": "unhide_pull_request_review_comment",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "is_minimized": {
+        "type": "boolean"
+      },
+      "minimized_reason": {
+        "description": "GitHub's lowercase, hyphenated reason (for example off-topic); omitted when unhidden.",
+        "type": "string"
+      },
+      "node_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "node_id",
+      "is_minimized"
+    ],
+    "type": "object"
+  }
+}

@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +16,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 	// Verify tool definition
 	toolDef := GetDependabotAlert(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	// Validate tool schema
 	assert.Equal(t, "get_dependabot_alert", tool.Name)
@@ -26,9 +25,9 @@ func Test_GetDependabotAlert(t *testing.T) {
 
 	// Setup mock alert for success case
 	mockAlert := &github.DependabotAlert{
-		Number:  github.Ptr(42),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/security/dependabot/42"),
+		Number:  new(42),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/security/dependabot/42"),
 	}
 
 	tests := []struct {
@@ -129,7 +128,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListDependabotAlerts(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_dependabot_alerts", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -137,19 +136,19 @@ func Test_ListDependabotAlerts(t *testing.T) {
 
 	// Setup mock alerts for success case
 	criticalAlert := github.DependabotAlert{
-		Number:  github.Ptr(1),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/security/dependabot/1"),
-		State:   github.Ptr("open"),
+		Number:  new(1),
+		HTMLURL: new("https://github.com/owner/repo/security/dependabot/1"),
+		State:   new("open"),
 		SecurityAdvisory: &github.DependabotSecurityAdvisory{
-			Severity: github.Ptr("critical"),
+			Severity: new("critical"),
 		},
 	}
 	highSeverityAlert := github.DependabotAlert{
-		Number:  github.Ptr(2),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/security/dependabot/2"),
-		State:   github.Ptr("fixed"),
+		Number:  new(2),
+		HTMLURL: new("https://github.com/owner/repo/security/dependabot/2"),
+		State:   new("fixed"),
 		SecurityAdvisory: &github.DependabotSecurityAdvisory{
-			Severity: github.Ptr("high"),
+			Severity: new("high"),
 		},
 	}
 
