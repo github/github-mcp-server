@@ -416,3 +416,58 @@ func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 	require.Nil(t, resp)
 	require.ErrorContains(t, err, "failed to get raw content")
 }
+
+// Test_repositoryResourceContentsHandler_ApplicationTypes verifies that binary files
+// served with an application/* Content-Type (raw.githubusercontent.com serves PDFs,
+// archives and other binaries as application/octet-stream) are returned as blobs
+// instead of being coerced into lossy text, while text-based application types
+// are still returned as text.
+func Test_repositoryResourceContentsHandler_ApplicationTypes(t *testing.T) {
+	base, _ := url.Parse("https://raw.example.com/")
+	binary := []byte("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n\x00\x01\xff\xfe")
+	text := []byte(`{"name": "test"}`)
+
+	tests := []struct {
+		contentType string
+		content     []byte
+		wantBlob    bool
+	}{
+		{contentType: "application/octet-stream", content: binary, wantBlob: true},
+		{contentType: "application/pdf", content: binary, wantBlob: true},
+		{contentType: "application/zip", content: binary, wantBlob: true},
+		{contentType: "application/json; charset=utf-8", content: text},
+		{contentType: "application/xml", content: text},
+		{contentType: "application/vnd.api+json", content: text},
+		{contentType: "text/plain; charset", content: text},
+		{contentType: "image/svg+xml", content: []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), wantBlob: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.contentType, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", tc.contentType)
+					_, err := w.Write(tc.content)
+					require.NoError(t, err)
+				}),
+			}))
+			rawClient, err := raw.NewClient(client, base)
+			require.NoError(t, err)
+			ctx := ContextWithDeps(context.Background(), BaseDeps{Client: client, RawClient: rawClient})
+
+			resp, err := RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)(ctx, &mcp.ReadResourceRequest{
+				Params: &mcp.ReadResourceParams{URI: "repo://owner/repo/contents/docs/file.bin"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Contents, 1)
+			require.Equal(t, tc.contentType, resp.Contents[0].MIMEType)
+			if tc.wantBlob {
+				require.Empty(t, resp.Contents[0].Text)
+				require.Equal(t, tc.content, resp.Contents[0].Blob)
+			} else {
+				require.Empty(t, resp.Contents[0].Blob)
+				require.Equal(t, string(tc.content), resp.Contents[0].Text)
+			}
+		})
+	}
+}
