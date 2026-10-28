@@ -348,6 +348,7 @@ type MinimalWorkflowRun struct {
 	Name                string                        `json:"name"`
 	DisplayTitle        string                        `json:"display_title,omitempty"`
 	WorkflowID          int64                         `json:"workflow_id"`
+	CheckSuiteID        int64                         `json:"check_suite_id,omitempty"`
 	RunNumber           int                           `json:"run_number"`
 	RunAttempt          int                           `json:"run_attempt"`
 	Event               string                        `json:"event,omitempty"`
@@ -387,6 +388,7 @@ type MinimalWorkflowJobStep struct {
 type MinimalWorkflowJob struct {
 	ID              int64                    `json:"id"`
 	RunID           int64                    `json:"run_id"`
+	CheckRunID      int64                    `json:"check_run_id,omitempty"`
 	Name            string                   `json:"name"`
 	WorkflowName    string                   `json:"workflow_name,omitempty"`
 	Status          string                   `json:"status"`
@@ -2071,6 +2073,7 @@ func convertToMinimalWorkflowRun(workflowRun *github.WorkflowRun) MinimalWorkflo
 		Name:            workflowRun.GetName(),
 		DisplayTitle:    workflowRun.GetDisplayTitle(),
 		WorkflowID:      workflowRun.GetWorkflowID(),
+		CheckSuiteID:    workflowRun.GetCheckSuiteID(),
 		RunNumber:       workflowRun.GetRunNumber(),
 		RunAttempt:      workflowRun.GetRunAttempt(),
 		Event:           workflowRun.GetEvent(),
@@ -2144,10 +2147,15 @@ func convertToMinimalWorkflowJobStep(step *github.TaskStep) MinimalWorkflowJobSt
 	}
 }
 
-func convertToMinimalWorkflowJob(job *github.WorkflowJob) MinimalWorkflowJob {
+func convertToMinimalWorkflowJob(job *github.WorkflowJob) (MinimalWorkflowJob, error) {
+	checkRunID, err := checkRunIDFromURL(job.GetCheckRunURL())
+	if err != nil {
+		return MinimalWorkflowJob{}, fmt.Errorf("invalid check link for workflow job %d: %w", job.GetID(), err)
+	}
 	minimalJob := MinimalWorkflowJob{
 		ID:              job.GetID(),
 		RunID:           job.GetRunID(),
+		CheckRunID:      checkRunID,
 		Name:            job.GetName(),
 		WorkflowName:    job.GetWorkflowName(),
 		Status:          job.GetStatus(),
@@ -2175,25 +2183,51 @@ func convertToMinimalWorkflowJob(job *github.WorkflowJob) MinimalWorkflowJob {
 		}
 	}
 
-	return minimalJob
+	return minimalJob, nil
 }
 
-func convertToMinimalWorkflowJobs(workflowJobs *github.Jobs) MinimalWorkflowJobsResult {
+func checkRunIDFromURL(rawURL string) (int64, error) {
+	if rawURL == "" {
+		return 0, nil
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return 0, fmt.Errorf("invalid check_run_url: %w", err)
+	}
+	parts := strings.Split(strings.TrimSuffix(parsed.Path, "/"), "/")
+	if (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		len(parts) < 6 || parts[len(parts)-5] != "repos" ||
+		parts[len(parts)-4] == "" || parts[len(parts)-3] == "" || parts[len(parts)-2] != "check-runs" {
+		return 0, fmt.Errorf("check_run_url must be an absolute HTTP(S) URL ending in /repos/{owner}/{repo}/check-runs/{id}")
+	}
+	id, err := strconv.ParseInt(parts[len(parts)-1], 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("check_run_url must contain a positive check run ID")
+	}
+	return id, nil
+}
+
+func convertToMinimalWorkflowJobs(workflowJobs *github.Jobs) (MinimalWorkflowJobsResult, error) {
 	result := MinimalWorkflowJobsResult{
 		Jobs: make([]MinimalWorkflowJob, 0),
 	}
 	if workflowJobs == nil {
-		return result
+		return result, nil
 	}
 
 	result.TotalCount = workflowJobs.GetTotalCount()
 	result.Jobs = make([]MinimalWorkflowJob, 0, len(workflowJobs.Jobs))
 	for _, job := range workflowJobs.Jobs {
 		if job != nil {
-			result.Jobs = append(result.Jobs, convertToMinimalWorkflowJob(job))
+			minimalJob, err := convertToMinimalWorkflowJob(job)
+			if err != nil {
+				return MinimalWorkflowJobsResult{}, err
+			}
+			result.Jobs = append(result.Jobs, minimalJob)
 		}
 	}
-	return result
+	return result, nil
 }
 
 func formatMinimalTimestamp(timestamp *github.Timestamp) string {
