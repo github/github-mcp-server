@@ -132,6 +132,9 @@ func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) inventory.Se
 	return tool
 }
 
+// listLabelsDefaultPerPage keeps the first page as large as GraphQL allows, so most repositories need one call.
+const listLabelsDefaultPerPage = 100
+
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return typedGovernanceTool(listLabelsLegacy(t), listLabelsOutputSchema(), decodeGovernanceJSON[ListLabelsOutput])
@@ -142,12 +145,12 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first"),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
@@ -160,7 +163,7 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 					},
 				},
 				Required: []string{"owner", "repo"},
-			},
+			}),
 		},
 		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -170,6 +173,19 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			perPage, err := OptionalIntParamWithDefault(args, "perPage", listLabelsDefaultPerPage)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			after, err := OptionalParam[string](args, "after")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			paginationParams, err := CursorPaginationParams{PerPage: perPage, After: after}.ToGraphQLParams()
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -189,16 +205,28 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 							Description githubv4.String
 						}
 						TotalCount githubv4.Int
-					} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
+						PageInfo   struct {
+							HasNextPage     githubv4.Boolean
+							HasPreviousPage githubv4.Boolean
+							StartCursor     githubv4.String
+							EndCursor       githubv4.String
+						}
+					} `graphql:"labels(first: $first, after: $after, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
 			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
+				"first": githubv4.Int(*paginationParams.First),
 				// Order labels by issue count (descending) so the most-used labels are returned first.
 				"orderByField":     labelOrderFieldIssueCount,
 				"orderByDirection": githubv4.OrderDirectionDesc,
+			}
+			if paginationParams.After != nil {
+				vars["after"] = githubv4.String(*paginationParams.After)
+			} else {
+				vars["after"] = (*githubv4.String)(nil)
 			}
 
 			if err := client.Query(ctx, &query, vars); err != nil {
@@ -215,9 +243,16 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
+			labelsPage := query.Repository.Labels.PageInfo
 			response := map[string]any{
 				"labels":     labels,
 				"totalCount": int(query.Repository.Labels.TotalCount),
+				"pageInfo": MinimalPageInfo{
+					HasNextPage:     bool(labelsPage.HasNextPage),
+					HasPreviousPage: bool(labelsPage.HasPreviousPage),
+					StartCursor:     string(labelsPage.StartCursor),
+					EndCursor:       string(labelsPage.EndCursor),
+				},
 			}
 
 			out, err := json.Marshal(response)

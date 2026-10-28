@@ -795,6 +795,22 @@ func Test_GetFileContents_ContentlessRequestCounts(t *testing.T) {
 		require.True(t, ok)
 	})
 
+	t.Run("large file with encoding none", func(t *testing.T) {
+		result, requests := runRepositoryReadFixture(t, repositoryReadFixture{
+			contents: &github.RepositoryContent{
+				Type: new("file"), Path: new("large.bin"), SHA: new(fileSHA), Size: new(largeSize),
+				Content: new(""), Encoding: new("none"),
+			},
+			trees: map[string]*github.Tree{commitSHA: {Entries: []*github.TreeEntry{
+				{Path: new("large.bin"), Mode: new("100644"), Type: new("blob"), SHA: new(fileSHA)},
+			}}},
+		}, args("large.bin"))
+		require.False(t, result.IsError)
+		assert.Equal(t, 2, requests)
+		_, ok := result.Content[1].(*mcp.ResourceLink)
+		require.True(t, ok)
+	})
+
 	t.Run("internal large link uses exact-path tree descent", func(t *testing.T) {
 		target := "../target.bin"
 		linkSHA := gitBlobSHA([]byte(target))
@@ -2139,16 +2155,14 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			HTMLURL:     new("https://github.com/owner/repo/blob/main/docs/example.md"),
 			DownloadURL: new("https://raw.githubusercontent.com/owner/repo/main/docs/example.md"),
 		},
-		Commit: github.Commit{
-			SHA:     new("def456abc789"),
-			Message: new("Add example file"),
-			Author: &github.CommitAuthor{
-				Name:  new("Test User"),
-				Email: new("test@example.com"),
-				Date:  &github.Timestamp{Time: time.Now()},
-			},
-			HTMLURL: new("https://github.com/owner/repo/commit/def456abc789"),
+		SHA:     new("def456abc789"),
+		Message: new("Add example file"),
+		Author: &github.CommitAuthor{
+			Name:  new("Test User"),
+			Email: new("test@example.com"),
+			Date:  &github.Timestamp{Time: time.Now()},
 		},
+		HTMLURL: new("https://github.com/owner/repo/commit/def456abc789"),
 	}
 	symlinkTarget := []byte("other.md")
 	symlinkSHA := gitBlobSHA(symlinkTarget)
@@ -3317,7 +3331,7 @@ func Test_PushFiles(t *testing.T) {
 						require.Equal(t, "main", body["branch"])
 						w.WriteHeader(http.StatusCreated)
 						response := &github.RepositoryContentResponse{
-							Commit: github.Commit{SHA: new("abc123")},
+							SHA: new("abc123"),
 						}
 						b, _ := json.Marshal(response)
 						_, _ = w.Write(b)
@@ -3413,11 +3427,9 @@ func Test_PushFiles(t *testing.T) {
 							Content: &github.RepositoryContent{
 								SHA: new("readme123"),
 							},
-							Commit: github.Commit{
-								SHA: new("init456"),
-								Tree: &github.Tree{
-									SHA: new("tree456"),
-								},
+							SHA: new("init456"),
+							Tree: &github.Tree{
+								SHA: new("tree456"),
 							},
 						}
 						b, _ := json.Marshal(response)
@@ -3593,7 +3605,7 @@ func Test_PushFiles(t *testing.T) {
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
 						Content: &github.RepositoryContent{SHA: new("readme123")},
-						Commit:  github.Commit{SHA: new("init456")},
+						SHA:     new("init456"),
 					},
 				),
 			),
@@ -3639,7 +3651,7 @@ func Test_PushFiles(t *testing.T) {
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
 						Content: &github.RepositoryContent{SHA: new("readme123")},
-						Commit:  github.Commit{SHA: new("init456")},
+						SHA:     new("init456"),
 					},
 				),
 				// Fail to get commit

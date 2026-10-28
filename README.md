@@ -1126,7 +1126,9 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **list_label** - List labels from a repository
   - **OAuth Challenge Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name - required for all operations (string, required)
 
 </details>
