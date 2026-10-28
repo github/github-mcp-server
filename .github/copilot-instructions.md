@@ -5,7 +5,7 @@
 This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that connects AI tools to GitHub's platform. It enables AI agents to manage repositories, issues, pull requests, workflows, and more through natural language.
 
 **Key Details:**
-- **Language:** Go 1.24+ (~38k lines of code)
+- **Language:** Go 1.27.3+ (~38k lines of code)
 - **Type:** MCP server application with CLI interface
 - **Primary Package:** github-mcp-server (stdio MCP server - **this is the main focus**)
 - **Secondary Package:** mcpcurl (testing utility - don't break it, but not the priority)
@@ -92,9 +92,9 @@ go test ./pkg/github -run TestGetMe
 
 ### Key Configuration Files
 
-- **go.mod / go.sum:** Go module dependencies (Go 1.24.0+)
+- **go.mod / go.sum:** Go module dependencies (Go 1.27.3+)
 - **.golangci.yml:** Linter configuration (v2 format, ~15 linters enabled)
-- **Dockerfile:** Multi-stage build (golang:1.25.8-alpine → distroless)
+- **Dockerfile:** Multi-stage build (golang:1.27.3-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
 - **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary

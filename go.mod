@@ -1,6 +1,6 @@
 module github.com/github/github-mcp-server/v2
 
-go 1.26.8
+go 1.27.3
 
 require (
 	github.com/go-chi/chi/v5 v5.4.0
