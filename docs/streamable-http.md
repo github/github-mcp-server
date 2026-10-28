@@ -36,7 +36,11 @@ Start the server on the default port (8082):
 github-mcp-server http
 ```
 
-The server will be available at `http://localhost:8082`.
+The server will be available at `http://127.0.0.1:8082` (also reachable as `http://localhost:8082`). The default bind address is loopback-only. To listen on all interfaces, for example in a container or behind a reverse proxy, opt in explicitly:
+
+```bash
+github-mcp-server http --listen-host 0.0.0.0
+```
 
 ### With Scope Challenge
 
