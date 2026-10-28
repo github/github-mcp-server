@@ -36,15 +36,15 @@
         "type": "string"
       },
       "owner": {
-        "description": "Repository owner",
+        "description": "Repository owner (required for create, submit_pending, and delete_pending methods)",
         "type": "string"
       },
       "pullNumber": {
-        "description": "Pull request number",
+        "description": "Pull request number (required for create, submit_pending, and delete_pending methods)",
         "type": "number"
       },
       "repo": {
-        "description": "Repository name",
+        "description": "Repository name (required for create, submit_pending, and delete_pending methods)",
         "type": "string"
       },
       "resolutionReason": {
@@ -57,10 +57,7 @@
       }
     },
     "required": [
-      "method",
-      "owner",
-      "repo",
-      "pullNumber"
+      "method"
     ],
     "type": "object"
   },
