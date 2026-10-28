@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 	"testing"
@@ -120,4 +121,36 @@ func Test_recordFieldsUsage_NilExporterDoesNotPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
 		recordFieldsUsage(context.Background(), BaseDeps{}, "search_code", true, 100, 30)
 	})
+}
+
+type countingMarshaler struct {
+	calls int
+}
+
+func (m *countingMarshaler) MarshalJSON() ([]byte, error) {
+	m.calls++
+	return json.Marshal(map[string]string{"full": "payload"})
+}
+
+func Test_recordFieldsUsageFor_NoopMetricsSkipsFullPayloadSerialization(t *testing.T) {
+	full := &countingMarshaler{}
+
+	recordFieldsUsageFor(context.Background(), BaseDeps{}, "search_code", full, true, 10)
+
+	assert.Zero(t, full.calls)
+}
+
+func Test_recordFieldsUsageFor_RecordingMetricsMeasuresFullPayload(t *testing.T) {
+	deps, rec := depsWithRecordingMetrics(t, BaseDeps{})
+	full := &countingMarshaler{}
+
+	recordFieldsUsageFor(context.Background(), deps, "search_code", full, true, 10)
+
+	require.Equal(t, 1, full.calls)
+	fullBytes, ok := rec.counter(metricFieldsBytesFull)
+	require.True(t, ok)
+	assert.Equal(t, int64(len(`{"full":"payload"}`)), fullBytes.value)
+	sentBytes, ok := rec.counter(metricFieldsBytesSent)
+	require.True(t, ok)
+	assert.Equal(t, int64(10), sentBytes.value)
 }
