@@ -90,7 +90,11 @@ for goos in darwin linux windows; do
         # Use LC_ALL=C for consistent sorting across different systems
         packages_file="${TEMPDIR}/${goos}_${goarch}_packages.txt"
         if [ -s "${report_file}" ] && grep -qE '^ - \[' "${report_file}" 2>/dev/null; then
-            grep -E '^ - \[' "${report_file}" | LC_ALL=C sort > "${packages_file}"
+            # go-licenses can resolve jd/v2's license to a nonexistent v2/LICENSE.
+            # At v2.5.0 it lives at the repository root; normalize before hashing.
+            grep -E '^ - \[' "${report_file}" |
+                sed 's|https://github\.com/josephburnett/jd/blob/v2\.5\.0/v2/LICENSE)|https://github.com/josephburnett/jd/blob/v2.5.0/LICENSE)|g' |
+                LC_ALL=C sort > "${packages_file}"
             hash=$(cat "${packages_file}" | compute_hash)
         else
             echo "(FAILED TO GENERATE LICENSE REPORT FOR ${goos}/${goarch})" > "${packages_file}"
