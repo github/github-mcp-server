@@ -465,7 +465,7 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
    GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
    ```
 
-The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+When both are set, an explicitly provided `--toolsets` flag takes precedence over `GITHUB_TOOLSETS`.
 
 #### Specifying Individual Tools
 
