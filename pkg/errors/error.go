@@ -6,7 +6,9 @@ import (
 	stderrors "errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
@@ -21,7 +23,7 @@ type GitHubAPIError struct {
 	Err      error            `json:"-"`
 }
 
-// NewGitHubAPIError creates a new GitHubAPIError with the provided message, response, and error.
+// newGitHubAPIError creates a new GitHubAPIError with the provided message, response, and error.
 func newGitHubAPIError(message string, resp *github.Response, err error) *GitHubAPIError {
 	return &GitHubAPIError{
 		Message:  message,
@@ -31,7 +33,20 @@ func newGitHubAPIError(message string, resp *github.Response, err error) *GitHub
 }
 
 func (e *GitHubAPIError) Error() string {
-	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %v", e.Message, e.Err)
+}
+
+func (e *GitHubAPIError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 type GitHubGraphQLError struct {
@@ -47,7 +62,20 @@ func newGitHubGraphQLError(message string, err error) *GitHubGraphQLError {
 }
 
 func (e *GitHubGraphQLError) Error() string {
-	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %v", e.Message, e.Err)
+}
+
+func (e *GitHubGraphQLError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 type GitHubRawAPIError struct {
@@ -65,11 +93,26 @@ func newGitHubRawAPIError(message string, resp *http.Response, err error) *GitHu
 }
 
 func (e *GitHubRawAPIError) Error() string {
-	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %v", e.Message, e.Err)
+}
+
+func (e *GitHubRawAPIError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 type GitHubErrorKey struct{}
+
 type GitHubCtxErrors struct {
+	mu      sync.Mutex
 	api     []*GitHubAPIError
 	graphQL []*GitHubGraphQLError
 	raw     []*GitHubRawAPIError
@@ -80,13 +123,13 @@ func ContextWithGitHubErrors(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		// If the context already has GitHubCtxErrors, we just empty the slices to start fresh
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
 		val.api = []*GitHubAPIError{}
 		val.graphQL = []*GitHubGraphQLError{}
 		val.raw = []*GitHubRawAPIError{}
+		val.mu.Unlock()
 	} else {
-		// If not, we create a new GitHubCtxErrors and set it in the context
 		ctx = context.WithValue(ctx, GitHubErrorKey{}, &GitHubCtxErrors{})
 	}
 
@@ -95,24 +138,39 @@ func ContextWithGitHubErrors(ctx context.Context) context.Context {
 
 // GetGitHubAPIErrors retrieves the slice of GitHubAPIErrors from the context.
 func GetGitHubAPIErrors(ctx context.Context) ([]*GitHubAPIError, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		return val.api, nil // return the slice of API errors from the context
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
+		defer val.mu.Unlock()
+		return slices.Clone(val.api), nil
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
 // GetGitHubGraphQLErrors retrieves the slice of GitHubGraphQLErrors from the context.
 func GetGitHubGraphQLErrors(ctx context.Context) ([]*GitHubGraphQLError, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		return val.graphQL, nil // return the slice of GraphQL errors from the context
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
+		defer val.mu.Unlock()
+		return slices.Clone(val.graphQL), nil
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
 // GetGitHubRawAPIErrors retrieves the slice of GitHubRawAPIErrors from the context.
 func GetGitHubRawAPIErrors(ctx context.Context) ([]*GitHubRawAPIError, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		return val.raw, nil // return the slice of raw API errors from the context
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
+		defer val.mu.Unlock()
+		return slices.Clone(val.raw), nil
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
@@ -134,27 +192,41 @@ func NewGitHubGraphQLErrorToCtx(ctx context.Context, message string, err error) 
 }
 
 func addGitHubAPIErrorToContext(ctx context.Context, err *GitHubAPIError) (context.Context, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		val.api = append(val.api, err) // append the error to the existing slice in the context
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
+		val.api = append(val.api, err)
+		val.mu.Unlock()
 		return ctx, nil
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
 func addGitHubGraphQLErrorToContext(ctx context.Context, err *GitHubGraphQLError) (context.Context, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
-		val.graphQL = append(val.graphQL, err) // append the error to the existing slice in the context
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
+		val.graphQL = append(val.graphQL, err)
+		val.mu.Unlock()
 		return ctx, nil
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
 func addRawAPIErrorToContext(ctx context.Context, err *GitHubRawAPIError) (context.Context, error) {
-	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok && val != nil {
+		val.mu.Lock()
 		val.raw = append(val.raw, err)
+		val.mu.Unlock()
 		return ctx, nil
 	}
-
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
@@ -165,7 +237,8 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
 
-	if rateLimitErr, ok := stderrors.AsType[*github.RateLimitError](err); ok {
+	var rateLimitErr *github.RateLimitError
+	if stderrors.As(err, &rateLimitErr) && rateLimitErr != nil {
 		resetTime := rateLimitErr.Rate.Reset.Time
 		if !resetTime.IsZero() {
 			retryIn := time.Until(resetTime).Round(time.Second)
@@ -178,7 +251,8 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub API rate limit exceeded. Wait before retrying.", message))
 	}
 
-	if abuseErr, ok := stderrors.AsType[*github.AbuseRateLimitError](err); ok {
+	var abuseErr *github.AbuseRateLimitError
+	if stderrors.As(err, &abuseErr) && abuseErr != nil {
 		if abuseErr.RetryAfter != nil {
 			retryAfter := abuseErr.RetryAfter.Round(time.Second)
 			if retryAfter > 0 {
@@ -198,7 +272,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 // including request or response metadata from the underlying HTTP exchange.
 func formatGitHubValidationError(resp *github.Response, err error) error {
 	var ghErr *github.ErrorResponse
-	if !stderrors.As(err, &ghErr) {
+	if !stderrors.As(err, &ghErr) || ghErr == nil {
 		return err
 	}
 
@@ -206,7 +280,7 @@ func formatGitHubValidationError(resp *github.Response, err error) error {
 	if ghErr.Response != nil {
 		statusCode = ghErr.Response.StatusCode
 	}
-	if statusCode == 0 && resp != nil {
+	if statusCode == 0 && resp != nil && resp.Response != nil {
 		statusCode = resp.StatusCode
 	}
 	if statusCode != http.StatusUnprocessableEntity {
@@ -280,7 +354,12 @@ func NewGitHubRawAPIErrorResponse(ctx context.Context, message string, resp *htt
 // but returns an unexpected HTTP status code. It creates a synthetic error from the
 // status code and response body, then records it in context for observability tracking.
 func NewGitHubAPIStatusErrorResponse(ctx context.Context, message string, resp *github.Response, body []byte) *mcp.CallToolResult {
-	err := fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	var err error
+	if resp != nil && resp.Response != nil {
+		err = fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	} else {
+		err = fmt.Errorf("unexpected status: %s", string(body))
+	}
 	return NewGitHubAPIErrorResponse(ctx, message, resp, err)
 }
 
@@ -306,6 +385,9 @@ type StructuredResolutionError struct {
 // Error implements the error interface; the message is the JSON body so that the
 // downstream tool result also carries the structured payload as plain text.
 func (e *StructuredResolutionError) Error() string {
+	if e == nil {
+		return `{"error":"unknown"}`
+	}
 	b, err := json.Marshal(e)
 	if err != nil {
 		return fmt.Sprintf(`{"error":%q,"name":%q}`, e.Kind, e.Name)
@@ -326,5 +408,8 @@ func NewStructuredResolutionError(kind, name, hint string, candidates []any) *St
 // NewStructuredResolutionErrorResponse returns an mcp.CallToolResult whose text body
 // is the JSON-serialised StructuredResolutionError, suitable for agent self-correction.
 func NewStructuredResolutionErrorResponse(err *StructuredResolutionError) *mcp.CallToolResult {
+	if err == nil {
+		return utils.NewToolResultError(`{"error":"unknown"}`)
+	}
 	return utils.NewToolResultError(err.Error())
 }

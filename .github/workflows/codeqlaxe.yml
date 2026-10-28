@@ -1,0 +1,51 @@
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '20 10 * * *'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # JavaScript/TypeScript explicitly skips compilation
+          - language: javascript-typescript
+            build-mode: none
+
+          # C# compiles dynamically via autobuild execution
+          - language: csharp
+            build-mode: manual
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout # v4.2.2
+
+    # Initializes the CodeQL tools with optional matrix keys
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init # v4.38.3
+      with:
+        languages: ${{ matrix.language }}
+
+    # Runs compilation rules dynamically ONLY when explicitly set in matrix properties
+    - name: Autobuild
+      if: matrix.build-mode == 'autobuild'
+      uses: github/codeql-action/autobuild # v4.38.3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze # v4.38.3
+      with:
+        category: "/language:${{ matrix.language }}"
