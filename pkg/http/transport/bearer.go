@@ -16,6 +16,13 @@ type BearerAuthTransport struct {
 	// and takes precedence over Token.
 	TokenProvider func() string
 
+	// RequestTokenProvider, when non-nil, supplies the bearer token for each
+	// request based on the request itself, and takes precedence over both
+	// TokenProvider and Token. It exists for credentials that are scoped to the
+	// resource being addressed, such as GitHub App installation tokens across
+	// several organizations.
+	RequestTokenProvider func(*http.Request) string
+
 	// AllowedHosts, when non-empty, restricts the hosts the Authorization
 	// header is attached to. The token is set only when the request host
 	// and port exactly match one of these entries (case-insensitive). This
@@ -36,7 +43,10 @@ type BearerAuthTransport struct {
 func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	token := t.Token
-	if t.TokenProvider != nil {
+	switch {
+	case t.RequestTokenProvider != nil:
+		token = t.RequestTokenProvider(req)
+	case t.TokenProvider != nil:
 		token = t.TokenProvider()
 	}
 	if !t.hostAllowed(req.URL.Host) {
