@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/google/go-github/v92/github"
@@ -167,6 +168,36 @@ func TestCompleteTag_MissingDependencies(t *testing.T) {
 	result, err = completeTag(ctx, nil, resolved, "v1.0")
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func TestCompleteRepositoryRefs_PropagatesListErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint EndpointPattern
+		complete CompleteHandler
+	}{
+		{name: "branch", endpoint: GetReposBranchesByOwnerByRepo, complete: completeBranch},
+		{name: "commit", endpoint: GetReposCommitsByOwnerByRepo, complete: completeSHA},
+		{name: "tag", endpoint: GetReposTagsByOwnerByRepo, complete: completeTag},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpClient := NewMockedHTTPClient(WithRequestMatchHandler(tt.endpoint, func(w http.ResponseWriter, r *http.Request) {
+				mockResponse(t, http.StatusForbidden, map[string]string{"message": "rate limited"})(w, r)
+			}))
+			client := mustNewGHClient(t, httpClient)
+
+			values, err := tt.complete(t.Context(), client, map[string]string{
+				"owner": "octocat",
+				"repo":  "hello-world",
+			}, "")
+
+			require.Error(t, err)
+			assert.Nil(t, values)
+			assert.Contains(t, err.Error(), "rate limited")
+		})
+	}
 }
 
 func TestCompletePRNumber_MissingDependencies(t *testing.T) {
