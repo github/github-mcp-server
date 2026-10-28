@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get automation tag"
+  },
+  "description": "Get a caller-visible automation tag in a repository by ID. Tags organize automations; they do not execute them. A tag that is missing, deleted, or not visible to the caller returns a 404 error.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "minLength": 1,
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "minLength": 1,
+        "type": "string"
+      },
+      "tag_id": {
+        "description": "Automation tag ID, as returned by list_automation_tags",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_automation_tag"
+}
