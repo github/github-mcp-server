@@ -129,7 +129,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 	}
 	WithPagination(schema)
 
-	return NewTool[ListSecretScanningAlertsInput, []*SecretScanningAlertOutput](
+	return NewTool[ListSecretScanningAlertsInput, SecretScanningAlertsOutput](
 		ToolsetMetadataSecretProtection,
 		mcp.Tool{
 			Name:        "list_secret_scanning_alerts",
@@ -141,18 +141,18 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListSecretScanningAlertsInput) (*mcp.CallToolResult, []*SecretScanningAlertOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args ListSecretScanningAlertsInput) (*mcp.CallToolResult, SecretScanningAlertsOutput, error) {
 			if args.Owner == "" {
-				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+				return utils.NewToolResultError("missing required parameter: owner"), SecretScanningAlertsOutput{}, nil
 			}
 			if args.Repo == "" {
-				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+				return utils.NewToolResultError("missing required parameter: repo"), SecretScanningAlertsOutput{}, nil
 			}
 
 			pagination := securityPagination(args.Page, args.PerPage)
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, SecretScanningAlertsOutput{}, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			alerts, resp, err := client.SecretScanning.ListAlertsForRepo(ctx, args.Owner, args.Repo, &github.SecretScanningAlertListOptions{
 				State:      args.State,
@@ -168,21 +168,34 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 					fmt.Sprintf("failed to list alerts for repository '%s/%s'", args.Owner, args.Repo),
 					resp,
 					err,
-				), nil, nil
+				), SecretScanningAlertsOutput{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, SecretScanningAlertsOutput{}, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), SecretScanningAlertsOutput{}, nil
 			}
 
-			r, err := json.Marshal(alerts) //nolint:gosec // G117: This security_events-scoped tool intentionally returns alert secrets; the result is labeled private-untrusted.
+			apiPageInfo := buildOffsetPageInfo(resp)
+			output := SecretScanningAlertsOutput{
+				Alerts:   mapSecurityOutputs(alerts, secretScanningAlertOutput),
+				PageInfo: SecurityPageInfo(apiPageInfo),
+			}
+
+			response := struct {
+				Alerts   []*github.SecretScanningAlert `json:"alerts"`
+				PageInfo pageInfo                      `json:"pageInfo"`
+			}{
+				Alerts:   alerts,
+				PageInfo: apiPageInfo,
+			}
+			r, err := json.Marshal(response) //nolint:gosec // G117: This security_events-scoped tool intentionally returns alert secrets; the result is labeled private-untrusted.
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
+				return nil, SecretScanningAlertsOutput{}, fmt.Errorf("failed to marshal alerts: %w", err)
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -190,7 +203,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 			// visibility and surface the matched secret material itself, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, mapSecurityOutputs(alerts, secretScanningAlertOutput), nil
+			return result, output, nil
 		},
 		normalizeSecurityIntegerArguments("page", "perPage"),
 		normalizeTypedReadArguments(nil, false),

@@ -258,17 +258,25 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedAlerts []*github.SecretScanningAlert
-			err = json.Unmarshal([]byte(textContent.Text), &returnedAlerts)
+			var returnedResult struct {
+				Alerts   []*github.SecretScanningAlert `json:"alerts"`
+				PageInfo struct {
+					HasNextPage     bool `json:"hasNextPage"`
+					HasPreviousPage bool `json:"hasPreviousPage"`
+				} `json:"pageInfo"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			assert.NoError(t, err)
-			assert.Len(t, returnedAlerts, len(tc.expectedAlerts))
-			for i, alert := range returnedAlerts {
+			assert.Len(t, returnedResult.Alerts, len(tc.expectedAlerts))
+			for i, alert := range returnedResult.Alerts {
 				assert.Equal(t, *tc.expectedAlerts[i].Number, *alert.Number)
 				assert.Equal(t, *tc.expectedAlerts[i].HTMLURL, *alert.HTMLURL)
 				assert.Equal(t, *tc.expectedAlerts[i].State, *alert.State)
 				assert.Equal(t, *tc.expectedAlerts[i].Resolution, *alert.Resolution)
 				assert.Equal(t, *tc.expectedAlerts[i].SecretType, *alert.SecretType)
 			}
+			assert.False(t, returnedResult.PageInfo.HasNextPage)
+			assert.False(t, returnedResult.PageInfo.HasPreviousPage)
 		})
 	}
 }
