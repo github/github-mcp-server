@@ -164,34 +164,76 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 	if ctx != nil {
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
+	withErrorMeta := func(result *mcp.CallToolResult) *mcp.CallToolResult {
+		result.Meta = githubAPIErrorMeta(ctx, resp, err)
+		return result
+	}
 
 	if rateLimitErr, ok := stderrors.AsType[*github.RateLimitError](err); ok {
 		resetTime := rateLimitErr.Rate.Reset.Time
 		if !resetTime.IsZero() {
 			retryIn := time.Until(resetTime).Round(time.Second)
 			if retryIn > 0 {
-				return utils.NewToolResultError(fmt.Sprintf(
-					"%s: GitHub API rate limit exceeded. Retry after %v.", message, retryIn))
+				return withErrorMeta(utils.NewToolResultError(fmt.Sprintf(
+					"%s: GitHub API rate limit exceeded. Retry after %v.", message, retryIn)))
 			}
 		}
-		return utils.NewToolResultError(fmt.Sprintf(
-			"%s: GitHub API rate limit exceeded. Wait before retrying.", message))
+		return withErrorMeta(utils.NewToolResultError(fmt.Sprintf(
+			"%s: GitHub API rate limit exceeded. Wait before retrying.", message)))
 	}
 
 	if abuseErr, ok := stderrors.AsType[*github.AbuseRateLimitError](err); ok {
 		if abuseErr.RetryAfter != nil {
 			retryAfter := abuseErr.RetryAfter.Round(time.Second)
 			if retryAfter > 0 {
-				return utils.NewToolResultError(fmt.Sprintf(
+				return withErrorMeta(utils.NewToolResultError(fmt.Sprintf(
 					"%s: GitHub secondary rate limit exceeded. Retry after %v.",
-					message, retryAfter))
+					message, retryAfter)))
 			}
 		}
-		return utils.NewToolResultError(fmt.Sprintf(
-			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
+		return withErrorMeta(utils.NewToolResultError(fmt.Sprintf(
+			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message)))
 	}
 
-	return utils.NewToolResultErrorFromErr(message, formatGitHubValidationError(resp, err))
+	return withErrorMeta(utils.NewToolResultErrorFromErr(message, formatGitHubValidationError(resp, err)))
+}
+
+func githubAPIErrorMeta(ctx context.Context, resp *github.Response, err error) mcp.Meta {
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+	}
+	if status == 0 {
+		if apiErr, ok := stderrors.AsType[*github.ErrorResponse](err); ok && apiErr.Response != nil {
+			status = apiErr.Response.StatusCode
+		} else if apiErr, ok := stderrors.AsType[*github.RateLimitError](err); ok && apiErr.Response != nil {
+			status = apiErr.Response.StatusCode
+		} else if apiErr, ok := stderrors.AsType[*github.AbuseRateLimitError](err); ok && apiErr.Response != nil {
+			status = apiErr.Response.StatusCode
+		}
+	}
+
+	_, isRateLimit := stderrors.AsType[*github.RateLimitError](err)
+	_, isSecondaryRateLimit := stderrors.AsType[*github.AbuseRateLimitError](err)
+	kind := "transport_error"
+	switch {
+	case stderrors.Is(err, context.Canceled), stderrors.Is(err, context.DeadlineExceeded), status == 0 && ctx != nil && ctx.Err() != nil:
+		kind = "canceled"
+	case isRateLimit:
+		kind = "rate_limited"
+	case isSecondaryRateLimit:
+		kind = "secondary_rate_limited"
+	case status >= http.StatusOK && status < http.StatusMultipleChoices:
+		kind = "response_read_error"
+	case status != 0:
+		kind = "http_error"
+	}
+
+	metadata := map[string]any{"kind": kind}
+	if status != 0 {
+		metadata["status"] = status
+	}
+	return mcp.Meta{"github/error": metadata}
 }
 
 // formatGitHubValidationError exposes the parsed fields of 422 responses without

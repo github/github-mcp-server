@@ -2,14 +2,16 @@ package errors
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
 	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 func TestGitHubErrorContext(t *testing.T) {
@@ -686,6 +688,89 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		text := requireErrorText(t, result)
 		assert.Contains(t, text, "validation failed")
 	})
+}
+
+func TestNewGitHubAPIErrorResponse_Meta(t *testing.T) {
+	tests := []struct {
+		name       string
+		ctx        func() context.Context
+		resp       *github.Response
+		err        error
+		wantKind   string
+		wantStatus int
+	}{
+		{
+			name:       "HTTP error",
+			resp:       &github.Response{Response: &http.Response{StatusCode: http.StatusConflict}},
+			err:        fmt.Errorf("conflict"),
+			wantKind:   "http_error",
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name: "primary rate limit",
+			resp: &github.Response{Response: &http.Response{StatusCode: http.StatusForbidden}},
+			err: &github.RateLimitError{
+				Rate:     github.Rate{},
+				Response: &http.Response{StatusCode: http.StatusForbidden},
+			},
+			wantKind:   "rate_limited",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "secondary rate limit",
+			resp: &github.Response{Response: &http.Response{StatusCode: http.StatusForbidden}},
+			err: &github.AbuseRateLimitError{
+				Response: &http.Response{StatusCode: http.StatusForbidden},
+			},
+			wantKind:   "secondary_rate_limited",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "response read error",
+			resp:       &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
+			err:        fmt.Errorf("unexpected EOF"),
+			wantKind:   "response_read_error",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:     "transport error",
+			err:      fmt.Errorf("connection reset"),
+			wantKind: "transport_error",
+		},
+		{
+			name: "canceled request",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			err:      context.Canceled,
+			wantKind: "canceled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.ctx != nil {
+				ctx = tt.ctx()
+			}
+			ctx = ContextWithGitHubErrors(ctx)
+
+			result := NewGitHubAPIErrorResponse(ctx, "API call failed", tt.resp, tt.err)
+
+			require.True(t, result.IsError)
+			wantMeta := map[string]any{"kind": tt.wantKind}
+			if tt.wantStatus != 0 {
+				wantMeta["status"] = tt.wantStatus
+			}
+			assert.Equal(t, wantMeta, result.Meta["github/error"])
+
+			encoded, err := json.Marshal(result)
+			require.NoError(t, err)
+			assert.Contains(t, string(encoded), `"_meta":{"github/error":`)
+		})
+	}
 }
 
 func TestNewGitHubAPIErrorResponse_ValidationMessages(t *testing.T) {
