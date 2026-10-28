@@ -119,6 +119,11 @@ var (
 		Description: "GitHub Gist related tools",
 		Icon:        "logo-gist",
 	}
+	ToolsetMetadataPackages = inventory.ToolsetMetadata{
+		ID:          "packages",
+		Description: "GitHub Packages related tools",
+		Icon:        "package",
+	}
 	ToolsetMetadataSecurityAdvisories = inventory.ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
@@ -344,6 +349,10 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GetGist(t),
 		CreateGist(t),
 		UpdateGist(t),
+
+		// Package tools
+		PackagesRead(t),
+		PackagesWrite(t),
 
 		// Project tools
 		ProjectsList(t),
