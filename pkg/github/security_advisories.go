@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/ifc"
@@ -268,7 +269,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "get_global_security_advisory",
-			Description: t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_DESCRIPTION", "Get a global security advisory"),
+			Description: t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_DESCRIPTION", "Get a global security advisory by GHSA ID or CVE ID"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_USER_TITLE", "Get a global security advisory"),
 				ReadOnlyHint: true,
@@ -278,10 +279,13 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				Properties: map[string]*jsonschema.Schema{
 					"ghsaId": {
 						Type:        "string",
-						Description: "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+						Description: "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). Provide this or cveId.",
+					},
+					"cveId": {
+						Type:        "string",
+						Description: "CVE ID of the advisory (format: CVE-YYYY-NNNNN). Provide this or ghsaId.",
 					},
 				},
-				Required: []string{"ghsaId"},
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
@@ -291,22 +295,19 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			if args.GHSAID == "" {
-				return utils.NewToolResultError("invalid ghsaId: missing required parameter: ghsaId"), nil, nil
+			switch {
+			case args.GHSAID == "" && args.CVEID == "":
+				return utils.NewToolResultError("missing required parameter: provide either ghsaId or cveId"), nil, nil
+			case args.GHSAID != "" && args.CVEID != "":
+				return utils.NewToolResultError("provide only one of ghsaId or cveId, not both"), nil, nil
 			}
 
-			advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, args.GHSAID)
+			advisory, errResult, err := findGlobalSecurityAdvisory(ctx, client, args)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get advisory: %w", err)
+				return nil, nil, err
 			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil, nil
+			if errResult != nil {
+				return errResult, nil, nil
 			}
 
 			r, err := json.Marshal(advisory)
@@ -321,6 +322,67 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 			return result, globalSecurityAdvisoryOutput(advisory), nil
 		},
 	)
+}
+
+// findGlobalSecurityAdvisory resolves a GHSA ID directly and a CVE ID through the
+// advisory list filter GitHub exposes for it. A CVE that maps to several advisories
+// is reported instead of returning an arbitrary one, since the tool returns a single
+// advisory and the caller needs the GHSA ID to pick.
+func findGlobalSecurityAdvisory(
+	ctx context.Context,
+	client *github.Client,
+	args GetGlobalSecurityAdvisoryInput,
+) (*github.GlobalSecurityAdvisory, *mcp.CallToolResult, error) {
+	if args.GHSAID != "" {
+		advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, args.GHSAID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get advisory: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return nil, ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil
+		}
+		return advisory, nil, nil
+	}
+
+	advisories, resp, err := client.SecurityAdvisories.ListGlobalSecurityAdvisories(ctx, &github.ListGlobalSecurityAdvisoriesOptions{
+		CVEID: &args.CVEID,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list global security advisories: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return nil, ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil
+	}
+
+	switch len(advisories) {
+	case 0:
+		return nil, utils.NewToolResultError(fmt.Sprintf("no global security advisory found for %s", args.CVEID)), nil
+	case 1:
+		return advisories[0], nil, nil
+	default:
+		ghsaIDs := make([]string, 0, len(advisories))
+		for _, advisory := range advisories {
+			if advisory != nil && advisory.GHSAID != nil {
+				ghsaIDs = append(ghsaIDs, *advisory.GHSAID)
+			}
+		}
+		return nil, utils.NewToolResultError(fmt.Sprintf(
+			"%s matches %d global security advisories (%s); call get_global_security_advisory with the ghsaId you need",
+			args.CVEID, len(advisories), strings.Join(ghsaIDs, ", "),
+		)), nil
+	}
 }
 
 func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {

@@ -1569,7 +1569,8 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **get_global_security_advisory** - Get a global security advisory
   - **OAuth Challenge Scopes**: `security_events`
-  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
+  - `cveId`: CVE ID of the advisory (format: CVE-YYYY-NNNNN). Provide this or ghsaId. (string, optional)
+  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). Provide this or cveId. (string, optional)
 
 - **list_global_security_advisories** - List global security advisories
   - **OAuth Challenge Scopes**: `security_events`
