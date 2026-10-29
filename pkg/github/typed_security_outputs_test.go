@@ -24,6 +24,8 @@ func securityOutputSchema(t *testing.T, name string) *jsonschema.Schema {
 	switch name {
 	case "get_code_quality_finding":
 		schema, err = jsonschema.For[*CodeQualityFindingOutput](nil)
+	case "list_code_quality_findings":
+		schema, err = jsonschema.For[CodeQualityFindingsOutput](nil)
 	case "get_code_scanning_alert":
 		schema, err = jsonschema.For[*CodeScanningAlertOutput](nil)
 	case "list_code_scanning_alerts":
@@ -135,8 +137,13 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 	}
 	globalAdvisory.CWEs = []*github.AdvisoryCWEs{{CWEID: new("CWE-79"), Name: new("Cross-site scripting")}}
 	codeQualityJSON := json.RawMessage(`{"unknown_legacy_field":"preserved in text","url":"https://api.github.com/repos/owner/repo/code-quality/findings/42","state":"open","rule":{"id":"test-rule","description":"Test rule"},"number":42}`)
+	codeQualityListJSON := json.RawMessage(`[` + string(codeQualityJSON) + `]`)
 	legacyOutputs := map[string]any{
-		"get_code_quality_finding":    codeQualityFinding,
+		"get_code_quality_finding": codeQualityFinding,
+		"list_code_quality_findings": struct {
+			Findings json.RawMessage `json:"findings"`
+			PageInfo pageInfo        `json:"pageInfo"`
+		}{Findings: codeQualityListJSON},
 		"get_code_scanning_alert":     codeScanningAlert,
 		"list_code_scanning_alerts":   []*github.Alert{codeScanningAlert},
 		"get_secret_scanning_alert":   secretScanningAlert,
@@ -155,22 +162,24 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 	deps := BaseDeps{
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber: mockResponse(t, http.StatusOK, codeQualityJSON),
-			GetReposByOwnerByRepo:                                  mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
-			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:   mockResponse(t, http.StatusOK, codeScanningAlert),
-			GetReposCodeScanningAlertsByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
-			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, secretScanningAlert),
-			GetReposSecretScanningAlertsByOwnerByRepo:              mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
-			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:     mockResponse(t, http.StatusOK, dependabotAlert),
-			GetReposDependabotAlertsByOwnerByRepo:                  mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
-			GetAdvisories:                                          mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
-			GetAdvisoriesByGhsaID:                                  mockResponse(t, http.StatusOK, globalAdvisory),
-			GetReposSecurityAdvisoriesByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
-			GetOrgsSecurityAdvisoriesByOrg:                         mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetReposCodeQualityFindingsByOwnerByRepo:                mockResponse(t, http.StatusOK, codeQualityListJSON),
+			GetReposByOwnerByRepo:                                   mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
+			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:    mockResponse(t, http.StatusOK, codeScanningAlert),
+			GetReposCodeScanningAlertsByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
+			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber:  mockResponse(t, http.StatusOK, secretScanningAlert),
+			GetReposSecretScanningAlertsByOwnerByRepo:               mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
+			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:      mockResponse(t, http.StatusOK, dependabotAlert),
+			GetReposDependabotAlertsByOwnerByRepo:                   mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
+			GetAdvisories:                                           mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
+			GetAdvisoriesByGhsaID:                                   mockResponse(t, http.StatusOK, globalAdvisory),
+			GetReposSecurityAdvisoriesByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetOrgsSecurityAdvisoriesByOrg:                          mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
 		})),
 		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 	}
 	tools := []inventory.ServerTool{
 		GetCodeQualityFinding(translations.NullTranslationHelper),
+		ListCodeQualityFindings(translations.NullTranslationHelper),
 		GetCodeScanningAlert(translations.NullTranslationHelper),
 		ListCodeScanningAlerts(translations.NullTranslationHelper),
 		GetSecretScanningAlert(translations.NullTranslationHelper),
@@ -184,6 +193,7 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 	}
 	calls := []mcp.CallToolParams{
 		{Name: "get_code_quality_finding", Arguments: map[string]any{"owner": "owner", "repo": "repo", "findingNumber": "42"}},
+		{Name: "list_code_quality_findings", Arguments: map[string]any{"owner": "owner", "repo": "repo", "perPage": "30"}},
 		{Name: "get_code_scanning_alert", Arguments: map[string]any{"owner": "owner", "repo": "repo", "alertNumber": "42"}},
 		{Name: "list_code_scanning_alerts", Arguments: map[string]any{"owner": "owner", "repo": "repo", "page": "1", "perPage": "30"}},
 		{Name: "get_secret_scanning_alert", Arguments: map[string]any{"owner": "owner", "repo": "repo", "alertNumber": "43"}},
@@ -251,7 +261,7 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.Name)
 				assert.Equal(t, legacyIFC[call.Name], mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels must protect text and structured content identically")
-				if call.Name != "get_code_quality_finding" {
+				if call.Name != "get_code_quality_finding" && call.Name != "list_code_quality_findings" {
 					assert.NotNil(t, result.Meta["ifc"], "%s must retain its IFC label", call.Name)
 				}
 				schemaJSON, err := json.Marshal(toolsByName[call.Name].OutputSchema)
@@ -293,7 +303,7 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 					assert.Contains(t, string(structuredJSON), "unsafeQuery")
 				}
 
-				if call.Name == "get_code_quality_finding" {
+				if call.Name == "get_code_quality_finding" || call.Name == "list_code_quality_findings" {
 					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "unknown_legacy_field")
 				}
 
@@ -382,6 +392,7 @@ func TestSecurityOutputDTOs(t *testing.T) {
 	}
 	for _, typ := range []reflect.Type{
 		reflect.TypeFor[CodeQualityFindingOutput](),
+		reflect.TypeFor[CodeQualityFindingsOutput](),
 		reflect.TypeFor[CodeScanningAlertOutput](),
 		reflect.TypeFor[SecretScanningAlertOutput](),
 		reflect.TypeFor[DependabotAlertsOutput](),
