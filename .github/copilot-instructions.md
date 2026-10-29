@@ -7,15 +7,12 @@ This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that co
 **Key Details:**
 - **Language:** Go 1.27.3+ (~38k lines of code)
 - **Type:** MCP server application with CLI interface
-- **Primary Package:** github-mcp-server (stdio MCP server - **this is the main focus**)
 - **Secondary Package:** mcpcurl (testing utility - don't break it, but not the priority)
 - **Framework:** Uses modelcontextprotocol/go-sdk for MCP protocol, google/go-github for GitHub API
-- **Size:** ~60MB repository, 70 Go files
 - **Library Usage:** This repository is also used as a library by the remote server. Functions that could be called by other repositories should be exported (capitalized), even if not required internally. Preserve existing export patterns.
 
 **Code Quality Standards:**
 - **Popular Open Source Repository** - High bar for code quality and clarity
-- **Comprehension First** - Code must be clear to a wide audience
 - **Clean Commits** - Atomic, focused changes with clear messages
 - **Structure** - Always maintain or improve, never degrade
 - **Code over Comments** - Prefer self-documenting code; comment only when necessary
@@ -71,7 +68,7 @@ go test ./pkg/github -run TestGetMe
 ├── pkg/                      # Public API packages
 │   ├── github/               # GitHub API MCP tools implementation
 │   │   └── __toolsnaps__/    # Tool schema snapshots (*.snap files)
-│   ├── toolsets/             # Toolset configuration & management
+│   ├── inventory/            # Toolset configuration & management
 │   ├── errors/               # Error handling utilities
 │   ├── sanitize/             # HTML/content sanitization
 │   ├── log/                  # Logging utilities
@@ -97,41 +94,38 @@ go test ./pkg/github -run TestGetMe
 - **Dockerfile:** Multi-stage build (golang:1.27.3-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
-- **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary
+- **.gitignore:** Excludes bin/, dist/, vendor/, .DS_Store, github-mcp-server binary
 
 ### Important Scripts (script/ directory)
 
-- **script/lint** - Runs `gofmt` + `golangci-lint`. **MUST RUN** before committing
 - **script/test** - Runs `go test -race ./...` (full test suite)
-- **script/generate-docs** - Updates README.md tool documentation. Run after tool changes
 - **script/licenses** - Updates third-party license files when dependencies change
 - **script/licenses-check** - Validates license compliance (runs in CI)
 - **script/get-me** - Quick test script for get_me tool
 - **script/get-discussions** - Quick test for discussions
-- **script/tag-release** - **NEVER USE THIS** - releases are managed separately
 
 ## GitHub Workflows (CI/CD)
 
-All workflows run on push/PR unless noted. Located in `.github/workflows/`:
+Located in `.github/workflows/`:
 
 1. **go.yml** - Build and test on ubuntu/windows/macos. Runs `script/test` and builds binary
-2. **lint.yml** - Runs golangci-lint-action v2.5 (GitHub Action) with actions/setup-go stable
+2. **lint.yml** - Runs golangci-lint-action v9 (GitHub Action) with actions/setup-go using go.mod
 3. **docs-check.yml** - Verifies README.md is up-to-date by running generate-docs and checking git diff
 4. **code-scanning.yml** - CodeQL security analysis for Go and GitHub Actions
 5. **license-check.yml** - Runs `script/licenses-check` to validate compliance
 6. **docker-publish.yml** - Publishes container image to ghcr.io
-7. **goreleaser.yml** - Creates releases (main branch only)
+7. **goreleaser.yml** - Creates releases (`v*` tags)
 8. **registry-releaser.yml** - Updates MCP registry
 
-**All of these must pass for PR merge.** If docs-check fails, run `script/generate-docs` and commit changes.
+**All of these must pass for PR merge.**
 
 ## Testing Guidelines
 
 ### Unit Tests
 
 - Use `testify` for assertions (`require` for critical checks, `assert` for non-blocking)
-- Tests are in `*_test.go` files alongside implementation (internal tests, not `_test` package)
-- Mock GitHub API with `go-github-mock` (REST) or `githubv4mock` (GraphQL)
+- Tests are in `*_test.go` files alongside implementation
+- Mock GitHub API with `MockHTTPClientWithHandlers` (REST) or `githubv4mock` (GraphQL)
 - Test structure for tools:
   1. Test tool snapshot
   2. Verify critical schema properties (e.g., ReadOnly annotation)
@@ -175,20 +169,16 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 - **Keep changes minimal and focused** on the specific issue being addressed
 - **Prefer clarity over cleverness** - code must be understandable by a wide audience
-- **Atomic commits** - each commit should be a complete, logical change
-- **Maintain or improve structure** - never degrade code organization
 - Use table-driven tests for behavioral testing
-- Comment sparingly - code should be self-documenting
 - Follow standard Go conventions (Effective Go, Go proverbs)
 - **Test changes thoroughly** before committing
-- Export functions (capitalize) if they could be used by other repos as a library
 
 ## Common Development Workflows
 
 ### Adding a New MCP Tool
 
 1. Add tool implementation in `pkg/github/` (e.g., `foo_tools.go`)
-2. Register tool in appropriate toolset in `pkg/github/` or `pkg/toolsets/`
+2. Register tool in appropriate toolset in `pkg/github/`
 3. Write unit tests following the tool test pattern
 4. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
 5. Run `script/generate-docs` to update README
@@ -239,7 +229,6 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 ## Environment Variables
 
-- **GITHUB_PERSONAL_ACCESS_TOKEN** - Required for server operation and e2e tests
 - **GITHUB_HOST** - For GitHub Enterprise Server (prefix with `https://`)
 - **GITHUB_TOOLSETS** - Comma-separated toolset list (overrides --toolsets flag)
 - **GITHUB_READ_ONLY** - Set to "1" for read-only mode
@@ -270,22 +259,16 @@ server.json         - MCP server registry metadata
 ### Main Entry Point
 
 `cmd/github-mcp-server/main.go` - Uses cobra for CLI, viper for config, supports:
-- `stdio` command (default) - MCP stdio transport
+- `stdio` command - MCP stdio transport
 - `generate-docs` command - Documentation generation
 - Flags: --toolsets, --read-only, --gh-host, --log-file
 
 ## Important Reminders
 
 1. **PRIMARY FOCUS:** The local stdio MCP server (github-mcp-server) - this is what you should work on and test with
-2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked). This repo is used as a library by the remote server, so keep functions exported (capitalized) if they could be called by other repos, even if not needed internally.
+2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked).
 3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 4. **NEVER** use `script/tag-release` or push tags
-5. **NEVER** skip `script/lint` before committing Go code changes
-6. **ALWAYS** update toolsnaps when changing MCP tool schemas
-7. **ALWAYS** run `script/generate-docs` after modifying tools
-8. For specific test files, use `go test ./path -run TestName` not full suite
-9. E2E tests require PAT token - you likely cannot run them
-10. Toolsnaps are API documentation - treat changes seriously
-11. Build/test/lint are very fast (~1s each) - run frequently
-12. CI failures for docs-check or license-check have simple fixes (run the script)
-13. mcpcurl is secondary - don't break it, but it's not the priority
+5. For specific test files, use `go test ./path -run TestName` not full suite
+6. Toolsnaps are API documentation - treat changes seriously
+7. Build/test/lint are very fast (~1s each) - run frequently
