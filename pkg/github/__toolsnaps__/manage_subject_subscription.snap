@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "readOnlyHint": false,
+    "title": "Manage subject subscription"
+  },
+  "description": "Subscribe, unsubscribe, or ignore a specific issue, pull request, or discussion for the authenticated user by repository and number. Does not require an existing notification thread and does not watch the whole repository. Use get_subject_subscription to check the current state.",
+  "inputSchema": {
+    "properties": {
+      "number": {
+        "description": "Issue, pull request, or discussion number",
+        "maximum": 2147483647,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "subscribed: receive all updates; unsubscribed: only participating or mentions; ignored: receive no notifications",
+        "enum": [
+          "subscribed",
+          "unsubscribed",
+          "ignored"
+        ],
+        "type": "string"
+      },
+      "subjectType": {
+        "description": "Type of the subject to subscribe to",
+        "enum": [
+          "issue",
+          "pull_request",
+          "discussion"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "subjectType",
+      "number",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "manage_subject_subscription"
+}
