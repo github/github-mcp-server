@@ -1024,7 +1024,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetFileContentsInput) (*mcp.CallToolResult, *RepositoryContentsOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, input GetFileContentsInput) (*mcp.CallToolResult, *RepositoryContentsOutput, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1101,7 +1101,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
-				const maxContentSize = 1024 * 1024 // 1MB
+				maxContentSize := repositoryContentSizeLimit(request)
 
 				read, respInspect, err := inspectRepositoryFile(ctx, client, owner, repo, ref, path, fileContent)
 				if err != nil {
@@ -1230,6 +1230,24 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 // directory listing. sentBytes is the size of the payload actually returned.
 func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
 	recordFieldsUsageFor(ctx, deps, "get_file_contents", full, filtered, sentBytes)
+}
+
+const (
+	legacyRepositoryContentSizeLimit = 1024 * 1024
+	modernRepositoryContentSizeLimit = 448 * 1024
+)
+
+// repositoryContentSizeLimit accounts for modern typed output mirroring file
+// content in both MCP content blocks and structuredContent.
+func repositoryContentSizeLimit(request *mcp.CallToolRequest) int {
+	if request == nil || request.Params == nil {
+		return legacyRepositoryContentSizeLimit
+	}
+	version, _ := request.Params.Meta[mcp.MetaKeyProtocolVersion].(string)
+	if inventory.ProtocolEraForVersion(version) == inventory.ProtocolEraModern {
+		return modernRepositoryContentSizeLimit
+	}
+	return legacyRepositoryContentSizeLimit
 }
 
 // ForkRepository creates a tool to fork a repository.
