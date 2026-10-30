@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -84,12 +83,12 @@ type gitGistCase struct {
 	structured string
 }
 
-func gitGistDeps(t *testing.T, current **gitGistCase, apiError bool, private ...bool) BaseDeps {
+func gitGistDeps(t *testing.T, current **gitGistCase, apiError bool) BaseDeps {
 	t.Helper()
 	client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tc := *current
 		if r.URL.Path == "/repos/owner/repo" {
-			_, _ = fmt.Fprintf(w, `{"default_branch":"main","private":%t}`, len(private) > 0 && private[0])
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
 			return
 		}
 		assert.Equal(t, tc.method, r.Method)
@@ -316,7 +315,7 @@ func TestListGistsLegacyPaginationBounds(t *testing.T) {
 	}
 }
 
-func TestGitGistIFCScopesAndLockdown(t *testing.T) {
+func TestGitGistScopesAndLockdown(t *testing.T) {
 	tr := translations.NullTranslationHelper
 	for _, tc := range []struct {
 		tool  inventory.ServerTool
@@ -349,43 +348,24 @@ func TestGitGistIFCScopesAndLockdown(t *testing.T) {
 	}
 
 	for _, protocol := range typedGitGistProtocols {
-		for _, private := range []bool{false, true} {
-			for _, enabled := range []bool{false, true} {
-				for _, lockdown := range []bool{false, true} {
-					t.Run(fmt.Sprintf("%s/private=%t/ifc=%t/lockdown=%t", protocol, private, enabled, lockdown), func(t *testing.T) {
-						var current *gitGistCase
-						deps := gitGistDeps(t, &current, false, private)
-						deps.Flags = stubFeatureFlags(map[string]bool{"lockdown-mode": lockdown})
-						if enabled {
-							deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-						}
-						session, schemas := gitGistTypedSession(t, deps, protocol)
-						seen := make(map[string]bool)
-						for _, tc := range gitGistWireCases() {
-							if seen[tc.name] {
-								continue
-							}
-							seen[tc.name] = true
-							current = &tc
-							result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
-							require.NoError(t, err)
-							assertGitGistResult(t, result, schemas[tc.name], tc.text, false, tc.structured)
-							if !enabled || tc.name == "create_gist" || tc.name == "update_gist" {
-								assert.Nil(t, result.Meta["ifc"])
-								continue
-							}
-							expected := ifc.LabelGist()
-							switch tc.name {
-							case "get_repository_tree":
-								expected = ifc.LabelCommitContents(private)
-							case "list_gists":
-								expected = ifc.LabelGistList()
-							}
-							assert.JSONEq(t, mustMarshalJSON(t, expected), mustMarshalJSON(t, result.Meta["ifc"]))
-						}
-					})
+		for _, lockdown := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/lockdown=%t", protocol, lockdown), func(t *testing.T) {
+				var current *gitGistCase
+				deps := gitGistDeps(t, &current, false)
+				deps.Flags = stubFeatureFlags(map[string]bool{"lockdown-mode": lockdown})
+				session, schemas := gitGistTypedSession(t, deps, protocol)
+				seen := make(map[string]bool)
+				for _, tc := range gitGistWireCases() {
+					if seen[tc.name] {
+						continue
+					}
+					seen[tc.name] = true
+					current = &tc
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+					require.NoError(t, err)
+					assertGitGistResult(t, result, schemas[tc.name], tc.text, false, tc.structured)
 				}
-			}
+			})
 		}
 	}
 }

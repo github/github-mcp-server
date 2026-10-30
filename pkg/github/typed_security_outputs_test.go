@@ -155,19 +155,17 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 	deps := BaseDeps{
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber: mockResponse(t, http.StatusOK, codeQualityJSON),
-			GetReposByOwnerByRepo:                                  mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
-			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:   mockResponse(t, http.StatusOK, codeScanningAlert),
-			GetReposCodeScanningAlertsByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
-			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, secretScanningAlert),
-			GetReposSecretScanningAlertsByOwnerByRepo:              mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
-			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:     mockResponse(t, http.StatusOK, dependabotAlert),
-			GetReposDependabotAlertsByOwnerByRepo:                  mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
-			GetAdvisories:                                          mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
-			GetAdvisoriesByGhsaID:                                  mockResponse(t, http.StatusOK, globalAdvisory),
-			GetReposSecurityAdvisoriesByOwnerByRepo:                mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
-			GetOrgsSecurityAdvisoriesByOrg:                         mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber:    mockResponse(t, http.StatusOK, codeScanningAlert),
+			GetReposCodeScanningAlertsByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.Alert{codeScanningAlert}),
+			GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber:  mockResponse(t, http.StatusOK, secretScanningAlert),
+			GetReposSecretScanningAlertsByOwnerByRepo:               mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{secretScanningAlert}),
+			GetReposDependabotAlertsByOwnerByRepoByAlertNumber:      mockResponse(t, http.StatusOK, dependabotAlert),
+			GetReposDependabotAlertsByOwnerByRepo:                   mockResponse(t, http.StatusOK, []*github.DependabotAlert{dependabotAlert}),
+			GetAdvisories:                                           mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{globalAdvisory}),
+			GetAdvisoriesByGhsaID:                                   mockResponse(t, http.StatusOK, globalAdvisory),
+			GetReposSecurityAdvisoriesByOwnerByRepo:                 mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
+			GetOrgsSecurityAdvisoriesByOrg:                          mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{advisory}),
 		})),
-		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 	}
 	tools := []inventory.ServerTool{
 		GetCodeQualityFinding(translations.NullTranslationHelper),
@@ -195,7 +193,6 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 		{Name: "list_repository_security_advisories", Arguments: map[string]any{"owner": "owner", "repo": "repo"}},
 		{Name: "list_org_repository_security_advisories", Arguments: map[string]any{"org": "owner"}},
 	}
-	legacyIFC := make(map[string]string)
 	t.Run("unknown direct caller", func(t *testing.T) {
 		for i, tool := range tools {
 			call := calls[i]
@@ -244,16 +241,11 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				text := getTextResult(t, result).Text
 				if protocolVersion == "2025-11-25" {
 					assert.Equal(t, mustMarshalJSON(t, legacyOutputs[call.Name]), text, "%s must retain byte-exact main serialization for legacy clients", call.Name)
-					legacyIFC[call.Name] = mustMarshalJSON(t, result.Meta["ifc"])
 					assert.Nil(t, result.StructuredContent, "%s must remain text-only for legacy clients", call.Name)
 					continue
 				}
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.Name)
-				assert.Equal(t, legacyIFC[call.Name], mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels must protect text and structured content identically")
-				if call.Name != "get_code_quality_finding" {
-					assert.NotNil(t, result.Meta["ifc"], "%s must retain its IFC label", call.Name)
-				}
 				schemaJSON, err := json.Marshal(toolsByName[call.Name].OutputSchema)
 				require.NoError(t, err)
 				var schema jsonschema.Schema
@@ -302,9 +294,6 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 				}
 				if call.Name == "get_secret_scanning_alert" {
 					assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "legacy response detail")
-				}
-				if call.Name == "get_code_scanning_alert" {
-					assert.NotNil(t, result.Meta["ifc"], "typed output must retain the security alert IFC label")
 				}
 			}
 		})

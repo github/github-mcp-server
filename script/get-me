@@ -11,7 +11,7 @@ output=$(
 )
 
 if command -v jq &> /dev/null; then
-  echo "$output" | jq '{_meta: .result._meta, content: (.result.content[0].text | fromjson)}'
+  echo "$output" | jq '.result.content[0].text | fromjson'
 else
   echo "$output"
 fi

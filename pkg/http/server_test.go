@@ -442,12 +442,6 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
-			name:         "insiders mode does not auto-enable ifc labels",
-			flagName:     github.FeatureFlagIFCLabels,
-			insidersMode: true,
-			wantEnabled:  false,
-		},
-		{
 			name:         "insiders mode does not enable granular flags",
 			flagName:     github.FeatureFlagIssuesGranular,
 			insidersMode: true,

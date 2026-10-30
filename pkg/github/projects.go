@@ -13,7 +13,6 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
@@ -81,22 +80,12 @@ type statusUpdateNode struct {
 	}
 }
 
-type projectVisibility struct {
-	Public githubv4.Boolean
-}
-
-type statusUpdateNodeWithProject struct {
-	statusUpdateNode
-	Project projectVisibility
-}
-
 type statusUpdateConnection struct {
 	Nodes    []statusUpdateNode
 	PageInfo PageInfoFragment
 }
 
 type statusUpdatesProject struct {
-	Public        githubv4.Boolean
 	StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
 }
 
@@ -117,7 +106,7 @@ type statusUpdatesOrgQuery struct {
 // statusUpdateNodeQuery is the GraphQL query for fetching a single status update by node ID.
 type statusUpdateNodeQuery struct {
 	Node struct {
-		StatusUpdate statusUpdateNodeWithProject `graphql:"... on ProjectV2StatusUpdate"`
+		StatusUpdate statusUpdateNode `graphql:"... on ProjectV2StatusUpdate"`
 	} `graphql:"node(id: $id)"`
 }
 
@@ -153,20 +142,14 @@ type projectViewVisibleFieldNode struct {
 	} `graphql:"... on ProjectV2SingleSelectField"`
 }
 
-type projectViewNodeWithProject struct {
-	projectViewNode
-	Project projectVisibility
-}
-
 type projectViewConnection struct {
 	Nodes    []projectViewNode
 	PageInfo PageInfoFragment
 }
 
 type projectViewsProject struct {
-	ID     githubv4.ID
-	Public githubv4.Boolean
-	Views  projectViewConnection `graphql:"views(first: $first, after: $after, last: $last, before: $before)"`
+	ID    githubv4.ID
+	Views projectViewConnection `graphql:"views(first: $first, after: $after, last: $last, before: $before)"`
 }
 
 type projectViewsUserQuery struct {
@@ -183,7 +166,7 @@ type projectViewsOrgQuery struct {
 
 type projectViewNodeQuery struct {
 	Node struct {
-		ProjectView projectViewNodeWithProject `graphql:"... on ProjectV2View"`
+		ProjectView projectViewNode `graphql:"... on ProjectV2View"`
 	} `graphql:"node(id: $id)"`
 }
 
@@ -383,9 +366,7 @@ Use this tool to list projects for a user or organization, or list project field
 
 			switch method {
 			case projectsMethodListProjects:
-				result, visibilities, payload, err := listProjects(ctx, client, args, owner, ownerType)
-				result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelProjectList)
-				return result, payload, err
+				return listProjects(ctx, client, args, owner, ownerType)
 			case projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates, projectsMethodListProjectViews:
 				// All other methods require project_number and ownerType detection
 				projectNumber, err := RequiredInt(args, "project_number")
@@ -401,43 +382,25 @@ Use this tool to list projects for a user or organization, or list project field
 
 				switch method {
 				case projectsMethodListProjectFields:
-					result, payload, err := listProjectFields(ctx, client, args, owner, ownerType)
-					if shouldAttachIFCLabel(ctx, deps, result) {
-						isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
-						if visibilityErr == nil {
-							result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProject)
-						}
-					}
-					return result, payload, err
+					return listProjectFields(ctx, client, args, owner, ownerType)
 				case projectsMethodListProjectItems:
 					gqlClient, gqlErr := deps.GetGQLClient(ctx)
 					if gqlErr != nil {
 						return utils.NewToolResultError(gqlErr.Error()), nil, nil
 					}
-					result, payload, err := listProjectItems(ctx, client, gqlClient, args, owner, ownerType)
-					if shouldAttachIFCLabel(ctx, deps, result) {
-						isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
-						if visibilityErr == nil {
-							result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProjectContent)
-						}
-					}
-					return result, payload, err
+					return listProjectItems(ctx, client, gqlClient, args, owner, ownerType)
 				case projectsMethodListProjectStatusUpdates:
 					gqlClient, err := deps.GetGQLClient(ctx)
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					result, isPrivate, payload, err := listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
-					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
-					return result, payload, err
+					return listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
 				case projectsMethodListProjectViews:
 					gqlClient, err := deps.GetGQLClient(ctx)
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					result, isPrivate, payload, err := listProjectViews(ctx, gqlClient, args, owner, ownerType)
-					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
-					return result, payload, err
+					return listProjectViews(ctx, gqlClient, args, owner, ownerType)
 				default:
 					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 				}
@@ -543,9 +506,7 @@ Use this tool to get details about individual projects, project fields, project 
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, isPrivate, payload, err := getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
-				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
-				return result, payload, err
+				return getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
 			}
 			if method == projectsMethodGetProjectView {
 				viewID, err := RequiredParam[string](args, "view_id")
@@ -556,9 +517,7 @@ Use this tool to get details about individual projects, project fields, project 
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, isPrivate, payload, err := getProjectView(ctx, gqlClient, viewID)
-				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
-				return result, payload, err
+				return getProjectView(ctx, gqlClient, viewID)
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -591,22 +550,13 @@ Use this tool to get details about individual projects, project fields, project 
 
 			switch method {
 			case projectsMethodGetProject:
-				result, isPrivate, payload, err := getProject(ctx, client, owner, ownerType, projectNumber)
-				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProject(isPrivate))
-				return result, payload, err
+				return getProject(ctx, client, owner, ownerType, projectNumber)
 			case projectsMethodGetProjectField:
 				fieldID, err := RequiredBigInt(args, "field_id")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, payload, err := getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
-				if shouldAttachIFCLabel(ctx, deps, result) {
-					isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
-					if visibilityErr == nil {
-						result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProject)
-					}
-				}
-				return result, payload, err
+				return getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
 			case projectsMethodGetProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
@@ -637,14 +587,7 @@ Use this tool to get details about individual projects, project fields, project 
 					}
 					fields = append(fields, resolvedIDs...)
 				}
-				result, payload, err := getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
-				if shouldAttachIFCLabel(ctx, deps, result) {
-					isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
-					if visibilityErr == nil {
-						result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProjectContent)
-					}
-				}
-				return result, payload, err
+				return getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -1052,15 +995,15 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // Helper functions for consolidated projects tools
 
-func listProjects(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, []bool, any, error) {
+func listProjects(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	queryStr, err := OptionalParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	pagination, err := extractPaginationOptionsFromArgs(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	var resp *github.Response
@@ -1083,7 +1026,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 				"failed to list projects",
 				resp,
 				err,
-			), nil, nil, nil
+			), nil, nil
 		}
 	default:
 		projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
@@ -1092,7 +1035,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 				"failed to list projects",
 				resp,
 				err,
-			), nil, nil, nil
+			), nil, nil
 		}
 	}
 
@@ -1113,18 +1056,18 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 
 		r, err := json.Marshal(response)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 		}
 
-		return utils.NewToolResultText(string(r)), projectVisibilities(minimalProjects), nil, nil
+		return utils.NewToolResultText(string(r)), nil, nil
 	}
 
-	return nil, nil, nil, fmt.Errorf("unexpected state in listProjects")
+	return nil, nil, fmt.Errorf("unexpected state in listProjects")
 }
 
 // listProjectsFromBothOwnerTypes fetches projects from both user and org endpoints
 // when owner_type is not specified, combining the results with owner_type labels.
-func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, []bool, any, error) {
+func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, any, error) {
 	var minimalProjects []MinimalProject
 	var resp *github.Response
 
@@ -1155,7 +1098,7 @@ func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, 
 	// If both failed, return error
 	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
 		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
-		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
 	}
 
 	response := map[string]any{
@@ -1169,21 +1112,9 @@ func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, 
 
 	r, err := json.Marshal(response)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), projectVisibilities(minimalProjects), nil, nil
-}
-
-func projectVisibilities(projects []MinimalProject) []bool {
-	visibilities := make([]bool, 0, len(projects))
-	for _, project := range projects {
-		isPrivate := true
-		if project.Public != nil {
-			isPrivate = !*project.Public
-		}
-		visibilities = append(visibilities, isPrivate)
-	}
-	return visibilities
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 func listProjectFields(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
@@ -1313,54 +1244,40 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func fetchProjectV2(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (*github.ProjectV2, *github.Response, error) {
+func getProject(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
+	var resp *github.Response
+	var project *github.ProjectV2
+	var err error
+
 	if ownerType == "org" {
-		return client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
+		project, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
+	} else {
+		project, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
 	}
-	return client.Projects.GetUserProject(ctx, owner, projectNumber)
-}
-
-// FetchProjectIsPrivate returns whether a GitHub Project is private.
-func FetchProjectIsPrivate(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (bool, error) {
-	project, resp, err := fetchProjectV2(ctx, client, owner, ownerType, projectNumber)
-	if resp != nil && resp.Body != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return false, err
-	}
-	if resp == nil || resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("failed to fetch project visibility")
-	}
-	return !project.GetPublic(), nil
-}
-
-func getProject(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, bool, any, error) {
-	project, resp, err := fetchProjectV2(ctx, client, owner, ownerType, projectNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to get project",
 			resp,
 			err,
-		), false, nil, nil
+		), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, false, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project", resp, body), false, nil, nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project", resp, body), nil, nil
 	}
 
 	minimalProject := convertToMinimalProject(project)
 	r, err := json.Marshal(minimalProject)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), !project.GetPublic(), nil, nil
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 func getProjectField(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, fieldID int64) (*mcp.CallToolResult, any, error) {
@@ -1774,19 +1691,19 @@ func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, 
 }
 
 // listProjectStatusUpdates lists status updates for a project via GraphQL.
-func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, bool, any, error) {
+func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	if ownerType != "user" && ownerType != "org" {
-		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
 	}
 
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	if perPage > MaxProjectsPerPage {
 		perPage = MaxProjectsPerPage
@@ -1797,7 +1714,7 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 
 	afterCursor, err := OptionalParam[string](args, "after")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	vars := map[string]any{
@@ -1813,26 +1730,23 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 
 	var nodes []statusUpdateNode
 	var pi PageInfoFragment
-	var isPrivate bool
 
 	if ownerType == "org" {
 		var q statusUpdatesOrgQuery
 		if err := gqlClient.Query(ctx, &q, vars); err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), false, nil, nil
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
 		}
 		project := q.Organization.ProjectV2
 		nodes = project.StatusUpdates.Nodes
 		pi = project.StatusUpdates.PageInfo
-		isPrivate = !bool(project.Public)
 	} else {
 		var q statusUpdatesUserQuery
 		if err := gqlClient.Query(ctx, &q, vars); err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), false, nil, nil
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
 		}
 		project := q.User.ProjectV2
 		nodes = project.StatusUpdates.Nodes
 		pi = project.StatusUpdates.PageInfo
-		isPrivate = !bool(project.Public)
 	}
 
 	updates := make([]MinimalProjectStatusUpdate, 0, len(nodes))
@@ -1852,34 +1766,33 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 
 	r, err := json.Marshal(response)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), isPrivate, nil, nil
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 // getProjectStatusUpdate fetches a single status update by its node ID via GraphQL.
-func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, statusUpdateID string) (*mcp.CallToolResult, bool, any, error) {
+func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, statusUpdateID string) (*mcp.CallToolResult, any, error) {
 	var q statusUpdateNodeQuery
 	vars := map[string]any{
 		"id": githubv4.ID(statusUpdateID),
 	}
 
 	if err := gqlClient.Query(ctx, &q, vars); err != nil {
-		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateGetFailedError, err)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateGetFailedError, err)), nil, nil
 	}
 
 	if q.Node.StatusUpdate.ID == nil || q.Node.StatusUpdate.ID == "" {
-		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2StatusUpdate or was not found", ProjectStatusUpdateGetFailedError)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2StatusUpdate or was not found", ProjectStatusUpdateGetFailedError)), nil, nil
 	}
 
-	update := convertToMinimalStatusUpdate(q.Node.StatusUpdate.statusUpdateNode)
-	isPrivate := !bool(q.Node.StatusUpdate.Project.Public)
+	update := convertToMinimalStatusUpdate(q.Node.StatusUpdate)
 
 	r, err := json.Marshal(update)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), isPrivate, nil, nil
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 func convertToMinimalProjectView(node projectViewNode) MinimalProjectView {
@@ -1932,32 +1845,32 @@ func parseProjectViewLayout(layout string) (githubv4.ProjectV2ViewLayout, error)
 	}
 }
 
-func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, bool, any, error) {
+func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	if ownerType != "user" && ownerType != "org" {
-		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
 	}
 
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	if perPage < 1 || perPage > MaxProjectsPerPage {
 		perPage = MaxProjectsPerPage
 	}
 	after, err := OptionalParam[string](args, "after")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	before, err := OptionalParam[string](args, "before")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), false, nil, nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	if after != "" && before != "" {
-		return utils.NewToolResultError("provide either 'after' or 'before', not both"), false, nil, nil
+		return utils.NewToolResultError("provide either 'after' or 'before', not both"), nil, nil
 	}
 
 	vars := map[string]any{
@@ -1986,18 +1899,18 @@ func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[
 	if ownerType == "org" {
 		var query projectViewsOrgQuery
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), false, nil, nil
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), nil, nil
 		}
 		project = query.Organization.ProjectV2
 	} else {
 		var query projectViewsUserQuery
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), false, nil, nil
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), nil, nil
 		}
 		project = query.User.ProjectV2
 	}
 	if project.ID == nil || project.ID == "" {
-		return utils.NewToolResultError(fmt.Sprintf("%s: project was not found", ProjectViewListFailedError)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("%s: project was not found", ProjectViewListFailedError)), nil, nil
 	}
 
 	views := make([]MinimalProjectView, 0, len(project.Views.Nodes))
@@ -2015,27 +1928,27 @@ func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[
 	}
 	result, err := json.Marshal(response)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(result)), !bool(project.Public), nil, nil
+	return utils.NewToolResultText(string(result)), nil, nil
 }
 
-func getProjectView(ctx context.Context, gqlClient *githubv4.Client, viewID string) (*mcp.CallToolResult, bool, any, error) {
+func getProjectView(ctx context.Context, gqlClient *githubv4.Client, viewID string) (*mcp.CallToolResult, any, error) {
 	var query projectViewNodeQuery
 	vars := map[string]any{"id": githubv4.ID(viewID)}
 	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewGetFailedError, err)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewGetFailedError, err)), nil, nil
 	}
 	if query.Node.ProjectView.ID == nil || query.Node.ProjectView.ID == "" {
-		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2View or was not found", ProjectViewGetFailedError)), false, nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2View or was not found", ProjectViewGetFailedError)), nil, nil
 	}
 
-	view := convertToMinimalProjectView(query.Node.ProjectView.projectViewNode)
+	view := convertToMinimalProjectView(query.Node.ProjectView)
 	result, err := json.Marshal(view)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(result)), !bool(query.Node.ProjectView.Project.Public), nil, nil
+	return utils.NewToolResultText(string(result)), nil, nil
 }
 
 func projectViewVisibleFieldsInput(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*ProjectV2ViewConfigurationInput, error) {

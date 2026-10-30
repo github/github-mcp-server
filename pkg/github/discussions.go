@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
@@ -279,9 +278,6 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
 			result := utils.NewToolResultText(string(out))
-			// Discussion content is user-authored (untrusted); confidentiality
-			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
 			items := make([]*DiscussionListItemOutput, 0, len(discussions))
 			for _, discussion := range discussions {
 				items = append(items, &DiscussionListItemOutput{
@@ -395,9 +391,6 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(out))
-			// Discussion content is user-authored (untrusted); confidentiality
-			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			output := &DiscussionOutput{
 				Number: int(d.Number), Title: sanitize.PlainText(string(d.Title)),
 				Body: sanitize.Content(string(d.Body)), HTMLURL: string(d.URL),
@@ -596,11 +589,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(out))
-			// Discussion comments are user-authored (untrusted); confidentiality
-			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
-			return result, &DiscussionCommentsOutput{
+			return utils.NewToolResultText(string(out)), &DiscussionCommentsOutput{
 				Comments: discussionCommentOutputs(comments),
 				PageInfo: DiscussionPageInfoOutput{
 					HasNextPage: bool(pageInfo.HasNextPage), HasPreviousPage: bool(pageInfo.HasPreviousPage),
@@ -1126,9 +1115,6 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
 			result := utils.NewToolResultText(string(out))
-			// Discussion categories are repo-defined structural metadata
-			// (trusted); confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			items := make([]DiscussionCategoryItemOutput, 0, len(categories))
 			for _, category := range categories {
 				items = append(items, DiscussionCategoryItemOutput{ID: category["id"], Name: category["name"]})
