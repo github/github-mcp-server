@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -153,12 +152,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Global advisories come from the world-readable GitHub Advisory
-			// Database (public) but contain externally authored prose
-			// (untrusted).
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
-			return result, mapSecurityOutputs(advisories, globalSecurityAdvisoryOutput), nil
+			return utils.NewToolResultText(string(r)), mapSecurityOutputs(advisories, globalSecurityAdvisoryOutput), nil
 		},
 		normalizeGlobalAdvisoryArguments,
 	)
@@ -248,17 +242,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Repository advisories carry externally authored prose (untrusted).
-			// Confidentiality follows repo visibility, but draft/triage/closed
-			// advisories are not world-readable even on a public repo, so the
-			// result is only public when every returned advisory is published.
-			allPublished := allAdvisoriesPublished(advisories)
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, args.Owner, args.Repo, result,
-				func(isPrivate bool) ifc.SecurityLabel {
-					return ifc.LabelRepositorySecurityAdvisory(isPrivate, allPublished)
-				})
-			return result, mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
+			return utils.NewToolResultText(string(r)), mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
 		},
 	)
 }
@@ -314,11 +298,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// A global advisory is world-readable (public) but externally
-			// authored (untrusted).
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
-			return result, globalSecurityAdvisoryOutput(advisory), nil
+			return utils.NewToolResultText(string(r)), globalSecurityAdvisoryOutput(advisory), nil
 		},
 	)
 }
@@ -400,28 +380,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Org-wide advisory listings span the organization's repositories
-			// (including private ones) and are restricted to org members, so
-			// they are conservatively labeled private-untrusted (isPrivate=true,
-			// which forces private regardless of publication state).
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepositorySecurityAdvisory(true, false))
-			return result, mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
+			return utils.NewToolResultText(string(r)), mapSecurityOutputs(advisories, securityAdvisoryOutput), nil
 		},
 	)
-}
-
-// allAdvisoriesPublished reports whether every advisory in the slice is in the
-// "published" state. Repository security advisories can also be in draft,
-// triage, or closed states, none of which are world-readable even on a public
-// repository. An empty slice is treated as published (true) since there is no
-// non-public content to protect. Used to decide whether a repository advisory
-// listing may carry a public confidentiality label.
-func allAdvisoriesPublished(advisories []*github.SecurityAdvisory) bool {
-	for _, advisory := range advisories {
-		if advisory.GetState() != "published" {
-			return false
-		}
-	}
-	return true
 }

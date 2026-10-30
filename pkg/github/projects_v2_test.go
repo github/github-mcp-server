@@ -574,7 +574,7 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 func Test_ProjectsList_ListProjectViews(t *testing.T) {
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 
-	t.Run("lists organization views with forward pagination and IFC", func(t *testing.T) {
+	t.Run("lists organization views with forward pagination", func(t *testing.T) {
 		first := githubv4.Int(2)
 		after := githubv4.String("after-cursor")
 		matcher := githubv4mock.NewQueryMatcher(
@@ -590,8 +590,7 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 			githubv4mock.DataResponse(map[string]any{
 				"organization": map[string]any{
 					"projectV2": map[string]any{
-						"id":     "PVT_project7",
-						"public": false,
+						"id": "PVT_project7",
 						"views": map[string]any{
 							"nodes": []map[string]any{
 								{
@@ -624,9 +623,8 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 			matcher,
 		)
 		deps := BaseDeps{
-			Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
-			GQLClient:      githubv4.NewClient(gqlClient),
-			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
@@ -657,10 +655,6 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 			VisibleFields: []int64{101, 202},
 		}, response.Views[0])
 		assert.Equal(t, "end-cursor", response.PageInfo["nextCursor"])
-		require.NotNil(t, result.Meta)
-		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("lists user views with backward pagination", func(t *testing.T) {
@@ -679,8 +673,7 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 			githubv4mock.DataResponse(map[string]any{
 				"user": map[string]any{
 					"projectV2": map[string]any{
-						"id":     "PVT_project8",
-						"public": true,
+						"id": "PVT_project8",
 						"views": map[string]any{
 							"nodes": []map[string]any{},
 							"pageInfo": map[string]any{
@@ -748,19 +741,18 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 func Test_ProjectsGet_GetProjectView(t *testing.T) {
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 
-	t.Run("gets a private project view by node ID", func(t *testing.T) {
+	t.Run("gets a project view by node ID", func(t *testing.T) {
 		gqlClient := githubv4mock.NewMockedHTTPClient(
 			githubv4mock.NewQueryMatcher(
 				projectViewNodeQuery{},
 				map[string]any{"id": githubv4.ID("PVTV_view1")},
 				githubv4mock.DataResponse(map[string]any{
 					"node": map[string]any{
-						"id":      "PVTV_view1",
-						"number":  1,
-						"name":    "Ready work",
-						"layout":  "BOARD_LAYOUT",
-						"filter":  "status:Ready",
-						"project": map[string]any{"public": false},
+						"id":     "PVTV_view1",
+						"number": 1,
+						"name":   "Ready work",
+						"layout": "BOARD_LAYOUT",
+						"filter": "status:Ready",
 						"configuration": map[string]any{
 							"visibleFields": map[string]any{
 								"nodes": []map[string]any{{"databaseId": 101}, {"databaseId": 202}},
@@ -771,8 +763,7 @@ func Test_ProjectsGet_GetProjectView(t *testing.T) {
 			),
 		)
 		deps := BaseDeps{
-			GQLClient:      githubv4.NewClient(gqlClient),
-			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+			GQLClient: githubv4.NewClient(gqlClient),
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
@@ -789,9 +780,6 @@ func Test_ProjectsGet_GetProjectView(t *testing.T) {
 		assert.Equal(t, "PVTV_view1", view.ID)
 		assert.Equal(t, "board", view.Layout)
 		assert.Equal(t, []int64{101, 202}, view.VisibleFields)
-		require.NotNil(t, result.Meta)
-		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("rejects a missing or wrong node type", func(t *testing.T) {

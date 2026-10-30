@@ -9,7 +9,6 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -178,9 +177,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			result := MarshalledTextResult(minimalUser)
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGetMe())
-			return result, minimalUser, nil
+			return MarshalledTextResult(minimalUser), minimalUser, nil
 		},
 	)
 }
@@ -283,10 +280,6 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(organizations)
-			// Team membership is maintained by GitHub and cannot be forged by
-			// outside contributors (trusted). Org team rosters are visible only
-			// to org members, so confidentiality is private.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			if organizations == nil {
 				organizations = []OrganizationTeams{}
 			}
@@ -355,10 +348,6 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(members)
-			// Team membership is maintained by GitHub and cannot be forged by
-			// outside contributors (trusted). A team's member roster is visible
-			// only to org members, so confidentiality is private.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			if members == nil {
 				members = []string{}
 			}

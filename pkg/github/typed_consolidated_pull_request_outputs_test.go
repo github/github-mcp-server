@@ -490,8 +490,6 @@ func TestTypedPullRequestContentParity(t *testing.T) {
 				deps := consolidatedPullRequestDeps(t)
 				deps.Client = mustNewGHClient(t, &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch strings.TrimPrefix(r.URL.Path, "/api/v3") {
-					case "/repos/owner/repo":
-						_, _ = w.Write([]byte(`{"private":false}`))
 					case "/repos/owner/repo/pulls/1":
 						_, _ = w.Write([]byte(`{"number":1,"title":"Subject","body":"bo\u200bdy","state":"open","html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"}}`))
 					default:
@@ -501,7 +499,6 @@ func TestTypedPullRequestContentParity(t *testing.T) {
 				})}})
 				deps.Flags = stubFeatureFlags(map[string]bool{"lockdown-mode": true})
 				deps.RepoAccessCache = stubRepoAccessCache(mockRESTPermissionServer(t, permission, nil), time.Minute)
-				deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
 				session, schemas := consolidatedPullRequestSession(t, deps, protocol, false)
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 					Name:      "pull_request_read",
@@ -516,7 +513,6 @@ func TestTypedPullRequestContentParity(t *testing.T) {
 				}
 				require.False(t, result.IsError)
 				text := getTextResult(t, result).Text
-				require.NotNil(t, result.Meta["ifc"])
 				if protocol == inventory.ProtocolVersionMultiRoundTrip {
 					assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), text)
 					require.NoError(t, schemas["pull_request_read"].Validate(result.StructuredContent))

@@ -13,9 +13,6 @@ const MCPAppsDisableFormDeferralFeatureFlag = "mcp_apps_disable_form_deferral"
 // FeatureFlagCSVOutput is the feature flag name for CSV output on list tools.
 const FeatureFlagCSVOutput = "csv_output"
 
-// FeatureFlagIFCLabels is the feature flag name for IFC security labels in tool results.
-const FeatureFlagIFCLabels = "ifc_labels"
-
 // FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
 // which exposes git blame information for a file. It is gated so the extra tool
 // is not advertised by default, keeping the tool surface small unless opted in.
@@ -46,7 +43,6 @@ const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 var AllowedFeatureFlags = []string{
 	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
-	FeatureFlagIFCLabels,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,

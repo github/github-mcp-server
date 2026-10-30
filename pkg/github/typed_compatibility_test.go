@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
@@ -265,24 +264,5 @@ func TestTypedCompatibilityDirectoryProjection(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 		assert.JSONEq(t, `[{"url":"api-content-url","git_url":"api-git-url"}]`, getTextResult(t, result).Text)
-	}
-}
-
-func TestTypedCompatibilityBlameIFC(t *testing.T) {
-	for _, private := range []bool{false, true} {
-		for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
-			deps := typedRepositoryDeps(t)
-			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-			deps.Client = mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{Private: &private}),
-			}))
-			session := connectTypedSearchClient(t, GetFileBlame(translations.NullTranslationHelper), deps, protocol)
-			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-				Name: "get_file_blame", Arguments: map[string]any{"owner": "owner", "repo": "repo", "path": "file"},
-			})
-			require.NoError(t, err)
-			require.False(t, result.IsError)
-			assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelCommitContents(private)), mustMarshalJSON(t, result.Meta["ifc"]))
-		}
 	}
 }
