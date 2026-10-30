@@ -21,7 +21,7 @@ jobs:
       MAX_RUNS_PER_DAY: 20
       MAX_ATTEMPTS_PER_PR: 2
     steps:
-      - name: Start triage for new pull requests from external contributors
+      - name: Start triage for pull requests from external contributors
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -32,30 +32,58 @@ jobs:
 
           gh run list --workflow pr-triage.lock.yml --created ">=${since}" --limit 1000 \
             --json displayTitle,status,conclusion,createdAt > runs.json
-
-          # Triage runs are named "PR Triage #<number>". Skip pull requests whose
-          # triage succeeded, is still queued or running, or failed too often.
-          jq -r --argjson max_attempts "$MAX_ATTEMPTS_PER_PR" '
-            [.[] | {number: (.displayTitle | capture("#(?<n>[0-9]+)$").n), status, conclusion}]
-            | group_by(.number)[]
-            | select(any(.[]; .status != "completed" or .conclusion == "success") or length >= $max_attempts)
-            | .[0].number' runs.json > done.txt
           started_today=$(jq --arg day_ago "$day_ago" '[.[] | select(.createdAt >= $day_ago)] | length' runs.json)
           budget=$((MAX_RUNS_PER_DAY - started_today))
 
-          gh api -X GET search/issues --paginate \
-            -f q="repo:${GH_REPO} is:pr is:open draft:false created:>=${since}" \
-            -f sort=created -f order=asc -f per_page=100 \
-            --jq '.items[]
-              | select(.user.type != "Bot")
-              | select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR") | not)
-              | .number' > candidates.txt
+          # A pull request is ready for triage when it's opened, or when a draft is
+          # marked ready for review. Both update it, so search by update time and
+          # keep pull requests that became ready within the run history's window.
+          # Only fork pull requests count: contributors without write access must
+          # use forks, and members with private org membership can look external
+          # to this token.
+          # shellcheck disable=SC2016
+          gh api graphql --paginate \
+            -f q="repo:${GH_REPO} is:pr is:open draft:false updated:>=${since}" \
+            -f query='
+              query($q: String!, $endCursor: String) {
+                search(query: $q, type: ISSUE, first: 100, after: $endCursor) {
+                  pageInfo { hasNextPage endCursor }
+                  nodes {
+                    ... on PullRequest {
+                      number
+                      createdAt
+                      isCrossRepository
+                      authorAssociation
+                      author { __typename }
+                      timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT], last: 1) {
+                        nodes { ... on ReadyForReviewEvent { createdAt } }
+                      }
+                    }
+                  }
+                }
+              }' \
+            --jq '.data.search.nodes[]
+              | select(.isCrossRepository)
+              | select(.author.__typename != "Bot")
+              | select(.authorAssociation | IN("OWNER", "MEMBER", "COLLABORATOR") | not)
+              | {number, ready_at: ([.createdAt, .timelineItems.nodes[].createdAt] | max)}' \
+            > ready.json
+
+          # Triage runs are named "PR Triage #<number>". Skip pull requests whose
+          # triage since they became ready succeeded, is still queued or running,
+          # or failed too often.
+          jq -rs --slurpfile runs runs.json --arg since "$since" \
+            --argjson max_attempts "$MAX_ATTEMPTS_PER_PR" '
+            [$runs[0][] | {number: (.displayTitle | capture("#(?<n>[0-9]+)$").n | tonumber), status, conclusion, createdAt}] as $triages
+            | map(select(.ready_at >= $since)) | sort_by(.ready_at)[]
+            | . as $pr
+            | [$triages[] | select(.number == $pr.number and .createdAt >= $pr.ready_at)] as $attempts
+            | select(any($attempts[]; .status != "completed" or .conclusion == "success") | not)
+            | select(($attempts | length) < $max_attempts)
+            | .number' ready.json > candidates.txt
 
           started=0
           while read -r number; do
-            if grep -qx "$number" done.txt; then
-              continue
-            fi
             if [ "$budget" -le 0 ]; then
               echo "Reached the limit of ${MAX_RUNS_PER_DAY} triage runs per day."
               break
