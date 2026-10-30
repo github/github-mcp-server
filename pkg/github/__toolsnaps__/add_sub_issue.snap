@@ -244,6 +244,7 @@
           }
         },
         "required": [
+          "labels",
           "assignees"
         ],
         "type": [
