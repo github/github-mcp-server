@@ -1,6 +1,6 @@
 package github
 
-// IssueArtifact identifies a Markdown artifact by both its global ID and its
+// IssueArtifact identifies an artifact by both its global ID and its
 // issue-scoped number. Requests use Number, never ID.
 type IssueArtifact struct {
 	ID     int64  `json:"id"`
@@ -34,7 +34,7 @@ type IssueArtifactWriteInput struct {
 	ArtifactNumber int     `json:"artifact_number,omitempty" jsonschema:"Required for update and delete: positive issue-scoped artifact number, not its global ID"`
 	Type           string  `json:"type,omitempty" jsonschema:"Required for create only: artifact type; immutable after creation"`
 	Name           *string `json:"name,omitempty" jsonschema:"Required for create, optional for update: nonempty artifact name"`
-	Body           *string `json:"body,omitempty" jsonschema:"Required for create, optional for update: Markdown body; an empty string clears it"`
+	Body           *string `json:"body,omitempty" jsonschema:"Required for create, optional for update: artifact content (HTML source for embedded_html); an empty string clears it"`
 }
 
 // IssueArtifactReadOutput contains the result of the selected read method.

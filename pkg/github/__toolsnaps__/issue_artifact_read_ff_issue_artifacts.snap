@@ -5,7 +5,7 @@
     "readOnlyHint": true,
     "title": "Read issue artifacts"
   },
-  "description": "List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page is shorter than perPage because no Link headers are provided.",
+  "description": "List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page contains fewer than perPage artifacts.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -63,13 +63,10 @@
       },
       "type": {
         "enum": [
-          "plan",
           "generic",
           "link",
-          "instruction",
-          "skill",
-          "mcp_config",
-          "reference"
+          "plan",
+          "embedded_html"
         ],
         "type": "string"
       }

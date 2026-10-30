@@ -63,6 +63,7 @@ func TestIssueArtifactTools(t *testing.T) {
 				actualMethods = append(actualMethods, method.(string))
 			}
 			assert.ElementsMatch(t, methods, actualMethods)
+			assert.ElementsMatch(t, []any{"generic", "link", "plan", "embedded_html"}, schema.Properties["type"].Enum)
 		})
 	}
 	assert.False(t, ResolveFeatureFlags(nil, true)[FeatureFlagIssueArtifacts])
@@ -217,6 +218,10 @@ func TestIssueArtifactInvalidInputs(t *testing.T) {
 		{"missing body", 0, map[string]any{"type": "plan", "name": "Plan"}},
 		{"empty name", 0, map[string]any{"type": "plan", "name": "  ", "body": ""}},
 		{"unsupported type", 0, map[string]any{"type": "unknown", "name": "Plan", "body": ""}},
+		{"instruction create", 0, map[string]any{"type": "instruction", "name": "Instructions", "body": "content"}},
+		{"skill create", 0, map[string]any{"type": "skill", "name": "Skill", "body": "content"}},
+		{"mcp config create", 0, map[string]any{"type": "mcp_config", "name": "Config", "body": "content"}},
+		{"reference create", 0, map[string]any{"type": "reference", "name": "Reference", "body": "content"}},
 		{"empty update", 1, map[string]any{"artifact_number": 3}},
 		{"null update", 1, map[string]any{"artifact_number": 3, "body": nil}},
 		{"immutable type", 1, map[string]any{"artifact_number": 3, "type": "plan", "body": ""}},
@@ -233,6 +238,10 @@ func TestIssueArtifactInvalidInputs(t *testing.T) {
 		{"too large page size", 3, map[string]any{"perPage": 101}},
 		{"zero page size", 3, map[string]any{"perPage": 0}},
 		{"unsupported filter", 3, map[string]any{"type": "unknown"}},
+		{"instruction filter", 3, map[string]any{"type": "instruction"}},
+		{"skill filter", 3, map[string]any{"type": "skill"}},
+		{"mcp config filter", 3, map[string]any{"type": "mcp_config"}},
+		{"reference filter", 3, map[string]any{"type": "reference"}},
 		{"missing read method", 3, map[string]any{"method": nil}},
 		{"missing write method", 0, map[string]any{"method": nil}},
 		{"unknown read method", 3, map[string]any{"method": "create"}},
@@ -270,6 +279,114 @@ func TestIssueArtifactInvalidInputs(t *testing.T) {
 			result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
 			assert.True(t, result.IsError)
 			assert.Zero(t, calls, "invalid arguments must not make API requests")
+		})
+	}
+}
+
+func TestIssueArtifactTypes(t *testing.T) {
+	for _, artifactType := range []string{"generic", "link", "plan", "embedded_html"} {
+		for _, method := range []string{"create", "list"} {
+			t.Run(artifactType+"/"+method, func(t *testing.T) {
+				artifact := IssueArtifact{ID: 999, Number: 3, Type: artifactType, Name: "Artifact", Body: "content"}
+				inputBody := "content"
+				if artifactType == "embedded_html" {
+					inputBody = "<p>content</p>"
+				}
+				calls := 0
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls++
+					assert.Equal(t, "/api/v3/repos/o/r/issues/12/artifacts", r.URL.Path)
+					w.Header().Set("Content-Type", "application/json")
+					if method == "create" {
+						assert.Equal(t, http.MethodPost, r.Method)
+						var body map[string]string
+						require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+						assert.Equal(t, map[string]string{"type": artifactType, "name": "Artifact", "body": inputBody}, body)
+						w.WriteHeader(http.StatusCreated)
+						require.NoError(t, json.NewEncoder(w).Encode(artifact))
+					} else {
+						assert.Equal(t, http.MethodGet, r.Method)
+						assert.Equal(t, artifactType, r.URL.Query().Get("type"))
+						require.NoError(t, json.NewEncoder(w).Encode([]IssueArtifact{artifact}))
+					}
+				}))
+				defer server.Close()
+				client, err := gogithub.NewClient(
+					gogithub.WithHTTPClient(server.Client()),
+					gogithub.WithEnterpriseURLs(server.URL+"/", server.URL+"/"),
+				)
+				require.NoError(t, err)
+				tool := IssueArtifactRead(translations.NullTranslationHelper)
+				args := map[string]any{"owner": "o", "repo": "r", "issue_number": 12, "method": method, "type": artifactType}
+				if method == "create" {
+					tool = IssueArtifactWrite(translations.NullTranslationHelper)
+					args["name"], args["body"] = "Artifact", inputBody
+				}
+				result := callArtifactTool(t, tool, BaseDeps{Client: client}, args)
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				assert.Equal(t, 1, calls)
+				var output IssueArtifactReadOutput
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &output))
+				if method == "create" {
+					require.NotNil(t, output.Artifact)
+					assert.Equal(t, artifact, *output.Artifact)
+				} else {
+					require.NotNil(t, output.List)
+					assert.Equal(t, []IssueArtifact{artifact}, output.List.Artifacts)
+				}
+			})
+		}
+	}
+}
+
+func TestIssueArtifactListPagination(t *testing.T) {
+	for _, withLink := range []bool{false, true} {
+		name := "without Link headers"
+		if withLink {
+			name = "with Link headers"
+		}
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Equal(t, "/api/v3/repos/o/r/issues/12/artifacts", r.URL.Path)
+				assert.Equal(t, "2", r.URL.Query().Get("per_page"))
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Query().Get("page") {
+				case "1":
+					if withLink {
+						w.Header().Set("Link", `</api/v3/repos/o/r/issues/12/artifacts?page=2&per_page=2>; rel="next"`)
+					}
+					_, _ = w.Write([]byte(`[{"id":999,"number":3,"type":"plan","name":"First","body":"first"},{"id":1000,"number":4,"type":"generic","name":"Second","body":"second"}]`))
+				case "2":
+					if withLink {
+						w.Header().Set("Link", `</api/v3/repos/o/r/issues/12/artifacts?page=1&per_page=2>; rel="prev"`)
+					}
+					_, _ = w.Write([]byte(`[{"id":1001,"number":5,"type":"link","name":"Third","body":"third"}]`))
+				default:
+					t.Errorf("unexpected page: %s", r.URL.Query().Get("page"))
+					w.WriteHeader(http.StatusBadRequest)
+				}
+			}))
+			defer server.Close()
+			client, err := gogithub.NewClient(
+				gogithub.WithHTTPClient(server.Client()),
+				gogithub.WithEnterpriseURLs(server.URL+"/", server.URL+"/"),
+			)
+			require.NoError(t, err)
+			for page := 1; page <= 2; page++ {
+				result := callArtifactTool(t, IssueArtifactRead(translations.NullTranslationHelper), BaseDeps{Client: client},
+					map[string]any{"owner": "o", "repo": "r", "issue_number": 12, "method": "list", "page": page, "perPage": 2})
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				var output IssueArtifactReadOutput
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &output))
+				require.NotNil(t, output.List)
+				assert.Equal(t, page, output.List.Page)
+				assert.Equal(t, 2, output.List.PerPage)
+				assert.Len(t, output.List.Artifacts, 3-page)
+				assert.Equal(t, page, calls, "each tool call must fetch only the requested page")
+			}
 		})
 	}
 }

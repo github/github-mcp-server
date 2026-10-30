@@ -19,7 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var issueArtifactTypes = []string{"plan", "generic", "link", "instruction", "skill", "mcp_config", "reference"}
+var issueArtifactTypes = []string{"generic", "link", "plan", "embedded_html"}
 
 func newIssueArtifactTool[In, Out any](t translations.TranslationHelperFunc, name, title, description string, readOnly, destructive bool, enums []inventory.SchemaEnum,
 	handler func(context.Context, ToolDependencies, *mcp.CallToolRequest, In) (*mcp.CallToolResult, Out, error),
@@ -137,7 +137,7 @@ func IssueArtifactWrite(t translations.TranslationHelperFunc) inventory.ServerTo
 // IssueArtifactRead lists issue artifacts or gets one artifact, including bodies.
 func IssueArtifactRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return newIssueArtifactTool(t, "issue_artifact_read", "Read issue artifacts",
-		"List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page is shorter than perPage because no Link headers are provided.",
+		"List or get GitHub issue artifacts including their bodies. Get requires artifact_number (issue-scoped, not its global ID). List accepts an optional type filter and page/perPage; request successive pages until a page contains fewer than perPage artifacts.",
 		true, false, []inventory.SchemaEnum{{Path: "method", Values: []string{"list", "get"}}, {Path: "type", Values: issueArtifactTypes}},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueArtifactReadInput) (*mcp.CallToolResult, *IssueArtifactReadOutput, error) {
 			switch input.Method {

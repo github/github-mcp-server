@@ -54,8 +54,9 @@ access. API failures are returned explicitly; writes are not retried.
 Artifact numbers are scoped to their owning issue, not global IDs. Updates
 preserve omitted fields, allow `body: ""` to clear the body, and cannot change
 type. Lists return one explicit `page`/`perPage` with bodies; request successive
-pages until fewer than `perPage` artifacts are returned (there are no `Link`
-headers). Artifact names and bodies are sanitized as user-authored content.
+pages until fewer than `perPage` artifacts are returned. This works with or
+without REST `Link` headers; the tools do not expose those headers.
+Artifact names and bodies are sanitized as user-authored content.
 Both tools fail closed in lockdown mode because the reference artifact
 response does not identify authors for content-trust checks.
 
@@ -63,6 +64,11 @@ All methods require `owner`, `repo`, and `issue_number`. Get, update, and delete
 also require `artifact_number`. Create requires `type`, `name`, and `body`;
 an empty body is allowed. Update requires `name`, `body`, or both. Method-specific
 fields are rejected when used with another method.
+
+Create and list's optional type filter support the existing REST API types:
+`generic`, `link`, `plan`, and `embedded_html`. For `embedded_html`, supply HTML
+source in `body`. Returned artifact types remain unrestricted for forward
+compatibility.
 
 Get, create, and update return an `artifact` object. List returns a `list` object
 containing `artifacts`, `page`, and `perPage`; delete returns a `deleted` object
@@ -442,7 +448,7 @@ as output formatting) won't appear here.
 - **issue_artifact_write** - Write issue artifacts
   - **OAuth Challenge Scopes**: `repo`
   - `artifact_number`: Required for update and delete: positive issue-scoped artifact number, not its global ID (integer, optional)
-  - `body`: Required for create, optional for update: Markdown body; an empty string clears it (string, optional)
+  - `body`: Required for create, optional for update: artifact content (HTML source for embedded_html); an empty string clears it (string, optional)
   - `issue_number`: Positive issue number (integer, required)
   - `method`:  (string, required)
   - `name`: Required for create, optional for update: nonempty artifact name (string, optional)

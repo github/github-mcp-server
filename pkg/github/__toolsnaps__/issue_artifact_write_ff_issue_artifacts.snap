@@ -27,7 +27,7 @@
         "type": "integer"
       },
       "body": {
-        "description": "Required for create, optional for update: Markdown body; an empty string clears it",
+        "description": "Required for create, optional for update: artifact content (HTML source for embedded_html); an empty string clears it",
         "type": "string"
       },
       "issue_number": {
@@ -62,13 +62,10 @@
       },
       "type": {
         "enum": [
-          "plan",
           "generic",
           "link",
-          "instruction",
-          "skill",
-          "mcp_config",
-          "reference"
+          "plan",
+          "embedded_html"
         ],
         "type": "string"
       }
