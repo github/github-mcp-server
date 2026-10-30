@@ -26,12 +26,12 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		}
 
 		// Toolsets
-		if toolsets := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsetsHeader)); len(toolsets) > 0 {
+		if toolsets := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPToolsetsHeader), ",")); len(toolsets) > 0 {
 			ctx = ghcontext.WithToolsets(ctx, toolsets)
 		}
 
 		// Tools
-		if tools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsHeader)); len(tools) > 0 {
+		if tools := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPToolsHeader), ",")); len(tools) > 0 {
 			ctx = ghcontext.WithTools(ctx, tools)
 		}
 
@@ -41,7 +41,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		}
 
 		// Excluded tools
-		if excludeTools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPExcludeToolsHeader)); len(excludeTools) > 0 {
+		if excludeTools := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPExcludeToolsHeader), ",")); len(excludeTools) > 0 {
 			ctx = ghcontext.WithExcludeTools(ctx, excludeTools)
 		}
 
@@ -54,7 +54,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		_, hasHeaderFeatures := r.Header[http.CanonicalHeaderKey(headers.MCPFeaturesHeader)]
 		_, hasQueryFeatures := query[queryParamFeatures]
 		if hasHeaderFeatures {
-			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader)))
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPFeaturesHeader), ",")))
 		} else if hasQueryFeatures {
 			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(query.Get(queryParamFeatures)))
 		}

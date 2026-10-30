@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,30 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestWithRequestConfigRepeatedListHeaders(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		get    func(context.Context) []string
+	}{
+		{"toolsets", headers.MCPToolsetsHeader, ghcontext.GetToolsets},
+		{"tools", headers.MCPToolsHeader, ghcontext.GetTools},
+		{"excluded tools", headers.MCPExcludeToolsHeader, ghcontext.GetExcludeTools},
+		{"features", headers.MCPFeaturesHeader, ghcontext.GetHeaderFeatures},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/?features=query_flag", nil)
+			req.Header.Add(tc.header, "first, second")
+			req.Header.Add(tc.header, " third, , fourth ")
+			handler := WithRequestConfig(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, []string{"first", "second", "third", "fourth"}, tc.get(r.Context()))
+			}))
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+		})
+	}
+}
 
 func TestWithRequestConfigFeatureSelection(t *testing.T) {
 	tests := []struct {
