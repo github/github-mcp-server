@@ -55,10 +55,18 @@ jobs:
 
             const sections = new Map();
             let current = null;
-            let inFence = false;
+            let fence = null;
             for (const line of (pr.body ?? '').replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/)) {
-              if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
-              const heading = !inFence && line.match(/^#{1,6}\s+(.*?)\s*$/);
+              const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+              if (marker && !fence) {
+                fence = marker[1];
+                continue;
+              }
+              if (marker && marker[1][0] === fence?.[0] && marker[1].length >= fence.length && marker[2].trim() === '') {
+                fence = null;
+                continue;
+              }
+              const heading = !fence && line.match(/^#{1,6}\s+(.*?)\s*$/);
               if (heading) {
                 current = [];
                 sections.set(heading[1].toLowerCase(), current);
