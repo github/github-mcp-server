@@ -1,0 +1,72 @@
+name: Dispatch PR triage
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    env:
+      # Runs started with workflow_dispatch skip gh-aw's daily AI credit
+      # guardrail, so this caps how many triage runs start in any 24 hours.
+      MAX_RUNS_PER_DAY: 20
+      MAX_ATTEMPTS_PER_PR: 2
+    steps:
+      - name: Start triage for new pull requests from external contributors
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          since=$(date -u -d '7 days ago' +%Y-%m-%d)
+          day_ago=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          gh run list --workflow pr-triage.lock.yml --created ">=${since}" --limit 1000 \
+            --json displayTitle,status,conclusion,createdAt > runs.json
+
+          # Triage runs are named "PR Triage #<number>". Skip pull requests whose
+          # triage succeeded, is still queued or running, or failed too often.
+          jq -r --argjson max_attempts "$MAX_ATTEMPTS_PER_PR" '
+            [.[] | {number: (.displayTitle | capture("#(?<n>[0-9]+)$").n), status, conclusion}]
+            | group_by(.number)[]
+            | select(any(.[]; .status != "completed" or .conclusion == "success") or length >= $max_attempts)
+            | .[0].number' runs.json > done.txt
+          started_today=$(jq --arg day_ago "$day_ago" '[.[] | select(.createdAt >= $day_ago)] | length' runs.json)
+          budget=$((MAX_RUNS_PER_DAY - started_today))
+
+          gh api -X GET search/issues --paginate \
+            -f q="repo:${GH_REPO} is:pr is:open draft:false created:>=${since}" \
+            -f sort=created -f order=asc -f per_page=100 \
+            --jq '.items[]
+              | select(.user.type != "Bot")
+              | select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR") | not)
+              | .number' > candidates.txt
+
+          started=0
+          while read -r number; do
+            if grep -qx "$number" done.txt; then
+              continue
+            fi
+            if [ "$budget" -le 0 ]; then
+              echo "Reached the limit of ${MAX_RUNS_PER_DAY} triage runs per day."
+              break
+            fi
+            gh workflow run pr-triage.lock.yml -f pr_number="$number"
+            echo "Started triage for #${number}"
+            started=$((started + 1))
+            budget=$((budget - 1))
+          done < candidates.txt
+
+          # Let the new runs show up in "gh run list" before the next dispatch run.
+          if [ "$started" -gt 0 ]; then
+            sleep 15
+          fi
