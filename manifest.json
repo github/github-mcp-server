@@ -1,0 +1,93 @@
+{
+  "manifest_version": "0.3",
+  "name": "GitHub MCP Server",
+  "version": "0.28.1",
+  "description": "GitHub's official MCP Server - access repositories, issues, pull requests, actions, and more",
+  "author": {
+    "name": "GitHub",
+    "url": "https://github.com/github"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/github/github-mcp-server"
+  },
+  "homepage": "https://github.com/github/github-mcp-server",
+  "documentation": "https://github.com/github/github-mcp-server#readme",
+  "support": "https://github.com/github/github-mcp-server/issues",
+  "privacy_policies": [
+    "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "bin/darwin-x64/github-mcp-server",
+    "mcp_config": {
+      "command": "${__dirname}/bin/darwin-x64/github-mcp-server",
+      "args": ["stdio"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${user_config.github_token}",
+        "GITHUB_TOOLSETS": "${user_config.github_toolsets}",
+        "GITHUB_HOST": "${user_config.github_host}",
+        "GITHUB_READ_ONLY": "${user_config.github_read_only}",
+        "GITHUB_DYNAMIC_TOOLSETS": "${user_config.github_dynamic_toolsets}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/bin/win32-x64/github-mcp-server.exe"
+        },
+        "linux": {
+          "command": "${__dirname}/bin/linux-x64/github-mcp-server"
+        }
+      }
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  },
+  "user_config": {
+    "github_token": {
+      "type": "string",
+      "title": "GitHub Personal Access Token",
+      "description": "Create at github.com/settings/tokens with repo scope",
+      "required": true,
+      "sensitive": true
+    },
+    "github_toolsets": {
+      "type": "string",
+      "title": "Enabled Toolsets",
+      "description": "Comma-separated: repos,issues,pull_requests,users,actions,code_security,etc. Leave empty for defaults",
+      "required": false,
+      "default": ""
+    },
+    "github_host": {
+      "type": "string",
+      "title": "GitHub Host",
+      "description": "For GitHub Enterprise Server (e.g., github.mycompany.com). Leave empty for github.com",
+      "required": false,
+      "default": ""
+    },
+    "github_read_only": {
+      "type": "string",
+      "title": "Read-Only Mode",
+      "description": "Set to '1' to restrict to read-only operations (no create/update/delete)",
+      "required": false,
+      "default": ""
+    },
+    "github_dynamic_toolsets": {
+      "type": "string",
+      "title": "Dynamic Toolsets",
+      "description": "Set to '1' to enable dynamic tool discovery based on repo context",
+      "required": false,
+      "default": ""
+    }
+  },
+  "tools": [
+    {"name": "get_me", "description": "Get current authenticated user"},
+    {"name": "search_repositories", "description": "Search GitHub repositories"},
+    {"name": "get_repository", "description": "Get repository details"},
+    {"name": "list_issues", "description": "List issues in a repository"},
+    {"name": "create_issue", "description": "Create a new issue"},
+    {"name": "list_pull_requests", "description": "List pull requests"},
+    {"name": "create_pull_request", "description": "Create a pull request"}
+  ]
+}
