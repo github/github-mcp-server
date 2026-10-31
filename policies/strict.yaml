@@ -1,0 +1,269 @@
+version: "1"
+description: "GitHub MCP — strict policy. Default deny. Only read tools are allowed."
+default: deny
+
+tools:
+  # Read tools — explicitly allowed
+  get_file_contents:
+    rules:
+      - action: allow
+        rate_limit: "60/minute"
+
+  get_commit:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_latest_release:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_release_by_tag:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_tag:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_repository_tree:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_branches:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_commits:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_releases:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_tags:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_code:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_repositories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Issues and PRs — read only
+  issue_read:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_issues:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_issues:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  pull_request_read:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_pull_requests:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_pull_requests:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Actions — read only
+  actions_get:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  actions_list:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_job_logs:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Security — read only
+  get_code_scanning_alert:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_code_scanning_alerts:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_dependabot_alert:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_dependabot_alerts:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_secret_scanning_alert:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_secret_scanning_alerts:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_global_security_advisory:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_global_security_advisories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_org_repository_security_advisories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_repository_security_advisories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Discussions — read only
+  get_discussion:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_discussion_comments:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_discussion_categories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_discussions:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Context
+  get_me:
+    rules:
+      - action: allow
+        rate_limit: "10/minute"
+
+  get_team_members:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  get_teams:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_orgs:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  search_users:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Notifications — read only
+  get_notification_details:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_notifications:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Gists — read only
+  get_gist:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_gists:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Labels — read only
+  get_label:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  list_label:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Projects — read only
+  projects_get:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  projects_list:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Starred repos — read only
+  list_starred_repositories:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Docs
+  github_support_docs_search:
+    rules:
+      - action: allow
+        rate_limit: "30/minute"
+
+  # Everything else blocked by default: deny
+  # To allow writes, copy rules from recommended.yaml
