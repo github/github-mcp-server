@@ -5,7 +5,7 @@
     "readOnlyHint": false,
     "title": "Delete packages"
   },
-  "description": "Delete GitHub Packages or individual package versions owned by organizations and users. Requires the delete:packages scope.",
+  "description": "Delete GitHub Packages or individual package versions owned by organizations and users. Requires the delete:packages scope. The GitHub Packages API only accepts classic personal access tokens and OAuth app tokens.",
   "inputSchema": {
     "properties": {
       "method": {
@@ -19,7 +19,7 @@
         "type": "string"
       },
       "org": {
-        "description": "Organization name. Required for org_* methods.",
+        "description": "Organization name. Required for org_* methods, and not accepted by user_* methods.",
         "type": "string"
       },
       "package_name": {
@@ -43,7 +43,7 @@
         "type": "number"
       },
       "username": {
-        "description": "GitHub username for user_* methods. Omit to target the authenticated user.",
+        "description": "GitHub username for user_* methods. Omit to target the authenticated user. Not accepted by org_* methods.",
         "type": "string"
       }
     },
@@ -54,5 +54,28 @@
     ],
     "type": "object"
   },
-  "name": "packages_write"
+  "name": "packages_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "type": "string"
+      },
+      "method": {
+        "description": "The method that produced the corresponding typed output.",
+        "enum": [
+          "delete_org_package",
+          "delete_org_package_version",
+          "delete_user_package",
+          "delete_user_package_version"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "message"
+    ],
+    "type": "object"
+  }
 }

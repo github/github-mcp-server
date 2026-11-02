@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"strconv"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,6 +23,10 @@ import (
 // included in the API responses.
 
 var packageTypes = []any{"npm", "maven", "rubygems", "docker", "nuget", "container"}
+
+// packagesAuthNote is appended to tool descriptions because the Packages REST
+// API rejects fine-grained personal access tokens and GitHub App tokens.
+const packagesAuthNote = "The GitHub Packages API only accepts classic personal access tokens and OAuth app tokens."
 
 // packageCoordinates identifies a package (and optionally a version) owned by
 // an organization or a user. An empty user refers to the authenticated user.
@@ -37,15 +41,15 @@ func packageOwnerSchema() map[string]*jsonschema.Schema {
 	return map[string]*jsonschema.Schema{
 		"org": {
 			Type:        "string",
-			Description: "Organization name. Required for org_* methods.",
+			Description: "Organization name. Required for org_* methods, and not accepted by user_* methods.",
 		},
 		"username": {
 			Type:        "string",
-			Description: "GitHub username for user_* methods. Omit to target the authenticated user.",
+			Description: "GitHub username for user_* methods. Omit to target the authenticated user. Not accepted by org_* methods.",
 		},
 		"package_type": {
 			Type:        "string",
-			Description: "Package type. Required for every method except list_org_packages and list_user_packages, where it is an optional filter.",
+			Description: "Package type.",
 			Enum:        packageTypes,
 		},
 		"package_name": {
@@ -59,10 +63,26 @@ func packageOwnerSchema() map[string]*jsonschema.Schema {
 	}
 }
 
-// requirePackageOwner reads the owner for an org_* or user_* method.
+// requirePackageOwner reads the owner for an org_* or user_* method, rejecting
+// the owner argument that belongs to the other kind of method so that a call
+// is never silently redirected to a different owner.
 func requirePackageOwner(args map[string]any, isOrg bool) (string, error) {
 	if isOrg {
+		username, err := OptionalParam[string](args, "username")
+		if err != nil {
+			return "", err
+		}
+		if username != "" {
+			return "", fmt.Errorf("'username' is not supported by org_* methods; use the user_* methods to target a user")
+		}
 		return RequiredParam[string](args, "org")
+	}
+	org, err := OptionalParam[string](args, "org")
+	if err != nil {
+		return "", err
+	}
+	if org != "" {
+		return "", fmt.Errorf("'org' is not supported by user_* methods; use the org_* methods to target an organization")
 	}
 	return OptionalParam[string](args, "username")
 }
@@ -111,20 +131,18 @@ func PackagesRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Type: "string",
 		Description: `The read operation to perform.
 Options are:
-- 'list_org_packages' - list packages for an organization. Requires 'org'. Optional filters: 'package_type', 'visibility'.
+- 'list_org_packages' - list packages for an organization. Requires 'org', 'package_type'. Optional filter: 'visibility'.
 - 'get_org_package' - get a package owned by an organization. Requires 'org', 'package_type', 'package_name'.
 - 'list_org_package_versions' - list versions of an organization package. Requires 'org', 'package_type', 'package_name'. Optional filter: 'state'.
 - 'get_org_package_version' - get a single version of an organization package. Requires 'org', 'package_type', 'package_name', 'package_version_id'.
-- 'list_user_packages' - list packages for a user (or the authenticated user when 'username' is omitted). Optional filters: 'package_type', 'visibility'.
+- 'list_user_packages' - list packages for a user (or the authenticated user when 'username' is omitted). Requires 'package_type'. Optional filter: 'visibility'.
 - 'get_user_package' - get a package owned by a user. Requires 'package_type', 'package_name'.
 - 'list_user_package_versions' - list versions of a user package. Requires 'package_type', 'package_name'. Optional filter: 'state'.
 - 'get_user_package_version' - get a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'.
 
+When 'username' names a user other than the authenticated user, get_user_package, list_user_package_versions, and get_user_package_version only return that user's public packages.
 Download statistics are not available through the GitHub REST API.`,
-		Enum: []any{
-			"list_org_packages", "get_org_package", "list_org_package_versions", "get_org_package_version",
-			"list_user_packages", "get_user_package", "list_user_package_versions", "get_user_package_version",
-		},
+		Enum: packagesReadMethods,
 	}
 	properties["visibility"] = &jsonschema.Schema{
 		Type:        "string",
@@ -139,15 +157,16 @@ Download statistics are not available through the GitHub REST API.`,
 	schema := &jsonschema.Schema{
 		Type:       "object",
 		Properties: properties,
-		Required:   []string{"method"},
+		Required:   []string{"method", "package_type"},
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewTool[map[string]any, *PackagesReadOutput](
 		ToolsetMetadataPackages,
 		mcp.Tool{
-			Name:        "packages_read",
-			Description: t("TOOL_PACKAGES_READ_DESCRIPTION", "Get information about GitHub Packages owned by organizations and users. Supports listing packages, getting package details, and inspecting package versions."),
+			Name:         "packages_read",
+			OutputSchema: packagesReadOutputSchema(),
+			Description:  t("TOOL_PACKAGES_READ_DESCRIPTION", "Get information about GitHub Packages owned by organizations and users. Supports listing packages, getting package details, and inspecting package versions. "+packagesAuthNote),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PACKAGES_READ_USER_TITLE", "Read package information"),
 				ReadOnlyHint: true,
@@ -155,7 +174,7 @@ Download statistics are not available through the GitHub REST API.`,
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.ReadPackages),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *PackagesReadOutput, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -167,22 +186,22 @@ Download statistics are not available through the GitHub REST API.`,
 			}
 
 			switch method {
-			case "list_org_packages":
-				return listPackages(ctx, client, args, true)
-			case "list_user_packages":
-				return listPackages(ctx, client, args, false)
-			case "get_org_package":
-				return getPackage(ctx, client, args, true)
-			case "get_user_package":
-				return getPackage(ctx, client, args, false)
-			case "list_org_package_versions":
-				return listPackageVersions(ctx, client, args, true)
-			case "list_user_package_versions":
-				return listPackageVersions(ctx, client, args, false)
-			case "get_org_package_version":
-				return getPackageVersion(ctx, client, args, true)
-			case "get_user_package_version":
-				return getPackageVersion(ctx, client, args, false)
+			case packagesMethodListOrgPackages:
+				return listPackages(ctx, client, args, method, true)
+			case packagesMethodListUserPackages:
+				return listPackages(ctx, client, args, method, false)
+			case packagesMethodGetOrgPackage:
+				return getPackage(ctx, client, args, method, true)
+			case packagesMethodGetUserPackage:
+				return getPackage(ctx, client, args, method, false)
+			case packagesMethodListOrgPackageVersions:
+				return listPackageVersions(ctx, client, args, method, true)
+			case packagesMethodListUserVersions:
+				return listPackageVersions(ctx, client, args, method, false)
+			case packagesMethodGetOrgPackageVersion:
+				return getPackageVersion(ctx, client, args, method, true)
+			case packagesMethodGetUserPackageVersion:
+				return getPackageVersion(ctx, client, args, method, false)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -190,12 +209,13 @@ Download statistics are not available through the GitHub REST API.`,
 	)
 }
 
-func listPackages(ctx context.Context, client *github.Client, args map[string]any, isOrg bool) (*mcp.CallToolResult, any, error) {
+func listPackages(ctx context.Context, client *github.Client, args map[string]any, method string, isOrg bool) (*mcp.CallToolResult, *PackagesReadOutput, error) {
 	owner, err := requirePackageOwner(args, isOrg)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	packageType, err := OptionalParam[string](args, "package_type")
+	// All list-packages endpoints reject requests without package_type.
+	packageType, err := RequiredParam[string](args, "package_type")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -209,9 +229,10 @@ func listPackages(ctx context.Context, client *github.Client, args map[string]an
 	}
 
 	opts := &github.PackageListOptions{
-		PackageType: ToStringPtr(packageType),
+		PackageType: new(packageType),
 		Visibility:  ToStringPtr(visibility),
-		ListOptions: github.ListOptions{Page: pagination.Page, PerPage: pagination.PerPage},
+		Page:        pagination.Page,
+		PerPage:     pagination.PerPage,
 	}
 
 	var packages []*github.Package
@@ -232,10 +253,11 @@ func listPackages(ctx context.Context, client *github.Client, args map[string]an
 		), nil, nil
 	}
 
-	return MarshalledTextResult(packages), nil, nil
+	out := convertToPackageOutputs(packages)
+	return MarshalledTextResult(out), &PackagesReadOutput{Method: method, Packages: &out}, nil
 }
 
-func getPackage(ctx context.Context, client *github.Client, args map[string]any, isOrg bool) (*mcp.CallToolResult, any, error) {
+func getPackage(ctx context.Context, client *github.Client, args map[string]any, method string, isOrg bool) (*mcp.CallToolResult, *PackagesReadOutput, error) {
 	c, err := requirePackage(args, isOrg, false)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -259,10 +281,11 @@ func getPackage(ctx context.Context, client *github.Client, args map[string]any,
 		), nil, nil
 	}
 
-	return MarshalledTextResult(pkg), nil, nil
+	out := convertToPackageOutput(pkg)
+	return MarshalledTextResult(out), &PackagesReadOutput{Method: method, Package: &out}, nil
 }
 
-func listPackageVersions(ctx context.Context, client *github.Client, args map[string]any, isOrg bool) (*mcp.CallToolResult, any, error) {
+func listPackageVersions(ctx context.Context, client *github.Client, args map[string]any, method string, isOrg bool) (*mcp.CallToolResult, *PackagesReadOutput, error) {
 	c, err := requirePackage(args, isOrg, false)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -300,10 +323,11 @@ func listPackageVersions(ctx context.Context, client *github.Client, args map[st
 		), nil, nil
 	}
 
-	return MarshalledTextResult(versions), nil, nil
+	out := convertToPackageVersionOutputs(versions)
+	return MarshalledTextResult(out), &PackagesReadOutput{Method: method, Versions: &out}, nil
 }
 
-func getPackageVersion(ctx context.Context, client *github.Client, args map[string]any, isOrg bool) (*mcp.CallToolResult, any, error) {
+func getPackageVersion(ctx context.Context, client *github.Client, args map[string]any, method string, isOrg bool) (*mcp.CallToolResult, *PackagesReadOutput, error) {
 	c, err := requirePackage(args, isOrg, true)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -327,7 +351,8 @@ func getPackageVersion(ctx context.Context, client *github.Client, args map[stri
 		), nil, nil
 	}
 
-	return MarshalledTextResult(version), nil, nil
+	out := convertToPackageVersionOutput(version)
+	return MarshalledTextResult(out), &PackagesReadOutput{Method: method, Version: &out}, nil
 }
 
 // listOtherUserPackageVersions lists versions of a package owned by another
@@ -369,16 +394,16 @@ Options are:
 - 'delete_user_package_version' - delete a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'. Omit 'username' to target the authenticated user.
 
 Deleted packages and versions can be restored from the GitHub web interface within 30 days.`,
-		Enum: []any{"delete_org_package", "delete_org_package_version", "delete_user_package", "delete_user_package_version"},
+		Enum: packagesWriteMethods,
 	}
-	properties["package_type"].Description = "Package type."
 	properties["package_name"].Description = "Package name."
 
-	return NewTool(
+	return NewTool[map[string]any, *PackagesWriteOutput](
 		ToolsetMetadataPackages,
 		mcp.Tool{
-			Name:        "packages_write",
-			Description: t("TOOL_PACKAGES_WRITE_DESCRIPTION", "Delete GitHub Packages or individual package versions owned by organizations and users. Requires the delete:packages scope."),
+			Name:         "packages_write",
+			OutputSchema: packagesWriteOutputSchema(),
+			Description:  t("TOOL_PACKAGES_WRITE_DESCRIPTION", "Delete GitHub Packages or individual package versions owned by organizations and users. Requires the delete:packages scope. "+packagesAuthNote),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_PACKAGES_WRITE_USER_TITLE", "Delete packages"),
 				ReadOnlyHint:    false,
@@ -391,7 +416,7 @@ Deleted packages and versions can be restored from the GitHub web interface with
 			},
 		},
 		scopes.RequireAll(scopes.ReadPackages, scopes.DeletePackages),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *PackagesWriteOutput, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -399,12 +424,12 @@ Deleted packages and versions can be restored from the GitHub web interface with
 
 			var isOrg, withVersion bool
 			switch method {
-			case "delete_org_package":
+			case packagesMethodDeleteOrgPackage:
 				isOrg = true
-			case "delete_org_package_version":
+			case packagesMethodDeleteOrgPackageVersion:
 				isOrg, withVersion = true, true
-			case "delete_user_package":
-			case "delete_user_package_version":
+			case packagesMethodDeleteUserPackage:
+			case packagesMethodDeleteUserPackageVersion:
 				withVersion = true
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -438,14 +463,14 @@ Deleted packages and versions can be restored from the GitHub web interface with
 			}
 			target = fmt.Sprintf("%s for %s", target, describeOwner(c.owner, isOrg))
 
-			return handleDeletionResponse(ctx, resp, err, target)
+			return handleDeletionResponse(ctx, resp, err, method, target)
 		},
 	)
 }
 
 // handleDeletionResponse converts the result of a package deletion API call
 // into a tool result.
-func handleDeletionResponse(ctx context.Context, resp *github.Response, err error, target string) (*mcp.CallToolResult, any, error) {
+func handleDeletionResponse(ctx context.Context, resp *github.Response, err error, method, target string) (*mcp.CallToolResult, *PackagesWriteOutput, error) {
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
@@ -460,8 +485,6 @@ func handleDeletionResponse(ctx context.Context, resp *github.Response, err erro
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to delete %s", target), resp, body), nil, nil
 	}
 
-	return MarshalledTextResult(map[string]any{
-		"success": true,
-		"message": fmt.Sprintf("Deleted %s", target),
-	}), nil, nil
+	out := &PackagesWriteOutput{Method: method, Message: fmt.Sprintf("Deleted %s", target)}
+	return MarshalledTextResult(out), out, nil
 }

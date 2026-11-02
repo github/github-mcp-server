@@ -1198,24 +1198,25 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - **OAuth Challenge Scopes**: `read:packages`
   - `method`: The read operation to perform.
     Options are:
-    - 'list_org_packages' - list packages for an organization. Requires 'org'. Optional filters: 'package_type', 'visibility'.
+    - 'list_org_packages' - list packages for an organization. Requires 'org', 'package_type'. Optional filter: 'visibility'.
     - 'get_org_package' - get a package owned by an organization. Requires 'org', 'package_type', 'package_name'.
     - 'list_org_package_versions' - list versions of an organization package. Requires 'org', 'package_type', 'package_name'. Optional filter: 'state'.
     - 'get_org_package_version' - get a single version of an organization package. Requires 'org', 'package_type', 'package_name', 'package_version_id'.
-    - 'list_user_packages' - list packages for a user (or the authenticated user when 'username' is omitted). Optional filters: 'package_type', 'visibility'.
+    - 'list_user_packages' - list packages for a user (or the authenticated user when 'username' is omitted). Requires 'package_type'. Optional filter: 'visibility'.
     - 'get_user_package' - get a package owned by a user. Requires 'package_type', 'package_name'.
     - 'list_user_package_versions' - list versions of a user package. Requires 'package_type', 'package_name'. Optional filter: 'state'.
     - 'get_user_package_version' - get a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'.
     
+    When 'username' names a user other than the authenticated user, get_user_package, list_user_package_versions, and get_user_package_version only return that user's public packages.
     Download statistics are not available through the GitHub REST API. (string, required)
-  - `org`: Organization name. Required for org_* methods. (string, optional)
+  - `org`: Organization name. Required for org_* methods, and not accepted by user_* methods. (string, optional)
   - `package_name`: Package name. Required for every method except list_org_packages and list_user_packages. (string, optional)
-  - `package_type`: Package type. Required for every method except list_org_packages and list_user_packages, where it is an optional filter. (string, optional)
+  - `package_type`: Package type. (string, required)
   - `package_version_id`: Package version ID. Required for methods that target a single version. (number, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `state`: Filter package versions by state (list_*_package_versions only). (string, optional)
-  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. (string, optional)
+  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. Not accepted by org_* methods. (string, optional)
   - `visibility`: Filter packages by visibility (list_org_packages and list_user_packages only). (string, optional)
 
 - **packages_write** - Delete packages
@@ -1228,11 +1229,11 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
     - 'delete_user_package_version' - delete a single version of a user package. Requires 'package_type', 'package_name', 'package_version_id'. Omit 'username' to target the authenticated user.
     
     Deleted packages and versions can be restored from the GitHub web interface within 30 days. (string, required)
-  - `org`: Organization name. Required for org_* methods. (string, optional)
+  - `org`: Organization name. Required for org_* methods, and not accepted by user_* methods. (string, optional)
   - `package_name`: Package name. (string, required)
   - `package_type`: Package type. (string, required)
   - `package_version_id`: Package version ID. Required for methods that target a single version. (number, optional)
-  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. (string, optional)
+  - `username`: GitHub username for user_* methods. Omit to target the authenticated user. Not accepted by org_* methods. (string, optional)
 
 </details>
 
