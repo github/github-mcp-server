@@ -60,6 +60,16 @@ func isAcceptedError(err error) bool {
 	return errors.As(err, &acceptedError)
 }
 
+// inSignedIntRange reports whether f lies within the range of a signed integer
+// of the given bit size. The upper bound is the exact power of two 2^(bitSize-1)
+// because the largest signed value, e.g. math.MaxInt64, is not representable
+// as a float64 and rounds up to that bound. Out-of-range float-to-int
+// conversions are implementation-defined in Go, so check before converting.
+func inSignedIntRange(f float64, bitSize int) bool {
+	limit := math.Ldexp(1, bitSize-1)
+	return f >= -limit && f < limit
+}
+
 // toInt converts a value to int, handling both float64 and string representations.
 // Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
 // fractional values, and values outside the int range.
@@ -83,7 +93,7 @@ func toInt(val any) (int, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	if f > math.MaxInt || f < math.MinInt {
+	if !inSignedIntRange(f, strconv.IntSize) {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil
@@ -91,7 +101,7 @@ func toInt(val any) (int, error) {
 
 // toInt64 converts a value to int64, handling both float64 and string representations.
 // Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values that lose precision in the float64→int64 conversion.
+// fractional values, and values outside the int64 range.
 func toInt64(val any) (int64, error) {
 	var f float64
 	switch v := val.(type) {
@@ -112,12 +122,10 @@ func toInt64(val any) (int64, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	result := int64(f)
-	// Check round-trip to detect precision loss for large int64 values
-	if float64(result) != f {
+	if !inSignedIntRange(f, 64) {
 		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
 	}
-	return result, nil
+	return int64(f), nil
 }
 
 // RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
