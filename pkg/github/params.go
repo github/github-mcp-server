@@ -60,11 +60,6 @@ func isAcceptedError(err error) bool {
 	return errors.As(err, &acceptedError)
 }
 
-// inSignedIntRange reports whether f lies within the range of a signed integer
-// of the given bit size. The upper bound is the exact power of two 2^(bitSize-1)
-// because the largest signed value, e.g. math.MaxInt64, is not representable
-// as a float64 and rounds up to that bound. Out-of-range float-to-int
-// conversions are implementation-defined in Go, so check before converting.
 func inSignedIntRange(f float64, bitSize int) bool {
 	limit := math.Ldexp(1, bitSize-1)
 	return f >= -limit && f < limit
