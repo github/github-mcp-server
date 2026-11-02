@@ -300,8 +300,9 @@ func normalizeSecurityIntegerArguments(fields ...string) inventory.InputNormaliz
 				}
 			}
 			parsed, err := strconv.ParseFloat(number, 64)
+			limit := math.Ldexp(1, strconv.IntSize-1)
 			if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) ||
-				parsed != math.Trunc(parsed) || parsed > float64(math.MaxInt) || parsed < float64(math.MinInt) {
+				parsed != math.Trunc(parsed) || parsed >= limit || parsed < -limit {
 				return nil, fmt.Errorf("parameter %s is not a valid number", field)
 			}
 			arguments[field], err = json.Marshal(int(parsed))

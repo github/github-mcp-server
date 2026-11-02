@@ -383,3 +383,60 @@ func mustMarshalJSON(t *testing.T, value any) string {
 	require.NoError(t, err)
 	return string(encoded)
 }
+
+func TestNormalizeTypedReadArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
+	normalize := normalizeTypedReadArguments(nil, false)
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		expectError bool
+	}{
+		{
+			name:        "valid perPage string",
+			input:       `{"perPage": "50"}`,
+			expected:    `{"perPage": 50}`,
+			expectError: false,
+		},
+		{
+			name:        "valid page string",
+			input:       `{"page": "3"}`,
+			expected:    `{"page": 3}`,
+			expectError: false,
+		},
+		{
+			name:        "2^63 string page parameter rejected",
+			input:       `{"page": "9223372036854775808"}`,
+			expectError: true,
+		},
+		{
+			name:        "MaxInt64 string perPage parameter rounds up to 2^63 rejected",
+			input:       `{"perPage": "9223372036854775807"}`,
+			expectError: true,
+		},
+		{
+			name:        "non-integer string rejected",
+			input:       `{"perPage": "12.5"}`,
+			expectError: true,
+		},
+		{
+			name:        "invalid syntax rejected",
+			input:       `{"page": "invalid"}`,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			normalized, err := normalize(json.RawMessage(tc.input))
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "is not a valid number")
+			} else {
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.expected, string(normalized))
+			}
+		})
+	}
+}
