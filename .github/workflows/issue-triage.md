@@ -75,15 +75,22 @@ jobs:
               if (line.trim() !== '') content.push({ line: line.trim(), code: fence !== null });
             }
 
+            // Lines under each heading. A deeper heading inside a template section, such as a
+            // #### under a ### section, stays part of that section unless it's a template heading.
+            const templateHeadings = new Set(templates.flatMap((t) => Object.keys(t.sections)).map(norm));
             const sections = new Map([['', []]]);
             let section = sections.get('');
+            let templateLevel = null;
             for (const { line, code } of content) {
-              const heading = !code && line.match(/^#{1,6}\s+(.*?)\s*$/);
-              if (heading) {
+              const heading = !code && line.match(/^(#{1,6})\s+(.*?)\s*$/);
+              const name = heading && norm(heading[2]);
+              const nested = heading && templateLevel !== null && heading[1].length > templateLevel && !templateHeadings.has(name);
+              if (heading && !nested) {
                 section = [];
-                sections.set(norm(heading[1]), section);
+                sections.set(name, section);
+                templateLevel = templateHeadings.has(name) ? heading[1].length : null;
               } else {
-                section.push(line);
+                section.push(nested ? heading[2] : line);
               }
             }
 

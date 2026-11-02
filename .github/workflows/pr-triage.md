@@ -53,8 +53,16 @@ jobs:
               return;
             }
 
+            // Sections of .github/pull_request_template.md, matched by the start of the heading.
+            // Keep in sync with the template.
+            const templateSections = ['Summary', 'Why', 'What changed', 'MCP impact', 'Prompts tested', 'Security / limits', 'Tool renaming', 'Lint & tests', 'Docs'];
+            const isTemplateHeading = (heading) => templateSections.some((name) => heading.startsWith(name.toLowerCase()));
+
+            // Lines under each heading. A deeper heading inside a template section, such as a
+            // ### under ## Summary, stays part of that section unless it's a template heading.
             const sections = new Map();
             let current = null;
+            let templateLevel = null;
             let fence = null;
             for (const line of (pr.body ?? '').replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/)) {
               const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
@@ -66,12 +74,15 @@ jobs:
                 fence = null;
                 continue;
               }
-              const heading = !fence && line.match(/^#{1,6}\s+(.*?)\s*$/);
-              if (heading) {
+              const heading = !fence && line.match(/^(#{1,6})\s+(.*?)\s*$/);
+              const name = heading && heading[2].toLowerCase();
+              const nested = heading && templateLevel !== null && heading[1].length > templateLevel && !isTemplateHeading(name);
+              if (heading && !nested) {
                 current = [];
-                sections.set(heading[1].toLowerCase(), current);
+                sections.set(name, current);
+                templateLevel = isTemplateHeading(name) ? heading[1].length : null;
               } else if (current) {
-                current.push(line.trim());
+                current.push(nested ? heading[2] : line.trim());
               }
             }
             const section = (name) =>
