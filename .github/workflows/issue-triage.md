@@ -135,11 +135,14 @@ jobs:
               parts = [written.join(' ')];
             }
 
+            // GitHub-owned domains and their subdomains, such as gist.github.com, the remote
+            // server at api.githubcopilot.com, GHE.com tenants and raw.githubusercontent.com.
+            const githubDomains = ['github.com', 'githubcopilot.com', 'ghe.com', 'githubusercontent.com'];
             const urls = `${title}\n${text}`.match(/https?:\/\/\S+/gi) ?? [];
             const externalLink = urls.some((url) => {
               try {
                 const host = new URL(url.replace(/[)\]}>.,;:!?'"*_]+$/, '')).hostname.toLowerCase();
-                return host !== 'github.com' && host !== 'www.github.com';
+                return !githubDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
               } catch {
                 return false;
               }
