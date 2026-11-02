@@ -39,5 +39,18 @@
     ],
     "type": "object"
   },
-  "name": "request_copilot_review"
+  "name": "request_copilot_review",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "status": {
+        "description": "Outcome of the Copilot review request; requested on success.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  }
 }

@@ -7,15 +7,15 @@ import (
 	"log/slog"
 	"net/http"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/transport"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -214,6 +214,14 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
 // This avoids creating closures at registration time, which is important for performance
 // in servers that create a new server instance per request (like the remote server).
 //
+// Use concrete input and output structs for migrated tools; registration then
+// delegates schema inference and validation to mcp.AddTool. For example, define
+// `type SearchInput struct { Query string `json:"query"` }` and a concrete
+// `SearchOutput`, then use `NewTool[SearchInput, SearchOutput](...)`. Keep Out
+// as any for tools that must retain the raw registration path. A final optional
+// inventory.InputNormalizer argument can canonicalize legacy wire values
+// (such as case-insensitive enums) before strict SDK schema validation.
+//
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
@@ -223,11 +231,33 @@ func NewTool[In, Out any](
 	tool mcp.Tool,
 	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
 ) inventory.ServerTool {
-	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+	return NewToolWithSchemaOptions(
+		toolset,
+		tool,
+		scopeAccess,
+		inventory.TypedSchemaOptions{},
+		handler,
+		inputNormalizers...,
+	)
+}
+
+// NewToolWithSchemaOptions is like NewTool, with options for schema inference,
+// runtime-only input validation schemas, and pre-decode compatibility checks.
+// The original tool schema remains the schema advertised to clients.
+func NewToolWithSchemaOptions[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	scopeAccess inventory.ScopeAccess,
+	schemaOptions inventory.TypedSchemaOptions,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+	inputNormalizers ...inventory.InputNormalizer,
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandlerAndSchemaOptions(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
-	})
+	}, schemaOptions, inputNormalizers...)
 	st.ScopeAccess = scopeAccess
 	return st
 }

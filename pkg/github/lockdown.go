@@ -6,8 +6,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
 // Restriction messages returned when lockdown mode withholds content from a read tool.

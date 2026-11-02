@@ -34,5 +34,34 @@
     ],
     "type": "object"
   },
-  "name": "update_issue_comment"
+  "name": "update_issue_comment",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "The web URL of the created issue comment.",
+            "type": "string"
+          },
+          "id": {
+            "description": "The ID of the created comment or reaction.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": [
+      "object",
+      "null"
+    ]
+  }
 }

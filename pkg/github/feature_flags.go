@@ -3,7 +3,7 @@ package github
 import (
 	"slices"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 )
 
 // MCPAppsDisableFormDeferralFeatureFlag disables handing write-tool calls off

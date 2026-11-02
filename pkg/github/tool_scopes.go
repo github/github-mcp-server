@@ -1,8 +1,8 @@
 package github
 
 import (
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
 )
 
 func publicRepositoryWriteScopeAccess() inventory.ScopeAccess {

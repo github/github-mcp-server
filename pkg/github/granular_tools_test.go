@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/v2/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	gogithub "github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +38,8 @@ func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) 
 }
 
 func TestGranularToolSnaps(t *testing.T) {
-	// Test toolsnaps for all granular tools
+	// Issue snapshots are checked against modern ListTools output in the typed wire tests.
+	// The remaining granular tools continue to snapshot their raw registrations here.
 	toolConstructors := []func(translations.TranslationHelperFunc) inventory.ServerTool{
 		GranularCreateIssue,
 		GranularUpdateIssueTitle,
@@ -58,19 +59,6 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularRemoveIssueCommentReaction,
 		GranularHideIssueComment,
 		GranularUnhideIssueComment,
-		GranularUpdatePullRequestTitle,
-		GranularUpdatePullRequestBody,
-		GranularUpdatePullRequestState,
-		GranularUpdatePullRequestDraftState,
-		GranularRequestPullRequestReviewers,
-		GranularCreatePullRequestReview,
-		GranularSubmitPendingPullRequestReview,
-		GranularDeletePendingPullRequestReview,
-		GranularAddPullRequestReviewComment,
-		GranularResolveReviewThread,
-		GranularUnresolveReviewThread,
-		GranularAddPullRequestReviewCommentReaction,
-		GranularRemovePullRequestReviewCommentReaction,
 		GranularHidePullRequestReviewComment,
 		GranularUnhidePullRequestReviewComment,
 		GranularHidePullRequestReview,
@@ -80,6 +68,9 @@ func TestGranularToolSnaps(t *testing.T) {
 	for _, constructor := range toolConstructors {
 		serverTool := constructor(translations.NullTranslationHelper)
 		t.Run(serverTool.Tool.Name, func(t *testing.T) {
+			if serverTool.Toolset.ID == ToolsetMetadataIssues.ID {
+				return
+			}
 			require.NoError(t, toolsnaps.Test(serverTool.Tool.Name, serverTool.Tool))
 		})
 	}

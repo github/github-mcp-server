@@ -12,7 +12,7 @@ import (
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 
-	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 )
 
 // codeSearchItemFieldEnum lists the selectable fields for search_code result
@@ -1097,6 +1097,11 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 		ChangedFiles:   pr.GetChangedFiles(),
 		Commits:        pr.GetCommits(),
 		Comments:       pr.GetComments(),
+	}
+
+	// The list endpoint omits merged but includes merged_at.
+	if pr.Merged == nil && pr.MergedAt != nil {
+		m.Merged = !pr.MergedAt.IsZero()
 	}
 
 	if pr.CreatedAt != nil {

@@ -44,5 +44,358 @@
     ],
     "type": "object"
   },
-  "name": "search_commits"
+  "name": "search_commits",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "incomplete_results": {
+        "type": "boolean"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "author": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "details": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bio": {
+                      "type": "string"
+                    },
+                    "blog": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "description": "Account creation time in RFC3339 format.",
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "followers": {
+                      "type": "integer"
+                    },
+                    "following": {
+                      "type": "integer"
+                    },
+                    "hireable": {
+                      "type": "boolean"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "owned_private_repos": {
+                      "type": "integer"
+                    },
+                    "private_gists": {
+                      "type": "integer"
+                    },
+                    "public_gists": {
+                      "type": "integer"
+                    },
+                    "public_repos": {
+                      "type": "integer"
+                    },
+                    "total_private_repos": {
+                      "type": "integer"
+                    },
+                    "twitter_username": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "description": "Last profile update time in RFC3339 format.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "public_repos",
+                    "public_gists",
+                    "followers",
+                    "following",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "profile_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "commit": {
+              "additionalProperties": false,
+              "properties": {
+                "author": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "committer": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "committer": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "details": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bio": {
+                      "type": "string"
+                    },
+                    "blog": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "description": "Account creation time in RFC3339 format.",
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "followers": {
+                      "type": "integer"
+                    },
+                    "following": {
+                      "type": "integer"
+                    },
+                    "hireable": {
+                      "type": "boolean"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "owned_private_repos": {
+                      "type": "integer"
+                    },
+                    "private_gists": {
+                      "type": "integer"
+                    },
+                    "public_gists": {
+                      "type": "integer"
+                    },
+                    "public_repos": {
+                      "type": "integer"
+                    },
+                    "total_private_repos": {
+                      "type": "integer"
+                    },
+                    "twitter_username": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "description": "Last profile update time in RFC3339 format.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "public_repos",
+                    "public_gists",
+                    "followers",
+                    "following",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "profile_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "files": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "additions": {
+                    "type": "integer"
+                  },
+                  "changes": {
+                    "type": "integer"
+                  },
+                  "deletions": {
+                    "type": "integer"
+                  },
+                  "filename": {
+                    "type": "string"
+                  },
+                  "patch": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "filename"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "html_url": {
+              "type": "string"
+            },
+            "repository": {
+              "additionalProperties": false,
+              "properties": {
+                "full_name": {
+                  "type": "string"
+                },
+                "html_url": {
+                  "type": "string"
+                },
+                "private": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "full_name"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "sha": {
+              "type": "string"
+            },
+            "stats": {
+              "additionalProperties": false,
+              "properties": {
+                "additions": {
+                  "type": "integer"
+                },
+                "deletions": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "required": [
+            "sha",
+            "html_url"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "total_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total_count",
+      "incomplete_results",
+      "items"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

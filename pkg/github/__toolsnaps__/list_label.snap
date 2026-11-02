@@ -4,12 +4,22 @@
     "readOnlyHint": true,
     "title": "List labels from a repository"
   },
-  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first",
+  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
     "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner (username or organization name) - required for all operations",
         "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
       },
       "repo": {
         "description": "Repository name - required for all operations",
@@ -22,5 +32,69 @@
     ],
     "type": "object"
   },
-  "name": "list_label"
+  "name": "list_label",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "description": "Hex RGB without leading #.",
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "color",
+            "description"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "endCursor": {
+            "type": "string"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "startCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage"
+        ],
+        "type": "object"
+      },
+      "totalCount": {
+        "description": "Total labels in the repository.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "labels",
+      "totalCount",
+      "pageInfo"
+    ],
+    "type": "object"
+  }
 }

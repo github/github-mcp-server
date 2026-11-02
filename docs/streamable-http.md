@@ -12,6 +12,22 @@ The Streamable HTTP mode enables the GitHub MCP Server to run as an HTTP service
 
 ## Running the Server
 
+### MCP parameter headers
+
+For protocol version `2026-07-28` and later, the SDK validates standard
+`Mcp-Method`, `Mcp-Name`, and schema-annotated `Mcp-Param-*` headers at the
+Streamable HTTP boundary. Tool schemas annotate `owner` and `repo` with
+`x-mcp-header`; when an annotated argument is present and non-null, its header
+must be present and match the body value. A header for an absent or null
+argument is rejected. Header names are case-insensitive; string values and
+JSON property names are case-sensitive.
+
+Mismatches return HTTP `400` with JSON-RPC error code `-32020` before MCP
+receiving middleware or tool handlers run. This applies to typed and untyped
+tools without changing their advertised schemas. Full typed body validation
+and defaults still run after tool authorization guards. Older protocol versions
+do not require or validate these standard parameter headers.
+
 ### Basic HTTP Server
 
 Start the server on the default port (8082):

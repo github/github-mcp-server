@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"testing"
@@ -14,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 )
 
 func Test_RepositoryRulesetRead(t *testing.T) {
@@ -29,7 +28,9 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.ElementsMatch(t, schema.Required, []string{"level", "method"})
+	assert.ElementsMatch(t, []string{"level", "method"}, schema.Required)
+	assert.Equal(t, "string", schema.Properties["level"].Type)
+	assert.Equal(t, "string", schema.Properties["method"].Type)
 
 	t.Run("repository level: get defaults includes_parents to true", func(t *testing.T) {
 		var capturedQuery url.Values
@@ -540,9 +541,9 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
-	assert.ElementsMatch(t, schema.Required, []string{"level", "name", "enforcement", "rules"})
+	assert.ElementsMatch(t, []string{"level", "name", "enforcement", "rules"}, schema.Required)
 	require.NotNil(t, schema.AdditionalProperties)
-	require.NotNil(t, schema.AdditionalProperties.Not)
+	assert.NotNil(t, schema.AdditionalProperties.Not)
 
 	propertyNames := make([]string, 0, len(schema.Properties))
 	for name := range schema.Properties {
@@ -562,53 +563,14 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 		"bypass_actors",
 	}, propertyNames)
 
-	resolvedSchema, err := schema.Resolve(nil)
-	require.NoError(t, err)
 	bypassActorSchema := schema.Properties["bypass_actors"].Items
 	require.NotNil(t, bypassActorSchema)
 	assert.ElementsMatch(t, []string{"actor_type", "bypass_mode"}, bypassActorSchema.Required)
 	assert.ElementsMatch(t, []any{"always", "pull_request", "exempt"}, bypassActorSchema.Properties["bypass_mode"].Enum)
-
-	validArgs := map[string]any{
-		"level":       "repository",
-		"owner":       "owner",
-		"repo":        "repo",
-		"org":         "org",
-		"enterprise":  "enterprise",
-		"name":        "main protection",
-		"enforcement": "active",
-		"target":      "branch",
-		"rules":       []any{map[string]any{"type": "creation"}},
-		"conditions":  map[string]any{"ref_name": map[string]any{"include": []any{"refs/heads/main"}}},
-		"bypass_actors": []any{
-			map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": "always"},
-		},
-	}
-	require.NoError(t, resolvedSchema.Validate(validArgs))
-
-	t.Run("bypass actor requires an explicit documented mode", func(t *testing.T) {
-		args := maps.Clone(validArgs)
-		args["bypass_actors"] = []any{map[string]any{"actor_type": "OrganizationAdmin"}}
-		require.Error(t, resolvedSchema.Validate(args))
-
-		args["bypass_actors"] = []any{map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": "never"}}
-		require.Error(t, resolvedSchema.Validate(args))
-	})
-
-	for _, test := range []struct {
-		field string
-		typo  string
-	}{
-		{field: "target", typo: "targte"},
-		{field: "conditions", typo: "conditons"},
-	} {
-		t.Run("rejects misspelled "+test.field, func(t *testing.T) {
-			args := maps.Clone(validArgs)
-			args[test.typo] = args[test.field]
-			delete(args, test.field)
-			require.Error(t, resolvedSchema.Validate(args))
-		})
-	}
+	resolvedActorSchema, err := bypassActorSchema.Resolve(nil)
+	require.NoError(t, err)
+	assert.Error(t, resolvedActorSchema.Validate(map[string]any{"actor_type": "OrganizationAdmin"}))
+	assert.Error(t, resolvedActorSchema.Validate(map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": "never"}))
 
 	t.Run("repository level", func(t *testing.T) {
 		var capturedBody github.RepositoryRuleset

@@ -181,7 +181,7 @@ Organizations may block **GitHub Apps** and **OAuth Apps** until explicitly appr
 
 ## Additional Resources
 - [MCP Official Spec](https://modelcontextprotocol.io/specification/draft)
-- [MCP SDKs](https://modelcontextprotocol.io/sdk/java/mcp-overview)
+- [MCP SDKs](https://modelcontextprotocol.io/docs/sdk)
 - [GitHub Docs on Creating GitHub Apps](https://docs.github.com/en/apps/creating-github-apps)
 - [GitHub Docs on Using GitHub Apps](https://docs.github.com/en/apps/using-github-apps/about-using-github-apps)
 - [GitHub Docs on Creating OAuth Apps](https://docs.github.com/en/apps/oauth-apps)

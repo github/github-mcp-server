@@ -33,5 +33,62 @@
     ],
     "type": "object"
   },
-  "name": "manage_repository_notification_subscription"
+  "name": "manage_repository_notification_subscription",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "subscription": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "description": "Subscription creation time (RFC3339).",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "ignored": {
+                "type": [
+                  "null",
+                  "boolean"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "subscribed": {
+                "type": [
+                  "null",
+                  "boolean"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  }
 }

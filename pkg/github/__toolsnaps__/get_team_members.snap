@@ -22,5 +22,14 @@
     ],
     "type": "object"
   },
-  "name": "get_team_members"
+  "name": "get_team_members",
+  "outputSchema": {
+    "items": {
+      "type": "string"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }

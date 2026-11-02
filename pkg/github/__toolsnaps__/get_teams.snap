@@ -14,5 +14,50 @@
     },
     "type": "object"
   },
-  "name": "get_teams"
+  "name": "get_teams",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "org": {
+          "type": "string"
+        },
+        "teams": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "slug",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "org",
+        "teams"
+      ],
+      "type": "object"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }

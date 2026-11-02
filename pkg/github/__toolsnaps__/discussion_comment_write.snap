@@ -46,5 +46,42 @@
     ],
     "type": "object"
   },
-  "name": "discussion_comment_write"
+  "name": "discussion_comment_write",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "discussionID": {
+            "type": "string"
+          },
+          "discussionURL": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "discussionID",
+          "discussionURL"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  }
 }

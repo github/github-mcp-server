@@ -26,7 +26,7 @@ Thanks for contributing and for helping us build toolsets that are truly valuabl
 
 These are one time installations required to be able to test your changes locally as part of the pull request (PR) submission process.
 
-1. Install Go 1.26.8 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
+1. Install Go 1.27.3 or later [through download](https://go.dev/doc/install) | [through Homebrew](https://formulae.brew.sh/formula/go)
 2. [Install golangci-lint v2.14.0](https://golangci-lint.run/welcome/install/#local-installation), or let `script/lint` install the repository-pinned version. The pinned version supports both Go 1.26 and Go 1.27.
 
 ### UI development
@@ -60,6 +60,7 @@ For UI dependency upgrades, compare all four views (`get-me`, `issue-write`, `pr
     - Update readme documentation: `script/generate-docs`
     - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](docs/tool-renaming.md))
     - For toolset and icon configuration, see [Toolsets and Icons Guide](docs/toolsets-and-icons.md)
+    - For typed tool registration and compatibility schemas, see [Typed Tool Schemas](docs/typed-tool-schemas.md)
 6. Push to your fork and [submit a pull request][pr] targeting the `main` branch
 7. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 
