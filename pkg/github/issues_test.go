@@ -201,6 +201,31 @@ func Test_GetIssue(t *testing.T) {
 			expectedIssue: mockIssue,
 		},
 		{
+			name: "successful issue retrieval with int issue_number",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
+			requestArgs: map[string]any{
+				"method":       "get",
+				"owner":        "owner2",
+				"repo":         "repo2",
+				"issue_number": int(42),
+			},
+			expectedIssue: mockIssue,
+		},
+		{
+			name:         "invalid issue_number does not call API",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":       "get",
+				"owner":        "owner2",
+				"repo":         "repo2",
+				"issue_number": "not-a-number",
+			},
+			expectResultError: true,
+			expectedErrMsg:    "not a valid number",
+		},
+		{
 			name: "issue not found",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
