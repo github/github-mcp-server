@@ -28,7 +28,9 @@ var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		if req.Params.Ref.Type != "ref/resource" {
-			return nil, nil // Not a resource completion
+			return &mcp.CompleteResult{
+				Completion: mcp.CompletionResultDetails{Values: []string{}},
+			}, nil
 		}
 
 		argName := req.Params.Argument.Name
