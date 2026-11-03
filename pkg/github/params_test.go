@@ -764,3 +764,86 @@ func TestOptionalPaginationParams(t *testing.T) {
 		})
 	}
 }
+
+func TestCursorPaginationParams_ToGraphQLParams(t *testing.T) {
+	ptr := func(v int32) *int32 { return &v }
+	strPtr := func(v string) *string { return &v }
+
+	tests := []struct {
+		name        string
+		params      CursorPaginationParams
+		expected    *GraphQLPaginationParams
+		expectError bool
+		errMsg      string
+	}{
+		{
+			name: "valid params with perPage and after",
+			params: CursorPaginationParams{
+				PerPage: 50,
+				After:   "cursor123",
+			},
+			expected: &GraphQLPaginationParams{
+				First: ptr(50),
+				After: strPtr("cursor123"),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid params with perPage 1",
+			params: CursorPaginationParams{
+				PerPage: 1,
+			},
+			expected: &GraphQLPaginationParams{
+				First: ptr(1),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid params with perPage 100",
+			params: CursorPaginationParams{
+				PerPage: 100,
+			},
+			expected: &GraphQLPaginationParams{
+				First: ptr(100),
+			},
+			expectError: false,
+		},
+		{
+			name: "rejects perPage above 100",
+			params: CursorPaginationParams{
+				PerPage: 101,
+			},
+			expectError: true,
+			errMsg:      "perPage value 101 exceeds maximum of 100",
+		},
+		{
+			name: "rejects perPage of 0",
+			params: CursorPaginationParams{
+				PerPage: 0,
+			},
+			expectError: true,
+			errMsg:      "perPage value 0 is below minimum of 1",
+		},
+		{
+			name: "rejects negative perPage",
+			params: CursorPaginationParams{
+				PerPage: -5,
+			},
+			expectError: true,
+			errMsg:      "perPage value -5 is below minimum of 1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := tc.params.ToGraphQLParams()
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Equal(t, tc.errMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}

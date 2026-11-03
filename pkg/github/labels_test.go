@@ -217,6 +217,28 @@ func TestListLabels(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "perPage value 101 exceeds maximum of 100",
 		},
+		{
+			name: "rejects a page size of 0",
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"perPage": float64(0),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "perPage value 0 is below minimum of 1",
+		},
+		{
+			name: "rejects a negative page size",
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"perPage": float64(-1),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "perPage value -1 is below minimum of 1",
+		},
 	}
 
 	for _, tc := range tests {
