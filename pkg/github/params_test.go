@@ -677,3 +677,55 @@ func TestOptionalPaginationParams(t *testing.T) {
 		})
 	}
 }
+
+func TestCursorPaginationParams_ToGraphQLParams(t *testing.T) {
+	tests := []struct {
+		name        string
+		perPage     int
+		expected    int32
+		expectError bool
+	}{
+		{
+			name:        "perPage 1",
+			perPage:     1,
+			expected:    1,
+			expectError: false,
+		},
+		{
+			name:        "perPage 100",
+			perPage:     100,
+			expected:    100,
+			expectError: false,
+		},
+		{
+			name:        "perPage 0",
+			perPage:     0,
+			expectError: true,
+		},
+		{
+			name:        "perPage -1",
+			perPage:     -1,
+			expectError: true,
+		},
+		{
+			name:        "perPage 101",
+			perPage:     101,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := CursorPaginationParams{PerPage: tc.perPage}.ToGraphQLParams()
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, result)
+				require.NotNil(t, result.First)
+				assert.Equal(t, tc.expected, *result.First)
+			}
+		})
+	}
+}
