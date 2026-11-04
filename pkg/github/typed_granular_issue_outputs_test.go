@@ -23,7 +23,7 @@ import (
 func granularIssueSession(t *testing.T, deps BaseDeps, protocol string) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
 	t.Helper()
 	tools := granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular)
-	require.Len(t, tools, 18)
+	require.Len(t, tools, 19)
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
 		WithFeatureChecker(featureCheckerFor(inventory.FeatureFlag(FeatureFlagIssuesGranular))).Build()
 	require.NoError(t, err)
