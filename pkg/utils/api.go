@@ -301,10 +301,11 @@ const (
 )
 
 func classifyHost(u *url.URL) HostType {
+	hostname := strings.ToLower(u.Hostname())
 	switch {
-	case u.Hostname() == "github.com" || strings.HasSuffix(u.Hostname(), ".github.com"):
+	case hostname == "github.com" || strings.HasSuffix(hostname, ".github.com"):
 		return HostTypeDotcom
-	case u.Hostname() == "ghe.com" || strings.HasSuffix(u.Hostname(), ".ghe.com"):
+	case hostname == "ghe.com" || strings.HasSuffix(hostname, ".ghe.com"):
 		return HostTypeGHEC
 	default:
 		return HostTypeGHES
