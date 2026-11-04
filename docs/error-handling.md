@@ -50,6 +50,23 @@ This function:
 - Creates a `GitHubAPIError` with the provided message, response, and error
 - Stores the error in the context for middleware inspection
 - Returns an appropriate MCP tool error response
+- Adds a `github/error` entry to the result's `_meta`, with an observed error `kind` and HTTP `status` when available
+
+The `github/error` metadata kind is one of:
+
+- `http_error` — GitHub returned a non-2xx HTTP response
+- `rate_limited` or `secondary_rate_limited` — GitHub reported a primary or secondary rate limit
+- `response_read_error` — GitHub returned a 2xx response, but reading or decoding it failed
+- `transport_error` — no HTTP response was received
+- `canceled` — the request was canceled or its context expired
+
+For example, a conflict response includes:
+
+```json
+"_meta": { "github/error": { "kind": "http_error", "status": 409 } }
+```
+
+This metadata describes the response observed by the server; it does not guarantee whether a write took effect. In particular, a transport error, a response read error, or a 5xx response may leave the outcome uncertain. Clients should inspect the affected resource before retrying a write whose outcome is unknown. The existing human-readable error text is unchanged.
 
 ### For GitHub GraphQL API Errors
 
