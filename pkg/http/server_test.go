@@ -493,6 +493,12 @@ func TestResolveListenAddress(t *testing.T) {
 			want: "127.0.0.1:9090",
 		},
 		{
+			name: "all interfaces host is joined with port",
+			host: "0.0.0.0",
+			port: 8082,
+			want: "0.0.0.0:8082",
+		},
+		{
 			name: "ipv6 host is bracketed and joined with port",
 			host: "::1",
 			port: 9090,
