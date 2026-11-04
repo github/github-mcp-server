@@ -254,7 +254,7 @@ function SuccessView({
             }}
           >
             {displayTitle}
-            {prNumber && titleText && !titleText.includes(`#${prNumber}`) && (
+            {prNumber && titleText && !new RegExp(`#${prNumber}(?!\\d)`).test(titleText) && (
               <Text
                 style={{
                   color: "var(--fgColor-muted)",
