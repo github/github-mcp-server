@@ -1,0 +1,39 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Create automation tag"
+  },
+  "description": "Create an automation tag in a repository. Tags organize automations; they do not execute them. Each call, including a retry, creates a new tag, even when another tag has the same name.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "Description of the new tag. Omit for an empty description.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Display name for the new tag",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "minLength": 1,
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_automation_tag"
+}
