@@ -2011,15 +2011,15 @@ func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolution
 			},
 			"owner": {
 				Type:        "string",
-				Description: "Repository owner",
+				Description: "Repository owner (required for create, submit_pending, and delete_pending methods)",
 			},
 			"repo": {
 				Type:        "string",
-				Description: "Repository name",
+				Description: "Repository name (required for create, submit_pending, and delete_pending methods)",
 			},
 			"pullNumber": {
 				Type:        "number",
-				Description: "Pull request number",
+				Description: "Pull request number (required for create, submit_pending, and delete_pending methods)",
 			},
 			"body": {
 				Type:        "string",
@@ -2039,7 +2039,9 @@ func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolution
 				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
 			},
 		},
-		Required: []string{"method", "owner", "repo", "pullNumber"},
+		// Only method is globally required: resolve_thread / unresolve_thread use
+		// threadId alone, matching discussion_comment_write and the granular tools.
+		Required: []string{"method"},
 	}
 	if withResolutionReason {
 		schema.Properties["resolutionReason"] = &jsonschema.Schema{
