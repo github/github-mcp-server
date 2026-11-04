@@ -16,11 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTypedIssueReadIFCLabels(t *testing.T) {
+func TestTypedIssueReadStructuredContent(t *testing.T) {
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
 		t.Run("protocol="+protocol, func(t *testing.T) {
 			deps := consolidatedIssueDeps(t)
-			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
 			session, schemas := consolidatedIssueSession(t, deps, protocol, false)
 			for _, method := range []string{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"} {
 				args := map[string]any{"method": method, "owner": "owner", "repo": "repo", "issue_number": 1}
@@ -30,9 +29,6 @@ func TestTypedIssueReadIFCLabels(t *testing.T) {
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "issue_read", Arguments: args})
 				require.NoError(t, err)
 				require.False(t, result.IsError)
-				label := unmarshalIFC(t, result.Meta["ifc"])
-				assert.Equal(t, "untrusted", label["integrity"])
-				assert.Equal(t, "public", label["confidentiality"])
 				if schema := schemas["issue_read"]; schema != nil {
 					require.NotNil(t, result.StructuredContent)
 					require.NoError(t, schema.Validate(result.StructuredContent))

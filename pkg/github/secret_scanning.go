@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -82,17 +81,12 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alert) //nolint:gosec // G117: This security_events-scoped tool intentionally returns the alert's secret; the result is labeled private-untrusted.
+			r, err := json.Marshal(alert) //nolint:gosec // G117: This security_events-scoped tool intentionally returns the alert's secret.
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal alert: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Secret scanning alerts are access-restricted regardless of repo
-			// visibility and surface the matched secret material itself, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, secretScanningAlertOutput(alert), nil
+			return utils.NewToolResultText(string(r)), secretScanningAlertOutput(alert), nil
 		},
 		normalizeSecurityIntegerArguments("alertNumber"),
 	)
@@ -180,17 +174,12 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts) //nolint:gosec // G117: This security_events-scoped tool intentionally returns alert secrets; the result is labeled private-untrusted.
+			r, err := json.Marshal(alerts) //nolint:gosec // G117: This security_events-scoped tool intentionally returns alert secrets.
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Secret scanning alerts are access-restricted regardless of repo
-			// visibility and surface the matched secret material itself, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, mapSecurityOutputs(alerts, secretScanningAlertOutput), nil
+			return utils.NewToolResultText(string(r)), mapSecurityOutputs(alerts, secretScanningAlertOutput), nil
 		},
 		normalizeSecurityIntegerArguments("page", "perPage"),
 		normalizeTypedReadArguments(nil, false),

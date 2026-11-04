@@ -38,13 +38,7 @@ func hasTypeFilter(query string) bool {
 	return hasFilter(query, "type")
 }
 
-// searchPostProcessFn is invoked after a successful search response, before
-// the call result is returned. It may attach additional metadata (such as IFC
-// labels) to the call result based on the search payload.
-type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult)
-
 type searchConfig struct {
-	postProcess searchPostProcessFn
 	// fields, when non-empty, restricts each result item to the requested
 	// subset of fields. fieldsTool and fieldsDeps identify the calling tool and
 	// its dependencies so fields telemetry can be recorded.
@@ -65,12 +59,6 @@ type SearchIssuesInput struct {
 }
 
 type searchOption func(*searchConfig)
-
-// withSearchPostProcess registers a callback invoked after a successful search
-// response. The callback may mutate the call result (e.g. to attach _meta.ifc).
-func withSearchPostProcess(fn searchPostProcessFn) searchOption {
-	return func(c *searchConfig) { c.postProcess = fn }
-}
 
 // withFieldsFiltering enables the optional `fields` response filtering for a
 // search tool. When fields is non-empty, each result item is reduced to the
@@ -230,9 +218,6 @@ func searchHandler(
 	}
 
 	callResult := utils.NewToolResultText(string(r))
-	if cfg.postProcess != nil {
-		cfg.postProcess(ctx, result, callResult)
-	}
 	output = SearchIssuesResponse{
 		Total:             result.Total,
 		IncompleteResults: result.IncompleteResults,
