@@ -254,6 +254,16 @@ type SecurityPageInfo struct {
 	PrevCursor      string `json:"prevCursor,omitempty"`
 }
 
+type CodeScanningAlertsOutput struct {
+	Alerts   []*CodeScanningAlertOutput `json:"alerts"`
+	PageInfo SecurityPageInfo           `json:"pageInfo"`
+}
+
+type SecretScanningAlertsOutput struct {
+	Alerts   []*SecretScanningAlertOutput `json:"alerts"`
+	PageInfo SecurityPageInfo             `json:"pageInfo"`
+}
+
 type DependabotAlertsOutput struct {
 	Alerts   []*DependabotAlertOutput `json:"alerts"`
 	PageInfo SecurityPageInfo         `json:"pageInfo"`

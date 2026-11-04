@@ -67,31 +67,19 @@
   },
   "name": "list_code_scanning_alerts",
   "outputSchema": {
-    "items": {
-      "additionalProperties": false,
-      "properties": {
-        "dismissed_comment": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "dismissed_reason": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "html_url": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "most_recent_instance": {
+    "additionalProperties": false,
+    "properties": {
+      "alerts": {
+        "items": {
           "additionalProperties": false,
           "properties": {
-            "commit_sha": {
+            "dismissed_comment": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "dismissed_reason": {
               "type": [
                 "null",
                 "string"
@@ -103,37 +91,76 @@
                 "string"
               ]
             },
-            "location": {
+            "most_recent_instance": {
               "additionalProperties": false,
               "properties": {
-                "end_column": {
-                  "type": [
-                    "null",
-                    "integer"
-                  ]
-                },
-                "end_line": {
-                  "type": [
-                    "null",
-                    "integer"
-                  ]
-                },
-                "path": {
+                "commit_sha": {
                   "type": [
                     "null",
                     "string"
                   ]
                 },
-                "start_column": {
+                "html_url": {
                   "type": [
                     "null",
-                    "integer"
+                    "string"
                   ]
                 },
-                "start_line": {
+                "location": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "end_column": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "end_line": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "path": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "start_column": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "start_line": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    }
+                  },
                   "type": [
                     "null",
-                    "integer"
+                    "object"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "state": {
+                  "type": [
+                    "null",
+                    "string"
                   ]
                 }
               },
@@ -142,16 +169,56 @@
                 "object"
               ]
             },
-            "message": {
+            "number": {
               "type": [
                 "null",
-                "string"
+                "integer"
               ]
             },
-            "ref": {
+            "rule": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "help": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "security_severity_level": {
+                  "description": "Security impact level, distinct from rule diagnostic severity.",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "severity": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
               "type": [
                 "null",
-                "string"
+                "object"
               ]
             },
             "state": {
@@ -166,73 +233,38 @@
             "object"
           ]
         },
-        "number": {
-          "type": [
-            "null",
-            "integer"
-          ]
-        },
-        "rule": {
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "help": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "id": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "security_severity_level": {
-              "description": "Security impact level, distinct from rule diagnostic severity.",
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "severity": {
-              "type": [
-                "null",
-                "string"
-              ]
-            }
-          },
-          "type": [
-            "null",
-            "object"
-          ]
-        },
-        "state": {
-          "type": [
-            "null",
-            "string"
-          ]
-        }
+        "type": [
+          "null",
+          "array"
+        ]
       },
-      "type": [
-        "null",
-        "object"
-      ]
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "prevCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage"
+        ],
+        "type": "object"
+      }
     },
-    "type": [
-      "null",
-      "array"
-    ]
+    "required": [
+      "alerts",
+      "pageInfo"
+    ],
+    "type": "object"
   }
 }
