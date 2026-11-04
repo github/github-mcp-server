@@ -213,7 +213,7 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 			}
 
 			switch {
-			case strings.HasPrefix(mimeType, "text"), strings.HasPrefix(mimeType, "application"):
+			case isTextMIMEType(mimeType):
 				return &mcp.ReadResourceResult{
 					Contents: []*mcp.ResourceContents{
 						{
@@ -246,6 +246,27 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 			return nil, errors.New("404 Not Found")
 		}
 	}
+}
+
+// isTextMIMEType reports whether content of the given MIME type can be returned
+// as text. Other application/* types, such as application/octet-stream which
+// raw.githubusercontent.com uses for binary files, must be returned as blobs.
+func isTextMIMEType(mimeType string) bool {
+	mediaType, _, err := mime.ParseMediaType(mimeType)
+	if err != nil && !errors.Is(err, mime.ErrInvalidMediaParameter) {
+		return false
+	}
+	if strings.HasPrefix(mediaType, "text/") {
+		return true
+	}
+	if !strings.HasPrefix(mediaType, "application/") {
+		return false
+	}
+	return mediaType == "application/json" ||
+		mediaType == "application/xml" ||
+		mediaType == "application/javascript" ||
+		strings.HasSuffix(mediaType, "+json") ||
+		strings.HasSuffix(mediaType, "+xml")
 }
 
 func escapeRepoResourceURIComponent(value string) (string, error) {
