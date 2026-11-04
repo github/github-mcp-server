@@ -23,6 +23,44 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 )
 
+// pullRequestReadFieldsByMethod maps each fields-enabled pull_request_read
+// method to the field names it may return. The consolidated schema exposes the
+// union of these; this table is what makes the selection method-aware.
+var pullRequestReadFieldsByMethod = map[string][]any{
+	"get_reviews":    pullRequestReviewItemFieldEnum,
+	"get_check_runs": pullRequestCheckRunItemFieldEnum,
+}
+
+// validatePullRequestReadFields rejects a non-empty fields selection that is not
+// supported by the selected method. An empty selection is always allowed (it is
+// equivalent to omitting the parameter) and every method keeps returning its
+// full response.
+func validatePullRequestReadFields(method string, fields []string) error {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	allowed, ok := pullRequestReadFieldsByMethod[method]
+	if !ok {
+		return fmt.Errorf(
+			"fields is not supported for pull_request_read method %q",
+			method,
+		)
+	}
+
+	for _, field := range fields {
+		if !slices.Contains(allowed, any(field)) {
+			return fmt.Errorf(
+				"field %q is not supported for pull_request_read method %q",
+				field,
+				method,
+			)
+		}
+	}
+
+	return nil
+}
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -67,6 +105,13 @@ Possible options:
 		Type:        "string",
 		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
 	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for pull_request_read results. "+
+			"Supported for get_reviews and get_check_runs. "+
+			"Valid fields depend on the selected method. "+
+			"If omitted or empty, all fields are returned.",
+		pullRequestReadItemFieldEnum,
+	)
 
 	return NewTool[PullRequestReadInput, *PullRequestReadOutput](
 		ToolsetMetadataPullRequests,
@@ -101,6 +146,15 @@ Possible options:
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// Validate before any GitHub API call so an invalid method/field
+			// combination fails fast without a network round-trip.
+			if err := validatePullRequestReadFields(method, fields); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
@@ -151,13 +205,13 @@ Possible options:
 				result, output, err := getPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return attachIFC(result), output, err
 			case "get_reviews":
-				result, output, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
+				result, output, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination, fields)
 				return attachIFC(result), output, err
 			case "get_comments":
 				result, output, err := getIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), pullRequestCommentsOutput(output), err
 			case "get_check_runs":
-				result, output, err := getPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				result, output, err := getPullRequestCheckRuns(ctx, client, deps, owner, repo, pullNumber, pagination, fields)
 				return attachIFC(result), output, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -330,12 +384,12 @@ func getPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return utils.NewToolResultText(string(r)), &PullRequestReadOutput{Status: &minimalStatus}, nil
 }
 
-func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	result, _, err := getPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	result, _, err := getPullRequestCheckRuns(ctx, client, deps, owner, repo, pullNumber, pagination, nil)
 	return result, err
 }
 
-func getPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
+func getPullRequestCheckRuns(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, fields []string) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
 	// First get the PR to get the head SHA
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
@@ -390,12 +444,54 @@ func getPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 		CheckRuns:  minimalCheckRuns,
 	}
 
-	r, err := json.Marshal(minimalResult)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Filter only the check_run items: total_count is response metadata, not an
+	// item field, and must survive filtering so callers can still reason about
+	// the unpaginated total. An empty selection keeps the full response.
+	filtered := false
+	var payload any = minimalResult
+
+	if len(fields) > 0 {
+		filteredCheckRuns, err := filterEachField(minimalCheckRuns, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(
+				"failed to filter pull request check runs",
+				err,
+			), nil, nil
+		}
+
+		payload = struct {
+			TotalCount int              `json:"total_count"`
+			CheckRuns  []map[string]any `json:"check_runs"`
+		}{
+			TotalCount: minimalResult.TotalCount,
+			CheckRuns:  filteredCheckRuns,
+		}
+
+		filtered = true
 	}
 
-	return utils.NewToolResultText(string(r)), &PullRequestReadOutput{CheckRuns: &minimalResult}, nil
+	r, err := json.Marshal(payload)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(
+			"failed to marshal pull request check runs",
+			err,
+		), nil, nil
+	}
+
+	recordFieldsUsageFor(
+		ctx,
+		deps,
+		"pull_request_read",
+		minimalResult,
+		filtered,
+		len(r),
+	)
+
+	// structuredContent must match the filtered text response, so project the
+	// check runs onto the same selected fields. total_count is preserved.
+	structured := structuredPullRequestCheckRunsOutput(minimalResult, fields)
+
+	return utils.NewToolResultText(string(r)), &PullRequestReadOutput{CheckRuns: &structured}, nil
 }
 
 func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -599,11 +695,11 @@ func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	result, _, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
+	result, _, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination, nil)
 	return result, err
 }
 
-func getPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
+func getPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, fields []string) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -657,7 +753,47 @@ func getPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return MarshalledTextResult(minimalReviews), &PullRequestReadOutput{Reviews: &minimalReviews}, nil
+	// Field filtering is applied after lockdown/security filtering and after the
+	// API payload has been reduced to MinimalPullRequestReview values. An empty
+	// selection keeps the full response.
+	filtered := false
+	var payload any = minimalReviews
+
+	if len(fields) > 0 {
+		filteredReviews, err := filterEachField(minimalReviews, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(
+				"failed to filter pull request reviews",
+				err,
+			), nil, nil
+		}
+
+		payload = filteredReviews
+		filtered = true
+	}
+
+	r, err := json.Marshal(payload)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(
+			"failed to marshal pull request reviews",
+			err,
+		), nil, nil
+	}
+
+	recordFieldsUsageFor(
+		ctx,
+		deps,
+		"pull_request_read",
+		minimalReviews,
+		filtered,
+		len(r),
+	)
+
+	// structuredContent must match the filtered text response, so project the
+	// reviews onto the same selected fields.
+	structured := structuredPullRequestReviewsOutput(minimalReviews, fields)
+
+	return utils.NewToolResultText(string(r)), &PullRequestReadOutput{Reviews: &structured}, nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
