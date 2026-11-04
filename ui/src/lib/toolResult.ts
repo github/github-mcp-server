@@ -35,3 +35,14 @@ export function completedToolResult<T = Record<string, unknown>>(
     return null;
   }
 }
+
+/**
+ * Extracts a numeric PR or issue number from a GitHub web URL, e.g.
+ * "https://github.com/owner/repo/pull/123" -> 123
+ * "https://github.com/owner/repo/issues/456" -> 456
+ */
+export function parseNumberFromURL(url?: string): number | undefined {
+  if (!url) return undefined;
+  const match = url.match(/\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/);
+  return match ? parseInt(match[1], 10) : undefined;
+}
