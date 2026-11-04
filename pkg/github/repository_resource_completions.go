@@ -59,6 +59,9 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 		if err != nil {
 			return nil, err
 		}
+		if values == nil {
+			values = []string{}
+		}
 		if len(values) > 100 {
 			values = values[:100]
 		}

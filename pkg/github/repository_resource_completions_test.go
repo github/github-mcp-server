@@ -93,6 +93,35 @@ func TestRepositoryResourceCompletionHandler(t *testing.T) {
 	}
 }
 
+func TestRepositoryResourceCompletionHandler_EmptyResults(t *testing.T) {
+	const argumentName = "owner"
+	originalResolver := RepositoryResourceArgumentResolvers[argumentName]
+	RepositoryResourceArgumentResolvers[argumentName] = func(context.Context, *github.Client, map[string]string, string) ([]string, error) {
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		RepositoryResourceArgumentResolvers[argumentName] = originalResolver
+	})
+
+	handler := RepositoryResourceCompletionHandler(func(context.Context) (*github.Client, error) {
+		return &github.Client{}, nil
+	})
+	result, err := handler(t.Context(), &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref:      &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{Name: argumentName},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []string{}, result.Completion.Values)
+	assert.Equal(t, 0, result.Completion.Total)
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"completion":{"values":[]}}`, string(data))
+}
+
 func TestRepositoryResourceCompletionHandler_GetClientError(t *testing.T) {
 	getClient := func(_ context.Context) (*github.Client, error) {
 		return nil, errors.New("client error")
