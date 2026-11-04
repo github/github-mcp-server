@@ -301,6 +301,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Code quality tools
 		GetCodeQualityFinding(t),
+		ListCodeQualityFindings(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),

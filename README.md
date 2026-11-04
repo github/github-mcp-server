@@ -704,6 +704,15 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
+- **list_code_quality_findings** - List code quality findings
+  - **OAuth Challenge Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `direction`: Sort by creation date: `desc` (newest first, default) or `asc` (oldest first). (string, optional)
+  - `owner`: The owner of the repository. (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository. (string, required)
+  - `state`: Filter code quality findings by state. Defaults to open (string, optional)
+
 </details>
 
 <details>
