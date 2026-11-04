@@ -1146,6 +1146,13 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - **OAuth Challenge Scopes**: `notifications`
   - `notificationID`: The ID of the notification (string, required)
 
+- **get_subject_subscription** - Get subject subscription
+  - **OAuth Challenge Scopes**: `repo`
+  - `number`: Issue, pull request, or discussion number (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `subjectType`: Type of the subject to subscribe to (string, required)
+
 - **list_notifications** - List notifications
   - **OAuth Challenge Scopes**: `notifications`
   - `before`: Only show notifications updated before the given time (ISO 8601 format) (string, optional)
@@ -1166,6 +1173,14 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `action`: Action to perform: ignore, watch, or delete the repository notification subscription. (string, required)
   - `owner`: The account owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
+
+- **manage_subject_subscription** - Manage subject subscription
+  - **OAuth Challenge Scopes**: `repo`, `notifications`
+  - `number`: Issue, pull request, or discussion number (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: subscribed: receive all updates; unsubscribed: only participating or mentions; ignored: receive no notifications (string, required)
+  - `subjectType`: Type of the subject to subscribe to (string, required)
 
 - **mark_all_notifications_read** - Mark all notifications as read
   - **OAuth Challenge Scopes**: `notifications`
