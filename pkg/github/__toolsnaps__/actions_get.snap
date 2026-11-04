@@ -2,9 +2,9 @@
   "annotations": {
     "idempotentHint": false,
     "readOnlyHint": true,
-    "title": "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"
+    "title": "Get GitHub Actions resources and CI check details"
   },
-  "description": "Get details about specific GitHub Actions resources.\nUse this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.\n",
+  "description": "Get GitHub Actions resources and CI check details by ID.\nUse get_check_run for a check's output title, summary, text, and annotation count, including checks from external providers.\nPass a check ID from actions_list, a job's check_run_id, or pull_request_read with get_check_runs as resource_id.\nUse actions_list with list_check_run_annotations to read annotations separately. Use get_job_logs for Actions logs.\n",
   "inputSchema": {
     "properties": {
       "method": {
@@ -15,7 +15,8 @@
           "get_workflow_job",
           "download_workflow_run_artifact",
           "get_workflow_run_usage",
-          "get_workflow_run_logs_url"
+          "get_workflow_run_logs_url",
+          "get_check_run"
         ],
         "type": "string"
       },
@@ -28,7 +29,7 @@
         "type": "string"
       },
       "resource_id": {
-        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.\n- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.\n- Provide an artifact ID for 'download_workflow_run_artifact' method.\n- Provide a job ID for 'get_workflow_job' method.\n",
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.\n- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.\n- Provide an artifact ID for 'download_workflow_run_artifact' method.\n- Provide a job ID for 'get_workflow_job' method.\n- Provide a check run ID for 'get_check_run' method.\n",
         "type": "string"
       }
     },
@@ -47,6 +48,11 @@
       {
         "properties": {
           "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_run": {
             "not": {
               "description": "Any value."
             }
@@ -81,6 +87,11 @@
       {
         "properties": {
           "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "check_run": {
             "not": {
               "description": "Any value."
             }
@@ -122,6 +133,11 @@
               "description": "Any value."
             }
           },
+          "check_run": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "logs": {
             "not": {
               "description": "Any value."
@@ -151,6 +167,11 @@
       },
       {
         "properties": {
+          "check_run": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "logs": {
             "not": {
               "description": "Any value."
@@ -193,6 +214,11 @@
               "description": "Any value."
             }
           },
+          "check_run": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "logs": {
             "not": {
               "description": "Any value."
@@ -227,6 +253,11 @@
               "description": "Any value."
             }
           },
+          "check_run": {
+            "not": {
+              "description": "Any value."
+            }
+          },
           "method": {
             "enum": [
               "get_workflow_run_logs_url"
@@ -256,6 +287,48 @@
         "required": [
           "logs"
         ]
+      },
+      {
+        "properties": {
+          "artifact": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "logs": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "method": {
+            "enum": [
+              "get_check_run"
+            ]
+          },
+          "usage": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_job": {
+            "not": {
+              "description": "Any value."
+            }
+          },
+          "workflow_run": {
+            "not": {
+              "description": "Any value."
+            }
+          }
+        },
+        "required": [
+          "check_run"
+        ]
       }
     ],
     "properties": {
@@ -280,6 +353,119 @@
           "download_url",
           "message",
           "note"
+        ],
+        "type": [
+          "null",
+          "object"
+        ]
+      },
+      "check_run": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "slug": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "check_suite_id": {
+            "type": "integer"
+          },
+          "completed_at": {
+            "description": "Timestamp in RFC3339 format.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "conclusion": {
+            "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
+            "enum": [
+              "success",
+              "failure",
+              "neutral",
+              "cancelled",
+              "skipped",
+              "timed_out",
+              "action_required",
+              "stale",
+              "startup_failure"
+            ],
+            "type": "string"
+          },
+          "details_url": {
+            "type": "string"
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "html_url": {
+            "description": "Browser URL.",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "annotations_count": {
+                "type": "integer"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "annotations_count"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "started_at": {
+            "description": "Timestamp in RFC3339 format.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "Lifecycle status, e.g. queued, in_progress, completed, waiting.",
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed",
+              "requested",
+              "waiting",
+              "pending",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
         ],
         "type": [
           "null",
@@ -325,7 +511,8 @@
           "get_workflow_job",
           "download_workflow_run_artifact",
           "get_workflow_run_usage",
-          "get_workflow_run_logs_url"
+          "get_workflow_run_logs_url",
+          "get_check_run"
         ],
         "type": "string"
       },
@@ -463,6 +650,9 @@
       "workflow_job": {
         "additionalProperties": false,
         "properties": {
+          "check_run_id": {
+            "type": "integer"
+          },
           "completed_at": {
             "description": "Timestamp in RFC3339 format.",
             "format": "date-time",
@@ -723,6 +913,9 @@
               "null",
               "object"
             ]
+          },
+          "check_suite_id": {
+            "type": "integer"
           },
           "conclusion": {
             "description": "Completion outcome, e.g. success, failure, cancelled, skipped, timed_out, action_required.",
