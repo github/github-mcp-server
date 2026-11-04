@@ -22,6 +22,7 @@ type CreateOrUpdateFileInput struct {
 	Repo              string `json:"repo"`
 	Path              string `json:"path"`
 	Content           string `json:"content"`
+	Encoding          string `json:"encoding,omitempty"`
 	Message           string `json:"message"`
 	Branch            string `json:"branch"`
 	SHA               string `json:"sha,omitempty"`
@@ -67,8 +68,9 @@ type CreateBranchInput struct {
 }
 
 type PushFileInput struct {
-	Path    string  `json:"path"`
-	Content *string `json:"content"`
+	Path     string  `json:"path"`
+	Content  *string `json:"content"`
+	Encoding string  `json:"encoding,omitempty"`
 }
 
 type PushFilesInput struct {
