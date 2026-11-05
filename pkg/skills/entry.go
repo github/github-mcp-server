@@ -37,6 +37,9 @@ func (r EntryResource) Validate() error {
 	if r.Size < 0 {
 		return fmt.Errorf("resource %q: negative size %d", r.URI, r.Size)
 	}
+	if r.Size > MaxSkillBytes {
+		return fmt.Errorf("resource %q: size %d exceeds the limit of %d", r.URI, r.Size, MaxSkillBytes)
+	}
 	return nil
 }
 
@@ -166,15 +169,16 @@ func (e Entry) Validate() error {
 	if len(e.Resources) > MaxResourcesPerSkill {
 		return fmt.Errorf("skill %q: %d resources exceeds the limit of %d", e.URI, len(e.Resources), MaxResourcesPerSkill)
 	}
-	if total := e.TotalSize(); total > MaxSkillBytes {
-		return fmt.Errorf("skill %q: total size %d bytes exceeds the limit of %d", e.URI, total, MaxSkillBytes)
-	}
-
 	seen := make(map[string]struct{}, len(e.Resources))
 	var sawSkillFile bool
+	var total int64
 	for _, r := range e.Resources {
 		if err := r.Validate(); err != nil {
 			return fmt.Errorf("skill %q: %w", e.URI, err)
+		}
+		total += r.Size // Each resource is bounded, and at most 512 are permitted.
+		if total > MaxSkillBytes {
+			return fmt.Errorf("skill %q: total size %d bytes exceeds the limit of %d", e.URI, total, MaxSkillBytes)
 		}
 		if _, dup := seen[r.URI]; dup {
 			return fmt.Errorf("skill %q: resource %q listed more than once", e.URI, r.URI)

@@ -58,8 +58,9 @@ someone else's behalf.
   different urgency.
 - `unread` — a notification can be updated after being read; it comes back.
 - `updated_at` — how stale the item is, which decides ordering within a bucket.
-- `threadID` — the identifier every dismiss and subscription call needs. It is not the
-  issue or pull request number.
+- `threadID` on `dismiss_notification`; `notificationID` on `get_notification_details`
+  and `manage_notification_subscription` — use the returned notification identifier,
+  not an issue or pull request number. Repository subscriptions use `owner` and `repo`.
 
 ## Confirm before clearing anything
 

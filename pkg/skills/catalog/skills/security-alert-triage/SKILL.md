@@ -15,8 +15,9 @@ evidence.
 ## Sequence
 
 1. **Inventory every source that answers.** `list_code_scanning_alerts`,
-   `list_dependabot_alerts`, `list_secret_scanning_alerts` and
-   `list_repository_security_advisories`, each with `state: open`. Record which
+   `list_dependabot_alerts` and `list_secret_scanning_alerts` with `state: open`.
+   Enumerate `list_repository_security_advisories` separately: omit `state` for all
+   advisories, or use `triage`, `draft`, `published` or `closed`. Record which
    sources answered and which did not — the difference matters, see the failure cases.
    When the question spans an organisation rather than one repository,
    `list_org_repository_security_advisories` with `org` gives the same advisory picture
@@ -66,7 +67,8 @@ outranks nothing; a moderate one on a public entry point may outrank everything.
 
 ## Fields that matter
 
-- `state` — `open`, `dismissed`, `fixed`, `resolved`. Only `open` needs a decision.
+- `state` on alerts — `open` means outstanding. Advisory states are separate:
+  `triage`, `draft`, `published`, `closed`; publication does not mean a fix is shipped.
 - `rule.id` and `rule.security_severity_level` on a code scanning alert — the id lets
   you compare like with like across repositories.
 - `most_recent_instance.location` — the file and line to actually read.

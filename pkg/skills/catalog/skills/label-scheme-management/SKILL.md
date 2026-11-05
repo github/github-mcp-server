@@ -14,7 +14,7 @@ issue already carrying it. This is a repository-wide edit dressed up as a small 
    count, most used first. That ordering is the audit: the tail is where the dead
    vocabulary lives.
 2. **Find out what is actually in use.** For anything you are considering changing,
-   `list_issues` filtered by that label, with `state` set to `all`, shows what carries
+   `list_issues` filtered by that label, omitting `state` to include open and closed issues, shows what carries
    it. A label with no issues has no cost to retire; one with two hundred is load-bearing.
 3. **Read the one you are about to change.** `get_label` returns its exact name, colour
    and description. Names are case-sensitive in ways that are easy to get wrong, and the
@@ -81,8 +81,8 @@ issue already carrying it. This is a repository-wide edit dressed up as a small 
   to be moved first.
 - **The account cannot write** — label administration usually needs more access than
   commenting does. Report the intended changes as a list so someone else can apply them.
-- **A label appears unused but the count is from open issues only** — check with `state`
-  set to `all` before concluding. Closed issues carry labels too, and they are the
+- **A label appears unused but the count is from open issues only** — omit `state`
+  when checking before concluding. Closed issues carry labels too, and they are the
   history.
 
 ## Report coverage

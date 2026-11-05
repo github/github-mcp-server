@@ -178,7 +178,15 @@ func TestBundledSkillsAreTheDefaultSource(t *testing.T) {
 func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 	t.Parallel()
 	checker := featureCheckerFor(FeatureFlagSkillsExtension)
-	cfg := MCPServerConfig{Version: "test", Translator: translations.NullTranslationHelper, SkillsSource: testSkillsSource(t)}
+	cfg := MCPServerConfig{
+		Version: "test", Translator: translations.NullTranslationHelper, SkillsSource: testSkillsSource(t),
+		ServerOptions: []MCPServerOption{func(opts *mcp.ServerOptions) {
+			opts.SetCacheable = func(_ context.Context, _ mcp.Request, c *mcp.Cacheable) {
+				c.TTLMs = 123
+				c.CacheScope = "public"
+			}
+		}},
+	}
 	deps := NewBaseDeps(nil, nil, nil, nil, cfg.Translator, FeatureFlags{}, 0, checker, stubExporters())
 	inv, err := NewInventory(cfg.Translator).WithToolsets([]string{"context"}).
 		WithFeatureChecker(checker).WithServerInstructions().Build()
@@ -187,7 +195,7 @@ func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 	require.NoError(t, err)
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	for i, method := range []string{"server/discover", "skills/list", "skills/get", "resources/directory/read"} {
+	for i, method := range []string{"server/discover", "skills/list", "skills/get", "resources/directory/read", "resources/list", "resources/read"} {
 		params := map[string]any{
 			"_meta": map[string]any{
 				mcp.MetaKeyProtocolVersion:    "2026-07-28",
@@ -196,7 +204,7 @@ func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 			},
 		}
 		switch method {
-		case "skills/get":
+		case "skills/get", "resources/read":
 			params["uri"] = "skill://example.com/reviewing/SKILL.md"
 		case "resources/directory/read":
 			params["uri"] = "skill://example.com/reviewing"
@@ -208,6 +216,9 @@ func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 		req.Header.Set("Accept", "application/json, text/event-stream")
 		req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
 		req.Header.Set("Mcp-Method", method)
+		if method == "resources/read" {
+			req.Header.Set("Mcp-Name", "skill://example.com/reviewing/SKILL.md")
+		}
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -221,7 +232,11 @@ func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 			assert.NotContains(t, reply.Result, "instructions")
 		} else {
 			assert.Equal(t, "complete", reply.Result["resultType"])
-			assert.Equal(t, float64(skills.ListTTL), reply.Result["ttlMs"])
+			if method == "resources/list" || method == "resources/read" {
+				assert.Equal(t, float64(123), reply.Result["ttlMs"])
+			} else {
+				assert.Equal(t, float64(skills.ListTTL), reply.Result["ttlMs"])
+			}
 			assert.Equal(t, "private", reply.Result["cacheScope"])
 		}
 	}

@@ -168,5 +168,6 @@ func WithinSkill(skillPath, uri string) bool {
 	if uri == root {
 		return false // the root is a directory, not a file of the skill
 	}
-	return strings.HasPrefix(uri, root+"/")
+	suffix, ok := strings.CutPrefix(uri, root+"/")
+	return ok && validateFilePath(suffix) == nil
 }

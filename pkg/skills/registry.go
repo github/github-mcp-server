@@ -102,8 +102,8 @@ type Registry struct {
 //
 // Skills may nest. From an enclosing skill's perspective a nested skill's files
 // are ordinary supporting files, so the same URI is legitimately claimed by both
-// skills; the registry serves it once. Two skills claiming one URI with
-// different content is an inconsistency and is rejected.
+// skills; the registry serves it once. Conflicting content and incomplete
+// static enclosing manifests are rejected.
 func NewRegistry(skills ...*Skill) (*Registry, error) {
 	r := &Registry{
 		skills:   make(map[string]*Skill, len(skills)),
@@ -144,6 +144,21 @@ func NewRegistry(skills ...*Skill) (*Registry, error) {
 			}
 			r.files[uri] = rf
 			indexFile(dirSets, s.SkillPath, f)
+		}
+	}
+
+	for _, parent := range skills {
+		if parent.Dynamic {
+			continue
+		}
+		for uri := range r.files {
+			if !WithinSkill(parent.SkillPath, uri) {
+				continue
+			}
+			relative := strings.TrimPrefix(uri, SkillURI(parent.SkillPath, "")+"/")
+			if _, ok := parent.File(relative); !ok {
+				return nil, fmt.Errorf("skill %q: enclosing manifest is missing resource %q", parent.SkillPath, uri)
+			}
 		}
 	}
 

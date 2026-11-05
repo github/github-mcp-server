@@ -123,7 +123,9 @@ func resourceHandler(f ResourceFile) mcp.ResourceHandler {
 		} else {
 			contents.Blob = f.File.Content
 		}
-		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}, nil
+		result := &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}
+		result.CacheScope = "private"
+		return result, nil
 	}
 }
 

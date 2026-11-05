@@ -121,6 +121,16 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	}
 	if publisher != nil {
 		serverOpts.Instructions = ""
+		setCacheable := serverOpts.SetCacheable
+		serverOpts.SetCacheable = func(ctx context.Context, req mcp.Request, c *mcp.Cacheable) {
+			if setCacheable != nil {
+				setCacheable(ctx, req, c)
+			}
+			switch req.(type) {
+			case *mcp.ListResourcesRequest, *mcp.ReadResourceRequest:
+				c.CacheScope = "private"
+			}
+		}
 		if serverOpts.Capabilities == nil {
 			serverOpts.Capabilities = &mcp.ServerCapabilities{}
 		}

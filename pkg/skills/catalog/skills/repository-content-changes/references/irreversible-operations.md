@@ -67,8 +67,8 @@ Everything not in `content` is gone from that branch.
 ## Creating a repository
 
 `create_repository` is not destructive, but it is not quietly reversible either: the
-name is taken, the owner sees it, and if `private` is not set the repository is public
-from the moment it exists. Removing it means the section above.
+name is taken and the owner sees it. Visibility defaults to private; `private: false`
+makes it public from the moment it exists. Removing it means the section above.
 
 **Required before the call:** the name, the owner — personal account or the
 `organization` — and the visibility, all three stated rather than defaulted.

@@ -1,7 +1,10 @@
 package skills
 
 import (
+	"encoding/json"
 	"fmt"
+	"math/big"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -147,7 +150,31 @@ func mappingEqual(a, b map[string]any) bool {
 	return true
 }
 
+// Compare decimal values without rounding large YAML integers to float64.
+func frontmatterNumber(v any) (*big.Rat, bool) {
+	var text string
+	switch n := v.(type) {
+	case int:
+		text = strconv.FormatInt(int64(n), 10)
+	case int64:
+		text = strconv.FormatInt(n, 10)
+	case uint64:
+		text = strconv.FormatUint(n, 10)
+	case float64:
+		text = strconv.FormatFloat(n, 'g', -1, 64)
+	case json.Number:
+		text = string(n)
+	default:
+		return nil, false
+	}
+	return new(big.Rat).SetString(text)
+}
+
 func valueEqual(a, b any) bool {
+	if an, ok := frontmatterNumber(a); ok {
+		bn, ok := frontmatterNumber(b)
+		return ok && an.Cmp(bn) == 0
+	}
 	switch at := a.(type) {
 	case map[string]any:
 		bt, ok := b.(map[string]any)
