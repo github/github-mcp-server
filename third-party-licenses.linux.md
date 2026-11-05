@@ -4,14 +4,14 @@ The following open source dependencies are used to build the [github/github-mcp-
 
 ## Table of Contents
 
-- [386, amd64](#386-amd64)
-- [arm64](#arm64)
+- [386](#386)
+- [amd64, arm64](#amd64-arm64)
 
 ---
 
-## 386, amd64
+## 386
 
-The following packages are included for the 386, amd64 architectures.
+The following packages are included for the 386 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
@@ -50,9 +50,9 @@ The following packages are included for the 386, amd64 architectures.
  - [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) ([BSD-3-Clause](https://cs.opensource.google/go/x/text/+/v0.43.0:LICENSE))
  - [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate) ([BSD-3-Clause](https://cs.opensource.google/go/x/time/+/v0.15.0:LICENSE))
 
-## arm64
+## amd64, arm64
 
-The following packages are included for the arm64 architectures.
+The following packages are included for the amd64, arm64 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
