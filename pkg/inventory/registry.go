@@ -179,13 +179,14 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // diagnostics that need the same view of the tool surface the server would
 // register.
 //
-// MCP Apps UI metadata is stripped only when the client explicitly did not
+// MCP Apps UI metadata is stripped when the client explicitly did not
 // advertise the io.modelcontextprotocol/ui extension capability (per the
 // 2026-01-26 MCP Apps spec, servers SHOULD check client capabilities before
-// exposing UI-enabled tools). In that case app-only tools (whose
-// _meta.ui.visibility excludes "model") are omitted entirely. When the
-// capability is unknown (e.g. stdio paths that do not populate the context
-// flag) the metadata is kept.
+// exposing UI-enabled tools). That is detected from the HasUISupport context
+// flag or from parsed ClientCapabilities on the request. In that case
+// app-only tools (whose _meta.ui.visibility excludes "model") are omitted
+// entirely. When the capability is unknown (e.g. stdio paths that do not
+// populate either source) the metadata is kept.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
@@ -225,12 +226,25 @@ func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []Featur
 	return features
 }
 
+// mcpAppsUIExtensionKey is the client capability extension that advertises
+// MCP Apps UI support (MCP Apps 2026-01-26 spec).
+const mcpAppsUIExtensionKey = "io.modelcontextprotocol/ui"
+
 // shouldStripMCPAppsMetadata centralises the strip decision so the same logic
-// is exercised by tests and by RegisterTools. Metadata is stripped only when
-// the client is known not to support MCP Apps UI.
+// is exercised by tests and by RegisterTools. Metadata is stripped when the
+// client is known not to support MCP Apps UI: either the HasUISupport context
+// flag is explicitly false, or the request's parsed ClientCapabilities omit
+// the io.modelcontextprotocol/ui extension. When neither source is present
+// (e.g. stdio paths that do not populate capabilities) the metadata is kept.
 func shouldStripMCPAppsMetadata(ctx context.Context) bool {
-	supported, ok := ghcontext.HasUISupport(ctx)
-	return ok && !supported
+	if supported, ok := ghcontext.HasUISupport(ctx); ok {
+		return !supported
+	}
+	if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil && info.ClientCapabilities != nil {
+		_, hasUI := info.ClientCapabilities.Extensions[mcpAppsUIExtensionKey]
+		return !hasUI
+	}
+	return false
 }
 
 // RegisterTools registers all available tools with the server using the provided dependencies.
