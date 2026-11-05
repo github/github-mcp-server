@@ -164,7 +164,11 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 	prof := profiler.New(nil, profiler.IsProfilingEnabled())
 	finish := prof.Start(ctx, "log_buffer_processing")
 
-	httpResp, err := http.Get(logURL) //nolint:gosec
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, logURL, nil)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("failed to create log download request: %w", err)
+	}
+	httpResp, err := http.DefaultClient.Do(request) //nolint:gosec
 	if err != nil {
 		return "", 0, httpResp, fmt.Errorf("failed to download logs: %w", err)
 	}
