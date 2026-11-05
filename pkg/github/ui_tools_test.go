@@ -16,6 +16,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -601,4 +602,37 @@ func Test_UIGet_OmittedForClientsWithoutUISupport(t *testing.T) {
 		"app-only ui_get must not be exposed as a model-visible tool to non-UI clients")
 	assert.True(t, hasUIGet(ghcontext.WithUISupport(context.Background(), true)))
 	assert.True(t, hasUIGet(context.Background()), "ui_get is kept when UI support is unknown")
+}
+
+// Test_UIGet_ListedOnlyWhenClientAdvertisesMCPAppsCapability is the remote-server
+// path: tools/list carries client capabilities in MCPMethodInfo, not the
+// HasUISupport flag. Clients without extensions["io.modelcontextprotocol/ui"]
+// must not see the app-only ui_get tool.
+func Test_UIGet_ListedOnlyWhenClientAdvertisesMCPAppsCapability(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).WithToolsets([]string{"all"}).Build()
+	require.NoError(t, err)
+
+	hasUIGet := func(caps *mcp.ClientCapabilities) bool {
+		ctx := ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+			Method:             "tools/list",
+			ClientCapabilities: caps,
+		})
+		for _, tool := range inv.ToolsForRegistration(ctx) {
+			if tool.Tool.Name == "ui_get" {
+				return true
+			}
+		}
+		return false
+	}
+
+	withoutApps := &mcp.ClientCapabilities{}
+	withApps := &mcp.ClientCapabilities{}
+	withApps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+		"mimeTypes": []string{"text/html;profile=mcp-app"},
+	})
+
+	assert.False(t, hasUIGet(withoutApps),
+		"ui_get must not be listed to clients that omit the MCP Apps capability")
+	assert.True(t, hasUIGet(withApps),
+		"ui_get must be listed to clients that advertise the MCP Apps capability")
 }
