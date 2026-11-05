@@ -24,7 +24,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
-import { completedToolResult, parseNumberFromURL } from "../../lib/toolResult";
+import { completedToolResult, hasExactIssueReference, parseNumberFromURL } from "../../lib/toolResult";
 import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
@@ -384,7 +384,7 @@ function SuccessView({
             }}
           >
             {displayTitle}
-            {issueNum && titleText && !titleText.includes(`#${issueNum}`) && (
+            {issueNum && titleText && !hasExactIssueReference(titleText, issueNum) && (
               <Text
                 style={{
                   color: "var(--fgColor-muted)",

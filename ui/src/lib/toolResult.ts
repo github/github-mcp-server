@@ -46,3 +46,16 @@ export function parseNumberFromURL(url?: string): number | undefined {
   const match = url.match(/\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/);
   return match ? parseInt(match[1], 10) : undefined;
 }
+
+/**
+ * Checks whether a title contains an exact whole-number reference to a GitHub
+ * issue or pull request (e.g. "#123", "(#123)", "Fix #123"), avoiding false
+ * positive matches against longer numbers like "#1234".
+ */
+export function hasExactIssueReference(
+  title: string | undefined,
+  number: number | undefined,
+): boolean {
+  if (!title || number === undefined) return false;
+  return new RegExp(`(?:^|[^\\d])#${number}(?!\\d)`).test(title);
+}

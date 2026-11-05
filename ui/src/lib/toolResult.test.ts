@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { completedToolResult, parseNumberFromURL } from "./toolResult.ts";
+import { completedToolResult, hasExactIssueReference, parseNumberFromURL } from "./toolResult.ts";
 
 test("completedToolResult: handles null, error, deferral, and completed results", () => {
   assert.equal(completedToolResult(null), null);
@@ -46,4 +46,17 @@ test("parseNumberFromURL: returns undefined for non-PR/issue URLs or invalid inp
   assert.equal(parseNumberFromURL("https://github.com/owner/repo"), undefined);
   assert.equal(parseNumberFromURL("https://github.com/owner/repo/pull/notanumber"), undefined);
   assert.equal(parseNumberFromURL("https://github.com/owner/repo/issues/notanumber"), undefined);
+});
+
+test("hasExactIssueReference: avoids false matches on longer numbers", () => {
+  assert.equal(hasExactIssueReference("Fix #1234", 123), false);
+  assert.equal(hasExactIssueReference("Fix #123", 123), true);
+  assert.equal(hasExactIssueReference("#123", 123), true);
+  assert.equal(hasExactIssueReference("Fix (#123)", 123), true);
+  assert.equal(hasExactIssueReference("Issue #456 is fixed", 456), true);
+  assert.equal(hasExactIssueReference("Issue #4567 is fixed", 456), false);
+  assert.equal(hasExactIssueReference("Prefix #456", 456), true);
+  assert.equal(hasExactIssueReference("Prefix #4567", 456), false);
+  assert.equal(hasExactIssueReference(undefined, 123), false);
+  assert.equal(hasExactIssueReference("Fix issue", undefined), false);
 });
