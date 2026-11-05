@@ -27,7 +27,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
-import { completedToolResult } from "../../lib/toolResult";
+import { completedToolResult, hasExactIssueReference, parseNumberFromURL } from "../../lib/toolResult";
 import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
@@ -80,7 +80,11 @@ function SuccessView({
   submittedTitle: string;
   openLink: (url: string) => Promise<void>;
 }) {
-  const prUrl = pr.html_url || pr.url || pr.URL || "#";
+  const rawUrl = pr.html_url || pr.url || pr.URL;
+  const prNumber = pr.number ?? parseNumberFromURL(rawUrl);
+  const prUrl = rawUrl || (owner && repo && prNumber ? `https://github.com/${owner}/${repo}/pull/${prNumber}` : "#");
+  const titleText = pr.title || submittedTitle;
+  const displayTitle = titleText || (prNumber ? `Pull request #${prNumber}` : "View pull request");
 
   return (
     <div
@@ -165,8 +169,8 @@ function SuccessView({
               textDecoration: "none",
             }}
           >
-            {pr.title || submittedTitle}
-            {pr.number && (
+            {displayTitle}
+            {prNumber && titleText && !hasExactIssueReference(titleText, prNumber) && (
               <Text
                 style={{
                   color: "var(--fgColor-muted)",
@@ -174,7 +178,7 @@ function SuccessView({
                   marginLeft: 4,
                 }}
               >
-                #{pr.number}
+                #{prNumber}
               </Text>
             )}
           </a>
@@ -457,6 +461,8 @@ function CreatePRApp() {
         if (textContent && textContent.type === "text" && textContent.text) {
           const prData = JSON.parse(textContent.text);
           setSuccessPR(prData);
+          const createdPRNumber = prData.number ?? parseNumberFromURL(prData.html_url || prData.url || prData.URL);
+          const prRef = createdPRNumber ? `Pull request #${createdPRNumber}` : "A new pull request";
           // Push the new PR into the model context so subsequent agent
           // turns can reference it (MCP Apps 2026-01-26 ui/update-model-context).
           void setModelContext({
@@ -464,7 +470,7 @@ function CreatePRApp() {
             content: [
               {
                 type: "text",
-                text: `A new pull request was created in ${owner}/${repo} by the user via the create-pull-request view.`,
+                text: `${prRef} was created in ${owner}/${repo} by the user via the create-pull-request view.`,
               },
             ],
           });
@@ -480,7 +486,7 @@ function CreatePRApp() {
   if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle || title || (toolInput?.title as string) || ""} openLink={openLink} />
       </AppProvider>
     );
   }
