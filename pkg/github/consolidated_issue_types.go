@@ -488,6 +488,9 @@ func normalizeConsolidatedIssueArguments(kind string) func(json.RawMessage) (jso
 		if err := json.Unmarshal(raw, &args); err != nil {
 			return nil, err
 		}
+		if err := normalizeInputAliases(args, map[string]string{"issueNumber": "issue_number"}); err != nil {
+			return nil, err
+		}
 		for _, field := range []string{"method", "owner", "repo"} {
 			if _, err := RequiredParam[string](args, field); err != nil {
 				return nil, err
