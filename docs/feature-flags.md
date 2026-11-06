@@ -480,6 +480,11 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `revision_id`: The revision identifier. (string, required)
 
+- **get_automations_configuration_for_repository** - Get repository automation configuration
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **list_automation_revisions** - List automation revisions
   - **OAuth Challenge Scopes**: `repo`
   - `automation_id`: The automation identifier. (string, required)

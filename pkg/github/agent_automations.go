@@ -131,6 +131,25 @@ func agentAutomationArrayOutputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"array","items":{"type":"object","additionalProperties":true}}`)
 }
 
+func agentAutomationConfigurationOutputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type":"object",
+		"properties":{
+			"automations_enabled":{"type":"boolean"},
+			"can_manage_automations":{"type":"boolean"},
+			"allow_read_access_triggers":{"type":"boolean"},
+			"require_trigger_scoped_writes":{"type":"boolean"}
+		},
+		"required":[
+			"automations_enabled",
+			"can_manage_automations",
+			"allow_read_access_triggers",
+			"require_trigger_scoped_writes"
+		],
+		"additionalProperties":true
+	}`)
+}
+
 func agentAutomationInputSchema(properties map[string]*jsonschema.Schema, required ...string) *jsonschema.Schema {
 	return &jsonschema.Schema{Type: "object", Properties: properties, Required: required}
 }
@@ -348,6 +367,29 @@ func ListAvailableAutomationTriggers(t translations.TranslationHelperFunc) inven
 			return agentAutomationRequest{
 				method: http.MethodGet,
 				path:   automationPath(args.Owner, args.Repo, "available-triggers"),
+			}, nil
+		},
+	)
+}
+
+func GetAutomationsConfigurationForRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[AutomationCatalogInput](
+		t,
+		"get_automations_configuration_for_repository",
+		"Get repository automation configuration",
+		"Get whether automations are enabled, whether you can manage them, and the repository's automation trigger and write-scope policies.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner": automationStringProperty(DescriptionRepositoryOwner),
+			"repo":  automationStringProperty(DescriptionRepositoryName),
+		}, "owner", "repo"),
+		agentAutomationConfigurationOutputSchema(),
+		func(args AutomationCatalogInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, "configuration"),
 			}, nil
 		},
 	)
