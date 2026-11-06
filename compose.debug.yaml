@@ -1,0 +1,6 @@
+services:
+  githubmcpserver:
+    image: githubmcpserver
+    build:
+      context: .
+      dockerfile: ./Dockerfil
