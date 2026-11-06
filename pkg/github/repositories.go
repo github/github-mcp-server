@@ -26,6 +26,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+
+
 type GetCommitInput struct {
 	Owner   string `json:"owner"`
 	Repo    string `json:"repo"`
@@ -1024,7 +1026,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input GetFileContentsInput) (*mcp.CallToolResult, *RepositoryContentsOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, input GetFileContentsInput) (*mcp.CallToolResult, *RepositoryContentsOutput, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -1101,7 +1103,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
-				const maxContentSize = 1024 * 1024 // 1MB
+				const maxResultSize = 1024 * 1024 // 1MB
 
 				read, respInspect, err := inspectRepositoryFile(ctx, client, owner, repo, ref, path, fileContent)
 				if err != nil {
@@ -1133,26 +1135,6 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					return repositoryContentResult(attachIFC(utils.NewToolResultResource(message, result)))
 				}
 
-				// For files >= 1MB, return a ResourceLink instead of content
-				if fileSize >= maxContentSize {
-					size := int64(fileSize)
-					resourceLink := &mcp.ResourceLink{
-						URI:   resourceURI,
-						Name:  fileContent.GetName(),
-						Title: fmt.Sprintf("File: %s", path),
-						Size:  &size,
-					}
-					message := fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
-						path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote)
-					if read.Metadata != nil {
-						resourceLink.Title = fmt.Sprintf("Dereferenced target %s via symlink %s", read.Metadata.ResolvedTargetPath, path)
-					}
-					message = repositoryReadMessage(read, message, successNote)
-					return repositoryContentResult(attachIFC(utils.NewToolResultResourceLink(
-						message,
-						resourceLink)))
-				}
-
 				if !read.ContentAvailable {
 					return utils.NewToolResultError("failed to inspect repository file: content unavailable"), nil, nil
 				}
@@ -1170,25 +1152,54 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					strings.HasSuffix(contentType, "+json") ||
 					strings.HasSuffix(contentType, "+xml")
 
+				resourceContents := &mcp.ResourceContents{}
 				if isTextContent {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
 						Text:     string(contentBytes),
 						MIMEType: contentType,
 					}
-					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote)
-					message = repositoryReadMessage(read, message, successNote)
-					return repositoryContentResult(attachIFC(utils.NewToolResultResource(message, result)))
+					resourceContents = result
+				} else {
+					result := &mcp.ResourceContents{
+						URI:      resourceURI,
+						Blob:     contentBytes,
+						MIMEType: contentType,
+					}
+					resourceContents = result
+				}
+				inlineResult := utils.NewToolResultResource(
+					fmt.Sprintf("successfully downloaded %s file (SHA: %s)%s", map[bool]string{true: "text", false: "binary"}[isTextContent], fileSHA, successNote),
+					resourceContents)
+				if message := repositoryReadMessage(read, inlineResult.Content[0].(*mcp.TextContent).Text, successNote); message != inlineResult.Content[0].(*mcp.TextContent).Text {
+					inlineResult.Content[0].(*mcp.TextContent).Text = message
+				}
+				inlineTypedOutput, err := repositoryContentOutput(inlineResult)
+				if err != nil {
+					return nil, nil, err
+				}
+				wireSize, err := inlineToolResultWireSize(inlineResult, inlineTypedOutput, requestProtocolEra(ctx, req) == inventory.ProtocolEraModern)
+				if err != nil {
+					return nil, nil, err
+				}
+				if wireSize <= maxResultSize {
+					return repositoryContentResult(attachIFC(inlineResult))
 				}
 
-				result := &mcp.ResourceContents{
-					URI:      resourceURI,
-					Blob:     contentBytes,
-					MIMEType: contentType,
+				size := int64(fileSize)
+				resourceLink := &mcp.ResourceLink{
+					URI:   resourceURI,
+					Name:  fileContent.GetName(),
+					Title: fmt.Sprintf("File: %s", path),
+					Size:  &size,
 				}
-				message := fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote)
+				message := fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
+					path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote)
+				if read.Metadata != nil {
+					resourceLink.Title = fmt.Sprintf("Dereferenced target %s via symlink %s", read.Metadata.ResolvedTargetPath, path)
+				}
 				message = repositoryReadMessage(read, message, successNote)
-				return repositoryContentResult(attachIFC(utils.NewToolResultResource(message, result)))
+				return repositoryContentResult(attachIFC(utils.NewToolResultResourceLink(message, resourceLink)))
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false

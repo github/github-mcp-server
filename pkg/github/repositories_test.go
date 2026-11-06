@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/requeststate"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/raw"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -40,6 +42,8 @@ type repositoryReadFixture struct {
 	blobs    map[string][]byte
 	trees    map[string]*github.Tree
 	inspect  func(*http.Request)
+	ctx      context.Context
+	metadataProtocol string
 }
 
 func runRepositoryReadFixture(t *testing.T, fixture repositoryReadFixture, args map[string]any) (*mcp.CallToolResult, int) {
@@ -73,7 +77,14 @@ func runRepositoryReadFixture(t *testing.T, fixture repositoryReadFixture, args 
 	tool := GetFileContents(translations.NullTranslationHelper)
 	handler := tool.Handler(deps)
 	request := createMCPRequest(args)
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	if fixture.metadataProtocol != "" {
+		request.Params.Meta = mcp.Meta{mcp.MetaKeyProtocolVersion: fixture.metadataProtocol}
+	}
+	ctx := fixture.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result, err := handler(ContextWithDeps(ctx, deps), &request)
 	require.NoError(t, err)
 	return result, counter.count
 }
@@ -769,6 +780,85 @@ func Test_GetFileContents_SymlinkDisclosure(t *testing.T) {
 		}, args("bad"))
 		assert.Equal(t, 2, requests)
 		assert.Contains(t, getErrorResult(t, result).Text, "not a valid internal symbolic link target")
+	})
+}
+
+func Test_GetFileContents_ModernProtocolInlineLimit(t *testing.T) {
+	commitSHA := strings.Repeat("c", 40)
+	content := strings.Repeat("a", 600*1024)
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	fileSHA := gitBlobSHA([]byte(content))
+	args := map[string]any{"owner": "owner", "repo": "repo", "path": "medium.txt", "sha": commitSHA}
+
+	fixture := repositoryReadFixture{
+		contents: &github.RepositoryContent{
+			Type: new("file"), Path: new("medium.txt"), SHA: new(fileSHA), Size: new(len(content)),
+			Content: new(encoded), Encoding: new("base64"),
+		},
+	}
+
+	t.Run("legacy protocol inlines the file", func(t *testing.T) {
+		result, _ := runRepositoryReadFixture(t, fixture, args)
+		require.False(t, result.IsError)
+		_, ok := result.Content[1].(*mcp.EmbeddedResource)
+		require.True(t, ok, "expected an inline resource on the legacy protocol")
+	})
+
+	t.Run("modern protocol returns a ResourceLink", func(t *testing.T) {
+		modern := fixture
+		modern.ctx = ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+			ProtocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+		})
+		result, _ := runRepositoryReadFixture(t, modern, args)
+		require.False(t, result.IsError)
+		_, ok := result.Content[1].(*mcp.ResourceLink)
+		require.True(t, ok, "expected a ResourceLink on the modern protocol")
+	})
+
+	t.Run("modern request metadata returns a ResourceLink", func(t *testing.T) {
+		modern := fixture
+		modern.metadataProtocol = inventory.ProtocolVersionMultiRoundTrip
+		result, _ := runRepositoryReadFixture(t, modern, args)
+		require.False(t, result.IsError)
+		_, ok := result.Content[1].(*mcp.ResourceLink)
+		require.True(t, ok, "expected a ResourceLink when the modern protocol is metadata-only")
+	})
+
+	t.Run("modern protocol serializes oversized binary as a link", func(t *testing.T) {
+		binary := bytes.Repeat([]byte{0xff, 0xd8, 0xff, 0xe0}, 100*1024)
+		encoded := base64.StdEncoding.EncodeToString(binary)
+		fileSHA := gitBlobSHA(binary)
+		binaryFixture := repositoryReadFixture{
+			metadataProtocol: inventory.ProtocolVersionMultiRoundTrip,
+			contents: &github.RepositoryContent{
+				Type: new("file"), Path: new("small.bin"), SHA: new(fileSHA), Size: new(len(binary)),
+				Content: new(encoded), Encoding: new("base64"),
+			},
+		}
+		result, _ := runRepositoryReadFixture(t, binaryFixture, map[string]any{
+			"owner": "owner", "repo": "repo", "path": "small.bin", "sha": commitSHA,
+		})
+		require.False(t, result.IsError)
+		_, ok := result.Content[1].(*mcp.ResourceLink)
+		require.True(t, ok, "expected a ResourceLink after measuring serialized output")
+	})
+
+	t.Run("legacy protocol keeps under-limit binary inline", func(t *testing.T) {
+		binary := bytes.Repeat([]byte{0xff, 0xd8, 0xff, 0xe0}, 100*1024)
+		encoded := base64.StdEncoding.EncodeToString(binary)
+		fileSHA := gitBlobSHA(binary)
+		binaryFixture := repositoryReadFixture{
+			contents: &github.RepositoryContent{
+				Type: new("file"), Path: new("binary.bin"), SHA: new(fileSHA), Size: new(len(binary)),
+				Content: new(encoded), Encoding: new("base64"),
+			},
+		}
+		result, _ := runRepositoryReadFixture(t, binaryFixture, map[string]any{
+			"owner": "owner", "repo": "repo", "path": "binary.bin", "sha": commitSHA,
+		})
+		require.False(t, result.IsError)
+		_, ok := result.Content[1].(*mcp.EmbeddedResource)
+		require.True(t, ok, "expected inline content on legacy protocol")
 	})
 }
 

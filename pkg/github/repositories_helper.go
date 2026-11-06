@@ -13,11 +13,56 @@ import (
 	"unicode/utf8"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/raw"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// requestProtocolEra mirrors inventory's request-era selection so a handler can
+// account for SDK behavior that depends on the negotiated protocol. Metadata is
+// authoritative; the HTTP-injected method info is the compatibility fallback.
+func requestProtocolEra(ctx context.Context, req *mcp.CallToolRequest) inventory.ProtocolEra {
+	version := ""
+	if req != nil && req.Params != nil {
+		version, _ = req.Params.Meta[mcp.MetaKeyProtocolVersion].(string)
+	}
+	if version == "" {
+		if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil {
+			version = info.ProtocolVersion
+		}
+	}
+	return inventory.ProtocolEraForVersion(version)
+}
+
+// inlineToolResultWireSize measures the JSON size of the MCP result as closely
+// as possible, including the structuredContent copy added for typed outputs on
+// modern protocol versions and the JSON-RPC response envelope overhead.
+func inlineToolResultWireSize(result *mcp.CallToolResult, typedOutput *RepositoryContentsOutput, modernProtocol bool) (int, error) {
+	if result == nil || result.IsError || result.InputRequests != nil {
+		return 0, fmt.Errorf("result is not a successful inline candidate")
+	}
+	if !modernProtocol {
+		typedOutput = nil
+	}
+	if modernProtocol && typedOutput == nil {
+		typedOutput = &RepositoryContentsOutput{}
+	}
+	response := struct {
+		JSONRPC           string                     `json:"jsonrpc"`
+		ID                jsonrpc.ID                 `json:"id"`
+		Result            *mcp.CallToolResult        `json:"result"`
+		StructuredContent *RepositoryContentsOutput `json:"structuredContent,omitempty"`
+	}{JSONRPC: "2.0", Result: result, StructuredContent: typedOutput}
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		return 0, err
+	}
+	return len(encoded), nil
+}
 
 // initializeRepository creates an initial commit in an empty repository and returns the default branch ref and base commit
 func initializeRepository(ctx context.Context, client *github.Client, owner, repo string) (ref *github.Reference, baseCommit *github.Commit, err error) {
