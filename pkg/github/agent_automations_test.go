@@ -395,18 +395,19 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		tool            func(translations.TranslationHelperFunc) inventory.ServerTool
-		args            map[string]any
-		method          string
-		endpoint        string
-		status          int
-		body            string
-		response        string
-		confirm         bool
-		confirmID       string
-		confirmValue    string
-		messageContents []string
+		name             string
+		tool             func(translations.TranslationHelperFunc) inventory.ServerTool
+		args             map[string]any
+		method           string
+		endpoint         string
+		status           int
+		body             string
+		response         string
+		confirm          bool
+		confirmID        string
+		confirmValue     string
+		messageContents  []string
+		messageOmissions []string
 	}{
 		{
 			name: "create automation",
@@ -416,15 +417,16 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				"type": "shared", "enabled": false, "tools": []string{"github/issue_read"},
 				"triggers": map[string]any{"issue_opened": map[string]any{"query": "is:open"}},
 			},
-			method:          http.MethodPost,
-			endpoint:        "/agents/repos/octo-org/octo-repo/automations",
-			status:          http.StatusCreated,
-			body:            `{"name":"Issue triage","prompt":"Triage new issues.","type":"shared","enabled":false,"tools":["github/issue_read"],"triggers":{"issue_opened":{"query":"is:open"}}}`,
-			response:        `{"id":"automation-id","name":"Issue triage"}`,
-			confirm:         true,
-			confirmID:       agentAutomationConfirmationIDPrefix + "create",
-			confirmValue:    "CREATE octo-org/octo-repo",
-			messageContents: []string{`"name": "Issue triage"`, `"prompt": "Triage new issues."`},
+			method:           http.MethodPost,
+			endpoint:         "/agents/repos/octo-org/octo-repo/automations",
+			status:           http.StatusCreated,
+			body:             `{"name":"Issue triage","prompt":"Triage new issues.","type":"shared","enabled":false,"tools":["github/issue_read"],"triggers":{"issue_opened":{"query":"is:open"}}}`,
+			response:         `{"id":"automation-id","name":"Issue triage"}`,
+			confirm:          true,
+			confirmID:        agentAutomationConfirmationIDPrefix + "create",
+			confirmValue:     "CREATE octo-org/octo-repo",
+			messageContents:  []string{"enabled, name, prompt, tools, triggers, type"},
+			messageOmissions: []string{"Issue triage", "Triage new issues."},
 		},
 		{
 			name: "update automation",
@@ -433,15 +435,16 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
 				"enabled": false, "prompt": "Review new issues.", "tools": []string{},
 			},
-			method:          http.MethodPatch,
-			endpoint:        "/agents/repos/octo-org/octo-repo/automations/automation-id",
-			status:          http.StatusOK,
-			body:            `{"enabled":false,"prompt":"Review new issues.","tools":[]}`,
-			response:        `{"id":"automation-id","prompt":"Review new issues."}`,
-			confirm:         true,
-			confirmID:       agentAutomationConfirmationIDPrefix + "update",
-			confirmValue:    "UPDATE octo-org/octo-repo/automation-id",
-			messageContents: []string{`"enabled": false`, `"prompt": "Review new issues."`},
+			method:           http.MethodPatch,
+			endpoint:         "/agents/repos/octo-org/octo-repo/automations/automation-id",
+			status:           http.StatusOK,
+			body:             `{"enabled":false,"prompt":"Review new issues.","tools":[]}`,
+			response:         `{"id":"automation-id","prompt":"Review new issues."}`,
+			confirm:          true,
+			confirmID:        agentAutomationConfirmationIDPrefix + "update",
+			confirmValue:     "UPDATE octo-org/octo-repo/automation-id",
+			messageContents:  []string{"enabled, prompt, tools"},
+			messageOmissions: []string{"Review new issues."},
 		},
 		{
 			name:         "delete automation",
@@ -483,7 +486,7 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				sealer, err := requeststate.NewRandom()
 				require.NoError(t, err)
 				deps.StateSealer = sealer
-				result = invokeConfirmedAutomation(t, tool, deps, tt.args, tt.confirmID, tt.confirmValue, tt.messageContents...)
+				result = invokeConfirmedAutomation(t, tool, deps, tt.args, tt.confirmID, tt.confirmValue, tt.messageContents, tt.messageOmissions)
 			} else {
 				request := createMCPRequest(tt.args)
 				var err error
@@ -641,7 +644,7 @@ func invokeConfirmedAutomation(
 	deps BaseDeps,
 	args map[string]any,
 	confirmationID, confirmationValue string,
-	messageContents ...string,
+	messageContents, messageOmissions []string,
 ) *mcp.CallToolResult {
 	t.Helper()
 
@@ -656,6 +659,9 @@ func invokeConfirmedAutomation(
 	assert.Contains(t, params.Message, confirmationValue)
 	for _, content := range messageContents {
 		assert.Contains(t, params.Message, content)
+	}
+	for _, omission := range messageOmissions {
+		assert.NotContains(t, params.Message, omission)
 	}
 
 	retry := createMCPRequest(args)
