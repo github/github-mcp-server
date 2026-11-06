@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 
@@ -25,6 +26,9 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		ListAvailableAutomationTools(t),
 		ListAvailableAutomationTriggers(t),
 		GetAutomationsConfigurationForRepository(t),
+		CreateAutomation(t),
+		UpdateAutomation(t),
+		DeleteAutomation(t),
 	}
 }
 
@@ -52,6 +56,7 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 		name            string
 		enabledFeatures []string
 		insidersMode    bool
+		readOnly        bool
 		wantAvailable   bool
 	}{
 		{name: "default with all toolsets"},
@@ -59,6 +64,12 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 		{
 			name:            "explicit opt-in",
 			enabledFeatures: []string{FeatureFlagAgentAutomations},
+			wantAvailable:   true,
+		},
+		{
+			name:            "explicit opt-in in read-only mode",
+			enabledFeatures: []string{FeatureFlagAgentAutomations},
+			readOnly:        true,
 			wantAvailable:   true,
 		},
 	} {
@@ -71,6 +82,7 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 			inv, err := inventory.NewBuilder().
 				SetTools(AllTools(translations.NullTranslationHelper)).
 				WithToolsets([]string{"all"}).
+				WithReadOnly(tc.readOnly).
 				WithFeatureChecker(featureCheckerFor(flags...)).
 				Build()
 			require.NoError(t, err)
@@ -84,7 +96,16 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 				}
 			}
 			if tc.wantAvailable {
-				assert.ElementsMatch(t, automationNames, availableNames)
+				expectedNames := automationNames
+				if tc.readOnly {
+					expectedNames = nil
+					for _, tool := range automationTools {
+						if tool.IsReadOnly() {
+							expectedNames = append(expectedNames, tool.Tool.Name)
+						}
+					}
+				}
+				assert.ElementsMatch(t, expectedNames, availableNames)
 				return
 			}
 			assert.Empty(t, availableNames)
@@ -367,4 +388,85 @@ func TestGetAutomationsConfigurationForRepositoryDoesNotCacheResponses(t *testin
 		assert.JSONEq(t, response, getTextResult(t, result).Text)
 	}
 	assert.Equal(t, len(responses), calls)
+}
+
+func TestAgentAutomationWriteTools(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		tool     func(translations.TranslationHelperFunc) inventory.ServerTool
+		args     map[string]any
+		method   string
+		endpoint string
+		status   int
+		body     string
+		response string
+	}{
+		{
+			name: "create automation",
+			tool: CreateAutomation,
+			args: map[string]any{
+				"owner": "octo-org", "repo": "octo-repo", "name": "Issue triage", "prompt": "Triage new issues.",
+				"type": "shared", "enabled": false, "tools": []string{"github/issue_read"},
+				"triggers": map[string]any{"issue_opened": map[string]any{"query": "is:open"}},
+			},
+			method:   http.MethodPost,
+			endpoint: "/agents/repos/octo-org/octo-repo/automations",
+			status:   http.StatusCreated,
+			body:     `{"name":"Issue triage","prompt":"Triage new issues.","type":"shared","enabled":false,"tools":["github/issue_read"],"triggers":{"issue_opened":{"query":"is:open"}}}`,
+			response: `{"id":"automation-id","name":"Issue triage"}`,
+		},
+		{
+			name: "update automation",
+			tool: UpdateAutomation,
+			args: map[string]any{
+				"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+				"enabled": false, "prompt": "Review new issues.", "tools": []string{},
+			},
+			method:   http.MethodPatch,
+			endpoint: "/agents/repos/octo-org/octo-repo/automations/automation-id",
+			status:   http.StatusOK,
+			body:     `{"enabled":false,"prompt":"Review new issues.","tools":[]}`,
+			response: `{"id":"automation-id","prompt":"Review new issues."}`,
+		},
+		{
+			name:     "delete automation",
+			tool:     DeleteAutomation,
+			args:     map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id"},
+			method:   http.MethodDelete,
+			endpoint: "/agents/repos/octo-org/octo-repo/automations/automation-id",
+			status:   http.StatusNoContent,
+			response: `{"message":"Automation deleted."}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tool := tt.tool(translations.NullTranslationHelper)
+			httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tt.method, r.Method)
+				assert.Equal(t, tt.endpoint, r.URL.Path)
+				assert.Equal(t, agentAutomationAPIVersion, r.Header.Get("X-GitHub-Api-Version"))
+				if tt.body == "" {
+					assert.Empty(t, r.Body)
+				} else {
+					body, err := io.ReadAll(r.Body)
+					require.NoError(t, err)
+					assert.JSONEq(t, tt.body, string(body))
+				}
+				w.WriteHeader(tt.status)
+				if tt.status != http.StatusNoContent {
+					_, _ = w.Write([]byte(tt.response))
+				}
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			request := createMCPRequest(tt.args)
+			result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			assert.JSONEq(t, tt.response, getTextResult(t, result).Text)
+		})
+	}
 }
