@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v92/github"
@@ -2257,9 +2258,10 @@ func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client,
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := ResolveReviewThreadInput{
-			ThreadID:         githubv4.ID(threadID),
-			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
+		input := ResolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}
+		if resolutionReason != nil && *resolutionReason != "" {
+			// GraphQL expects enum names, e.g. "wont-fix" becomes WONT_FIX.
+			input.ResolutionReason = githubv4.NewString(githubv4.String(strings.ToUpper(strings.ReplaceAll(*resolutionReason, "-", "_"))))
 		}
 
 		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {

@@ -1720,7 +1720,7 @@ func TestGranularResolveReviewThread(t *testing.T) {
 		{
 			name:             "forwards resolution reason",
 			resolutionReason: new("addressed"),
-			expectedReason:   new("addressed"),
+			expectedReason:   new("ADDRESSED"),
 		},
 		{name: "GHES omits resolution reason", ghes: true, resolutionReason: new("addressed")},
 		{name: "without resolution reason"},

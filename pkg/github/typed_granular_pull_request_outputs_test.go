@@ -533,7 +533,7 @@ func TestTypedGranularPullRequestClientErrors(t *testing.T) {
 func TestTypedGranularPullRequestResolutionReasonPayload(t *testing.T) {
 	for _, protocol := range typedPullRequestProtocols {
 		for _, reason := range []bool{false, true} {
-			for _, value := range []string{"addressed", "wont-fix", "invalid", ""} {
+			for value, want := range map[string]string{"addressed": "ADDRESSED", "wont-fix": "WONT_FIX", "invalid": "INVALID", "": ""} {
 				client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					var request struct {
 						Variables struct {
@@ -545,9 +545,9 @@ func TestTypedGranularPullRequestResolutionReasonPayload(t *testing.T) {
 					}
 					require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 					assert.Equal(t, "T_1", request.Variables.Input.ThreadID)
-					if reason {
+					if reason && want != "" {
 						require.NotNil(t, request.Variables.Input.ResolutionReason)
-						assert.Equal(t, value, *request.Variables.Input.ResolutionReason)
+						assert.Equal(t, want, *request.Variables.Input.ResolutionReason)
 					} else {
 						assert.Nil(t, request.Variables.Input.ResolutionReason)
 					}

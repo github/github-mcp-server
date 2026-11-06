@@ -4824,7 +4824,7 @@ func TestResolveReviewThread(t *testing.T) {
 					}{},
 					ResolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_kwDOTest123"),
-						ResolutionReason: newGQLStringlike[githubv4.String]("wont-fix"),
+						ResolutionReason: newGQLStringlike[githubv4.String]("WONT_FIX"),
 					},
 					nil,
 					githubv4mock.DataResponse(map[string]any{
