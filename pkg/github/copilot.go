@@ -88,6 +88,18 @@ func getPollConfig(ctx context.Context) PollConfig {
 	return PollConfig{MaxAttempts: 9, Delay: 1 * time.Second}
 }
 
+// waitForCopilotPoll waits between optional polling attempts until the request is canceled.
+func waitForCopilotPoll(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return ctx.Err() == nil
+	}
+}
+
 // findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
 // It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
 // The createdAfter parameter filters to only return PRs created after the specified time.
@@ -393,8 +405,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			var linkedPR *linkedPullRequest
 			for attempt := range pollConfig.MaxAttempts {
-				if attempt > 0 {
-					time.Sleep(pollConfig.Delay)
+				if ctx.Err() != nil || (attempt > 0 && !waitForCopilotPoll(ctx, pollConfig.Delay)) {
+					break
 				}
 
 				// Send progress notification if progress token is available
@@ -805,8 +817,8 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 
 			var linkedPR *linkedPullRequest
 			for attempt := range pollConfig.MaxAttempts {
-				if attempt > 0 {
-					time.Sleep(pollConfig.Delay)
+				if ctx.Err() != nil || (attempt > 0 && !waitForCopilotPoll(ctx, pollConfig.Delay)) {
+					break
 				}
 				if progressToken != nil && request.Session != nil {
 					_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
