@@ -83,14 +83,14 @@ func TestProcessResponseAsRingBufferToEnd(t *testing.T) {
 		// Ring buffer size is 5, so we should only keep the last 5 lines
 		var sb strings.Builder
 		for i := 1; i <= 10; i++ {
-			sb.WriteString(fmt.Sprintf("line%d\n", i))
+			fmt.Fprintf(&sb, "line%d\n", i)
 		}
 		// Insert an 11MB line (exceeds maxLineSize of 10MB)
 		longLine := strings.Repeat("x", 11*1024*1024)
 		sb.WriteString(longLine)
 		sb.WriteString("\n")
 		for i := 11; i <= 20; i++ {
-			sb.WriteString(fmt.Sprintf("line%d\n", i))
+			fmt.Fprintf(&sb, "line%d\n", i)
 		}
 
 		resp := &http.Response{

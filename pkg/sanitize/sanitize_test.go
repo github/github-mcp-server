@@ -365,6 +365,123 @@ func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
+func TestPlainText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "visible punctuation",
+			input:    `can't "quote" AT&T`,
+			expected: `can't "quote" AT&T`,
+		},
+		{
+			name:     "named punctuation entities",
+			input:    `can&apos;t &quot;quote&quot; AT&amp;T`,
+			expected: `can't "quote" AT&T`,
+		},
+		{
+			name:     "decimal punctuation entities",
+			input:    "can&#39;t &#34;quote&#34; AT&#38;T",
+			expected: `can't "quote" AT&T`,
+		},
+		{
+			name:     "hexadecimal punctuation entities",
+			input:    "can&#x27;t &#x22;quote&#x22; AT&#x26;T",
+			expected: `can't "quote" AT&T`,
+		},
+		{
+			name:     "raw unsafe element",
+			input:    "before<script>alert(1)</script>after",
+			expected: "beforeafter",
+		},
+		{
+			name:     "raw formatting element",
+			input:    "<b>bold</b> and <em>italic</em>",
+			expected: "bold and italic",
+		},
+		{
+			name:     "named entity encoded element remains inert",
+			input:    "&lt;script&gt;alert(1)&lt;/script&gt;",
+			expected: "&lt;script&gt;alert(1)&lt;/script&gt;",
+		},
+		{
+			name:     "decimal entity encoded element remains inert",
+			input:    "&#60;script&#62;alert(1)&#60;/script&#62;",
+			expected: "&lt;script&gt;alert(1)&lt;/script&gt;",
+		},
+		{
+			name:     "hexadecimal entity encoded element remains inert",
+			input:    "&#x3c;script&#x3e;alert(1)&#x3c;/script&#x3e;",
+			expected: "&lt;script&gt;alert(1)&lt;/script&gt;",
+		},
+		{
+			name:     "double encoded element remains inert",
+			input:    "&amp;lt;script&amp;gt;",
+			expected: "&amp;lt;script&amp;gt;",
+		},
+		{
+			name:     "triply encoded element remains inert",
+			input:    "&amp;amp;lt;script&amp;amp;gt;",
+			expected: "&amp;amp;lt;script&amp;amp;gt;",
+		},
+		{
+			name:     "double encoded punctuation remains encoded once",
+			input:    "can&amp;#39;t",
+			expected: "can&amp;#39;t",
+		},
+		{
+			name:     "malformed element is stripped",
+			input:    "before <script",
+			expected: "before ",
+		},
+		{
+			name:     "internal marker text is preserved",
+			input:    "githubmcpplaintexttoken1x<b>bold</b>",
+			expected: "githubmcpplaintexttoken1xbold",
+		},
+		{
+			name:     "literal angle brackets are neutralized",
+			input:    "1 < 2 > 0",
+			expected: "1 &lt; 2 &gt; 0",
+		},
+		{
+			name:     "literal invisible and bidi characters",
+			input:    "Hello\u200B\u202EWorld",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "encoded invisible and bidi characters",
+			input:    "Hello&#8203;&#x202E;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "nul characters are normalized",
+			input:    "Hello\x00&#0;World",
+			expected: "Hello��World",
+		},
+		{
+			name:     "malformed utf8 is normalized",
+			input:    "Hello\xffWorld",
+			expected: "Hello\uFFFDWorld",
+		},
+		{
+			name:     "code fence metadata",
+			input:    "```steal secrets\ncode\n```",
+			expected: "```\ncode\n```",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := PlainText(tt.input)
+			require.Equal(t, tt.expected, result)
+			require.Equal(t, result, PlainText(result))
+		})
+	}
+}
+
 // TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding covers the core
 // regression from issue #3101: invisible/bidi characters encoded as HTML
 // character entities are decoded by FilterHTMLTags, so the invisible-character
@@ -665,6 +782,25 @@ func TestSanitizeIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestPlainTextIsIdempotent(t *testing.T) {
+	for _, in := range invariantCorpus {
+		once := PlainText(in)
+		require.Equal(t, once, PlainText(once), "PlainText not idempotent on %q", in)
+	}
+}
+
+func FuzzPlainTextIsIdempotent(f *testing.F) {
+	for _, seed := range invariantCorpus {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		once := PlainText(in)
+		if twice := PlainText(once); twice != once {
+			t.Fatalf("PlainText not idempotent on %q: first %q, second %q", in, once, twice)
+		}
+	})
+}
+
 // TestSanitizeDoesNotAllocateForCleanASCII pins the allocation contract from
 // issue #3117: ordinary clean text passes through without being copied.
 func TestSanitizeDoesNotAllocateForCleanASCII(t *testing.T) {
@@ -722,3 +858,18 @@ func TestSanitizeStillStripsMaliciousContent(t *testing.T) {
 }
 
 var sink string
+
+func TestContentPreservesMarkdownAndCode(t *testing.T) {
+	content := "普通 prose with $5 and $x^2$, :rocket:, ✈️, 👩‍💻.\n\n" +
+		"[link](https://example.com/a?b=c) ![badge](https://example.com/b.svg)\n\n" +
+		"<details><summary>Details</summary><table><tr><td>cell</td></tr></table></details>\n\n" +
+		"```uncommon-language\nx & y\n```\n\n" +
+		"    inline `code` and footnote[^1]\n\n[^1]: note"
+
+	require.Equal(t, content, Content(content))
+}
+
+func TestContentRemovesOnlyUnconditionalInvisibleCharacters(t *testing.T) {
+	require.Equal(t, "left right", Content("left\u200B right"))
+	require.Equal(t, "✈️ and 👩‍💻", Content("✈️ and 👩‍💻"))
+}

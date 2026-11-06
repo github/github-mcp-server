@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -149,6 +150,68 @@ func TestWithScopeChallengeResolvesScopesFromParsedArguments(t *testing.T) {
 				assert.Contains(t, challenge, `scope="repo workflow"`)
 				assert.Contains(t, challenge, "Additional scopes required: repo, workflow")
 			}
+		})
+	}
+}
+
+func TestWithScopeChallengeNormalizesArgumentsBeforeDynamicPolicy(t *testing.T) {
+	normalizerCalls := 0
+	var challengedArguments map[string]any
+	setScopeTestMap(t, inventory.ScopeAccess{
+		Scopes:  []string{"repo", "workflow"},
+		Dynamic: true,
+		ArgumentNormalizer: func(raw json.RawMessage) (json.RawMessage, error) {
+			normalizerCalls++
+			var arguments map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &arguments); err != nil {
+				return nil, err
+			}
+			arguments["state"] = json.RawMessage(`"OPEN"`)
+			return json.Marshal(arguments)
+		},
+		Challenge: func(arguments map[string]any, _ []string) []string {
+			challengedArguments = arguments
+			if arguments["state"] == "OPEN" {
+				return nil
+			}
+			return []string{"workflow"}
+		},
+	})
+
+	for _, parsed := range []bool{true, false} {
+		t.Run(fmt.Sprintf("parsed=%t", parsed), func(t *testing.T) {
+			normalizerCalls = 0
+			nextCalled := false
+			var normalizedInfo *ghcontext.MCPMethodInfo
+			next := http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+				nextCalled = true
+				normalizedInfo, _ = ghcontext.MCPMethod(request.Context())
+			})
+			request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(
+				`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"write_file","arguments":{"state":"open"}}}`,
+			))
+			ctx := scopeChallengeContext(request.Context())
+			methodInfo := &ghcontext.MCPMethodInfo{
+				Method:       "tools/call",
+				ItemName:     "write_file",
+				RawArguments: json.RawMessage(`{"state":"open"}`),
+			}
+			if parsed {
+				ctx = ghcontext.WithMCPMethodInfo(ctx, methodInfo)
+			}
+			request = request.WithContext(ctx)
+
+			response := httptest.NewRecorder()
+			WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next).ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code)
+			require.True(t, nextCalled)
+			assert.Equal(t, 1, normalizerCalls)
+			assert.Equal(t, "OPEN", challengedArguments["state"])
+			require.NotNil(t, normalizedInfo)
+			assert.True(t, normalizedInfo.ArgumentsNormalized)
+			assert.JSONEq(t, `{"state":"OPEN"}`, string(normalizedInfo.NormalizedArguments))
+			assert.False(t, methodInfo.ArgumentsNormalized, "normalization must not mutate the original parsed metadata")
 		})
 	}
 }
@@ -359,7 +422,7 @@ func scopeChallengeContext(ctx context.Context) context.Context {
 }
 
 func scopeChallengeContextWithScopes(ctx context.Context, activeScopes []string) context.Context {
-	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
+	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{ //nolint:gosec // G101: "oauth-token" is a synthetic context fixture, not an authentication credential.
 		Token:     "oauth-token",
 		TokenType: utils.TokenTypeOAuthAccessToken,
 	})

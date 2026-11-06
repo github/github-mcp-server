@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	gogithub "github.com/google/go-github/v89/github"
+	gogithub "github.com/google/go-github/v92/github"
 )
 
 // errPathTraversal is returned when an owner, repo, ref/sha, or path

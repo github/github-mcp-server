@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 )
 
 // GraphQLFeaturesTransport is an http.RoundTripper that adds GraphQL-Features
@@ -18,7 +18,7 @@ import (
 //
 // Usage:
 //
-//	import "github.com/github/github-mcp-server/pkg/http/transport"
+//	import "github.com/github/github-mcp-server/v2/pkg/http/transport"
 //
 //	httpClient := &http.Client{
 //	    Transport: &transport.GraphQLFeaturesTransport{

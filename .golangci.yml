@@ -31,10 +31,17 @@ linters:
       - examples$
       - internal/githubv4mock
     rules:
+      # v2.9.0 misreports SA4006 for Go 1.26 new(expr); retain go-github's helper until the linter is upgraded.
+      - linters:
+          - staticcheck
+        text: '(go)?github\.Ptr is deprecated: use the new builtin instead\.'
       - linters:
           - revive
         text: "var-naming: avoid package names that conflict with Go standard library package names"
   settings:
+    modernize:
+      disable:
+        - newexpr
     staticcheck:
       checks:
         - "all"

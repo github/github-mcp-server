@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
@@ -182,8 +182,7 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 }
 
 func batchTopLevelError(err error) *mcp.CallToolResult {
-	var structured *ghErrors.StructuredResolutionError
-	if errors.As(err, &structured) {
+	if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 		return ghErrors.NewStructuredResolutionErrorResponse(structured)
 	}
 	return utils.NewToolResultError(err.Error())
@@ -796,8 +795,7 @@ func resolveIssueRefs(ctx context.Context, gqlClient *githubv4.Client, projectID
 }
 
 func batchErrorFromResolution(err error) *batchItemError {
-	var structured *ghErrors.StructuredResolutionError
-	if errors.As(err, &structured) {
+	if structured, ok := errors.AsType[*ghErrors.StructuredResolutionError](err); ok {
 		return &batchItemError{
 			Code:       structured.Kind,
 			Message:    fmt.Sprintf("%s: %s", structured.Kind, structured.Name),

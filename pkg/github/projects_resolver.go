@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -606,7 +606,7 @@ func resolveFieldNamesToIDsFromFields(all []ResolvedField, names []string, owner
 	for i, field := range resolved {
 		id, parseErr := parseInt64(field.ID)
 		if parseErr != nil {
-			return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via '%s' instead", names[i], field.ID, idParameter)
+			return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via '%s' instead", names[i], field.ID, idParameter) //nolint:gosec // G602: resolveFieldsByName returns exactly one field per name in order, or an error.
 		}
 		out = append(out, id)
 	}

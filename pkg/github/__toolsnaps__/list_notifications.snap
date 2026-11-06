@@ -46,5 +46,121 @@
     },
     "type": "object"
   },
-  "name": "list_notifications"
+  "name": "list_notifications",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "last_read_at": {
+          "description": "Last acknowledgement time (RFC3339).",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "reason": {
+          "description": "Notification reason reported by GitHub; new provider values are preserved.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "repository": {
+          "additionalProperties": false,
+          "properties": {
+            "full_name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "html_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "name": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "private": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "subject": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "type": {
+              "description": "Subject type reported by GitHub; new provider values are preserved.",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "url": {
+              "description": "API reference to the underlying notification subject.",
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "unread": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "updated_at": {
+          "description": "Last update time (RFC3339).",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }

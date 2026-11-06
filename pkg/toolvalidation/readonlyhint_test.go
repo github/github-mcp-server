@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/toolvalidation"
+	"github.com/github/github-mcp-server/v2/pkg/toolvalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

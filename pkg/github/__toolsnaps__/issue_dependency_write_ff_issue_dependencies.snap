@@ -58,5 +58,87 @@
     ],
     "type": "object"
   },
-  "name": "issue_dependency_write"
+  "name": "issue_dependency_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "blocked_issue": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "The web URL of the issue.",
+            "type": "string"
+          },
+          "number": {
+            "description": "The issue number.",
+            "type": "integer"
+          },
+          "repository": {
+            "description": "The repository in owner/name form.",
+            "type": "string"
+          },
+          "state": {
+            "description": "The issue state.",
+            "type": "string"
+          },
+          "title": {
+            "description": "The sanitized issue title.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "blocking_issue": {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "The web URL of the issue.",
+            "type": "string"
+          },
+          "number": {
+            "description": "The issue number.",
+            "type": "integer"
+          },
+          "repository": {
+            "description": "The repository in owner/name form.",
+            "type": "string"
+          },
+          "state": {
+            "description": "The issue state.",
+            "type": "string"
+          },
+          "title": {
+            "description": "The sanitized issue title.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      "message": {
+        "description": "Whether the dependency relationship was added or removed.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "blocked_issue",
+      "blocking_issue",
+      "message"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

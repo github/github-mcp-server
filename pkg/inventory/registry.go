@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sort"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -179,59 +179,120 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // diagnostics that need the same view of the tool surface the server would
 // register.
 //
-// The strip applies when EITHER of the following is true:
-//
-//   - The remote_mcp_ui_apps feature flag is not enabled in ctx (server-side gate).
-//   - The client explicitly did not advertise the io.modelcontextprotocol/ui
-//     extension capability (per the 2026-01-26 MCP Apps spec, servers SHOULD
-//     check client capabilities before exposing UI-enabled tools). When the
-//     capability is unknown (e.g. stdio paths that do not populate the
-//     context flag) the feature-flag gate is the sole source of truth.
+// MCP Apps UI metadata is stripped only when the client explicitly did not
+// advertise the io.modelcontextprotocol/ui extension capability (per the
+// 2026-01-26 MCP Apps spec, servers SHOULD check client capabilities before
+// exposing UI-enabled tools). In that case app-only tools (whose
+// _meta.ui.visibility excludes "model") are omitted entirely. When the
+// capability is unknown (e.g. stdio paths that do not populate the context
+// flag) the metadata is kept.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
-	tools := r.AvailableTools(ctx)
-	if shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	tools := r.availableTools(ctx)
+	if shouldStripMCPAppsMetadata(ctx) {
 		tools = stripMCPAppsMetadata(tools)
 	}
 	return tools
 }
 
+// RequiredFeatures returns the deduplicated feature flags used to expose the
+// inventory's current tools, resources, and prompts.
+func (r *Inventory) RequiredFeatures() []FeatureFlag {
+	var features []FeatureFlag
+	for i := range r.tools {
+		features = appendFeatureDeclaration(features, r.tools[i].FeatureRule)
+	}
+	for i := range r.resourceTemplates {
+		features = appendFeatureDeclaration(features, r.resourceTemplates[i].FeatureRule)
+	}
+	for i := range r.prompts {
+		features = appendFeatureDeclaration(features, r.prompts[i].FeatureRule)
+	}
+	slices.Sort(features)
+	return features
+}
+
+// WithFeatureState installs request-owned feature state without resolving any
+// flags up front. Handler-only checks are resolved lazily and cached.
+func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
+	return WithFeatureState(ctx, r.featureChecker)
+}
+
+func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []FeatureFlag {
+	for _, feature := range rule.features {
+		features = appendUniqueFeature(features, feature)
+	}
+	return features
+}
+
 // shouldStripMCPAppsMetadata centralises the strip decision so the same logic
-// is exercised by tests and by RegisterTools.
-func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bool {
-	if !featureFlagEnabled {
-		return true
-	}
-	// Feature flag is on. Respect the client capability if it is known.
-	if supported, ok := ghcontext.HasUISupport(ctx); ok && !supported {
-		return true
-	}
-	return false
+// is exercised by tests and by RegisterTools. Metadata is stripped only when
+// the client is known not to support MCP Apps UI.
+func shouldStripMCPAppsMetadata(ctx context.Context) bool {
+	supported, ok := ghcontext.HasUISupport(ctx)
+	return ok && !supported
 }
 
 // RegisterTools registers all available tools with the server using the provided dependencies.
 // The context is used for feature flag evaluation and client capability checks.
 //
 // MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools when
-// either the MCP Apps feature flag is not enabled for this request, or the
-// client did not advertise the io.modelcontextprotocol/ui extension. The
+// the client did not advertise the io.modelcontextprotocol/ui extension. The
 // strip happens here (rather than at Build() time) so the per-request
-// context is in scope — HTTP feature checkers that read insiders mode or
-// user identity from ctx would otherwise see context.Background() and
-// falsely report the flag off, even when the actual request arrived on the
-// /insiders route.
+// context, which carries the client capability, is in scope.
+//
+// Schema definitions must remain immutable and be reused across registrations.
+// Their encodings are retained process-wide, keyed by source schema identity.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, ProtocolEraDynamic, middleware...)
+}
+
+// RegisterToolsForProtocolEra registers a preselected protocol-compatible
+// variant. Remote stateless servers should use this to select schemas before
+// registering their request-scoped server.
+func (r *Inventory) RegisterToolsForProtocolEra(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
+	r.registerTools(ctx, s, deps, era, middleware...)
+}
+
+func (r *Inventory) registerTools(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	schemas := make(map[string]listedToolSchemas, len(tools))
+	registrations := make(map[string]*typedToolRegistration, len(tools))
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps, middleware...)
+		toolCopy := tool.Tool
+		if len(toolCopy.Icons) == 0 {
+			toolCopy.Icons = tool.Toolset.Icons()
+		}
+		AnnotateHeaderParams(&toolCopy)
+		registration := tool.typedRegistration(&toolCopy)
+		registration.fixedEra = era
+		registrations[tool.Tool.Name] = registration
 	}
+	if len(tools) > 0 {
+		s.AddReceivingMiddleware(typedOutputMiddleware(&typedToolRegistrationSet{byName: registrations}))
+	}
+	for _, tool := range tools {
+		registered := tool.register(s, deps, era, registrations[tool.Tool.Name], middleware...)
+		sourceSchema := tool.Tool.InputSchema
+		if sourceSchema == nil {
+			sourceSchema = registered.InputSchema
+		}
+		schemas[registered.Name] = listedToolSchemas{
+			source:       sourceSchema,
+			outputSource: tool.Tool.OutputSchema,
+			registered:   registered,
+		}
+	}
+	s.AddReceivingMiddleware(encodedToolSchemasMiddleware(schemas))
 }
 
 // RegisterResourceTemplates registers all available resource templates with the server.
 // The context is used for feature flag evaluation.
 // Icons are automatically applied from the toolset metadata if not already set.
 func (r *Inventory) RegisterResourceTemplates(ctx context.Context, s *mcp.Server, deps any) {
-	for _, res := range r.AvailableResourceTemplates(ctx) {
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	for _, res := range r.availableResourceTemplates(ctx) {
 		// Make a shallow copy to avoid mutating the original
 		templateCopy := res.Template
 		// Apply icons from toolset metadata if not already set
@@ -246,7 +307,8 @@ func (r *Inventory) RegisterResourceTemplates(ctx context.Context, s *mcp.Server
 // The context is used for feature flag evaluation.
 // Icons are automatically applied from the toolset metadata if not already set.
 func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
-	for _, prompt := range r.AvailablePrompts(ctx) {
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	for _, prompt := range r.availablePrompts(ctx) {
 		// Make a shallow copy to avoid mutating the original
 		promptCopy := prompt.Prompt
 		// Apply icons from toolset metadata if not already set
@@ -260,6 +322,7 @@ func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
 // RegisterAll registers all available tools, resources, and prompts with the server.
 // The context is used for feature flag evaluation.
 func (r *Inventory) RegisterAll(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	ctx = r.WithFeatureState(ctx)
 	r.RegisterTools(ctx, s, deps, middleware...)
 	r.RegisterResourceTemplates(ctx, s, deps)
 	r.RegisterPrompts(ctx, s)

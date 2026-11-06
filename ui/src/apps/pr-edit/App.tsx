@@ -1,11 +1,10 @@
 import { StrictMode, useState, useCallback, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Box,
   Text,
   TextInput,
   Button,
-  Flash,
+  Banner,
   Spinner,
   FormControl,
   ActionMenu,
@@ -15,6 +14,7 @@ import {
   CounterLabel,
   Label,
 } from "@primer/react";
+import styles from "../../styles.module.css";
 import {
   GitPullRequestIcon,
   CheckCircleIcon,
@@ -26,6 +26,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -169,46 +170,65 @@ function SuccessView({
   const prUrl = pr.html_url || pr.url || pr.URL || "#";
 
   return (
-    <Box
-      borderWidth={1}
-      borderStyle="solid"
-      borderColor="border.default"
-      borderRadius={2}
-      bg="canvas.subtle"
-      p={3}
+    <div
+      style={{
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "var(--borderColor-default)",
+        borderRadius: 6,
+        backgroundColor: "var(--bgColor-muted)",
+        padding: 16,
+      }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        mb={3}
-        pb={3}
-        borderBottomWidth={1}
-        borderBottomStyle="solid"
-        borderBottomColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
+        <div
+          style={{
+            color: "var(--fgColor-success)",
+            flexShrink: 0,
+            marginRight: 8,
+          }}
+        >
           <CheckCircleIcon size={16} />
-        </Box>
-        <Text sx={{ fontWeight: "semibold" }}>
+        </div>
+        <Text style={{ fontWeight: 500 }}>
           Pull request updated successfully
         </Text>
-      </Box>
+      </div>
 
-      <Box
-        display="flex"
-        alignItems="flex-start"
-        gap={2}
-        p={3}
-        bg="canvas.subtle"
-        borderRadius={2}
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 2,
+          padding: 16,
+          backgroundColor: "var(--bgColor-muted)",
+          borderRadius: 6,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+        }}
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
+        <div
+          style={{
+            color: "var(--fgColor-open)",
+            flexShrink: 0,
+            marginTop: "2px",
+            marginRight: 4,
+          }}
+        >
           <GitPullRequestIcon size={16} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
+        </div>
+        <div style={{ minWidth: 0 }}>
           <a
             href={prUrl}
             target="_blank"
@@ -231,17 +251,23 @@ function SuccessView({
           >
             {pr.title || submittedTitle}
             {pr.number && (
-              <Text sx={{ color: "fg.muted", fontWeight: "normal", ml: 1 }}>
+              <Text
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontWeight: 400,
+                  marginLeft: 4,
+                }}
+              >
                 #{pr.number}
               </Text>
             )}
           </a>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Text style={{ color: "var(--fgColor-muted)", fontSize: 12 }}>
             {owner}/{repo}
           </Text>
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -367,8 +393,8 @@ function EditPRApp() {
         if (result && !result.isError && result.content) {
           const textContent = result.content.find((c: { type: string }) => c.type === "text");
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            const branches = (data.branches || data || []).map(
+            const data = parseUIGetResult("branches", textContent.text as string);
+            const branches = (data.branches || []).map(
               (b: { name: string; protected?: boolean }) => ({ name: b.name, protected: b.protected || false })
             );
             setAvailableBranches(branches);
@@ -391,7 +417,7 @@ function EditPRApp() {
         if (result && !result.isError && result.content) {
           const textContent = result.content.find((c: { type: string }) => c.type === "text");
           if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
+            const data = parseUIGetResult("reviewers", textContent.text as string);
             const users = (data.users || []).map(
               (u: { login: string; avatar_url?: string }) => ({
                 kind: "user" as const,
@@ -516,9 +542,16 @@ function EditPRApp() {
   if (!app && !appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
           <Spinner size="medium" />
-        </Box>
+        </div>
       </AppProvider>
     );
   }
@@ -526,7 +559,7 @@ function EditPRApp() {
   if (appError) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Flash variant="danger">{appError.message}</Flash>
+        <Banner variant="critical" title={appError.message} />
       </AppProvider>
     );
   }
@@ -534,9 +567,16 @@ function EditPRApp() {
   if (toolInput === null) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
           <Spinner size="medium" />
-        </Box>
+        </div>
       </AppProvider>
     );
   }
@@ -544,56 +584,78 @@ function EditPRApp() {
   if (!owner || !repo || !pullNumber) {
     return (
       <AppProvider hostContext={hostContext}>
-        <Flash variant="danger">Pull request owner, repo, and pullNumber are required.</Flash>
+        <Banner variant="critical" title="Pull request owner, repo, and pullNumber are required." />
       </AppProvider>
     );
   }
 
   return (
     <AppProvider hostContext={hostContext}>
-      <Box
-        borderWidth={1}
-        borderStyle="solid"
-        borderColor="border.default"
-        borderRadius={2}
-        bg="canvas.subtle"
-        p={3}
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "var(--borderColor-default)",
+          borderRadius: 6,
+          backgroundColor: "var(--bgColor-muted)",
+          padding: 16,
+        }}
       >
-        <Box
-          display="flex"
-          alignItems="center"
-          gap={2}
-          mb={3}
-          pb={2}
-          borderBottomWidth={1}
-          borderBottomStyle="solid"
-          borderBottomColor="border.default"
-          sx={{ minWidth: 0, overflow: "hidden" }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            marginBottom: 16,
+            paddingBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--borderColor-default)",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
         >
-          <Box sx={{ color: "open.fg", flexShrink: 0 }}>
+          <div style={{ color: "var(--fgColor-open)", flexShrink: 0 }}>
             <GitPullRequestIcon size={16} />
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Text sx={{ fontWeight: "semibold" }}>#{pullNumber} · {owner}/{repo}</Text>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <Text style={{ fontWeight: 500 }}>#{pullNumber} · {owner}/{repo}</Text>
             {title && (
-              <Text as="div" sx={{ color: "fg.muted", fontSize: 0, mt: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <Text
+                as="div"
+                style={{
+                  color: "var(--fgColor-muted)",
+                  fontSize: 12,
+                  marginTop: 4,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {title}
               </Text>
             )}
-          </Box>
-        </Box>
+          </div>
+        </div>
 
-        {error && <Flash variant="danger" sx={{ mb: 3 }}>{error}</Flash>}
+        {error && <Banner variant="critical" title={error} style={{ marginBottom: 16 }} />}
 
         {isLoadingPR && !initialValues ? (
-          <Box display="flex" alignItems="center" justifyContent="center" p={4}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 24,
+            }}
+          >
             <Spinner size="medium" />
-            <Text sx={{ color: "fg.muted", ml: 2 }}>Loading pull request...</Text>
-          </Box>
+            <Text style={{ color: "var(--fgColor-muted)", marginLeft: 8 }}>Loading pull request...</Text>
+          </div>
         ) : (
           <>
-            <FormControl sx={{ mb: 3 }}>
-              <FormControl.Label sx={{ fontWeight: "semibold" }}>Title</FormControl.Label>
+            <FormControl style={{ marginBottom: 16 }}>
+              <FormControl.Label style={{ fontWeight: 500 }}>Title</FormControl.Label>
               <TextInput
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -603,22 +665,42 @@ function EditPRApp() {
               />
             </FormControl>
 
-            <Box sx={{ mb: 3 }}>
-              <Text as="label" sx={{ fontWeight: "semibold", fontSize: 1, display: "block", mb: 2 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text
+                as="label"
+                style={{
+                  fontWeight: 500,
+                  fontSize: 14,
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
                 Description
               </Text>
               <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
-            </Box>
+            </div>
 
-            <Box sx={{ mb: 3, flex: "1 1 240px", minWidth: 0 }}>
-              <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>base</Text>
+            <div style={{ marginBottom: 16, flex: "1 1 240px", minWidth: 0 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "var(--fgColor-muted)",
+                  marginBottom: 4,
+                  display: "block",
+                }}
+              >base</Text>
               <ActionMenu>
-                <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
+                <ActionMenu.Button
+                  size="small"
+                  leadingVisual={GitBranchIcon}
+                  style={{ width: "100%" }}
+                  className={styles.truncateChildren}
+                >
                   {baseBranch || "Select base"}
                 </ActionMenu.Button>
                 <ActionMenu.Overlay width="medium">
                   <ActionList selectionVariant="single">
-                    <Box p={2}>
+                    <div style={{ padding: 8 }}>
                       <TextInput
                         placeholder="Filter branches..."
                         value={baseFilter}
@@ -626,7 +708,7 @@ function EditPRApp() {
                         size="small"
                         block
                       />
-                    </Box>
+                    </div>
                     <ActionList.Divider />
                     {branchesLoading ? (
                       <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
@@ -647,11 +729,27 @@ function EditPRApp() {
                   </ActionList>
                 </ActionMenu.Overlay>
               </ActionMenu>
-            </Box>
+            </div>
 
-            <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3} mb={3}>
-              <Box>
-                <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>state</Text>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+                flexWrap: "wrap",
+                gap: 3,
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "var(--fgColor-muted)",
+                    marginBottom: 4,
+                    display: "block",
+                  }}
+                >state</Text>
                 <ButtonGroup>
                   <Button size="small" variant={prState === "open" ? "primary" : "default"} onClick={() => setPRState("open")}>
                     Open
@@ -660,29 +758,55 @@ function EditPRApp() {
                     Closed
                   </Button>
                 </ButtonGroup>
-              </Box>
+              </div>
 
-              <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2, mb: "6px" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  gap: 8,
+                  marginBottom: "6px",
+                }}
+              >
                 <Checkbox checked={isDraft} onChange={(e) => setIsDraft(e.target.checked)} />
-                <Text sx={{ fontSize: 1, color: "fg.muted" }}>Mark as draft</Text>
-              </Box>
-            </Box>
+                <Text style={{ fontSize: 14, color: "var(--fgColor-muted)" }}>Mark as draft</Text>
+              </label>
+            </div>
 
-            <Box sx={{ mb: 3 }}>
-              <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>reviewers</Text>
+            <div style={{ marginBottom: 16 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "var(--fgColor-muted)",
+                  marginBottom: 4,
+                  display: "block",
+                }}
+              >reviewers</Text>
               <ActionMenu>
-                <ActionMenu.Button size="small" leadingVisual={PersonIcon} sx={{ minWidth: 160 }}>
+                <ActionMenu.Button
+                  size="small"
+                  leadingVisual={PersonIcon}
+                  style={{ minWidth: 160 }}
+                >
                   {selectedReviewers.length === 0 ? (
                     "No reviewers"
                   ) : (
                     <>
                       Reviewers
-                      <CounterLabel sx={{ ml: 1 }}>{selectedReviewers.length}</CounterLabel>
+                      <CounterLabel style={{ marginLeft: 4 }}>{selectedReviewers.length}</CounterLabel>
                     </>
                   )}
                 </ActionMenu.Button>
                 <ActionMenu.Overlay width="medium">
-                  <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+                  <div
+                    style={{
+                      padding: 8,
+                      borderBottomWidth: 1,
+                      borderBottomStyle: "solid",
+                      borderBottomColor: "var(--borderColor-default)",
+                    }}
+                  >
                     <TextInput
                       placeholder="Search reviewers"
                       value={reviewersFilter}
@@ -690,7 +814,7 @@ function EditPRApp() {
                       size="small"
                       block
                     />
-                  </Box>
+                  </div>
                   <ActionList selectionVariant="multiple">
                     {reviewersLoading ? (
                       <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
@@ -734,28 +858,51 @@ function EditPRApp() {
                 </ActionMenu.Overlay>
               </ActionMenu>
               {selectedReviewers.length > 0 && (
-                <Box display="flex" gap={1} mt={2} flexWrap="wrap">
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 1,
+                    marginTop: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
                   {selectedReviewers.map((reviewer) => (
                     <Label
                       key={reviewer.id}
-                      sx={{
-                        backgroundColor: "canvas.inset",
-                        color: "fg.muted",
-                        borderColor: "border.default",
+                      style={{
+                        backgroundColor: "var(--bgColor-inset)",
+                        color: "var(--fgColor-muted)",
+                        borderColor: "var(--borderColor-default)",
                       }}
                     >
                       {reviewer.text}
                     </Label>
                   ))}
-                </Box>
+                </div>
               )}
-            </Box>
+            </div>
 
-            <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3}>
-              <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2, mt: 1 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+                flexWrap: "wrap",
+                gap: 3,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
                 <Checkbox checked={maintainerCanModify} onChange={(e) => setMaintainerCanModify(e.target.checked)} />
-                <Text sx={{ fontSize: 1, color: "fg.muted" }}>Allow maintainer edits</Text>
-              </Box>
+                <Text style={{ fontSize: 14, color: "var(--fgColor-muted)" }}>Allow maintainer edits</Text>
+              </label>
 
               <Button
                 variant="primary"
@@ -763,15 +910,15 @@ function EditPRApp() {
                 disabled={isSubmitting || !initialValues || !title.trim() || !baseBranch}
               >
                 {isSubmitting ? (
-                  <><Spinner size="small" sx={{ mr: 1 }} />Updating...</>
+                  <><Spinner size="small" style={{ marginRight: 4 }} />Updating...</>
                 ) : (
                   "Update pull request"
                 )}
               </Button>
-            </Box>
+            </div>
           </>
         )}
-      </Box>
+      </div>
     </AppProvider>
   );
 }

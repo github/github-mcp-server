@@ -6,19 +6,18 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 )
 
 func Test_GetCodeQualityFinding(t *testing.T) {
 	// Verify tool definition once
 	toolDef := GetCodeQualityFinding(translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+	testSecurityToolSnapshot(t, toolDef.Tool)
 
 	assert.Equal(t, "get_code_quality_finding", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
@@ -65,11 +64,11 @@ func Test_GetCodeQualityFinding(t *testing.T) {
 
 	// Setup mock finding for success case
 	mockFinding := &codeQualityFinding{
-		Number: github.Ptr(42),
-		State:  github.Ptr("open"),
+		Number: new(42),
+		State:  new("open"),
 		Rule: &codeQualityRule{
-			ID:          github.Ptr("test-rule"),
-			Description: github.Ptr("Test Rule Description"),
+			ID:          new("test-rule"),
+			Description: new("Test Rule Description"),
 		},
 	}
 

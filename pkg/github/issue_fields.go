@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strconv"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -118,24 +118,12 @@ type issueFieldsOrgQuery struct {
 }
 
 // ListIssueFields creates a tool to list issue field definitions for a repository or organization.
-//
-// Note: the underlying GraphQL fragment unconditionally includes the
-// multi_select arm, so the OUTPUT will surface multi-select fields if the org
-// has them (matching what the dotcom UI shows).
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	description := t(
-		"TOOL_LIST_ISSUE_FIELDS_DESCRIPTION",
-		"List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
-	)
-	return buildListIssueFields(t, description)
-}
-
-func buildListIssueFields(t translations.TranslationHelperFunc, description string) inventory.ServerTool {
-	return NewTool(
+	st := NewToolWithSchemaOptions[IssueMetadataInput, []IssueFieldOutput](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
-			Description: description,
+			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_FIELDS_USER_TITLE", "List issue fields"),
 				ReadOnlyHint: true,
@@ -154,16 +142,14 @@ func buildListIssueFields(t translations.TranslationHelperFunc, description stri
 				},
 				Required: []string{"owner"},
 			},
+			OutputSchema: listIssueFieldsOutputSchema(),
 		},
 		repositoryOrOrganizationScopeAccess(),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := OptionalParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		inventory.TypedSchemaOptions{PreserveHandlerContent: true},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input IssueMetadataInput) (*mcp.CallToolResult, []IssueFieldOutput, error) {
+			owner, repo := input.Owner, input.Repo
+			if owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -191,8 +177,9 @@ func buildListIssueFields(t translations.TranslationHelperFunc, description stri
 			} else {
 				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			}
-			return result, nil, nil
-		})
+			return result, issueFieldOutputs(fields), nil
+		}, normalizeIssueStrings([]string{"owner"}, []string{"repo"}))
+	return st
 }
 
 // fetchIssueFields returns the issue field definitions for the given owner.

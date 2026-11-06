@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -571,7 +571,7 @@ func Test_GetDiscussion(t *testing.T) {
 			expected: map[string]any{
 				"number":     float64(1),
 				"title":      sanitizedText,
-				"body":       sanitizedText,
+				"body":       sanitizedContentText,
 				"url":        "https://github.com/owner/repo/discussions/1",
 				"closed":     false,
 				"isAnswered": false,

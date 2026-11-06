@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func TestWithPATScopes(t *testing.T) {
 		},
 		{
 			name: "fine-grained PAT skips scope fetching",
-			tokenInfo: &ghcontext.TokenInfo{
+			tokenInfo: &ghcontext.TokenInfo{ //nolint:gosec // G101: Synthetic fine-grained PAT fixture verifies scope fetching is skipped; it cannot authenticate.
 				Token:     "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 				TokenType: utils.TokenTypeFineGrainedPersonalAccessToken,
 			},

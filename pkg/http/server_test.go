@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/middleware"
-	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/http/middleware"
+	"github.com/github/github-mcp-server/v2/pkg/http/oauth"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -375,12 +375,6 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
-			name:           "MCP Apps flag accepted from header",
-			flagName:       github.MCPAppsFeatureFlag,
-			headerFeatures: []string{github.MCPAppsFeatureFlag},
-			wantEnabled:    true,
-		},
-		{
 			name:           "MCP Apps form deferral opt-out accepted from header",
 			flagName:       github.MCPAppsDisableFormDeferralFeatureFlag,
 			headerFeatures: []string{github.MCPAppsDisableFormDeferralFeatureFlag},
@@ -417,8 +411,8 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    false,
 		},
 		{
-			name:         "insiders mode enables MCP Apps without header",
-			flagName:     github.MCPAppsFeatureFlag,
+			name:         "insiders mode enables CSV output without header",
+			flagName:     github.FeatureFlagCSVOutput,
 			insidersMode: true,
 			wantEnabled:  true,
 		},

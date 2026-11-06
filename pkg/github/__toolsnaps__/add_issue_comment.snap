@@ -51,5 +51,88 @@
     ],
     "type": "object"
   },
-  "name": "add_issue_comment"
+  "name": "add_issue_comment",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "type": "null"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "The web URL of the created issue comment.",
+            "type": "string"
+          },
+          "id": {
+            "description": "The ID of the created comment or reaction.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "The ID of the created reaction.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "additionalProperties": false,
+            "properties": {
+              "html_url": {
+                "description": "The web URL of the created issue comment.",
+                "type": "string"
+              },
+              "id": {
+                "description": "The ID of the created comment or reaction.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "html_url"
+            ],
+            "type": "object"
+          },
+          "reaction": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The ID of the created reaction.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "comment",
+          "reaction"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": [
+      "object",
+      "null"
+    ]
+  }
 }

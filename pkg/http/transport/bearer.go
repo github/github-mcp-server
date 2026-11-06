@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	headers "github.com/github/github-mcp-server/pkg/http/headers"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	headers "github.com/github/github-mcp-server/v2/pkg/http/headers"
 )
 
 type BearerAuthTransport struct {

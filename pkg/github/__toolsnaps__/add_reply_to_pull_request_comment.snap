@@ -50,5 +50,67 @@
     ],
     "type": "object"
   },
-  "name": "add_reply_to_pull_request_comment"
+  "name": "add_reply_to_pull_request_comment",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "Browser URL.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "additionalProperties": false,
+            "properties": {
+              "html_url": {
+                "description": "Browser URL.",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "reaction": {
+            "additionalProperties": false,
+            "properties": {
+              "html_url": {
+                "description": "Browser URL.",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "comment",
+          "reaction"
+        ],
+        "type": "object"
+      }
+    ]
+  }
 }

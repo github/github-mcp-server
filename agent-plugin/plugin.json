@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "github",
+  "description": "Work with GitHub repositories, issues, pull requests, reviews, and code search through MCP.",
+  "author": {
+    "name": "GitHub",
+    "url": "https://github.com/"
+  },
+  "homepage": "https://github.com/github/github-mcp-server",
+  "repository": "https://github.com/github/github-mcp-server",
+  "license": "MIT",
+  "keywords": ["code-search", "github", "issues", "mcp", "pull-requests"]
+}

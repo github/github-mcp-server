@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	httpheaders "github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/http/mark"
+	httpheaders "github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/mark"
 )
 
 type TokenType int
