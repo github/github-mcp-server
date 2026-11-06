@@ -220,6 +220,9 @@ func newAgentAutomationTool[Input any](
 				}
 			}
 			if len(response) == 0 {
+				if request.method != http.MethodGet {
+					return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned an empty response after HTTP %d; the operation may have succeeded. Verify its status before retrying.", httpResponse.StatusCode)), nil, nil
+				}
 				return utils.NewToolResultError("GitHub agent automations returned an empty response"), nil, nil
 			}
 			sanitizedResponse, err := sanitizeAutomationNames(response)
@@ -925,8 +928,8 @@ func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			if args.Event != "manual" {
 				return agentAutomationRequest{}, errors.New("event must be manual")
