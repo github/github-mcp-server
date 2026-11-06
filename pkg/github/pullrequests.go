@@ -1981,22 +1981,10 @@ type PullRequestReviewWriteParams struct {
 	ResolutionReason *string
 }
 
-func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return pullRequestReviewWrite(t, false, toolConfig{})
-}
-
-// PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
-func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	cfg := newToolConfig(opts)
-	st := pullRequestReviewWrite(t, true, cfg)
-	if cfg.hostType == utils.HostTypeGHES {
-		st.Enabled = func(context.Context) (bool, error) { return false, nil }
-	}
-	return st
-}
-
-func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
-	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
+// PullRequestReviewWrite creates the consolidated review write tool. Resolution
+// reasons are omitted on GHES, which does not support them.
+func PullRequestReviewWrite(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	withResolutionReason := newToolConfig(opts).hostType != utils.HostTypeGHES
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2111,27 +2099,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		}, normalizePullRequestReviewWriteArguments)
-	if withResolutionReason {
-		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
-			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(FeatureFlagThreadResolutionReason) &&
-					!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
-			},
-		)
-	} else {
-		if cfg.hostType == utils.HostTypeGHES {
-			st.FeatureRule = pullRequestsConsolidatedRule
-		} else {
-			st.FeatureRule = inventory.NewFeatureRule(
-				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
-				func(featureAsBool inventory.FeatureResolver) bool {
-					return !featureAsBool(FeatureFlagThreadResolutionReason) &&
-						!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
-				},
-			)
-		}
-	}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 

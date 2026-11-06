@@ -21,6 +21,10 @@
   ],
   "inputSchema": {
     "properties": {
+      "resolutionReason": {
+        "description": "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+        "type": "string"
+      },
       "threadID": {
         "description": "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
         "type": "string"

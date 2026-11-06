@@ -39,9 +39,6 @@ const FeatureFlagIssueArtifacts = "issue_artifacts"
 // opt-in.
 const FeatureFlagDuplicateDetection = "duplicate_detection"
 
-// FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
-const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
-
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag, X-MCP-Features HTTP header, or the
 // features URL query parameter.
@@ -57,7 +54,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssueDependencies,
 	FeatureFlagIssueArtifacts,
 	FeatureFlagDuplicateDetection,
-	FeatureFlagThreadResolutionReason,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
