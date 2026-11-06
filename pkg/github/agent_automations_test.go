@@ -192,6 +192,93 @@ func TestAgentAutomationReadTools(t *testing.T) {
 	}
 }
 
+func TestAgentAutomationReadToolsSanitizeNames(t *testing.T) {
+	t.Parallel()
+
+	response := `{"automations":[{"id":"automation-id","name":"<b>Issue</b>\u202E triage","prompt":"<b>preserved prompt</b>"}],"next_cursor":"cursor"}`
+	expected := `{"automations":[{"id":"automation-id","name":"Issue triage","prompt":"<b>preserved prompt</b>"}],"next_cursor":"cursor"}`
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(response))
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	tool := ListAutomations(translations.NullTranslationHelper)
+	inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
+	require.NoError(t, err)
+	server := mcp.NewServer(&mcp.Implementation{Name: "agent-automations-test", Version: "v1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	inv.RegisterTools(context.Background(), server, deps)
+	session := connectCommentVisibilityClient(t, server, inventory.ProtocolVersionMultiRoundTrip)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      tool.Tool.Name,
+		Arguments: map[string]any{"owner": "octo-org", "repo": "octo-repo"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, expected, getTextResult(t, result).Text)
+	structuredContent, err := json.Marshal(result.StructuredContent)
+	require.NoError(t, err)
+	assert.JSONEq(t, expected, string(structuredContent))
+}
+
+func TestAgentAutomationReadToolsRejectUnsafeIDsAndPathSegments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		tool func(translations.TranslationHelperFunc) inventory.ServerTool
+		args map[string]any
+	}{
+		{
+			name: "dot owner",
+			tool: ListAutomations,
+			args: map[string]any{"owner": ".", "repo": "octo-repo"},
+		},
+		{
+			name: "dot-dot repo",
+			tool: ListAutomations,
+			args: map[string]any{"owner": "octo-org", "repo": ".."},
+		},
+	}
+	for _, automationID := range []string{".", "..", "available-tools", "available-triggers", "configuration", "revisions"} {
+		tests = append(tests, struct {
+			name string
+			tool func(translations.TranslationHelperFunc) inventory.ServerTool
+			args map[string]any
+		}{
+			name: "reserved or dot automation ID " + automationID,
+			tool: GetAutomation,
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": automationID},
+		})
+	}
+	tests = append(tests, struct {
+		name string
+		tool func(translations.TranslationHelperFunc) inventory.ServerTool
+		args map[string]any
+	}{
+		name: "dot revision ID",
+		tool: GetAutomationRevision,
+		args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "revision_id": ".."},
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("invalid path segment must not make a request")
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			request := createMCPRequest(tt.args)
+			tool := tt.tool(translations.NullTranslationHelper)
+			result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+		})
+	}
+}
+
 func TestAutomationCatalogToolsRequireRepository(t *testing.T) {
 	t.Parallel()
 

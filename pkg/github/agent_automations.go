@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
@@ -115,8 +116,11 @@ func newAgentAutomationTool[Input any](
 				return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned unexpected status %d", httpResponse.StatusCode)), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(response))
-			return result, response, nil
+			sanitizedResponse, err := sanitizeAutomationNames(response)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to sanitize GitHub agent automation response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(sanitizedResponse)), sanitizedResponse, nil
 		},
 	)
 	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
@@ -173,7 +177,66 @@ func requireAutomationRepository(owner, repo string) error {
 	if repo == "" {
 		return errors.New("missing required parameter: repo")
 	}
+	if err := requireAutomationPathSegment("owner", owner); err != nil {
+		return err
+	}
+	if err := requireAutomationPathSegment("repo", repo); err != nil {
+		return err
+	}
 	return nil
+}
+
+func requireAutomationPathSegment(name, value string) error {
+	if value == "." || value == ".." {
+		return fmt.Errorf("%s cannot be a dot path segment", name)
+	}
+	return nil
+}
+
+func requireAutomationID(value string) error {
+	if value == "" {
+		return errors.New("missing required parameter: automation_id")
+	}
+	if err := requireAutomationPathSegment("automation_id", value); err != nil {
+		return err
+	}
+	switch value {
+	case "available-tools", "available-triggers", "configuration", "revisions":
+		return errors.New("automation_id cannot match a reserved automation endpoint")
+	}
+	return nil
+}
+
+func sanitizeAutomationNames(response json.RawMessage) (json.RawMessage, error) {
+	var payload any
+	if err := json.Unmarshal(response, &payload); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	sanitizeAutomationNamesValue(payload)
+	sanitizedResponse, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode sanitized response: %w", err)
+	}
+	return sanitizedResponse, nil
+}
+
+func sanitizeAutomationNamesValue(value any) {
+	switch value := value.(type) {
+	case map[string]any:
+		for key, field := range value {
+			if key == "name" {
+				if name, ok := field.(string); ok {
+					value[key] = sanitize.PlainText(name)
+					continue
+				}
+			}
+			sanitizeAutomationNamesValue(field)
+		}
+	case []any:
+		for _, field := range value {
+			sanitizeAutomationNamesValue(field)
+		}
+	}
 }
 
 func automationPath(owner, repo, suffix string) string {
@@ -244,8 +307,8 @@ func GetAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			return agentAutomationRequest{
 				method: http.MethodGet,
@@ -273,8 +336,8 @@ func ListAutomationRevisions(t translations.TranslationHelperFunc) inventory.Ser
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			if args.PerPage < 0 || args.PerPage > 100 {
 				return agentAutomationRequest{}, errors.New("perPage must be between 1 and 100")
@@ -312,11 +375,14 @@ func GetAutomationRevision(t translations.TranslationHelperFunc) inventory.Serve
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			if args.RevisionID == "" {
 				return agentAutomationRequest{}, errors.New("missing required parameter: revision_id")
+			}
+			if err := requireAutomationPathSegment("revision_id", args.RevisionID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			return agentAutomationRequest{
 				method: http.MethodGet,
