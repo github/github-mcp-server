@@ -467,6 +467,27 @@ as output formatting) won't appear here.
 
 ### `agent_automations`
 
+- **create_automation** - Create a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, required)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
+  - `type`: The automation type. (string, optional)
+
+- **delete_automation** - Delete a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_automation** - Get a repository automation
   - **OAuth Challenge Scopes**: `repo`
   - `automation_id`: The automation identifier. (string, required)
@@ -510,6 +531,21 @@ as output formatting) won't appear here.
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **update_automation** - Update a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, optional)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
 
 ### `duplicate_detection`
 
