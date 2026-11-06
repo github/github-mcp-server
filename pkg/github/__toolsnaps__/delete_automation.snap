@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "readOnlyHint": false,
+    "title": "Delete a repository automation"
+  },
+  "description": "Delete a Copilot automation from a repository.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_automation",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

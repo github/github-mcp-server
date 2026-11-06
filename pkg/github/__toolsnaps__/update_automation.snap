@@ -1,0 +1,74 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Update a repository automation"
+  },
+  "description": "Update a Copilot automation in a repository. Only the provided fields are changed.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "continuous_history": {
+        "description": "Whether the automation keeps a continuous conversation history.",
+        "type": "boolean"
+      },
+      "enabled": {
+        "description": "Whether the automation is enabled.",
+        "type": "boolean"
+      },
+      "model": {
+        "description": "The model used by the automation.",
+        "type": "string"
+      },
+      "name": {
+        "description": "The name of the automation.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prompt": {
+        "description": "The prompt used when the automation runs.",
+        "type": "string"
+      },
+      "reasoning_effort": {
+        "description": "The reasoning effort used by the automation.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "require_actor_write_permission": {
+        "description": "Whether the triggering actor must have write permission.",
+        "type": "boolean"
+      },
+      "tools": {
+        "description": "The tools enabled for the automation.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "triggers": {
+        "description": "Trigger configuration for the automation.",
+        "type": "object"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id"
+    ],
+    "type": "object"
+  },
+  "name": "update_automation",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}
