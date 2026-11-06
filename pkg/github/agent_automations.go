@@ -2,12 +2,16 @@ package github
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
@@ -21,6 +25,9 @@ import (
 )
 
 const agentAutomationAPIVersion = "2026-03-10"
+const agentAutomationConfirmationIDPrefix = "agent_automation_confirmation_"
+const agentAutomationConfirmationField = "confirmation"
+const agentAutomationConfirmationTTL = 10 * time.Minute
 
 type ListAutomationsInput struct {
 	Owner   string `json:"owner"`
@@ -100,6 +107,21 @@ type agentAutomationRequest struct {
 	successStatus  int
 	noBody         bool
 	successMessage string
+	confirmation   *agentAutomationConfirmation
+}
+
+type agentAutomationConfirmation struct {
+	id      string
+	value   string
+	message string
+}
+
+type agentAutomationConfirmationState struct {
+	ToolName          string `json:"tool_name"`
+	RequestDigest     string `json:"request_digest"`
+	ConfirmationID    string `json:"confirmation_id"`
+	ConfirmationValue string `json:"confirmation_value"`
+	ExpiresAt         int64  `json:"expires_at"`
 }
 
 type agentAutomationRequestBuilder[Input any] func(Input) (agentAutomationRequest, error)
@@ -129,10 +151,16 @@ func newAgentAutomationTool[Input any](
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args Input) (*mcp.CallToolResult, json.RawMessage, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args Input) (*mcp.CallToolResult, json.RawMessage, error) {
 			request, err := build(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if request.confirmation != nil {
+				result, err := agentAutomationConfirmationResult(ctx, deps, req, name, request)
+				if err != nil || result != nil {
+					return result, nil, err
+				}
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -184,6 +212,119 @@ func newAgentAutomationTool[Input any](
 		},
 	)
 	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
+	return tool
+}
+
+func agentAutomationConfirmationResult(
+	ctx context.Context,
+	deps ToolDependencies,
+	req *mcp.CallToolRequest,
+	toolName string,
+	request agentAutomationRequest,
+) (*mcp.CallToolResult, error) {
+	if req == nil || req.Params == nil {
+		return utils.NewToolResultError("Automation confirmation is unavailable without an MCP request."), nil
+	}
+	sealer := requestStateSealerFromDeps(deps)
+	if sealer == nil {
+		return utils.NewToolResultError("Automation confirmation is unavailable because request-state protection is not configured."), nil
+	}
+	digest, err := agentAutomationRequestDigest(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fingerprint automation request: %w", err)
+	}
+
+	response, hasResponse := req.Params.InputResponses[request.confirmation.id]
+	if !hasResponse {
+		state, err := json.Marshal(agentAutomationConfirmationState{
+			ToolName:          toolName,
+			RequestDigest:     digest,
+			ConfirmationID:    request.confirmation.id,
+			ConfirmationValue: request.confirmation.value,
+			ExpiresAt:         time.Now().Add(agentAutomationConfirmationTTL).Unix(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal automation confirmation state: %w", err)
+		}
+		requestState, err := sealer.Seal(ctx, state)
+		if err != nil {
+			return nil, fmt.Errorf("failed to seal automation confirmation state: %w", err)
+		}
+		return &mcp.CallToolResult{
+			InputRequests: mcp.InputRequestMap{
+				request.confirmation.id: &mcp.ElicitParams{
+					Mode:    "form",
+					Message: request.confirmation.message,
+					RequestedSchema: &jsonschema.Schema{
+						Type: "object",
+						Properties: map[string]*jsonschema.Schema{
+							agentAutomationConfirmationField: {
+								Type:        "string",
+								Title:       "Confirmation",
+								Description: fmt.Sprintf("Enter %q exactly to confirm this operation.", request.confirmation.value),
+							},
+						},
+						Required: []string{agentAutomationConfirmationField},
+					},
+				},
+			},
+			RequestState: requestState,
+		}, nil
+	}
+
+	if req.Params.RequestState == "" {
+		return utils.NewToolResultError("Automation confirmation state is missing. The operation was not performed."), nil
+	}
+	stateJSON, err := sealer.Open(req.Params.RequestState)
+	if err != nil {
+		return utils.NewToolResultError("Automation confirmation state is invalid. The operation was not performed."), nil
+	}
+	var state agentAutomationConfirmationState
+	if err := json.Unmarshal(stateJSON, &state); err != nil {
+		return utils.NewToolResultError("Automation confirmation state is invalid. The operation was not performed."), nil
+	}
+	if state.ToolName != toolName ||
+		state.RequestDigest != digest ||
+		state.ConfirmationID != request.confirmation.id ||
+		state.ConfirmationValue != request.confirmation.value {
+		return utils.NewToolResultError("Automation request changed after confirmation was requested. The operation was not performed."), nil
+	}
+	if state.ExpiresAt <= time.Now().Unix() {
+		return utils.NewToolResultError("Automation confirmation expired. The operation was not performed."), nil
+	}
+
+	confirmation, ok := response.(*mcp.ElicitResult)
+	if !ok {
+		return utils.NewToolResultError("Automation confirmation response is invalid. The operation was not performed."), nil
+	}
+	if confirmation.Action != "accept" {
+		return utils.NewToolResultError("Automation operation was not confirmed."), nil
+	}
+	value, ok := confirmation.Content[agentAutomationConfirmationField].(string)
+	if !ok || value != request.confirmation.value {
+		return utils.NewToolResultError("Automation confirmation did not match the requested operation."), nil
+	}
+	return nil, nil
+}
+
+func agentAutomationRequestDigest(request agentAutomationRequest) (string, error) {
+	body, err := json.Marshal(request.body)
+	if err != nil {
+		return "", err
+	}
+	payload := strings.Join([]string{
+		request.method,
+		request.path,
+		request.query.Encode(),
+		string(body),
+	}, "\n")
+	digest := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func agentAutomationConfirmationRequired(tool inventory.ServerTool) inventory.ServerTool {
+	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
+	tool.RequiredElicitationMode = inventory.ElicitationModeForm
 	return tool
 }
 
@@ -677,11 +818,11 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newAgentAutomationTool[DeleteAutomationInput](
+	return agentAutomationConfirmationRequired(newAgentAutomationTool[DeleteAutomationInput](
 		t,
 		"delete_automation",
 		"Delete a repository automation",
-		"Delete a Copilot automation from a repository.",
+		"Delete a Copilot automation from a repository after explicit user confirmation.",
 		agentAutomationInputSchema(map[string]*jsonschema.Schema{
 			"owner":         automationStringProperty(DescriptionRepositoryOwner),
 			"repo":          automationStringProperty(DescriptionRepositoryName),
@@ -696,13 +837,19 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if args.AutomationID == "" {
 				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
 			}
+			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
 			return agentAutomationRequest{
 				method:         http.MethodDelete,
 				path:           automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
 				successStatus:  http.StatusNoContent,
 				noBody:         true,
 				successMessage: "Automation deleted.",
+				confirmation: &agentAutomationConfirmation{
+					id:      agentAutomationConfirmationIDPrefix + "delete",
+					value:   "DELETE " + target,
+					message: fmt.Sprintf("Review the automation to delete: %s. Type %q to confirm.", target, "DELETE "+target),
+				},
 			}, nil
 		},
-	)
+	))
 }

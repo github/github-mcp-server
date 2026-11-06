@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/v2/internal/requeststate"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -402,6 +403,7 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 		status   int
 		body     string
 		response string
+		confirm  bool
 	}{
 		{
 			name: "create automation",
@@ -438,6 +440,7 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 			endpoint: "/agents/repos/octo-org/octo-repo/automations/automation-id",
 			status:   http.StatusNoContent,
 			response: `{"message":"Automation deleted."}`,
+			confirm:  true,
 		},
 	}
 
@@ -462,11 +465,151 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				}
 			})
 			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-			request := createMCPRequest(tt.args)
-			result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
+			var result *mcp.CallToolResult
+			if tt.confirm {
+				sealer, err := requeststate.NewRandom()
+				require.NoError(t, err)
+				deps.StateSealer = sealer
+				result = invokeConfirmedAutomation(t, tool, deps, tt.args, agentAutomationConfirmationIDPrefix+"delete", "DELETE octo-org/octo-repo/automation-id")
+			} else {
+				request := createMCPRequest(tt.args)
+				var err error
+				result, err = tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+			}
 			require.False(t, result.IsError)
 			assert.JSONEq(t, tt.response, getTextResult(t, result).Text)
 		})
 	}
+}
+
+func TestDeleteAutomationRequiresRequestStateProtection(t *testing.T) {
+	t.Parallel()
+
+	tool := DeleteAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("delete should not be sent without request-state protection")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+	})
+	result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "request-state protection is not configured")
+}
+
+func TestDeleteAutomationRequiresMatchingConfirmation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name               string
+		action             string
+		confirmation       string
+		changeAutomationID bool
+		wantError          string
+	}{
+		{
+			name:         "declined",
+			action:       "decline",
+			confirmation: "DELETE octo-org/octo-repo/automation-id",
+			wantError:    "was not confirmed",
+		},
+		{
+			name:         "incorrect confirmation",
+			action:       "accept",
+			confirmation: "DELETE octo-org/octo-repo/another-automation",
+			wantError:    "did not match",
+		},
+		{
+			name:               "changed target",
+			action:             "accept",
+			confirmation:       "DELETE octo-org/octo-repo/automation-id",
+			changeAutomationID: true,
+			wantError:          "changed after confirmation",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tool := DeleteAutomation(translations.NullTranslationHelper)
+			requestCount := 0
+			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+				requestCount++
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			sealer, err := requeststate.NewRandom()
+			require.NoError(t, err)
+			deps.StateSealer = sealer
+
+			args := map[string]any{
+				"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+			}
+			handler := tool.Handler(deps)
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.changeAutomationID {
+				args["automation_id"] = "another-automation"
+			}
+			retry := createMCPRequest(args)
+			retry.Params.RequestState = result.RequestState
+			retry.Params.InputResponses = mcp.InputResponseMap{
+				agentAutomationConfirmationIDPrefix + "delete": &mcp.ElicitResult{
+					Action: tc.action,
+					Content: map[string]any{
+						agentAutomationConfirmationField: tc.confirmation,
+					},
+				},
+			}
+			result, err = handler(ContextWithDeps(context.Background(), deps), &retry)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getErrorResult(t, result).Text, tc.wantError)
+			assert.Zero(t, requestCount)
+		})
+	}
+}
+
+func TestAutomationMutationsRequireFormElicitation(t *testing.T) {
+	t.Parallel()
+
+	tool := DeleteAutomation(translations.NullTranslationHelper)
+	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, tool.MinimumProtocolVersion)
+	assert.Equal(t, inventory.ElicitationModeForm, tool.RequiredElicitationMode)
+}
+
+func invokeConfirmedAutomation(
+	t *testing.T,
+	tool inventory.ServerTool,
+	deps BaseDeps,
+	args map[string]any,
+	confirmationID, confirmationValue string,
+) *mcp.CallToolResult {
+	t.Helper()
+
+	handler := tool.Handler(deps)
+	request := createMCPRequest(args)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	params, ok := result.InputRequests[confirmationID].(*mcp.ElicitParams)
+	require.True(t, ok)
+	assert.Equal(t, "form", params.Mode)
+	assert.Contains(t, params.Message, confirmationValue)
+
+	retry := createMCPRequest(args)
+	retry.Params.RequestState = result.RequestState
+	retry.Params.InputResponses = mcp.InputResponseMap{
+		confirmationID: &mcp.ElicitResult{
+			Action: "accept",
+			Content: map[string]any{
+				agentAutomationConfirmationField: confirmationValue,
+			},
+		},
+	}
+	result, err = handler(ContextWithDeps(context.Background(), deps), &retry)
+	require.NoError(t, err)
+	return result
 }
