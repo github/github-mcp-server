@@ -536,6 +536,44 @@ func TestAutomationCreateAndUpdateRequireRequestStateProtection(t *testing.T) {
 	}
 }
 
+func TestAgentAutomationWriteToolsRejectUnsafePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		tool inventory.ServerTool
+		args map[string]any
+	}{
+		{
+			name: "create rejects dot owner",
+			tool: CreateAutomation(translations.NullTranslationHelper),
+			args: map[string]any{"owner": ".", "repo": "octo-repo", "name": "Name", "prompt": "Prompt"},
+		},
+		{
+			name: "update rejects dot-dot automation ID",
+			tool: UpdateAutomation(translations.NullTranslationHelper),
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "..", "enabled": false},
+		},
+		{
+			name: "delete rejects reserved automation ID",
+			tool: DeleteAutomation(translations.NullTranslationHelper),
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "configuration"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("invalid path segment must not make a request")
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			request := createMCPRequest(tc.args)
+			result, err := tc.tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+		})
+	}
+}
+
 func TestDeleteAutomationRequiresRequestStateProtection(t *testing.T) {
 	t.Parallel()
 

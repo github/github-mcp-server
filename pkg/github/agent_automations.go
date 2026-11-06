@@ -799,8 +799,8 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			body := make(map[string]any)
 			if args.Name != nil {
@@ -861,8 +861,8 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
 			}
-			if args.AutomationID == "" {
-				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
 			}
 			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
 			return agentAutomationRequest{
