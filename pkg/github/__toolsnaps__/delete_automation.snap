@@ -5,7 +5,7 @@
     "readOnlyHint": false,
     "title": "Delete a repository automation"
   },
-  "description": "Delete a Copilot automation from a repository.",
+  "description": "Delete a Copilot automation from a repository after explicit user confirmation.",
   "inputSchema": {
     "properties": {
       "automation_id": {
