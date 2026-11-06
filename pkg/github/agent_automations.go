@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -328,17 +329,26 @@ func agentAutomationConfirmationRequired(tool inventory.ServerTool) inventory.Se
 	return tool
 }
 
-func agentAutomationMutationConfirmation(action, target string, body any) (*agentAutomationConfirmation, error) {
-	requestBody, err := json.MarshalIndent(body, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare automation confirmation details: %w", err)
+func agentAutomationMutationConfirmation(action, target string, body map[string]any) *agentAutomationConfirmation {
+	fields := make([]string, 0, len(body))
+	for field := range body {
+		fields = append(fields, field)
 	}
+	sort.Strings(fields)
 	value := strings.ToUpper(action) + " " + target
 	return &agentAutomationConfirmation{
 		id:      agentAutomationConfirmationIDPrefix + action,
 		value:   value,
-		message: fmt.Sprintf("Review the exact automation changes for %s:\n%s\nType %q to confirm.", target, requestBody, value),
-	}, nil
+		message: fmt.Sprintf("Review the proposed automation %s for %s. The request changes these fields: %s. Values are not shown here. Type %q to confirm.", action, target, strings.Join(fields, ", "), value),
+	}
+}
+
+func agentAutomationTarget(owner, repo, automationID string) string {
+	target := url.PathEscape(owner) + "/" + url.PathEscape(repo)
+	if automationID != "" {
+		target += "/" + url.PathEscape(automationID)
+	}
+	return target
 }
 
 func agentAutomationObjectOutputSchema() json.RawMessage {
@@ -759,17 +769,13 @@ func CreateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if args.ContinuousHistory != nil {
 				body["continuous_history"] = *args.ContinuousHistory
 			}
-			target := args.Owner + "/" + args.Repo
-			confirmation, err := agentAutomationMutationConfirmation("create", target, body)
-			if err != nil {
-				return agentAutomationRequest{}, err
-			}
+			target := agentAutomationTarget(args.Owner, args.Repo, "")
 			return agentAutomationRequest{
 				method:        http.MethodPost,
 				path:          automationPath(args.Owner, args.Repo, ""),
 				body:          body,
 				successStatus: http.StatusCreated,
-				confirmation:  confirmation,
+				confirmation:  agentAutomationMutationConfirmation("create", target, body),
 			}, nil
 		},
 	))
@@ -827,16 +833,12 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if len(body) == 0 {
 				return agentAutomationRequest{}, errors.New("at least one automation field must be provided")
 			}
-			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
-			confirmation, err := agentAutomationMutationConfirmation("update", target, body)
-			if err != nil {
-				return agentAutomationRequest{}, err
-			}
+			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
 			return agentAutomationRequest{
 				method:       http.MethodPatch,
 				path:         automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
 				body:         body,
-				confirmation: confirmation,
+				confirmation: agentAutomationMutationConfirmation("update", target, body),
 			}, nil
 		},
 	))
@@ -862,7 +864,7 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if args.AutomationID == "" {
 				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
 			}
-			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
+			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
 			return agentAutomationRequest{
 				method:         http.MethodDelete,
 				path:           automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
