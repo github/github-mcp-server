@@ -576,22 +576,9 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 }
 
 // GranularResolveReviewThread creates a tool to resolve a review thread.
-func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return granularResolveReviewThread(t, false, toolConfig{})
-}
-
-// GranularResolveReviewThreadWithResolutionReason creates the feature-gated variant with resolution reasons.
-func GranularResolveReviewThreadWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	cfg := newToolConfig(opts)
-	st := granularResolveReviewThread(t, true, cfg)
-	if cfg.hostType == utils.HostTypeGHES {
-		st.Enabled = func(context.Context) (bool, error) { return false, nil }
-	}
-	return st
-}
-
-func granularResolveReviewThread(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
-	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
+// Resolution reasons are omitted on GHES, which does not support them.
+func GranularResolveReviewThread(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	withResolutionReason := newToolConfig(opts).hostType != utils.HostTypeGHES
 
 	properties := map[string]*jsonschema.Schema{
 		"threadID": {
@@ -645,26 +632,7 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 		},
 		normalizeGranularResolveReviewThreadArguments(withResolutionReason),
 	)
-	switch {
-	case withResolutionReason:
-		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
-			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
-					featureAsBool(FeatureFlagThreadResolutionReason)
-			},
-		)
-	case cfg.hostType == utils.HostTypeGHES:
-		st.FeatureRule = pullRequestsGranularFeatureRule
-	default:
-		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
-			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
-					!featureAsBool(FeatureFlagThreadResolutionReason)
-			},
-		)
-	}
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 

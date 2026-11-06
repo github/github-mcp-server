@@ -14,6 +14,7 @@ import (
 	transportpkg "github.com/github/github-mcp-server/v2/pkg/http/transport"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	gogithub "github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -1711,18 +1712,17 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 
 func TestGranularResolveReviewThread(t *testing.T) {
 	tests := []struct {
-		name                 string
-		withResolutionReason bool
-		resolutionReason     *string
-		expectedReason       *string
+		name             string
+		ghes             bool
+		resolutionReason *string
+		expectedReason   *string
 	}{
 		{
-			name:                 "enabled variant forwards resolution reason",
-			withResolutionReason: true,
-			resolutionReason:     new("addressed"),
-			expectedReason:       new("addressed"),
+			name:             "forwards resolution reason",
+			resolutionReason: new("addressed"),
+			expectedReason:   new("ADDRESSED"),
 		},
-		{name: "default variant omits resolution reason", resolutionReason: new("addressed")},
+		{name: "GHES omits resolution reason", ghes: true, resolutionReason: new("addressed")},
 		{name: "without resolution reason"},
 	}
 
@@ -1753,8 +1753,8 @@ func TestGranularResolveReviewThread(t *testing.T) {
 			gqlClient := githubv4.NewClient(mockedClient)
 			deps := BaseDeps{GQLClient: gqlClient}
 			serverTool := GranularResolveReviewThread(translations.NullTranslationHelper)
-			if tc.withResolutionReason {
-				serverTool = GranularResolveReviewThreadWithResolutionReason(translations.NullTranslationHelper)
+			if tc.ghes {
+				serverTool = GranularResolveReviewThread(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES))
 			}
 			handler := serverTool.Handler(deps)
 
