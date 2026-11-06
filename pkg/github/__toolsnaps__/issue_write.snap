@@ -32,12 +32,12 @@
         "type": "number"
       },
       "issue_fields": {
-        "description": "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'.",
+        "description": "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', 'field_option_names', or 'delete: true'.",
         "items": {
           "additionalProperties": false,
           "properties": {
             "delete": {
-              "description": "Set to true to clear this field's current value on the issue. When false or omitted, this property is ignored. Cannot be true when 'value' or 'field_option_name' is provided.",
+              "description": "Set to true to clear this field's current value on the issue. When false or omitted, this property is ignored. Cannot be true when 'value', 'field_option_name', or 'field_option_names' is provided.",
               "type": "boolean"
             },
             "field_name": {
@@ -45,11 +45,18 @@
               "type": "string"
             },
             "field_option_name": {
-              "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value' or 'delete: true'.",
+              "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value', 'field_option_names', or 'delete: true'.",
               "type": "string"
             },
+            "field_option_names": {
+              "description": "Option names for multi-select fields. All names are validated against the field's options before the API call. An empty array is rejected — use 'delete: true' to clear the field. Cannot be combined with 'value', 'field_option_name', or 'delete: true'.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "value": {
-              "description": "Value to set. Use for text, number, and date fields (date as YYYY-MM-DD). For single-select fields, prefer 'field_option_name' so the option is validated before the API call. Cannot be combined with 'field_option_name' or 'delete: true'.",
+              "description": "Value to set. Use for text, number, and date fields (date as YYYY-MM-DD). For single-select fields, prefer 'field_option_name' so the option is validated before the API call. Cannot be combined with 'field_option_name', 'field_option_names', or 'delete: true'.",
               "type": [
                 "string",
                 "number",

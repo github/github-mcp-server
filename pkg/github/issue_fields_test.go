@@ -15,10 +15,10 @@ import (
 )
 
 func Test_ListIssueFields(t *testing.T) {
-	// Verify tool definition
 	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	assert.Contains(t, tool.Description, "multi_select", "the description must mention multi_select")
 
 	assert.Equal(t, "list_issue_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -145,6 +145,56 @@ func Test_ListIssueFields(t *testing.T) {
 					Options: []IssueSingleSelectFieldOption{
 						{ID: "OPT_1", Name: "High", Color: "red"},
 						{ID: "OPT_2", Name: "Low", Color: "blue"},
+					},
+				},
+			},
+		},
+		{
+			name: "multi_select field with options returned",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldMultiSelect",
+								"id":             "IFMS_1",
+								"fullDatabaseId": "100",
+								"name":           "Components",
+								"description":    "Affected components",
+								"dataType":       "MULTI_SELECT",
+								"visibility":     "ALL",
+								"options": []any{
+									map[string]any{
+										"id":    "OPT_1",
+										"name":  "API",
+										"color": "blue",
+									},
+									map[string]any{
+										"id":    "OPT_2",
+										"name":  "Web",
+										"color": "green",
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{
+					ID:          "IFMS_1",
+					DatabaseID:  100,
+					Name:        "Components",
+					Description: "Affected components",
+					DataType:    "MULTI_SELECT",
+					Visibility:  "ALL",
+					Options: []IssueSingleSelectFieldOption{
+						{ID: "OPT_1", Name: "API", Color: "blue"},
+						{ID: "OPT_2", Name: "Web", Color: "green"},
 					},
 				},
 			},

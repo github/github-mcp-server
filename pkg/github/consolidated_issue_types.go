@@ -49,10 +49,11 @@ func (input *IssueWriteInput) UnmarshalJSON(raw []byte) error {
 }
 
 type IssueWriteFieldInput struct {
-	FieldName       string           `json:"field_name"`
-	Value           *IssueFieldValue `json:"value,omitempty"`
-	FieldOptionName *string          `json:"field_option_name,omitempty"`
-	Delete          *bool            `json:"delete,omitempty"`
+	FieldName        string           `json:"field_name"`
+	Value            *IssueFieldValue `json:"value,omitempty"`
+	FieldOptionName  *string          `json:"field_option_name,omitempty"`
+	FieldOptionNames []string         `json:"field_option_names,omitempty"`
+	Delete           *bool            `json:"delete,omitempty"`
 }
 
 // IssueFieldValue represents the REST scalar without losing its JSON type.
