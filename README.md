@@ -154,7 +154,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 </tr>
 </table>
 
-See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, and [Insiders Features](docs/insiders-features.md) for a full list of what's available.
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, [Insiders Features](docs/insiders-features.md) for a full list of what's available, and [Feature Flags](docs/feature-flags.md) for user-opt-in tools such as repository automations.
 
 #### GitHub Enterprise
 
@@ -763,45 +763,6 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
   - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
   - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_automation** - Get a repository automation
-  - **OAuth Challenge Scopes**: `repo`
-  - `automation_id`: The automation identifier. (string, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_automation_revision** - Get an automation revision
-  - **OAuth Challenge Scopes**: `repo`
-  - `automation_id`: The automation identifier. (string, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `revision_id`: The revision identifier. (string, required)
-
-- **list_automation_revisions** - List automation revisions
-  - **OAuth Challenge Scopes**: `repo`
-  - `automation_id`: The automation identifier. (string, required)
-  - `cursor`: Opaque pagination cursor. (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `perPage`: Results per page, from 1 to 100. (integer, optional)
-  - `repo`: Repository name (string, required)
-
-- **list_automations** - List repository automations
-  - **OAuth Challenge Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number, starting at 1. (integer, optional)
-  - `perPage`: Results per page, from 1 to 100. (integer, optional)
-  - `repo`: Repository name (string, required)
-  - `type`: Filter automations by type. (string, optional)
-
-- **list_available_automation_tools** - List available automation tools
-  - **OAuth Challenge Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **list_available_automation_triggers** - List available automation triggers
-  - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 

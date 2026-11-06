@@ -71,7 +71,7 @@ func newAgentAutomationTool[Input any](
 	outputSchema json.RawMessage,
 	build agentAutomationRequestBuilder[Input],
 ) inventory.ServerTool {
-	return NewTool[Input, json.RawMessage](
+	tool := NewTool[Input, json.RawMessage](
 		ToolsetMetadataCopilot,
 		mcp.Tool{
 			Name:         name,
@@ -119,6 +119,8 @@ func newAgentAutomationTool[Input any](
 			return result, response, nil
 		},
 	)
+	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
+	return tool
 }
 
 func agentAutomationObjectOutputSchema() json.RawMessage {
