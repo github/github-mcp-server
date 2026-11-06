@@ -766,6 +766,45 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **get_automation** - Get a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation_revision** - Get an automation revision
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `revision_id`: The revision identifier. (string, required)
+
+- **list_automation_revisions** - List automation revisions
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `cursor`: Opaque pagination cursor. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_automations** - List repository automations
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1. (integer, optional)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`: Filter automations by type. (string, optional)
+
+- **list_available_automation_tools** - List available automation tools
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_available_automation_triggers** - List available automation triggers
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **request_copilot_review** - Request Copilot review
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
