@@ -154,7 +154,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 </tr>
 </table>
 
-See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, and [Insiders Features](docs/insiders-features.md) for a full list of what's available.
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, [Insiders Features](docs/insiders-features.md) for a full list of what's available, and [Feature Flags](docs/feature-flags.md) for user-opt-in tools such as repository automations.
 
 #### GitHub Enterprise
 

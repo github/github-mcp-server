@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List automation revisions"
+  },
+  "description": "List the saved revisions of a Copilot automation.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "cursor": {
+        "description": "Opaque pagination cursor.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page, from 1 to 100.",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id"
+    ],
+    "type": "object"
+  },
+  "name": "list_automation_revisions",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

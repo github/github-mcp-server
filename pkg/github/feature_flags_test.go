@@ -207,10 +207,21 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{FeatureFlagThreadResolutionReason},
 		},
 		{
+			name:            "agent automations can be directly enabled",
+			enabledFeatures: []string{FeatureFlagAgentAutomations},
+			expectedFlags:   []string{FeatureFlagAgentAutomations},
+		},
+		{
 			name:            "insiders does not enable user-only allowed flags",
 			enabledFeatures: nil,
 			insidersMode:    true,
 			unexpectedFlags: []string{FeatureFlagIssuesGranular, FeatureFlagPullRequestsGranular},
+		},
+		{
+			name:            "insiders does not enable agent automations",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{FeatureFlagAgentAutomations},
 		},
 		{
 			name:            "explicit plus insiders deduplicates",

@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get repository automation configuration"
+  },
+  "description": "Get whether automations are enabled, whether you can manage them, and the repository's automation trigger and write-scope policies.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "get_automations_configuration_for_repository",
+  "outputSchema": {
+    "additionalProperties": true,
+    "properties": {
+      "allow_read_access_triggers": {
+        "type": "boolean"
+      },
+      "automations_enabled": {
+        "type": "boolean"
+      },
+      "can_manage_automations": {
+        "type": "boolean"
+      },
+      "require_trigger_scoped_writes": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "automations_enabled",
+      "can_manage_automations",
+      "allow_read_access_triggers",
+      "require_trigger_scoped_writes"
+    ],
+    "type": "object"
+  }
+}
