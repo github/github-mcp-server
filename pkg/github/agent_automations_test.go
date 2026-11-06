@@ -30,6 +30,7 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		CreateAutomation(t),
 		UpdateAutomation(t),
 		DeleteAutomation(t),
+		RunAutomation(t),
 	}
 }
 
@@ -572,6 +573,67 @@ func TestAgentAutomationWriteToolsRejectUnsafePathSegments(t *testing.T) {
 			require.True(t, result.IsError)
 		})
 	}
+}
+
+func TestRunAutomation(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/agents/repos/octo-org/octo-repo/automations/automation-id/tasks", r.URL.Path)
+		assert.Equal(t, agentAutomationAPIVersion, r.Header.Get("X-GitHub-Api-Version"))
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"event":"manual","context":"Please focus on recently opened issues."}`, string(body))
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"task_id":"task-id","automation_id":"automation-id","event":"manual"}`))
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+		"event": "manual", "context": "Please focus on recently opened issues.",
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatal(getErrorResult(t, result).Text)
+	}
+	assert.JSONEq(t, `{"task_id":"task-id","automation_id":"automation-id","event":"manual"}`, getTextResult(t, result).Text)
+}
+
+func TestRunAutomationRejectsUnsupportedEvents(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("unsupported event should not make a request")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "interval",
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "event must be manual")
+}
+
+func TestRunAutomationRejectsEmptyAcceptedResponse(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "returned an empty response")
 }
 
 func TestDeleteAutomationRequiresRequestStateProtection(t *testing.T) {
