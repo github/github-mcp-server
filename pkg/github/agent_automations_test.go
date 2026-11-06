@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -23,6 +24,7 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		GetAutomationRevision(t),
 		ListAvailableAutomationTools(t),
 		ListAvailableAutomationTriggers(t),
+		GetAutomationsConfigurationForRepository(t),
 	}
 }
 
@@ -160,6 +162,13 @@ func TestAgentAutomationReadTools(t *testing.T) {
 			endpoint: "/agents/repos/octo-org/octo-repo/automations/available-triggers",
 			response: `[]`,
 		},
+		{
+			name:     "get repository automation configuration",
+			tool:     GetAutomationsConfigurationForRepository,
+			args:     map[string]any{"owner": "octo-org", "repo": "octo-repo"},
+			endpoint: "/agents/repos/octo-org/octo-repo/automations/configuration",
+			response: `{"automations_enabled":true,"can_manage_automations":false,"allow_read_access_triggers":true,"require_trigger_scoped_writes":false}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -192,6 +201,7 @@ func TestAutomationCatalogToolsRequireRepository(t *testing.T) {
 	}{
 		{name: "available tools", def: ListAvailableAutomationTools},
 		{name: "available triggers", def: ListAvailableAutomationTriggers},
+		{name: "repository configuration", def: GetAutomationsConfigurationForRepository},
 	} {
 		t.Run(tool.name, func(t *testing.T) {
 			definition := tool.def(translations.NullTranslationHelper)
@@ -201,4 +211,73 @@ func TestAutomationCatalogToolsRequireRepository(t *testing.T) {
 			assert.Contains(t, schema.Properties, "repo")
 		})
 	}
+}
+
+func TestGetAutomationsConfigurationForRepositoryOutputSchema(t *testing.T) {
+	t.Parallel()
+
+	tool := GetAutomationsConfigurationForRepository(translations.NullTranslationHelper)
+	var schema struct {
+		Type       string `json:"type"`
+		Properties map[string]struct {
+			Type string `json:"type"`
+		} `json:"properties"`
+		Required []string `json:"required"`
+	}
+	schemaJSON, err := json.Marshal(tool.Tool.OutputSchema)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(schemaJSON, &schema))
+	require.Equal(t, "object", schema.Type)
+	assert.ElementsMatch(t, []string{
+		"automations_enabled",
+		"can_manage_automations",
+		"allow_read_access_triggers",
+		"require_trigger_scoped_writes",
+	}, schema.Required)
+	for _, field := range schema.Required {
+		assert.Equal(t, "boolean", schema.Properties[field].Type, field)
+	}
+}
+
+func TestGetAutomationsConfigurationForRepositoryReturnsAPIError(t *testing.T) {
+	t.Parallel()
+
+	tool := GetAutomationsConfigurationForRepository(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/agents/repos/octo-org/octo-repo/automations/configuration", r.URL.Path)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{"owner": "octo-org", "repo": "octo-repo"})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.NotEmpty(t, getErrorResult(t, result).Text)
+}
+
+func TestGetAutomationsConfigurationForRepositoryDoesNotCacheResponses(t *testing.T) {
+	t.Parallel()
+
+	tool := GetAutomationsConfigurationForRepository(translations.NullTranslationHelper)
+	responses := []string{
+		`{"automations_enabled":true,"can_manage_automations":true,"allow_read_access_triggers":false,"require_trigger_scoped_writes":false}`,
+		`{"automations_enabled":true,"can_manage_automations":false,"allow_read_access_triggers":true,"require_trigger_scoped_writes":true}`,
+	}
+	calls := 0
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/agents/repos/octo-org/octo-repo/automations/configuration", r.URL.Path)
+		_, _ = w.Write([]byte(responses[calls]))
+		calls++
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	for _, response := range responses {
+		request := createMCPRequest(map[string]any{"owner": "octo-org", "repo": "octo-repo"})
+		result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.JSONEq(t, response, getTextResult(t, result).Text)
+	}
+	assert.Equal(t, len(responses), calls)
 }
