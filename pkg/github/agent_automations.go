@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
@@ -29,6 +30,7 @@ const agentAutomationAPIVersion = "2026-03-10"
 const agentAutomationConfirmationIDPrefix = "agent_automation_confirmation_"
 const agentAutomationConfirmationField = "confirmation"
 const agentAutomationConfirmationTTL = 10 * time.Minute
+const maxAutomationRunContextLength = 10000
 
 type ListAutomationsInput struct {
 	Owner   string `json:"owner"`
@@ -897,11 +899,11 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return newAgentAutomationTool[RunAutomationInput](
+	return agentAutomationConfirmationRequired(newAgentAutomationTool[RunAutomationInput](
 		t,
 		"run_automation",
 		"Run a repository automation",
-		"Start a manual run of a Copilot automation in a repository.",
+		"Start a manual run of a Copilot automation in a repository after explicit user confirmation.",
 		agentAutomationInputSchema(map[string]*jsonschema.Schema{
 			"owner":         automationStringProperty(DescriptionRepositoryOwner),
 			"repo":          automationStringProperty(DescriptionRepositoryName),
@@ -911,7 +913,11 @@ func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Description: "The event to trigger. Only manual runs are supported.",
 				Enum:        []any{"manual"},
 			},
-			"context": automationStringProperty("Optional context for the automation run."),
+			"context": {
+				Type:        "string",
+				Description: "Optional context for the automation run, up to 10,000 characters.",
+				MaxLength:   new(maxAutomationRunContextLength),
+			},
 		}, "owner", "repo", "automation_id", "event"),
 		agentAutomationObjectOutputSchema(),
 		mcp.ToolAnnotations{DestructiveHint: new(true)},
@@ -925,16 +931,31 @@ func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if args.Event != "manual" {
 				return agentAutomationRequest{}, errors.New("event must be manual")
 			}
+			if args.Context != nil && (!utf8.ValidString(*args.Context) || utf8.RuneCountInString(*args.Context) > maxAutomationRunContextLength) {
+				return agentAutomationRequest{}, fmt.Errorf("context must be valid UTF-8 and no more than %d characters", maxAutomationRunContextLength)
+			}
 			body := map[string]any{"event": args.Event}
 			if args.Context != nil {
 				body["context"] = *args.Context
 			}
+			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
+			message := fmt.Sprintf("Review the automation run request for %s.", target)
+			if args.Context != nil {
+				message += "\nContext to be sent: " + *args.Context
+			}
+			confirmationValue := "RUN " + target
+			message += fmt.Sprintf("\nType %q to start this run.", confirmationValue)
 			return agentAutomationRequest{
 				method:        http.MethodPost,
 				path:          automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)+"/tasks"),
 				body:          body,
 				successStatus: http.StatusAccepted,
+				confirmation: &agentAutomationConfirmation{
+					id:      agentAutomationConfirmationIDPrefix + "run",
+					value:   confirmationValue,
+					message: message,
+				},
 			}, nil
 		},
-	)
+	))
 }
