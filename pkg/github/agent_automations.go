@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
@@ -29,6 +30,7 @@ const agentAutomationAPIVersion = "2026-03-10"
 const agentAutomationConfirmationIDPrefix = "agent_automation_confirmation_"
 const agentAutomationConfirmationField = "confirmation"
 const agentAutomationConfirmationTTL = 10 * time.Minute
+const maxAutomationRunContextLength = 10000
 
 type ListAutomationsInput struct {
 	Owner   string `json:"owner"`
@@ -98,6 +100,14 @@ type DeleteAutomationInput struct {
 	Owner        string `json:"owner"`
 	Repo         string `json:"repo"`
 	AutomationID string `json:"automation_id"`
+}
+
+type RunAutomationInput struct {
+	Owner        string  `json:"owner"`
+	Repo         string  `json:"repo"`
+	AutomationID string  `json:"automation_id"`
+	Event        string  `json:"event"`
+	Context      *string `json:"context,omitempty"`
 }
 
 type agentAutomationRequest struct {
@@ -182,16 +192,22 @@ func newAgentAutomationTool[Input any](
 			if request.noBody {
 				responseTarget = nil
 			}
+			successStatus := request.successStatus
+			if successStatus == 0 {
+				successStatus = http.StatusOK
+			}
 			httpResponse, err := client.Do(httpRequest, responseTarget)
 			if httpResponse != nil {
 				defer func() { _ = httpResponse.Body.Close() }()
 			}
+			if httpResponse != nil && httpResponse.StatusCode == http.StatusAccepted && successStatus == http.StatusAccepted {
+				if acceptedError, ok := errors.AsType[*github.AcceptedError](err); ok {
+					response = acceptedError.Raw
+					err = nil
+				}
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to access GitHub agent automations", httpResponse, err), nil, nil
-			}
-			successStatus := request.successStatus
-			if successStatus == 0 {
-				successStatus = http.StatusOK
 			}
 			if httpResponse.StatusCode != successStatus {
 				return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned unexpected status %d", httpResponse.StatusCode)), nil, nil
@@ -202,8 +218,12 @@ func newAgentAutomationTool[Input any](
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal success response", err), nil, err
 				}
-			} else if len(response) == 0 {
-				response = json.RawMessage(`{}`)
+			}
+			if len(response) == 0 {
+				if request.method != http.MethodGet {
+					return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned an empty response after HTTP %d; the operation may have succeeded. Verify its status before retrying.", httpResponse.StatusCode)), nil, nil
+				}
+				return utils.NewToolResultError("GitHub agent automations returned an empty response"), nil, nil
 			}
 			sanitizedResponse, err := sanitizeAutomationNames(response)
 			if err != nil {
@@ -875,6 +895,68 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 					id:      agentAutomationConfirmationIDPrefix + "delete",
 					value:   "DELETE " + target,
 					message: fmt.Sprintf("Review the automation to delete: %s. Type %q to confirm.", target, "DELETE "+target),
+				},
+			}, nil
+		},
+	))
+}
+
+func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return agentAutomationConfirmationRequired(newAgentAutomationTool[RunAutomationInput](
+		t,
+		"run_automation",
+		"Run a repository automation",
+		"Start a manual run of a Copilot automation in a repository after explicit user confirmation.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner":         automationStringProperty(DescriptionRepositoryOwner),
+			"repo":          automationStringProperty(DescriptionRepositoryName),
+			"automation_id": automationStringProperty("The automation identifier."),
+			"event": {
+				Type:        "string",
+				Description: "The event to trigger. Only manual runs are supported.",
+				Enum:        []any{"manual"},
+			},
+			"context": {
+				Type:        "string",
+				Description: "Optional context for the automation run, up to 10,000 characters.",
+				MaxLength:   new(maxAutomationRunContextLength),
+			},
+		}, "owner", "repo", "automation_id", "event"),
+		agentAutomationObjectOutputSchema(),
+		mcp.ToolAnnotations{DestructiveHint: new(true)},
+		func(args RunAutomationInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if err := requireAutomationID(args.AutomationID); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if args.Event != "manual" {
+				return agentAutomationRequest{}, errors.New("event must be manual")
+			}
+			if args.Context != nil && (!utf8.ValidString(*args.Context) || utf8.RuneCountInString(*args.Context) > maxAutomationRunContextLength) {
+				return agentAutomationRequest{}, fmt.Errorf("context must be valid UTF-8 and no more than %d characters", maxAutomationRunContextLength)
+			}
+			body := map[string]any{"event": args.Event}
+			if args.Context != nil {
+				body["context"] = *args.Context
+			}
+			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
+			message := fmt.Sprintf("Review the automation run request for %s.", target)
+			if args.Context != nil {
+				message += fmt.Sprintf("\nA run context is included (%d characters).", utf8.RuneCountInString(*args.Context))
+			}
+			confirmationValue := "RUN " + target
+			message += fmt.Sprintf("\nType %q to start this run.", confirmationValue)
+			return agentAutomationRequest{
+				method:        http.MethodPost,
+				path:          automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)+"/tasks"),
+				body:          body,
+				successStatus: http.StatusAccepted,
+				confirmation: &agentAutomationConfirmation{
+					id:      agentAutomationConfirmationIDPrefix + "run",
+					value:   confirmationValue,
+					message: message,
 				},
 			}, nil
 		},

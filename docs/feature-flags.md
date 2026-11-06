@@ -532,6 +532,14 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **run_automation** - Run a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `context`: Optional context for the automation run, up to 10,000 characters. (string, optional)
+  - `event`: The event to trigger. Only manual runs are supported. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **update_automation** - Update a repository automation
   - **OAuth Challenge Scopes**: `repo`
   - `automation_id`: The automation identifier. (string, required)
