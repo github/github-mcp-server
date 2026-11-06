@@ -328,6 +328,19 @@ func agentAutomationConfirmationRequired(tool inventory.ServerTool) inventory.Se
 	return tool
 }
 
+func agentAutomationMutationConfirmation(action, target string, body any) (*agentAutomationConfirmation, error) {
+	requestBody, err := json.MarshalIndent(body, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare automation confirmation details: %w", err)
+	}
+	value := strings.ToUpper(action) + " " + target
+	return &agentAutomationConfirmation{
+		id:      agentAutomationConfirmationIDPrefix + action,
+		value:   value,
+		message: fmt.Sprintf("Review the exact automation changes for %s:\n%s\nType %q to confirm.", target, requestBody, value),
+	}, nil
+}
+
 func agentAutomationObjectOutputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","additionalProperties":true}`)
 }
@@ -700,11 +713,11 @@ func CreateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 	properties := automationConfigurationProperties()
 	properties["owner"] = automationStringProperty(DescriptionRepositoryOwner)
 	properties["repo"] = automationStringProperty(DescriptionRepositoryName)
-	return newAgentAutomationTool[CreateAutomationInput](
+	return agentAutomationConfirmationRequired(newAgentAutomationTool[CreateAutomationInput](
 		t,
 		"create_automation",
 		"Create a repository automation",
-		"Create a Copilot automation in a repository.",
+		"Create a Copilot automation in a repository after explicit user confirmation.",
 		agentAutomationInputSchema(properties, "owner", "repo", "name", "prompt"),
 		agentAutomationObjectOutputSchema(),
 		mcp.ToolAnnotations{},
@@ -746,14 +759,20 @@ func CreateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if args.ContinuousHistory != nil {
 				body["continuous_history"] = *args.ContinuousHistory
 			}
+			target := args.Owner + "/" + args.Repo
+			confirmation, err := agentAutomationMutationConfirmation("create", target, body)
+			if err != nil {
+				return agentAutomationRequest{}, err
+			}
 			return agentAutomationRequest{
 				method:        http.MethodPost,
 				path:          automationPath(args.Owner, args.Repo, ""),
 				body:          body,
 				successStatus: http.StatusCreated,
+				confirmation:  confirmation,
 			}, nil
 		},
-	)
+	))
 }
 
 func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -762,11 +781,11 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 	properties["repo"] = automationStringProperty(DescriptionRepositoryName)
 	properties["automation_id"] = automationStringProperty("The automation identifier.")
 	delete(properties, "type")
-	return newAgentAutomationTool[UpdateAutomationInput](
+	return agentAutomationConfirmationRequired(newAgentAutomationTool[UpdateAutomationInput](
 		t,
 		"update_automation",
 		"Update a repository automation",
-		"Update a Copilot automation in a repository. Only the provided fields are changed.",
+		"Update a Copilot automation in a repository after explicit user confirmation. Only the provided fields are changed.",
 		agentAutomationInputSchema(properties, "owner", "repo", "automation_id"),
 		agentAutomationObjectOutputSchema(),
 		mcp.ToolAnnotations{},
@@ -808,13 +827,19 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if len(body) == 0 {
 				return agentAutomationRequest{}, errors.New("at least one automation field must be provided")
 			}
+			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
+			confirmation, err := agentAutomationMutationConfirmation("update", target, body)
+			if err != nil {
+				return agentAutomationRequest{}, err
+			}
 			return agentAutomationRequest{
-				method: http.MethodPatch,
-				path:   automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
-				body:   body,
+				method:       http.MethodPatch,
+				path:         automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
+				body:         body,
+				confirmation: confirmation,
 			}, nil
 		},
-	)
+	))
 }
 
 func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
