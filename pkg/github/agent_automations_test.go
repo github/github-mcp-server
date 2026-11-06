@@ -636,7 +636,48 @@ func TestRunAutomationRejectsEmptyAcceptedResponse(t *testing.T) {
 		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
 	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", nil, nil)
 	require.True(t, result.IsError)
-	assert.Contains(t, getErrorResult(t, result).Text, "returned an empty response")
+	assert.Contains(t, getErrorResult(t, result).Text, "empty response after HTTP 202")
+	assert.Contains(t, getErrorResult(t, result).Text, "may have succeeded")
+	assert.Contains(t, getErrorResult(t, result).Text, "Verify its status before retrying")
+}
+
+func TestRunAutomationRejectsUnsafePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{
+			name: "dot owner",
+			args: map[string]any{"owner": ".", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual"},
+		},
+		{
+			name: "dot-dot repo",
+			args: map[string]any{"owner": "octo-org", "repo": "..", "automation_id": "automation-id", "event": "manual"},
+		},
+		{
+			name: "dot automation ID",
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": ".", "event": "manual"},
+		},
+		{
+			name: "reserved automation ID",
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "revisions", "event": "manual"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tool := RunAutomation(translations.NullTranslationHelper)
+			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("invalid path segment must not make a request")
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			request := createMCPRequest(tc.args)
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+		})
+	}
 }
 
 func TestRunAutomationRejectsOversizedContext(t *testing.T) {
