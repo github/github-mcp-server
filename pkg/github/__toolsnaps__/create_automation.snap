@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Create a repository automation"
   },
-  "description": "Create a Copilot automation in a repository.",
+  "description": "Create a Copilot automation in a repository after explicit user confirmation.",
   "inputSchema": {
     "properties": {
       "continuous_history": {
