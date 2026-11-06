@@ -597,7 +597,7 @@ func TestRunAutomation(t *testing.T) {
 	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
 		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
 		"event": "manual", "context": "Please focus on recently opened issues.",
-	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", "Please focus on recently opened issues.")
+	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", []string{"39 characters"}, []string{"Please focus on recently opened issues."})
 	if result.IsError {
 		t.Fatal(getErrorResult(t, result).Text)
 	}
@@ -634,7 +634,7 @@ func TestRunAutomationRejectsEmptyAcceptedResponse(t *testing.T) {
 	deps.StateSealer = sealer
 	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
 		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
-	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id")
+	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", nil, nil)
 	require.True(t, result.IsError)
 	assert.Contains(t, getErrorResult(t, result).Text, "returned an empty response")
 }

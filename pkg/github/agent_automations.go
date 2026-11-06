@@ -938,10 +938,10 @@ func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if args.Context != nil {
 				body["context"] = *args.Context
 			}
-			target := args.Owner + "/" + args.Repo + "/" + args.AutomationID
+			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
 			message := fmt.Sprintf("Review the automation run request for %s.", target)
 			if args.Context != nil {
-				message += "\nContext to be sent: " + *args.Context
+				message += fmt.Sprintf("\nA run context is included (%d characters).", utf8.RuneCountInString(*args.Context))
 			}
 			confirmationValue := "RUN " + target
 			message += fmt.Sprintf("\nType %q to start this run.", confirmationValue)
