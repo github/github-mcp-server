@@ -1,0 +1,352 @@
+package github
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+const agentAutomationAPIVersion = "2026-03-10"
+
+type ListAutomationsInput struct {
+	Owner   string `json:"owner"`
+	Repo    string `json:"repo"`
+	Page    int    `json:"page,omitempty"`
+	PerPage int    `json:"perPage,omitempty"`
+	Type    string `json:"type,omitempty"`
+}
+
+type GetAutomationInput struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	AutomationID string `json:"automation_id"`
+}
+
+type ListAutomationRevisionsInput struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	AutomationID string `json:"automation_id"`
+	Cursor       string `json:"cursor,omitempty"`
+	PerPage      int    `json:"perPage,omitempty"`
+}
+
+type GetAutomationRevisionInput struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	AutomationID string `json:"automation_id"`
+	RevisionID   string `json:"revision_id"`
+}
+
+type AutomationCatalogInput struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
+
+type agentAutomationRequest struct {
+	method string
+	path   string
+	query  url.Values
+	body   any
+}
+
+type agentAutomationRequestBuilder[Input any] func(Input) (agentAutomationRequest, error)
+
+func newAgentAutomationTool[Input any](
+	t translations.TranslationHelperFunc,
+	name, title, description string,
+	inputSchema *jsonschema.Schema,
+	outputSchema json.RawMessage,
+	build agentAutomationRequestBuilder[Input],
+) inventory.ServerTool {
+	return NewTool[Input, json.RawMessage](
+		ToolsetMetadataCopilot,
+		mcp.Tool{
+			Name:         name,
+			Description:  t("TOOL_"+name+"_DESCRIPTION", description),
+			InputSchema:  inputSchema,
+			OutputSchema: outputSchema,
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_"+name+"_USER_TITLE", title),
+				ReadOnlyHint: true,
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args Input) (*mcp.CallToolResult, json.RawMessage, error) {
+			request, err := build(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+			}
+
+			if len(request.query) > 0 {
+				request.path += "?" + request.query.Encode()
+			}
+			httpRequest, err := client.NewRequest(ctx, request.method, request.path, request.body, github.WithVersion(agentAutomationAPIVersion))
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create GitHub request", err), nil, nil
+			}
+
+			var response json.RawMessage
+			httpResponse, err := client.Do(httpRequest, &response)
+			if httpResponse != nil {
+				defer func() { _ = httpResponse.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to access GitHub agent automations", httpResponse, err), nil, nil
+			}
+			if httpResponse.StatusCode != http.StatusOK {
+				return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned unexpected status %d", httpResponse.StatusCode)), nil, nil
+			}
+
+			result := utils.NewToolResultText(string(response))
+			return result, response, nil
+		},
+	)
+}
+
+func agentAutomationObjectOutputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","additionalProperties":true}`)
+}
+
+func agentAutomationArrayOutputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"array","items":{"type":"object","additionalProperties":true}}`)
+}
+
+func agentAutomationInputSchema(properties map[string]*jsonschema.Schema, required ...string) *jsonschema.Schema {
+	return &jsonschema.Schema{Type: "object", Properties: properties, Required: required}
+}
+
+func automationStringProperty(description string) *jsonschema.Schema {
+	return &jsonschema.Schema{Type: "string", Description: description}
+}
+
+func automationIntegerProperty(description string, minimum float64, maximum ...float64) *jsonschema.Schema {
+	property := &jsonschema.Schema{Type: "integer", Description: description, Minimum: &minimum}
+	if len(maximum) > 0 {
+		property.Maximum = &maximum[0]
+	}
+	return property
+}
+
+func requireAutomationRepository(owner, repo string) error {
+	if owner == "" {
+		return errors.New("missing required parameter: owner")
+	}
+	if repo == "" {
+		return errors.New("missing required parameter: repo")
+	}
+	return nil
+}
+
+func automationPath(owner, repo, suffix string) string {
+	path := "agents/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/automations"
+	if suffix != "" {
+		path += "/" + suffix
+	}
+	return path
+}
+
+func ListAutomations(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[ListAutomationsInput](
+		t,
+		"list_automations",
+		"List repository automations",
+		"List Copilot automations for a repository.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner":   automationStringProperty(DescriptionRepositoryOwner),
+			"repo":    automationStringProperty(DescriptionRepositoryName),
+			"page":    automationIntegerProperty("Page number, starting at 1.", 1),
+			"perPage": automationIntegerProperty("Results per page, from 1 to 100.", 1, 100),
+			"type": {
+				Type:        "string",
+				Description: "Filter automations by type.",
+				Enum:        []any{"personal", "shared"},
+			},
+		}, "owner", "repo"),
+		agentAutomationObjectOutputSchema(),
+		func(args ListAutomationsInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if args.Page < 0 || args.PerPage < 0 || args.PerPage > 100 {
+				return agentAutomationRequest{}, errors.New("page and perPage must be positive when provided; perPage cannot exceed 100")
+			}
+			query := make(url.Values)
+			if args.Page > 0 {
+				query.Set("page", strconv.Itoa(args.Page))
+			}
+			if args.PerPage > 0 {
+				query.Set("per_page", strconv.Itoa(args.PerPage))
+			}
+			if args.Type != "" {
+				query.Set("type", args.Type)
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, ""),
+				query:  query,
+			}, nil
+		},
+	)
+}
+
+func GetAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[GetAutomationInput](
+		t,
+		"get_automation",
+		"Get a repository automation",
+		"Get the configuration of a Copilot automation in a repository.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner":         automationStringProperty(DescriptionRepositoryOwner),
+			"repo":          automationStringProperty(DescriptionRepositoryName),
+			"automation_id": automationStringProperty("The automation identifier."),
+		}, "owner", "repo", "automation_id"),
+		agentAutomationObjectOutputSchema(),
+		func(args GetAutomationInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if args.AutomationID == "" {
+				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
+			}, nil
+		},
+	)
+}
+
+func ListAutomationRevisions(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[ListAutomationRevisionsInput](
+		t,
+		"list_automation_revisions",
+		"List automation revisions",
+		"List the saved revisions of a Copilot automation.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner":         automationStringProperty(DescriptionRepositoryOwner),
+			"repo":          automationStringProperty(DescriptionRepositoryName),
+			"automation_id": automationStringProperty("The automation identifier."),
+			"cursor":        automationStringProperty("Opaque pagination cursor."),
+			"perPage":       automationIntegerProperty("Results per page, from 1 to 100.", 1, 100),
+		}, "owner", "repo", "automation_id"),
+		agentAutomationObjectOutputSchema(),
+		func(args ListAutomationRevisionsInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if args.AutomationID == "" {
+				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			}
+			if args.PerPage < 0 || args.PerPage > 100 {
+				return agentAutomationRequest{}, errors.New("perPage must be between 1 and 100")
+			}
+			query := make(url.Values)
+			if args.Cursor != "" {
+				query.Set("cursor", args.Cursor)
+			}
+			if args.PerPage > 0 {
+				query.Set("per_page", strconv.Itoa(args.PerPage))
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)+"/revisions"),
+				query:  query,
+			}, nil
+		},
+	)
+}
+
+func GetAutomationRevision(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[GetAutomationRevisionInput](
+		t,
+		"get_automation_revision",
+		"Get an automation revision",
+		"Get a specific saved revision of a Copilot automation.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner":         automationStringProperty(DescriptionRepositoryOwner),
+			"repo":          automationStringProperty(DescriptionRepositoryName),
+			"automation_id": automationStringProperty("The automation identifier."),
+			"revision_id":   automationStringProperty("The revision identifier."),
+		}, "owner", "repo", "automation_id", "revision_id"),
+		agentAutomationObjectOutputSchema(),
+		func(args GetAutomationRevisionInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			if args.AutomationID == "" {
+				return agentAutomationRequest{}, errors.New("missing required parameter: automation_id")
+			}
+			if args.RevisionID == "" {
+				return agentAutomationRequest{}, errors.New("missing required parameter: revision_id")
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)+"/revisions/"+url.PathEscape(args.RevisionID)),
+			}, nil
+		},
+	)
+}
+
+func ListAvailableAutomationTools(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[AutomationCatalogInput](
+		t,
+		"list_available_automation_tools",
+		"List available automation tools",
+		"List the tools that can be used by automations in a repository.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner": automationStringProperty(DescriptionRepositoryOwner),
+			"repo":  automationStringProperty(DescriptionRepositoryName),
+		}, "owner", "repo"),
+		agentAutomationObjectOutputSchema(),
+		func(args AutomationCatalogInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, "available-tools"),
+			}, nil
+		},
+	)
+}
+
+func ListAvailableAutomationTriggers(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return newAgentAutomationTool[AutomationCatalogInput](
+		t,
+		"list_available_automation_triggers",
+		"List available automation triggers",
+		"List the trigger types that can be used by automations in a repository.",
+		agentAutomationInputSchema(map[string]*jsonschema.Schema{
+			"owner": automationStringProperty(DescriptionRepositoryOwner),
+			"repo":  automationStringProperty(DescriptionRepositoryName),
+		}, "owner", "repo"),
+		agentAutomationArrayOutputSchema(),
+		func(args AutomationCatalogInput) (agentAutomationRequest, error) {
+			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
+				return agentAutomationRequest{}, err
+			}
+			return agentAutomationRequest{
+				method: http.MethodGet,
+				path:   automationPath(args.Owner, args.Repo, "available-triggers"),
+			}, nil
+		},
+	)
+}
