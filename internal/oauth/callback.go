@@ -82,6 +82,14 @@ func (cs *callbackServer) handler(expectedState string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
+		// Requests unrelated to this flow must not consume its result or close
+		// the listener. Validate state even when the provider reports an error.
+		if q.Get("state") != expectedState {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			renderError(w, "state mismatch")
+			return
+		}
 
 		if errCode := q.Get("error"); errCode != "" {
 			msg := errCode
@@ -90,12 +98,6 @@ func (cs *callbackServer) handler(expectedState string) http.Handler {
 			}
 			cs.report(callbackResult{err: fmt.Errorf("authorization failed: %s", msg)})
 			renderError(w, msg)
-			return
-		}
-
-		if q.Get("state") != expectedState {
-			cs.report(callbackResult{err: fmt.Errorf("state mismatch (possible CSRF)")})
-			renderError(w, "state mismatch")
 			return
 		}
 
