@@ -88,6 +88,7 @@ func toInt(val any) (int, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
+	if !inSignedIntRange(f, strconv.IntSize) {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil

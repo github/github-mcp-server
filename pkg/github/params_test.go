@@ -451,9 +451,17 @@ func Test_OptionalIntParam(t *testing.T) {
 		},
 		{
 			name:        "2^63 float64 parameter",
+			params:      map[string]any{"count": math.Ldexp(1, 63)},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
+		},
+		{
+			name:        "MinInt float64 parameter",
+			params:      map[string]any{"count": float64(math.MinInt)},
+			paramName:   "count",
+			expected:    math.MinInt,
+			expectError: false,
 		},
 		{
 			name:        "MaxInt32 float64 parameter",
