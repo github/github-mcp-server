@@ -60,6 +60,11 @@ func isAcceptedError(err error) bool {
 	return errors.As(err, &acceptedError)
 }
 
+func inSignedIntRange(f float64, bitSize int) bool {
+	limit := math.Ldexp(1, bitSize-1)
+	return f >= -limit && f < limit
+}
+
 // toInt converts a value to int, handling both float64 and string representations.
 // Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
 // fractional values, and values outside the int range.
@@ -83,14 +88,6 @@ func toInt(val any) (int, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	// Compare before converting, against the exact power of two. math.MaxInt is
-	// 2^(strconv.IntSize-1) - 1, which a float64 cannot represent: on 64-bit
-	// targets it rounds up to exactly 2^63, so comparing against it lets 2^63
-	// through. Converting an out-of-range float64 to int is implementation-defined
-	// - MinInt on amd64, MaxInt on the targets whose conversion saturates - so the
-	// bound has to reject the value before the conversion rather than inspect the
-	// result of it. math.Ldexp gives the exact bound on every target.
-	if limit := math.Ldexp(1, strconv.IntSize-1); f >= limit || f < -limit {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil
@@ -98,7 +95,7 @@ func toInt(val any) (int, error) {
 
 // toInt64 converts a value to int64, handling both float64 and string representations.
 // Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values that lose precision in the float64→int64 conversion.
+// fractional values, and values outside the int64 range.
 func toInt64(val any) (int64, error) {
 	var f float64
 	switch v := val.(type) {
@@ -119,12 +116,10 @@ func toInt64(val any) (int64, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	result := int64(f)
-	// Check round-trip to detect precision loss for large int64 values
-	if float64(result) != f {
+	if !inSignedIntRange(f, 64) {
 		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
 	}
-	return result, nil
+	return int64(f), nil
 }
 
 // RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
