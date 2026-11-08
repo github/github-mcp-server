@@ -357,10 +357,8 @@ func getPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 
 	// Get check runs for the head SHA
 	opts := &github.ListCheckRunsOptions{
-		ListOptions: github.ListOptions{
-			PerPage: pagination.PerPage,
-			Page:    pagination.Page,
-		},
+		PerPage: pagination.PerPage,
+		Page:    pagination.Page,
 	}
 
 	checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, *pr.Head.SHA, opts)
@@ -1608,10 +1606,8 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				Base:      input.Base,
 				Sort:      input.Sort,
 				Direction: input.Direction,
-				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
-				},
+				PerPage:   pagination.PerPage,
+				Page:      pagination.Page,
 			}
 
 			client, err := deps.GetClient(ctx)

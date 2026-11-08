@@ -326,7 +326,7 @@ func TestGlobalSecurityAdvisoryCWEIDs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			advisory := github.GlobalSecurityAdvisory{
-				SecurityAdvisory: github.SecurityAdvisory{CWEIDs: tc.cweIDs, CWEs: tc.cwes},
+				CWEIDs: tc.cweIDs, CWEs: tc.cwes,
 			}
 			assert.Equal(t, tc.expected, globalSecurityAdvisoryOutput(&advisory).CWEIDs)
 			assert.Equal(t, tc.cweIDs, advisory.CWEIDs, "projection must not mutate the API model")
@@ -389,4 +389,23 @@ func TestSecurityOutputDTOs(t *testing.T) {
 	} {
 		check(typ)
 	}
+}
+
+func TestNormalizeSecurityIntegerArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
+	normalize := normalizeSecurityIntegerArguments("alertNumber")
+	for _, input := range []string{
+		`{"alertNumber":9223372036854775807}`,
+		`{"alertNumber":"9223372036854775807"}`,
+		`{"alertNumber":"9223372036854775808"}`,
+		`{"alertNumber":"-9223372036854777856"}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, err := normalize(json.RawMessage(input))
+			require.EqualError(t, err, "parameter alertNumber is not a valid number")
+		})
+	}
+
+	normalized, err := normalize(json.RawMessage(`{"alertNumber":"2147483647"}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"alertNumber":2147483647}`, string(normalized))
 }

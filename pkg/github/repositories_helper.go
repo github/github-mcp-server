@@ -214,7 +214,8 @@ func inspectRepositoryFile(ctx context.Context, client *github.Client, owner, re
 }
 
 func repositoryContentBytes(file *github.RepositoryContent) ([]byte, bool, error) {
-	if file.Content == nil {
+	// Files over 1 MB come back with encoding "none" and no content.
+	if file.Content == nil || file.GetEncoding() == "none" {
 		return []byte{}, file.GetType() != "symlink" && file.GetSize() == 0, nil
 	}
 	content, err := file.GetContent()

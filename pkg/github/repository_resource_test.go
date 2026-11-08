@@ -32,6 +32,92 @@ const (
 	resourceResponseTypeText
 )
 
+func TestExpandRepoResourceURIUsesUTF8PercentEncoding(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	tests := []struct {
+		name     string
+		sha      string
+		ref      string
+		path     []string
+		expected string
+	}{
+		{
+			name: "sha path",
+			sha:  sha,
+			path: []string{"test", "Þfoo.go"},
+			expected: "repo://owner/repo/sha/" + sha +
+				"/contents/test/%C3%9Efoo.go",
+		},
+		{
+			name: "branch path",
+			ref:  "refs/heads/main",
+			path: []string{"ملف.txt"},
+			expected: "repo://owner/repo/refs/heads/main/contents/" +
+				"%D9%85%D9%84%D9%81.txt",
+		},
+		{
+			name: "unicode branch and path",
+			ref:  "refs/heads/分支",
+			path: []string{"日本語 ファイル.md"},
+			expected: "repo://owner/repo/refs/heads/%E5%88%86%E6%94%AF/contents/" +
+				"%E6%97%A5%E6%9C%AC%E8%AA%9E%20%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB.md",
+		},
+		{
+			name:     "unicode tag",
+			ref:      "refs/tags/v1-Þ",
+			path:     []string{"README.md"},
+			expected: "repo://owner/repo/refs/tags/v1-%C3%9E/contents/README.md",
+		},
+		{
+			name:     "pull request ref",
+			ref:      "refs/pull/42/head",
+			path:     []string{"𝄞.txt"},
+			expected: "repo://owner/repo/refs/pull/42/head/contents/%F0%9D%84%9E.txt",
+		},
+		{
+			name:     "reserved path characters",
+			path:     []string{"a%b", "query?value"},
+			expected: "repo://owner/repo/contents/a%25b/query%3Fvalue",
+		},
+		{
+			name:     "ascii path remains unchanged",
+			path:     []string{"docs", "README.md"},
+			expected: "repo://owner/repo/contents/docs/README.md",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := expandRepoResourceURI("owner", "repo", tc.sha, tc.ref, tc.path)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestRepositoryResourceContentsDecodesUTF8Path(t *testing.T) {
+	base, _ := url.Parse("https://raw.example.com/")
+	sha := strings.Repeat("a", 40)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetRawReposContentsByOwnerByRepoBySHAByPath: func(w http.ResponseWriter, r *http.Request) {
+			require.True(t, strings.HasSuffix(r.URL.Path, "/test/Þfoo.go"))
+			w.Header().Set("Content-Type", "text/plain")
+			_, err := w.Write([]byte("package x"))
+			require.NoError(t, err)
+		},
+	}))
+	rawClient, err := raw.NewClient(client, base)
+	require.NoError(t, err)
+	ctx := ContextWithDeps(context.Background(), BaseDeps{Client: client, RawClient: rawClient})
+	handler := RepositoryResourceContentsHandler(repositoryResourceCommitContentURITemplate)
+
+	result, err := handler(ctx, &mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{
+		URI: "repo://owner/repo/sha/" + sha + "/contents/test/%C3%9Efoo.go",
+	}})
+	require.NoError(t, err)
+	require.Equal(t, "package x", result.Contents[0].Text)
+}
+
 func Test_repositoryResourceContents(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
 	tests := []struct {

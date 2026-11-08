@@ -70,12 +70,10 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			pagination := repositoryPagination(input.Page, input.PerPage)
 			minimalOutput := input.MinimalOutput == nil || *input.MinimalOutput
 			opts := &github.SearchOptions{
-				Sort:  input.Sort,
-				Order: input.Order,
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Sort:    input.Sort,
+				Order:   input.Order,
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -315,10 +313,8 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Sort:      input.Sort,
 				Order:     input.Order,
 				TextMatch: true,
-				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
-				},
+				PerPage:   pagination.PerPage,
+				Page:      pagination.Page,
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -418,12 +414,10 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 	pagination := repositoryPagination(input.Page, input.PerPage)
 
 	opts := &github.SearchOptions{
-		Sort:  input.Sort,
-		Order: input.Order,
-		ListOptions: github.ListOptions{
-			PerPage: pagination.PerPage,
-			Page:    pagination.Page,
-		},
+		Sort:    input.Sort,
+		Order:   input.Order,
+		PerPage: pagination.PerPage,
+		Page:    pagination.Page,
 	}
 
 	client, err := deps.GetClient(ctx)
@@ -619,12 +613,10 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			pagination := repositoryPagination(input.Page, input.PerPage)
 
 			opts := &github.SearchOptions{
-				Sort:  input.Sort,
-				Order: input.Order,
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Sort:    input.Sort,
+				Order:   input.Order,
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			client, err := deps.GetClient(ctx)

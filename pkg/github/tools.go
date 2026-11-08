@@ -263,6 +263,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
+		IssueArtifactRead(t),
+		IssueArtifactWrite(t),
 		FindDuplicate(t),
 
 		// User tools

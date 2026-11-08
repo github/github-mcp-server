@@ -108,10 +108,8 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			opts := &github.NotificationListOptions{
 				All:           filter == FilterIncludeRead,
 				Participating: filter == FilterOnlyParticipating,
-				ListOptions: github.ListOptions{
-					Page:    paginationParams.Page,
-					PerPage: paginationParams.PerPage,
-				},
+				Page:          paginationParams.Page,
+				PerPage:       paginationParams.PerPage,
 			}
 
 			// Parse time parameters if provided

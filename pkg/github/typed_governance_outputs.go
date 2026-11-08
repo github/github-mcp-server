@@ -20,8 +20,9 @@ type MinimalLabel struct {
 }
 
 type ListLabelsOutput struct {
-	Labels     []MinimalLabel `json:"labels"`
-	TotalCount int            `json:"totalCount" jsonschema:"Total labels in the repository."`
+	Labels     []MinimalLabel  `json:"labels"`
+	TotalCount int             `json:"totalCount" jsonschema:"Total labels in the repository."`
+	PageInfo   MinimalPageInfo `json:"pageInfo"`
 }
 
 type LabelWriteOutput struct {
