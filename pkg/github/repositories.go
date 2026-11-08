@@ -26,8 +26,6 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-
-
 type GetCommitInput struct {
 	Owner   string `json:"owner"`
 	Repo    string `json:"repo"`
