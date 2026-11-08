@@ -21,7 +21,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		ctx := r.Context()
 
 		// Readonly mode
-		if relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPReadOnlyHeader), relaxedParseBool) {
 			ctx = ghcontext.WithReadonly(ctx, true)
 		}
 
@@ -36,7 +36,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		}
 
 		// Lockdown mode
-		if relaxedParseBool(r.Header.Get(headers.MCPLockdownHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPLockdownHeader), relaxedParseBool) {
 			ctx = ghcontext.WithLockdownMode(ctx, true)
 		}
 
@@ -46,7 +46,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		}
 
 		// Insiders mode
-		if relaxedParseBool(r.Header.Get(headers.MCPInsidersHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPInsidersHeader), relaxedParseBool) {
 			ctx = ghcontext.WithInsidersMode(ctx, true)
 		}
 
@@ -56,7 +56,7 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		if hasHeaderFeatures {
 			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPFeaturesHeader), ",")))
 		} else if hasQueryFeatures {
-			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(query.Get(queryParamFeatures)))
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(strings.Join(query[queryParamFeatures], ",")))
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
