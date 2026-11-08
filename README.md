@@ -1,4 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server/v2)](https://goreportcard.com/report/github.com/github/github-mcp-server/v2)
+[![MCP Security Audit](https://raw.githubusercontent.com/DSHCorrectover/mcp-security-scanner/main/badges/scanned.svg)](https://github.com/DSHCorrectover/mcp-security-scanner)
 
 # GitHub MCP Server
 
