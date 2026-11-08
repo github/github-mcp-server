@@ -412,23 +412,22 @@ For a complete overview of all installation options, see our **[Installation Gui
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
-### Build from source
+### Install with Go / build from source
 
-If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`.
+If you prefer a native binary over Docker, install with Go (requires [Go](https://go.dev/dl/) 1.27+):
 
-STDIO API requests identify the server as `github-mcp-server/<version>` and retain the upstream MCP client's name/version in parentheses when available. Control characters, quotes, backslashes and parentheses in client metadata are escaped so the HTTP header remains valid; ordinary names, versions, spaces and printable Unicode are preserved. Release builds keep their release version. Source and default Docker builds with revision metadata use `vcs-<full-commit-sha>`. The Docker publishing workflow preserves tag versions, including prereleases, and lets branch, pull-request and nightly builds use the linked source revision. The `-dirty` marker applies only when both the revision and modified state come from embedded VCS metadata, never to a valid, explicitly supplied `main.commit`. This is a VCS build identifier, not a release number.
+```bash
+go install github.com/github/github-mcp-server/v2/cmd/github-mcp-server@latest
+```
 
-Build the complete package with `go build -o github-mcp-server ./cmd/github-mcp-server` from a Git checkout to embed its VCS revision. For builds without VCS metadata, supply the actual release with `-ldflags '-X main.version=<release>'` or the full source revision with `-ldflags '-X main.commit=<sha>'`. Valid metadata is selected in this order: explicit release, explicit source revision, embedded VCS revision, then installed main-module version. Valid explicit revisions remain authoritative even if build-context filtering changes embedded VCS metadata. Missing or malformed candidates fall through to the next usable source. If none is available, STDIO still starts with the development label `dev` and emits a warning on stderr, leaving stdout available for the MCP protocol. Supply real release or revision metadata when version-specific attribution is needed.
-
-For example:
+This places `github-mcp-server` in `$(go env GOPATH)/bin` (or `GOBIN` if set). Make sure that directory is on your `PATH`, then point your MCP host at the binary:
 
 ```JSON
 {
   "mcp": {
     "servers": {
       "github": {
-        "command": "/path/to/github-mcp-server",
+        "command": "github-mcp-server",
         "args": ["stdio"],
         "env": {
           "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
@@ -438,6 +437,14 @@ For example:
   }
 }
 ```
+
+For OAuth login with a native binary (no fixed Docker callback port), see **[Local Server OAuth Login](docs/oauth-login.md)**.
+
+To build from a local checkout instead — for example to embed VCS revision metadata — run `go build -o github-mcp-server ./cmd/github-mcp-server` from the repository root (use `-o` to choose the output path). Configure your MCP host to use that executable as its `command`, with the same `args` / `env` shape as above.
+
+STDIO API requests identify the server as `github-mcp-server/<version>` and retain the upstream MCP client's name/version in parentheses when available. Control characters, quotes, backslashes and parentheses in client metadata are escaped so the HTTP header remains valid; ordinary names, versions, spaces and printable Unicode are preserved. Release builds keep their release version. Source and default Docker builds with revision metadata use `vcs-<full-commit-sha>`. The Docker publishing workflow preserves tag versions, including prereleases, and lets branch, pull-request and nightly builds use the linked source revision. The `-dirty` marker applies only when both the revision and modified state come from embedded VCS metadata, never to a valid, explicitly supplied `main.commit`. This is a VCS build identifier, not a release number.
+
+For builds without VCS metadata, supply the actual release with `-ldflags '-X main.version=<release>'` or the full source revision with `-ldflags '-X main.commit=<sha>'`. Valid metadata is selected in this order: explicit release, explicit source revision, embedded VCS revision, then installed main-module version. Valid explicit revisions remain authoritative even if build-context filtering changes embedded VCS metadata. Missing or malformed candidates fall through to the next usable source. If none is available, STDIO still starts with the development label `dev` and emits a warning on stderr, leaving stdout available for the MCP protocol. Supply real release or revision metadata when version-specific attribution is needed.
 
 ## Tool Configuration
 
