@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/raw"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
@@ -52,9 +52,9 @@ func inlineToolResultWireSize(result *mcp.CallToolResult, typedOutput *Repositor
 		typedOutput = &RepositoryContentsOutput{}
 	}
 	response := struct {
-		JSONRPC           string                     `json:"jsonrpc"`
-		ID                jsonrpc.ID                 `json:"id"`
-		Result            *mcp.CallToolResult        `json:"result"`
+		JSONRPC           string                    `json:"jsonrpc"`
+		ID                jsonrpc.ID                `json:"id"`
+		Result            *mcp.CallToolResult       `json:"result"`
 		StructuredContent *RepositoryContentsOutput `json:"structuredContent,omitempty"`
 	}{JSONRPC: "2.0", Result: result, StructuredContent: typedOutput}
 	encoded, err := json.Marshal(response)
