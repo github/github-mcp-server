@@ -32,7 +32,8 @@
             "TEXT",
             "NUMBER",
             "DATE",
-            "SINGLE_SELECT"
+            "SINGLE_SELECT",
+            "MULTI_SELECT"
           ],
           "type": "string"
         },
@@ -53,7 +54,7 @@
           "type": "string"
         },
         "options": {
-          "description": "Available values for single-select fields.",
+          "description": "Available values for single-select and multi-select fields.",
           "items": {
             "additionalProperties": false,
             "properties": {

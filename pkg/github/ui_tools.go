@@ -403,18 +403,19 @@ func uiGetIssueFields(ctx context.Context, deps ToolDependencies, args map[strin
 func marshalUIGetIssueFields(fields []IssueField) (*mcp.CallToolResult, any, error) {
 	resultFields := make([]map[string]any, 0, len(fields))
 	for _, field := range fields {
-		if !uiSupportedIssueFieldDataType(field.DataType) {
+		dataType := strings.ToLower(field.DataType)
+		if !uiSupportedIssueFieldDataType(dataType) {
 			continue
 		}
 
 		fieldResult := map[string]any{
 			"id":          field.ID,
 			"name":        field.Name,
-			"data_type":   field.DataType,
+			"data_type":   dataType,
 			"description": field.Description,
 		}
 
-		if field.DataType == "single_select" {
+		if dataType == "single_select" || dataType == "multi_select" {
 			fieldOptions := append([]IssueSingleSelectFieldOption(nil), field.Options...)
 			sort.SliceStable(fieldOptions, func(i, j int) bool {
 				left, leftOK := issueFieldOptionPriority(fieldOptions[i])
@@ -452,7 +453,7 @@ func marshalUIGetIssueFields(fields []IssueField) (*mcp.CallToolResult, any, err
 
 func uiSupportedIssueFieldDataType(dataType string) bool {
 	switch dataType {
-	case "text", "number", "date", "single_select":
+	case "text", "number", "date", "single_select", "multi_select":
 		return true
 	default:
 		return false

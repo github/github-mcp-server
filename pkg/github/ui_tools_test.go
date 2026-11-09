@@ -560,14 +560,22 @@ func Test_marshalUIGetIssueFields_TrimsForUI(t *testing.T) {
 			Name:     "Notes",
 			DataType: "text",
 		},
+		{
+			ID:       "field-4",
+			Name:     "Components",
+			DataType: "MULTI_SELECT",
+			Options: []IssueSingleSelectFieldOption{
+				{ID: "option-4", Name: "API", Description: "API component", Color: "green"},
+			},
+		},
 	})
 	require.NoError(t, err)
 
 	var response map[string]any
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
 	fields := response["fields"].([]any)
-	require.Len(t, fields, 2)
-	assert.Equal(t, float64(2), response["totalCount"])
+	require.Len(t, fields, 3)
+	assert.Equal(t, float64(3), response["totalCount"])
 
 	singleSelectField := fields[0].(map[string]any)
 	assert.NotContains(t, singleSelectField, "full_database_id")
@@ -578,6 +586,12 @@ func Test_marshalUIGetIssueFields_TrimsForUI(t *testing.T) {
 	assert.Equal(t, "High", options[1].(map[string]any)["name"])
 	assert.Equal(t, "No priority", options[2].(map[string]any)["name"])
 	assert.NotContains(t, options[0].(map[string]any), "id")
+
+	multiSelectField := fields[2].(map[string]any)
+	assert.Equal(t, "multi_select", multiSelectField["data_type"])
+	multiSelectOptions := multiSelectField["options"].([]any)
+	require.Len(t, multiSelectOptions, 1)
+	assert.Equal(t, "API", multiSelectOptions[0].(map[string]any)["name"])
 	assert.NotContains(t, options[0].(map[string]any), "priority")
 
 	textField := fields[1].(map[string]any)

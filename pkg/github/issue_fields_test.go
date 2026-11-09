@@ -35,6 +35,7 @@ func Test_ListIssueFields(t *testing.T) {
 		"owner": githubv4.String("testowner"),
 		"name":  githubv4.String("testrepo"),
 	}
+
 	orgQueryStruct := issueFieldsOrgQuery{}
 	defaultOrgVars := map[string]any{
 		"login": githubv4.String("testowner"),
@@ -353,7 +354,29 @@ func Test_ListIssueFields(t *testing.T) {
 						assert.Equal(t, opt.Color, returnedFields[i].Options[j].Color)
 					}
 				}
+
 			}
 		})
 	}
+}
+
+func Test_ListIssueFields_OutputSchemaAcceptsMultiSelect(t *testing.T) {
+	schema := ListIssueFields(translations.NullTranslationHelper).Tool.OutputSchema.(*jsonschema.Schema)
+	resolved, err := schema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
+	require.NoError(t, err)
+
+	err = resolved.Validate([]any{map[string]any{
+		"id":         "IFMS_1",
+		"name":       "Components",
+		"data_type":  "MULTI_SELECT",
+		"visibility": "ALL",
+		"options": []any{
+			map[string]any{
+				"id":    "OPT_1",
+				"name":  "API",
+				"color": "BLUE",
+			},
+		},
+	}})
+	require.NoError(t, err)
 }
