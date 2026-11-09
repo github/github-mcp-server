@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -164,6 +165,10 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 	if cfg.RepoAccessCacheTTL != nil {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
+	}
+
+	if unrecognized := github.UnrecognizedFeatureFlags(cfg.EnabledFeatures); len(unrecognized) > 0 {
+		logger.Warn("Warning: unrecognized features ignored", "features", strings.Join(unrecognized, ", "))
 	}
 
 	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)

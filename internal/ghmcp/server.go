@@ -182,6 +182,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
+	if unrecognized := github.UnrecognizedFeatureFlags(cfg.EnabledFeatures); len(unrecognized) > 0 {
+		cfg.Logger.Warn("Warning: unrecognized features ignored", "features", strings.Join(unrecognized, ", "))
+	}
+
 	// Create feature checker — resolves explicit features + insiders expansion
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 

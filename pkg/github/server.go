@@ -114,6 +114,10 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
 	}
 
+	if unrecognized := inv.UnrecognizedExcludeTools(); len(unrecognized) > 0 {
+		cfg.Logger.Warn("Warning: unrecognized excluded tools ignored; these tools are not disabled", "tools", strings.Join(unrecognized, ", "))
+	}
+
 	// Register GitHub tools/resources/prompts from the inventory.
 	inv.RegisterAll(ctx, ghServer, deps, cfg.ToolHandlerMiddleware...)
 
