@@ -17,6 +17,8 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 
+> **Boolean env vars:** `GITHUB_READ_ONLY`, `GITHUB_LOCKDOWN_MODE`, `GITHUB_INSIDERS` and the other boolean settings accept the same values as their flags (`1`, `t`, `T`, `true`, `TRUE`, `True`, `0`, `f`, `F`, `false`, `FALSE`, `False`). Any other value, such as `yes` or `on`, stops the server at startup with an error.
+
 > **Default behavior:** If you don't specify any configuration, the server uses the **default toolsets**: `context`, `issues`, `pull_requests`, `repos`, `users`.
 
 ---

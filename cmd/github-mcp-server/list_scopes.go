@@ -82,6 +82,10 @@ func formatScopeDisplay(scope string) string {
 }
 
 func runListScopes() error {
+	if err := validateBoolSettings("read-only"); err != nil {
+		return err
+	}
+
 	// Get toolsets configuration (same logic as stdio command)
 	var enabledToolsets []string
 	if viper.IsSet("toolsets") {

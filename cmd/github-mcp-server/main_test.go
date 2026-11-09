@@ -57,6 +57,51 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
 }
 
+func TestValidateBoolSettingsFromEnv(t *testing.T) {
+	tests := []struct {
+		value   string
+		want    bool
+		wantErr bool
+	}{
+		{value: "1", want: true},
+		{value: "true", want: true},
+		{value: "TRUE", want: true},
+		{value: "t", want: true},
+		{value: "0", want: false},
+		{value: "false", want: false},
+		{value: "yes", wantErr: true},
+		{value: "on", wantErr: true},
+		{value: "enabled", wantErr: true},
+		{value: "tru", wantErr: true},
+	}
+
+	for _, envName := range []string{"GITHUB_READ_ONLY", "GITHUB_LOCKDOWN_MODE"} {
+		key := strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(envName, "GITHUB_")), "_", "-")
+		for _, tc := range tests {
+			t.Run(envName+"="+tc.value, func(t *testing.T) {
+				t.Setenv(envName, tc.value)
+				initConfig()
+
+				err := validateBoolSettings(boolSettings...)
+				if tc.wantErr {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), envName)
+					assert.Contains(t, err.Error(), tc.value)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, viper.GetBool(key))
+			})
+		}
+	}
+
+	t.Run("unset", func(t *testing.T) {
+		initConfig()
+		require.NoError(t, validateBoolSettings(boolSettings...))
+		assert.False(t, viper.GetBool("read-only"))
+	})
+}
+
 func TestWriteToolDocScopes(t *testing.T) {
 	tool := inventory.ServerTool{
 		Tool:        mcp.Tool{Name: "delete", Annotations: &mcp.ToolAnnotations{Title: "Delete"}},
