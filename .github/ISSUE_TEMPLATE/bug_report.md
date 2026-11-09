@@ -13,7 +13,7 @@ A clear and concise description of what the bug is.
 
 ### Affected version
 
-Please run ` docker run -i --rm ghcr.io/github/github-mcp-server ./github-mcp-server --version` and paste the output below
+Please run `docker run -i --rm ghcr.io/github/github-mcp-server ./github-mcp-server --version` and paste the output below
 
 ### Steps to reproduce the behavior
 
