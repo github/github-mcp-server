@@ -77,8 +77,13 @@ func TestValidateBoolSettingsFromEnv(t *testing.T) {
 		{value: "true", want: true},
 		{value: "TRUE", want: true},
 		{value: "t", want: true},
+		{value: "T", want: true},
+		{value: "True", want: true},
 		{value: "0", want: false},
 		{value: "false", want: false},
+		{value: "F", want: false},
+		{value: "FALSE", want: false},
+		{value: "False", want: false},
 		{value: "", wantErr: true},
 		{value: "yes", wantErr: true},
 		{value: "on", wantErr: true},
@@ -98,6 +103,7 @@ func TestValidateBoolSettingsFromEnv(t *testing.T) {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), envName)
 					assert.Contains(t, err.Error(), fmt.Sprintf("%q", tc.value))
+					assert.Contains(t, err.Error(), "1, t, T, true, TRUE, True, 0, f, F, false, FALSE, False")
 					return
 				}
 				require.NoError(t, err)

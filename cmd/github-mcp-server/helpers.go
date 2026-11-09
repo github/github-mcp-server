@@ -67,7 +67,7 @@ func validateBoolSettings(flags *pflag.FlagSet, keys ...string) error {
 			value = envValue
 		}
 		if _, err := strconv.ParseBool(value); err != nil {
-			return fmt.Errorf("invalid value %q for %s: must be a boolean (1, t, true, 0, f, false)", value, envName)
+			return fmt.Errorf("invalid value %q for %s: must be a boolean (1, t, T, true, TRUE, True, 0, f, F, false, FALSE, False)", value, envName)
 		}
 	}
 	return nil
