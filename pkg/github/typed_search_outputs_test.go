@@ -383,6 +383,10 @@ func TestNormalizeTypedReadArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
 		`{"page":"9223372036854775808"}`,
 		`{"perPage":"9223372036854775807"}`,
 		`{"page":"-9223372036854777856"}`,
+		`{"page": 9223372036854775808}`,
+		`{"perPage": 9223372036854775807}`,
+		`{"page": -9223372036854777856}`,
+		`{"page": 1.5}`,
 	} {
 		t.Run(input, func(t *testing.T) {
 			_, err := normalize(json.RawMessage(input))
