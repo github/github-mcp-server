@@ -52,7 +52,7 @@ func newRepoAccessHTTPClient() *http.Client {
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
 }
 
-const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true){totalCount,nodes{number,title,state,url,author{login},repository{nameWithOwner}}},subIssuesSummary{total,completed,percentCompleted}}}}"
+const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login,__typename},repository{nameWithOwner}},closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true){totalCount,nodes{number,title,state,url,author{login,__typename},repository{nameWithOwner}}},subIssuesSummary{total,completed,percentCompleted}}}}"
 
 const searchIssueFieldValuesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
 
@@ -5604,7 +5604,8 @@ func Test_GetIssueParent(t *testing.T) {
 					State  githubv4.String
 					URL    githubv4.String
 					Author struct {
-						Login githubv4.String
+						Login    githubv4.String
+						TypeName githubv4.String `graphql:"__typename"`
 					}
 					Repository struct {
 						NameWithOwner githubv4.String
@@ -5620,7 +5621,7 @@ func Test_GetIssueParent(t *testing.T) {
 		"issueNumber": githubv4.Int(123),
 	}
 
-	parentResponse := func(authorLogin string) githubv4mock.GQLResponse {
+	parentResponseWithType := func(authorLogin, authorType string) githubv4mock.GQLResponse {
 		return githubv4mock.DataResponse(map[string]any{
 			"repository": map[string]any{
 				"issue": map[string]any{
@@ -5630,7 +5631,8 @@ func Test_GetIssueParent(t *testing.T) {
 						"state":  githubv4.String("OPEN"),
 						"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
 						"author": map[string]any{
-							"login": githubv4.String(authorLogin),
+							"login":      githubv4.String(authorLogin),
+							"__typename": githubv4.String(authorType),
 						},
 						"repository": map[string]any{
 							"nameWithOwner": githubv4.String("owner/repo"),
@@ -5639,6 +5641,9 @@ func Test_GetIssueParent(t *testing.T) {
 				},
 			},
 		})
+	}
+	parentResponse := func(authorLogin string) githubv4mock.GQLResponse {
+		return parentResponseWithType(authorLogin, "User")
 	}
 
 	tests := []struct {
@@ -5713,6 +5718,20 @@ func Test_GetIssueParent(t *testing.T) {
 			lockdownEnabled: true,
 			restOverrides:   map[string]string{"externaluser": "read"},
 			expectedText:    `"parent":null`,
+		},
+		{
+			// GraphQL returns bot logins without "[bot]"; the permission check needs the REST login.
+			name: "lockdown enabled - parent authored by a bot with push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponseWithType("triage-bot", "Bot"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"triage-bot[bot]": "write"},
+			expectedText:    `"title":"Parent issue"`,
 		},
 	}
 

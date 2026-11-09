@@ -2575,6 +2575,97 @@ func Test_GetPullRequestComments(t *testing.T) {
 				assert.Equal(t, "Maintainer review comment", comment.Body)
 			},
 		},
+		{
+			name: "lockdown enabled keeps review comments from a bot with push access",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]any{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"id":          "RT_kwDOA0xdyM4AX1Yz",
+											"isResolved":  false,
+											"isOutdated":  false,
+											"isCollapsed": false,
+											"comments": map[string]any{
+												"totalCount": 2,
+												"nodes": []map[string]any{
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
+														"body": "Bot review comment",
+														"path": "file1.go",
+														"line": 5,
+														// GraphQL returns bot logins without the "[bot]" suffix.
+														"author": map[string]any{
+															"login":      "review-bot",
+															"__typename": "Bot",
+														},
+														"createdAt": "2024-01-01T12:00:00Z",
+														"updatedAt": "2024-01-01T12:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2010",
+													},
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
+														"body": "External review comment",
+														"path": "file1.go",
+														"line": 10,
+														"author": map[string]any{
+															"login":      "testuser",
+															"__typename": "User",
+														},
+														"createdAt": "2024-01-01T13:00:00Z",
+														"updatedAt": "2024-01-01T13:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2011",
+													},
+												},
+											},
+										},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": false,
+										"startCursor":     "cursor1",
+										"endCursor":       "cursor2",
+									},
+									"totalCount": 1,
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			lockdownEnabled: true,
+			validateResult: func(t *testing.T, textContent string) {
+				var result MinimalReviewThreadsResponse
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+
+				require.Len(t, result.ReviewThreads, 1)
+				thread := result.ReviewThreads[0]
+				assert.Equal(t, 1, thread.TotalCount)
+				require.Len(t, thread.Comments, 1)
+				assert.Equal(t, "review-bot", thread.Comments[0].Author)
+				assert.Equal(t, "Bot review comment", thread.Comments[0].Body)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -2591,9 +2682,10 @@ func Test_GetPullRequestComments(t *testing.T) {
 			var restClient *github.Client
 			if tc.lockdownEnabled {
 				restClient = mockRESTPermissionServer(t, "read", map[string]string{
-					"maintainer":    "write",
-					"external-user": "read",
-					"testuser":      "read",
+					"maintainer":      "write",
+					"external-user":   "read",
+					"testuser":        "read",
+					"review-bot[bot]": "write",
 				})
 			}
 			cache := stubRepoAccessCache(restClient, 5*time.Minute)

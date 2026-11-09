@@ -302,3 +302,88 @@ func TestRepoAccessCacheRejectsEmptyViewerLogin(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "empty")
 }
+
+func TestRestLogin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		login    string
+		typeName string
+		want     string
+	}{
+		{name: "graphql bot login gets the REST suffix", login: "dependabot", typeName: "Bot", want: "dependabot[bot]"},
+		{name: "bot login that already has the suffix", login: "dependabot[bot]", typeName: "Bot", want: "dependabot[bot]"},
+		{name: "user login is unchanged", login: "octocat", typeName: "User", want: "octocat"},
+		{name: "unknown actor type is unchanged", login: "octocat", typeName: "", want: "octocat"},
+		{name: "empty bot login stays empty", login: "", typeName: "Bot", want: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, restLogin(tc.login, tc.typeName))
+		})
+	}
+}
+
+func TestRepoAccessCacheIsSafeActorContent(t *testing.T) {
+	t.Parallel()
+
+	// Only the REST form of the bot login has push access, as on github.com.
+	newCache := func(t *testing.T) (*RepoAccessCache, *[]string) {
+		t.Helper()
+		var mu sync.Mutex
+		var requested []string
+		restServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			requested = append(requested, r.URL.Path)
+			mu.Unlock()
+			perm := "read"
+			if strings.HasSuffix(r.URL.Path, "/collaborators/review-bot[bot]/permission") {
+				perm = "write"
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(gogithub.RepositoryPermissionLevel{Permission: new(perm)})
+		}))
+		t.Cleanup(restServer.Close)
+		restClient, err := gogithub.NewClient(gogithub.WithEnterpriseURLs(restServer.URL+"/", restServer.URL+"/"))
+		require.NoError(t, err)
+		gqlClient, _ := newMockGQLClient(testUser, false)
+		return NewRepoAccessCache(gqlClient, restClient, WithCacheName(t.Name())), &requested
+	}
+
+	t.Run("graphql bot login is checked as the REST login", func(t *testing.T) {
+		t.Parallel()
+		cache, requested := newCache(t)
+		safe, err := cache.IsSafeActorContent(t.Context(), "review-bot", "Bot", testOwner, testRepo)
+		require.NoError(t, err)
+		require.True(t, safe)
+		require.Len(t, *requested, 1)
+		require.Contains(t, (*requested)[0], "/collaborators/review-bot[bot]/permission")
+	})
+
+	t.Run("user with the same login is not treated as the bot", func(t *testing.T) {
+		t.Parallel()
+		cache, _ := newCache(t)
+		safe, err := cache.IsSafeActorContent(t.Context(), "review-bot", "User", testOwner, testRepo)
+		require.NoError(t, err)
+		require.False(t, safe)
+	})
+
+	t.Run("copilot stays trusted without a permission lookup", func(t *testing.T) {
+		t.Parallel()
+		cache, requested := newCache(t)
+		safe, err := cache.IsSafeActorContent(t.Context(), "Copilot", "Bot", testOwner, testRepo)
+		require.NoError(t, err)
+		require.True(t, safe)
+		require.Empty(t, *requested)
+	})
+
+	t.Run("nil cache fails closed", func(t *testing.T) {
+		t.Parallel()
+		var cache *RepoAccessCache
+		safe, err := cache.IsSafeActorContent(t.Context(), "review-bot", "Bot", testOwner, testRepo)
+		require.Error(t, err)
+		require.False(t, safe)
+	})
+}
