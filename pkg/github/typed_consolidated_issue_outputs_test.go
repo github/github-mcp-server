@@ -608,7 +608,6 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 				}
 				require.NoError(t, json.NewEncoder(w).Encode(response))
 			})}}
-			existing := `[{"__typename":"IssueFieldTextValue","field":{"fullDatabaseId":"1","name":"Text"},"value":"old"},{"__typename":"IssueFieldDateValue","field":{"fullDatabaseId":"3","name":"Date"},"value":"2026-01-01"}]`
 			gql := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request struct {
 					Query string `json:"query"`
@@ -622,8 +621,6 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 						{"__typename":"IssueFieldDate","fullDatabaseId":"3","name":"Date","dataType":"DATE"},
 						{"__typename":"IssueFieldSingleSelect","fullDatabaseId":"4","name":"Priority","dataType":"SINGLE_SELECT","options":[{"fullDatabaseId":"40","name":"High"}]}
 					]}}}}`))
-				case strings.Contains(request.Query, "issueFieldValues("):
-					_, _ = w.Write([]byte(`{"data":{"repository":{"issue":{"issueFieldValues":{"nodes":` + existing + `}}}}}`))
 				default:
 					t.Errorf("unexpected GraphQL mutation/query: %s", request.Query)
 				}
@@ -641,7 +638,7 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 				{map[string]any{"issue_fields": []any{
 					map[string]any{"field_name": "Number", "value": 0},
 					map[string]any{"field_name": "Text", "delete": true},
-				}}, `{"issue_field_values":[{"field_id":2,"value":0},{"field_id":3,"value":"2026-01-01"}]}`},
+				}}, `{"issue_field_values":[{"field_id":2,"value":0}]}`},
 				{map[string]any{"method": "create", "title": "Subject", "body": "", "issue_fields": []any{
 					map[string]any{"field_name": " text ", "value": ""},
 					map[string]any{"field_name": "Number", "value": 0},
@@ -658,7 +655,7 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 				assertConsolidatedResult(t, session, schemas, "issue_write", args, resultText)
 				assert.JSONEq(t, tc.body, requestBody)
 			}
-			existing = `[{"__typename":"IssueFieldTextValue","field":{"fullDatabaseId":"1","name":"Text"},"value":"old"}]`
+			deleted = nil
 			assertConsolidatedResult(t, session, schemas, "issue_write", map[string]any{
 				"method": "update", "owner": "owner", "repo": "repo", "issue_number": 1,
 				"issue_fields": []any{map[string]any{"field_name": "Text", "delete": true}},

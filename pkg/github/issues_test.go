@@ -4768,34 +4768,20 @@ func Test_UpdateIssue(t *testing.T) {
 			name: "partial update with issue fields reconciled by names",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-					"issue_field_values": []any{
-						map[string]any{"field_id": float64(101), "value": "P1"},
-						map[string]any{"field_id": float64(102), "value": "Acme"},
-					},
 					"title": "Updated Title",
 				}).andThen(
 					mockResponse(t, http.StatusOK, mockUpdatedIssue),
 				),
+				PostReposIssuesIssueFieldValuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"issue_field_values": []any{
+						map[string]any{"field_id": float64(101), "value": "P1"},
+						map[string]any{"field_id": float64(102), "value": "Acme"},
+					},
+				}).andThen(
+					mockResponse(t, http.StatusOK, []any{}),
+				),
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
-				// fetch-and-merge: returns no existing fields so the incoming values are used as-is
-				githubv4mock.NewQueryMatcher(
-					"query($number:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){issue(number: $number){issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}",
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"repo":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"issueFieldValues": map[string]any{
-									"nodes": []any{},
-								},
-							},
-						},
-					}),
-				),
 				githubv4mock.NewQueryMatcher(
 					issueFieldWriteMetadataQuery{},
 					map[string]any{
