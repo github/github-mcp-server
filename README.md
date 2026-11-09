@@ -779,6 +779,12 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Copilot Automations</summary>
 
+- **get_automation_tag** - Get automation tag
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `tag_id`: Automation tag ID, as returned by list_automation_tags (string, required)
+
 - **list_automation_tags** - List automation tags
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
