@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
@@ -63,10 +64,13 @@ func packageOwnerSchema() map[string]*jsonschema.Schema {
 	}
 }
 
+var packageOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 // requirePackageOwner reads the owner for an org_* or user_* method, rejecting
 // the owner argument that belongs to the other kind of method so that a call
 // is never silently redirected to a different owner.
 func requirePackageOwner(args map[string]any, isOrg bool) (string, error) {
+	var owner, param string
 	if isOrg {
 		username, err := OptionalParam[string](args, "username")
 		if err != nil {
@@ -75,16 +79,27 @@ func requirePackageOwner(args map[string]any, isOrg bool) (string, error) {
 		if username != "" {
 			return "", fmt.Errorf("'username' is not supported by org_* methods; use the user_* methods to target a user")
 		}
-		return RequiredParam[string](args, "org")
+		if owner, err = RequiredParam[string](args, "org"); err != nil {
+			return "", err
+		}
+		param = "org"
+	} else {
+		org, err := OptionalParam[string](args, "org")
+		if err != nil {
+			return "", err
+		}
+		if org != "" {
+			return "", fmt.Errorf("'org' is not supported by user_* methods; use the org_* methods to target an organization")
+		}
+		if owner, err = OptionalParam[string](args, "username"); err != nil {
+			return "", err
+		}
+		param = "username"
 	}
-	org, err := OptionalParam[string](args, "org")
-	if err != nil {
-		return "", err
+	if owner != "" && !packageOwnerPattern.MatchString(owner) {
+		return "", fmt.Errorf("invalid '%s': only letters, digits, '-' and '_' are allowed", param)
 	}
-	if org != "" {
-		return "", fmt.Errorf("'org' is not supported by user_* methods; use the org_* methods to target an organization")
-	}
-	return OptionalParam[string](args, "username")
+	return owner, nil
 }
 
 // requirePackage reads the owner, package type, and package name, and the

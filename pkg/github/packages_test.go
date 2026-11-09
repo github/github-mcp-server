@@ -157,6 +157,31 @@ func Test_PackagesRead(t *testing.T) {
 			expectedErrMsg: "'org' is not supported by user_* methods",
 		},
 		{
+			name:     "get_user_package rejects username with path characters",
+			handlers: map[string]http.HandlerFunc{},
+			args: map[string]any{
+				"method":       "get_user_package",
+				"username":     "octocat/packages/npm/other-lib?",
+				"package_type": "npm",
+				"package_name": "lib",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid 'username': only letters, digits, '-' and '_' are allowed",
+		},
+		{
+			name: "get_user_package accepts EMU login with underscore",
+			handlers: map[string]http.HandlerFunc{
+				"GET /users/{username}/packages/{package_type}/{package_name}": mockResponse(t, http.StatusOK, mockPackage),
+			},
+			args: map[string]any{
+				"method":       "get_user_package",
+				"username":     "octocat_acme",
+				"package_type": "container",
+				"package_name": "github-mcp-server",
+			},
+			expectedResult: convertToPackageOutput(mockPackage),
+		},
+		{
 			name: "get_org_package",
 			handlers: map[string]http.HandlerFunc{
 				"GET /orgs/{org}/packages/{package_type}/{package_name}": mockResponse(t, http.StatusOK, mockPackage),
@@ -600,6 +625,31 @@ func Test_PackagesWrite(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "'org' is not supported by user_* methods",
+		},
+		{
+			name:     "delete_org_package_version rejects org with path characters",
+			handlers: map[string]http.HandlerFunc{},
+			args: map[string]any{
+				"method":             "delete_org_package_version",
+				"org":                "acme/packages/container/prod-image?",
+				"package_type":       "container",
+				"package_name":       "prod-image",
+				"package_version_id": float64(101),
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid 'org': only letters, digits, '-' and '_' are allowed",
+		},
+		{
+			name:     "delete_user_package rejects username with path characters",
+			handlers: map[string]http.HandlerFunc{},
+			args: map[string]any{
+				"method":       "delete_user_package",
+				"username":     "../user",
+				"package_type": "npm",
+				"package_name": "old-lib",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid 'username': only letters, digits, '-' and '_' are allowed",
 		},
 		{
 			name:     "unknown method",
