@@ -3355,10 +3355,21 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = new(issueType)
 	}
 
+	// Field values are written before the PATCH so that a rejected value (an
+	// invalid date or unknown option, say) fails the call before anything else
+	// on the issue changes.
+	if errResult := writeIssueFieldValues(ctx, client, owner, repo, issueNumber, issueFieldValues, fieldIDsToDelete); errResult != nil {
+		return errResult, nil, nil
+	}
+	patchFailureMessage := "failed to update issue"
+	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
+		patchFailureMessage = "issue field values updated but the rest of the issue update failed"
+	}
+
 	updatedIssue, resp, err := patchIssue(ctx, client, owner, repo, issueNumber, issueRequest, issueType, updateOptions.IssueTypeProvided)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to update issue",
+			patchFailureMessage,
 			resp,
 			err,
 		), nil, nil
@@ -3370,52 +3381,7 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil, nil
-	}
-
-	// Issue field values go through the per-field endpoints, not the PATCH
-	// above: the PATCH replaces the whole set, so writing back values read
-	// earlier would revert concurrent changes to other fields.
-	if len(issueFieldValues) > 0 {
-		fieldsResp, err := addIssueFieldValues(ctx, client, owner, repo, issueNumber, issueFieldValues)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to set issue field values", fieldsResp, err), nil, nil
-		}
-	}
-
-	// Errors are aggregated (not short-circuited) so callers can see which
-	// fields were cleared and which need retry.
-	if len(fieldIDsToDelete) > 0 {
-		var failedIDs, succeededIDs []int64
-		var firstFailureErr error
-		var firstFailureResp *github.Response
-		for _, fieldID := range fieldIDsToDelete {
-			path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
-			req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
-			if err != nil {
-				failedIDs = append(failedIDs, fieldID)
-				if firstFailureErr == nil {
-					firstFailureErr = err
-				}
-				continue
-			}
-			delResp, err := client.Do(req, nil)
-			// 404 means the field has no value, so clearing it again stays a no-op.
-			if err != nil && (delResp == nil || delResp.StatusCode != http.StatusNotFound) {
-				failedIDs = append(failedIDs, fieldID)
-				if firstFailureErr == nil {
-					firstFailureErr = err
-					firstFailureResp = delResp
-				}
-				continue
-			}
-			succeededIDs = append(succeededIDs, fieldID)
-			_ = delResp.Body.Close()
-		}
-		if len(failedIDs) > 0 {
-			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil, nil
-		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, patchFailureMessage, resp, body), nil, nil
 	}
 
 	// Use GraphQL API for state updates
@@ -3524,6 +3490,63 @@ func patchIssue(ctx context.Context, client *github.Client, owner, repo string, 
 	issue := &github.Issue{}
 	resp, err := client.Do(req, issue)
 	return issue, resp, err
+}
+
+// writeIssueFieldValues sets and clears issue field values through the
+// per-field endpoints. The issue PATCH is not used because it replaces the
+// whole set, so writing back values read earlier would revert concurrent
+// changes to other fields. It returns an error result that says which field
+// writes were applied, or nil on success.
+func writeIssueFieldValues(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, values []*github.IssueRequestFieldValue, fieldIDsToDelete []int64) *mcp.CallToolResult {
+	if len(values) > 0 {
+		resp, err := addIssueFieldValues(ctx, client, owner, repo, issueNumber, values)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to set issue field values; the issue was not updated", resp, err)
+		}
+	}
+
+	// Errors are aggregated (not short-circuited) so callers can see which
+	// fields were cleared and which need retry.
+	var failedIDs, clearedIDs []int64
+	var firstFailureErr error
+	var firstFailureResp *github.Response
+	for _, fieldID := range fieldIDsToDelete {
+		path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+		req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+		if err != nil {
+			failedIDs = append(failedIDs, fieldID)
+			if firstFailureErr == nil {
+				firstFailureErr = err
+			}
+			continue
+		}
+		resp, err := client.Do(req, nil)
+		// 404 means the field has no value, so clearing it again stays a no-op.
+		if err != nil && (resp == nil || resp.StatusCode != http.StatusNotFound) {
+			failedIDs = append(failedIDs, fieldID)
+			if firstFailureErr == nil {
+				firstFailureErr = err
+				firstFailureResp = resp
+			}
+			continue
+		}
+		clearedIDs = append(clearedIDs, fieldID)
+		_ = resp.Body.Close()
+	}
+	if len(failedIDs) == 0 {
+		return nil
+	}
+
+	msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, clearedIDs)
+	if len(values) > 0 {
+		setIDs := make([]int64, 0, len(values))
+		for _, v := range values {
+			setIDs = append(setIDs, v.FieldID)
+		}
+		msg += fmt.Sprintf(", set=%v", setIDs)
+	}
+	msg += "; the rest of the issue update was not applied"
+	return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr)
 }
 
 // addIssueFieldValues sets the given issue field values and leaves every other

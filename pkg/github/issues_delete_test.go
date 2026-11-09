@@ -303,3 +303,108 @@ func Test_UpdateIssue_DeleteContinuesOnPartialFailure(t *testing.T) {
 	require.Contains(t, resultText, "cleared=[101 303]",
 		"error must name the cleared field IDs so the caller knows what's already done; got: %s", resultText)
 }
+
+// Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied: field values are
+// written before the issue PATCH, so a rejected field value leaves the issue
+// untouched, and every failure says exactly which writes were applied.
+func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
+	t.Parallel()
+
+	mockIssue := &gogithub.Issue{
+		Number:  new(42),
+		Title:   new("Test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
+	}
+	failWith := func(status int) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"message":"simulated failure"}`))
+		}
+	}
+
+	tests := []struct {
+		name            string
+		values          []*gogithub.IssueRequestFieldValue
+		fieldIDsToClear []int64
+		postStatus      int
+		deleteStatus    int
+		patchStatus     int
+		wantCalls       []string
+		wantErrContains string
+	}{
+		{
+			name:            "rejected field value changes nothing",
+			values:          []*gogithub.IssueRequestFieldValue{{FieldID: 202, Value: "not-a-date"}},
+			postStatus:      http.StatusUnprocessableEntity,
+			wantCalls:       []string{"POST"},
+			wantErrContains: "failed to set issue field values; the issue was not updated",
+		},
+		{
+			name:            "failed clear names the set and cleared fields and skips the PATCH",
+			values:          []*gogithub.IssueRequestFieldValue{{FieldID: 101, Value: "P2"}},
+			fieldIDsToClear: []int64{202},
+			postStatus:      http.StatusOK,
+			deleteStatus:    http.StatusInternalServerError,
+			wantCalls:       []string{"POST", "DELETE"},
+			wantErrContains: "failed to clear issue field values: failed=[202], cleared=[], set=[101]; the rest of the issue update was not applied",
+		},
+		{
+			name:            "failed PATCH after field writes says the fields were updated",
+			values:          []*gogithub.IssueRequestFieldValue{{FieldID: 101, Value: "P2"}},
+			postStatus:      http.StatusOK,
+			patchStatus:     http.StatusUnprocessableEntity,
+			wantCalls:       []string{"POST", "PATCH"},
+			wantErrContains: "issue field values updated but the rest of the issue update failed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu    sync.Mutex
+				calls []string
+			)
+			record := func(method string, next http.HandlerFunc) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					mu.Lock()
+					calls = append(calls, method)
+					mu.Unlock()
+					next(w, r)
+				}
+			}
+			respond := func(status int, body any) http.HandlerFunc {
+				if status >= http.StatusBadRequest {
+					return failWith(status)
+				}
+				return mockResponse(t, status, body)
+			}
+
+			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesIssueFieldValuesByOwnerByRepoByIssueNumber:  record("POST", respond(tc.postStatus, []any{})),
+				DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber: record("DELETE", failWith(tc.deleteStatus)),
+				PatchReposIssuesByOwnerByRepoByIssueNumber:                 record("PATCH", respond(max(tc.patchStatus, http.StatusOK), mockIssue)),
+			}))
+
+			result, err := UpdateIssue(
+				context.Background(),
+				restClient,
+				githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+				"owner", "repo", 42,
+				"", "new body", nil, nil, 0, "",
+				tc.values,
+				tc.fieldIDsToClear,
+				"", "", 0,
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError, "expected an error result")
+			require.Contains(t, getTextResult(t, result).Text, tc.wantErrContains)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, tc.wantCalls, calls)
+		})
+	}
+}

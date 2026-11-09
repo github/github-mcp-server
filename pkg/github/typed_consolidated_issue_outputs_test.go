@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"strings"
@@ -583,12 +584,19 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 	const resultText = `{"id":"123","url":"https://github.com/owner/repo/issues/1"}`
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
 		t.Run("protocol="+protocol, func(t *testing.T) {
-			var requestBody string
+			var requestBody, fieldValuesBody string
 			var deleted []string
 			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodDelete {
 					deleted = append(deleted, r.URL.Path)
 					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				if strings.HasSuffix(r.URL.Path, "/issue-field-values") {
+					body, err := io.ReadAll(r.Body)
+					require.NoError(t, err)
+					fieldValuesBody = string(body)
+					_, _ = w.Write([]byte(`[]`))
 					return
 				}
 
@@ -638,7 +646,7 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 				{map[string]any{"issue_fields": []any{
 					map[string]any{"field_name": "Number", "value": 0},
 					map[string]any{"field_name": "Text", "delete": true},
-				}}, `{"issue_field_values":[{"field_id":2,"value":0}]}`},
+				}}, `{}`},
 				{map[string]any{"method": "create", "title": "Subject", "body": "", "issue_fields": []any{
 					map[string]any{"field_name": " text ", "value": ""},
 					map[string]any{"field_name": "Number", "value": 0},
@@ -655,6 +663,10 @@ func TestTypedIssueWriteMutationOptionalityAndFields(t *testing.T) {
 				assertConsolidatedResult(t, session, schemas, "issue_write", args, resultText)
 				assert.JSONEq(t, tc.body, requestBody)
 			}
+			// Only the issue_fields update case writes field values: it sets Number
+			// and clears Text through the per-field endpoints, not the PATCH.
+			assert.JSONEq(t, `{"issue_field_values":[{"field_id":2,"value":0}]}`, fieldValuesBody)
+			assert.Equal(t, []string{"/repos/owner/repo/issues/1/issue-field-values/1"}, deleted)
 			deleted = nil
 			assertConsolidatedResult(t, session, schemas, "issue_write", map[string]any{
 				"method": "update", "owner": "owner", "repo": "repo", "issue_number": 1,
