@@ -1,0 +1,24 @@
+{
+  "name": "github-mcp",
+  "version": "0.1.0",
+  "description": "GitHub's official MCP Server from Codex via remote MCP",
+  "author": {
+    "name": "github",
+    "url": "https://github.com/github/github-mcp-server"
+  },
+  "homepage": "https://github.com/github/github-mcp-server",
+  "repository": "https://github.com/github/github-mcp-server",
+  "keywords": [
+    "mcp",
+    "codex"
+  ],
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "GitHub MCP Server",
+    "shortDescription": "GitHub's official MCP Server from Codex via remote MCP",
+    "longDescription": "GitHub's official MCP Server. Manage issues, pull requests, repositories, and more through GitHub Copilot's MCP endpoint.",
+    "category": "Development",
+    "websiteURL": "https://github.com/github/github-mcp-server"
+  }
+}
