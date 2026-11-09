@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,6 +60,14 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 }
 
 func TestValidateBoolSettingsFromEnv(t *testing.T) {
+	// Clear every checked variable so inherited values can't affect the
+	// assertions; t.Setenv restores the original values at cleanup.
+	for _, key := range boolSettings {
+		envName := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+		t.Setenv(envName, "")
+		require.NoError(t, os.Unsetenv(envName))
+	}
+
 	tests := []struct {
 		value   string
 		want    bool
@@ -69,6 +79,7 @@ func TestValidateBoolSettingsFromEnv(t *testing.T) {
 		{value: "t", want: true},
 		{value: "0", want: false},
 		{value: "false", want: false},
+		{value: "", wantErr: true},
 		{value: "yes", wantErr: true},
 		{value: "on", wantErr: true},
 		{value: "enabled", wantErr: true},
@@ -82,11 +93,11 @@ func TestValidateBoolSettingsFromEnv(t *testing.T) {
 				t.Setenv(envName, tc.value)
 				initConfig()
 
-				err := validateBoolSettings(boolSettings...)
+				err := validateBoolSettings(pflag.NewFlagSet("test", pflag.ContinueOnError), boolSettings...)
 				if tc.wantErr {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), envName)
-					assert.Contains(t, err.Error(), tc.value)
+					assert.Contains(t, err.Error(), fmt.Sprintf("%q", tc.value))
 					return
 				}
 				require.NoError(t, err)
@@ -95,9 +106,19 @@ func TestValidateBoolSettingsFromEnv(t *testing.T) {
 		}
 	}
 
+	t.Run("explicit flag overrides empty env", func(t *testing.T) {
+		t.Setenv("GITHUB_READ_ONLY", "")
+		initConfig()
+
+		flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		flags.Bool("read-only", false, "")
+		require.NoError(t, flags.Parse([]string{"--read-only=true"}))
+		require.NoError(t, validateBoolSettings(flags, boolSettings...))
+	})
+
 	t.Run("unset", func(t *testing.T) {
 		initConfig()
-		require.NoError(t, validateBoolSettings(boolSettings...))
+		require.NoError(t, validateBoolSettings(pflag.NewFlagSet("test", pflag.ContinueOnError), boolSettings...))
 		assert.False(t, viper.GetBool("read-only"))
 	})
 }

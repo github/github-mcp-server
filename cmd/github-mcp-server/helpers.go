@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -47,15 +49,24 @@ var boolSettings = []string{
 // boolean. viper.GetBool silently treats unparsable values such as "yes" as
 // false, which would leave e.g. read-only mode off without any warning. Flags
 // are already parsed strictly by pflag, so in practice this catches invalid
-// values coming from environment variables.
-func validateBoolSettings(keys ...string) error {
+// values coming from environment variables. viper also treats an empty env var
+// as unset, so a present-but-empty variable is rejected too, unless the flag
+// was set explicitly and overrides it.
+func validateBoolSettings(flags *pflag.FlagSet, keys ...string) error {
 	for _, key := range keys {
-		value, ok := viper.Get(key).(string)
-		if !ok {
+		if flag := flags.Lookup(key); flag != nil && flag.Changed {
 			continue
 		}
+		envName := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+		value, ok := viper.Get(key).(string)
+		if !ok {
+			envValue, present := os.LookupEnv(envName)
+			if !present || envValue != "" {
+				continue
+			}
+			value = envValue
+		}
 		if _, err := strconv.ParseBool(value); err != nil {
-			envName := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
 			return fmt.Errorf("invalid value %q for %s: must be a boolean (1, t, true, 0, f, false)", value, envName)
 		}
 	}
