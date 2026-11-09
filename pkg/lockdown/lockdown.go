@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -301,20 +300,8 @@ func (c *RepoAccessCache) checkPushAccess(ctx context.Context, username, owner, 
 		return false, fmt.Errorf("nil REST client")
 	}
 
-	permLevel, resp, err := c.restClient.Repositories.GetPermissionLevel(ctx, owner, repo, username)
+	permLevel, _, err := c.restClient.Repositories.GetPermissionLevel(ctx, owner, repo, username)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound && !strings.HasSuffix(username, "[bot]") {
-			botUsername := username + "[bot]"
-			if c.isTrustedBot(botUsername) {
-				return true, nil
-			}
-			var botErr error
-			permLevel, _, botErr = c.restClient.Repositories.GetPermissionLevel(ctx, owner, repo, botUsername)
-			if botErr == nil {
-				permission := permLevel.GetPermission()
-				return permission == "admin" || permission == "write", nil
-			}
-		}
 		return false, fmt.Errorf("failed to get user permission level: %w", err)
 	}
 

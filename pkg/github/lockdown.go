@@ -41,9 +41,10 @@ func authorLockdownResult(ctx context.Context, cache *lockdown.RepoAccessCache, 
 // actorLoginWithBotSuffix returns the canonical login for a GitHub actor.
 // GraphQL actor queries return bot logins without the "[bot]" suffix (e.g. "my-bot"),
 // while GitHub's REST API and permission endpoints expect the canonical "[bot]" suffix
-// (e.g. "my-bot[bot]").
+// (e.g. "my-bot[bot]"). Built-in trusted identities such as "copilot" are preserved
+// without modification.
 func actorLoginWithBotSuffix(login, typename string) string {
-	if login != "" && typename == "Bot" && !strings.HasSuffix(login, "[bot]") {
+	if login != "" && typename == "Bot" && !strings.EqualFold(login, "copilot") && !strings.HasSuffix(login, "[bot]") {
 		return login + "[bot]"
 	}
 	return login

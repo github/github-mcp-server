@@ -349,8 +349,8 @@ func TestRepoAccessCache_BotPermissions(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, safe)
 
-	// Bot queried by raw slug falls back to [bot] suffix on 404 and succeeds
-	safe, err = cache.IsSafeContent(ctx, "custom-bot", testOwner, testRepo)
+	// Built-in trusted bot "copilot" directly succeeds
+	safe, err = cache.IsSafeContent(ctx, "copilot", testOwner, testRepo)
 	require.NoError(t, err)
 	require.True(t, safe)
 }

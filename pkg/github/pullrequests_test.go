@@ -2654,6 +2654,19 @@ func Test_GetPullRequestComments(t *testing.T) {
 														"updatedAt": "2024-01-01T15:00:00Z",
 														"url":       "https://github.com/owner/repo/pull/42#discussion_r4",
 													},
+													{
+														"id":   "PRRC_5",
+														"body": "Trusted copilot comment",
+														"path": "file1.go",
+														"line": 25,
+														"author": map[string]any{
+															"login":      "copilot",
+															"__typename": "Bot",
+														},
+														"createdAt": "2024-01-01T16:00:00Z",
+														"updatedAt": "2024-01-01T16:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r5",
+													},
 												},
 											},
 										},
@@ -2691,12 +2704,13 @@ func Test_GetPullRequestComments(t *testing.T) {
 
 				assert.Len(t, result.ReviewThreads, 1)
 				thread := result.ReviewThreads[0]
-				assert.Equal(t, 3, thread.TotalCount)
-				assert.Len(t, thread.Comments, 3)
+				assert.Equal(t, 4, thread.TotalCount)
+				assert.Len(t, thread.Comments, 4)
 
 				assert.Equal(t, "maintainer", thread.Comments[0].Author)
 				assert.Equal(t, "custom-bot", thread.Comments[1].Author)
 				assert.Equal(t, "github-actions", thread.Comments[2].Author)
+				assert.Equal(t, "copilot", thread.Comments[3].Author)
 			},
 		},
 	}
