@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -175,6 +176,82 @@ func GetAutomationTag(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 			if resp.StatusCode != http.StatusOK {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get automation tag", resp, nil), nil, nil
+			}
+			sanitizeAutomationTagNameAndDescription(&output)
+			return MarshalledTextResult(&output), &output, nil
+		},
+	)
+}
+
+type CreateAutomationTagInput struct {
+	Owner       string `json:"owner"`
+	Repo        string `json:"repo"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+func CreateAutomationTag(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool[CreateAutomationTagInput, *AutomationTag](
+		ToolsetMetadataCopilotAutomations,
+		mcp.Tool{
+			Name:        "create_automation_tag",
+			Description: t("TOOL_CREATE_AUTOMATION_TAG_DESCRIPTION", "Create an automation tag in a repository. Tags organize automations; they do not execute them. Each call, including a retry, creates a new tag, even when another tag has the same name."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_CREATE_AUTOMATION_TAG_USER_TITLE", "Create automation tag"),
+				ReadOnlyHint:    false,
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner":       {Type: "string", Description: "Repository owner", MinLength: new(1)},
+					"repo":        {Type: "string", Description: "Repository name", MinLength: new(1)},
+					"name":        {Type: "string", Description: "Display name for the new tag"},
+					"description": {Type: "string", Description: "Description of the new tag. Omit for an empty description."},
+				},
+				Required: []string{"owner", "repo", "name"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CreateAutomationTagInput) (*mcp.CallToolResult, *AutomationTag, error) {
+			if input.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+			}
+			if input.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+			}
+			if input.Owner == "." {
+				return utils.NewToolResultError(`owner must not be "."`), nil, nil
+			}
+			if input.Repo == "." {
+				return utils.NewToolResultError(`repo must not be "."`), nil, nil
+			}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			// A reused key returns the tag it first created without comparing name or
+			// description, so each call sends a new key.
+			body := map[string]any{"name": input.Name, "idempotency_key": rand.Text()}
+			if input.Description != "" {
+				body["description"] = input.Description
+			}
+			apiURL := fmt.Sprintf("agents/repos/%s/%s/automation-tags", url.PathEscape(input.Owner), url.PathEscape(input.Repo))
+			req, err := client.NewRequest(ctx, http.MethodPost, apiURL, body)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create automation tag request", err), nil, nil
+			}
+			var output AutomationTag
+			resp, err := client.Do(req, &output)
+			if resp != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create automation tag", resp, err), nil, nil
+			}
+			if resp.StatusCode != http.StatusCreated {
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create automation tag", resp, nil), nil, nil
 			}
 			sanitizeAutomationTagNameAndDescription(&output)
 			return MarshalledTextResult(&output), &output, nil
