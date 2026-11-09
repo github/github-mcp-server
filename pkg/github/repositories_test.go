@@ -1,8 +1,8 @@
 package github
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -38,11 +38,11 @@ func (t *repositoryRequestCountingTransport) RoundTrip(req *http.Request) (*http
 }
 
 type repositoryReadFixture struct {
-	contents any
-	blobs    map[string][]byte
-	trees    map[string]*github.Tree
-	inspect  func(*http.Request)
-	ctx      context.Context
+	contents         any
+	blobs            map[string][]byte
+	trees            map[string]*github.Tree
+	inspect          func(*http.Request)
+	ctx              context.Context
 	metadataProtocol string
 }
 
@@ -598,8 +598,8 @@ func Test_GetFileContents_UsesUTF8ResourceURI(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	result, _ := runRepositoryReadFixture(t, repositoryReadFixture{
 		contents: &github.RepositoryContent{
-			Name:    new("Þfoo.go"),
-			Path:    new("test/Þfoo.go"),
+			Name:    new("脼foo.go"),
+			Path:    new("test/脼foo.go"),
 			SHA:     new(gitBlobSHA(content)),
 			Type:    new("file"),
 			Content: new(string(content)),
@@ -608,7 +608,7 @@ func Test_GetFileContents_UsesUTF8ResourceURI(t *testing.T) {
 	}, map[string]any{
 		"owner": "owner",
 		"repo":  "repo",
-		"path":  "test/Þfoo.go",
+		"path":  "test/脼foo.go",
 		"sha":   sha,
 	})
 
@@ -620,8 +620,8 @@ func Test_GetFileContents_LargeFileUsesUTF8ResourceURI(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	result, _ := runRepositoryReadFixture(t, repositoryReadFixture{
 		contents: &github.RepositoryContent{
-			Name:        new("Þlarge.bin"),
-			Path:        new("test/Þlarge.bin"),
+			Name:        new("脼large.bin"),
+			Path:        new("test/脼large.bin"),
 			SHA:         new(sha),
 			Type:        new("file"),
 			Size:        new(2 * 1024 * 1024),
@@ -635,7 +635,7 @@ func Test_GetFileContents_LargeFileUsesUTF8ResourceURI(t *testing.T) {
 				SHA:  new("b"),
 			}}},
 			"b": {Entries: []*github.TreeEntry{{
-				Path: new("Þlarge.bin"),
+				Path: new("脼large.bin"),
 				Mode: new("100644"),
 				Type: new("blob"),
 				SHA:  new(sha),
@@ -644,7 +644,7 @@ func Test_GetFileContents_LargeFileUsesUTF8ResourceURI(t *testing.T) {
 	}, map[string]any{
 		"owner": "owner",
 		"repo":  "repo",
-		"path":  "test/Þlarge.bin",
+		"path":  "test/脼large.bin",
 		"sha":   sha,
 	})
 
