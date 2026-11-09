@@ -171,6 +171,18 @@ func RunHTTPServer(cfg ServerConfig) error {
 		logger.Warn("Warning: unrecognized features ignored", "features", strings.Join(unrecognized, ", "))
 	}
 
+	if len(cfg.ExcludeTools) > 0 {
+		// Check against the full tool universe: the per-request inventories are
+		// built from an already-filtered tool list and would report real tools.
+		universe, err := github.NewInventory(t).WithExcludeTools(cfg.ExcludeTools).Build()
+		if err != nil {
+			return fmt.Errorf("failed to build inventory: %w", err)
+		}
+		if unrecognized := universe.UnrecognizedExcludeTools(); len(unrecognized) > 0 {
+			logger.Warn("Warning: unrecognized excluded tools ignored; these tools are not disabled", "tools", strings.Join(unrecognized, ", "))
+		}
+	}
+
 	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 	scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
 	inventoryFactory, err := NewDefaultInventoryFactory(&cfg, t, featureChecker, scopeFetcher)
