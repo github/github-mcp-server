@@ -508,7 +508,8 @@ type reviewCommentNode struct {
 	StartLine         *githubv4.Int
 	OriginalStartLine *githubv4.Int
 	Author            struct {
-		Login githubv4.String
+		Login    githubv4.String
+		Typename githubv4.String `graphql:"__typename"`
 	}
 	CreatedAt githubv4.DateTime
 	UpdatedAt githubv4.DateTime
@@ -577,7 +578,7 @@ func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 			filteredComments := make([]reviewCommentNode, 0, len(thread.Comments.Nodes))
 
 			for _, comment := range thread.Comments.Nodes {
-				login := string(comment.Author.Login)
+				login := actorLoginWithBotSuffix(string(comment.Author.Login), string(comment.Author.Typename))
 				if login != "" {
 					isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 					if err != nil {

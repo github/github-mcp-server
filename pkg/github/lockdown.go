@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -35,4 +36,15 @@ func authorLockdownResult(ctx context.Context, cache *lockdown.RepoAccessCache, 
 		return utils.NewToolResultError(restrictedMessage), nil
 	}
 	return nil, nil
+}
+
+// actorLoginWithBotSuffix returns the canonical login for a GitHub actor.
+// GraphQL actor queries return bot logins without the "[bot]" suffix (e.g. "my-bot"),
+// while GitHub's REST API and permission endpoints expect the canonical "[bot]" suffix
+// (e.g. "my-bot[bot]").
+func actorLoginWithBotSuffix(login, typename string) string {
+	if login != "" && typename == "Bot" && !strings.HasSuffix(login, "[bot]") {
+		return login + "[bot]"
+	}
+	return login
 }
