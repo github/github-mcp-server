@@ -13,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -635,4 +636,55 @@ func Test_UIGet_ListedOnlyWhenClientAdvertisesMCPAppsCapability(t *testing.T) {
 		"ui_get must not be listed to clients that omit the MCP Apps capability")
 	assert.True(t, hasUIGet(withApps),
 		"ui_get must be listed to clients that advertise the MCP Apps capability")
+}
+
+// Test_UIGet_ListedOnStdioSessionOnlyWhenClientAdvertisesMCPApps is the stdio
+// path: tools are registered before initialize, so client capabilities are not
+// available at RegisterTools. App-only ui_get must still be omitted from
+// tools/list unless that session advertised MCP Apps.
+func Test_UIGet_ListedOnStdioSessionOnlyWhenClientAdvertisesMCPApps(t *testing.T) {
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{UIGet(translations.NullTranslationHelper)}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	listHasUIGet := func(t *testing.T, caps *mcp.ClientCapabilities) bool {
+		t.Helper()
+		server := mcp.NewServer(&mcp.Implementation{Name: "stdio-ui-get", Version: "v1"}, nil)
+		// context.Background() matches stdio: capabilities are unknown at registration.
+		inv.RegisterTools(context.Background(), server, nil)
+
+		serverTransport, clientTransport := mcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = serverSession.Close() })
+
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v1"}, &mcp.ClientOptions{
+			Capabilities: caps,
+		})
+		clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = clientSession.Close() })
+
+		list, err := clientSession.ListTools(context.Background(), nil)
+		require.NoError(t, err)
+		for _, tool := range list.Tools {
+			if tool.Name == "ui_get" {
+				return true
+			}
+		}
+		return false
+	}
+
+	withoutApps := &mcp.ClientCapabilities{}
+	withApps := &mcp.ClientCapabilities{}
+	withApps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+		"mimeTypes": []string{MCPAppMIMEType},
+	})
+
+	assert.False(t, listHasUIGet(t, withoutApps),
+		"ui_get must not be listed to a stdio client that omits the MCP Apps capability")
+	assert.True(t, listHasUIGet(t, withApps),
+		"ui_get must be listed to a stdio client that advertises the MCP Apps capability")
 }

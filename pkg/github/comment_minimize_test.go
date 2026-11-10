@@ -220,6 +220,11 @@ func TestCommentVisibilityTypedInputSchemaMatchesLegacy(t *testing.T) {
 
 func connectCommentVisibilityClient(t *testing.T, server *mcp.Server, version string) *mcp.ClientSession {
 	t.Helper()
+	return connectCommentVisibilityClientWithCapabilities(t, server, version, nil)
+}
+
+func connectCommentVisibilityClientWithCapabilities(t *testing.T, server *mcp.Server, version string, caps *mcp.ClientCapabilities) *mcp.ClientSession {
+	t.Helper()
 	if version == "2025-11-25" {
 		server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
 			return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -234,7 +239,8 @@ func connectCommentVisibilityClient(t *testing.T, server *mcp.Server, version st
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = serverSession.Close() })
-	client := mcp.NewClient(&mcp.Implementation{Name: "comment-visibility-test", Version: "v1"}, nil)
+	clientOpts := &mcp.ClientOptions{Capabilities: caps}
+	client := mcp.NewClient(&mcp.Implementation{Name: "comment-visibility-test", Version: "v1"}, clientOpts)
 	session, err := client.Connect(context.Background(), commentVisibilityProtocolTransport{clientTransport, version}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = session.Close() })

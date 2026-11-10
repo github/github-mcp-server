@@ -282,6 +282,57 @@ func TestToolCallAvailabilitySkipsFeatureChecksOnlyWhenUnavailable(t *testing.T)
 	}
 }
 
+func TestAppOnlyToolsListedOnlyWhenClientAdvertisesMCPApps(t *testing.T) {
+	t.Parallel()
+
+	appOnly := mockToolWithMeta("app_only", "toolset1", map[string]any{
+		"ui": map[string]any{"visibility": []string{"app"}},
+	})
+	always := mockTool("always_available", "toolset1", true)
+	inv, err := NewBuilder().
+		SetTools([]ServerTool{always, appOnly}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	listNames := func(t *testing.T, caps *mcp.ClientCapabilities) []string {
+		t.Helper()
+		server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+		inv.RegisterTools(context.Background(), server, nil)
+
+		serverTransport, clientTransport := mcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = serverSession.Close() })
+
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, &mcp.ClientOptions{
+			Capabilities: caps,
+		})
+		clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = clientSession.Close() })
+
+		list, err := clientSession.ListTools(context.Background(), nil)
+		require.NoError(t, err)
+		names := make([]string, 0, len(list.Tools))
+		for _, tool := range list.Tools {
+			names = append(names, tool.Name)
+		}
+		return names
+	}
+
+	withoutApps := &mcp.ClientCapabilities{}
+	withApps := &mcp.ClientCapabilities{}
+	withApps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+		"mimeTypes": []string{"text/html;profile=mcp-app"},
+	})
+
+	assert.Equal(t, []string{"always_available"}, listNames(t, withoutApps),
+		"app-only tools must not be listed to clients that omit MCP Apps")
+	assert.ElementsMatch(t, []string{"always_available", "app_only"}, listNames(t, withApps),
+		"app-only tools must be listed to clients that advertise MCP Apps")
+}
+
 func availabilityTestTool(name, minimumProtocolVersion string, requiredElicitationMode ElicitationMode, onCall func()) ServerTool {
 	return ServerTool{
 		Tool: mcp.Tool{

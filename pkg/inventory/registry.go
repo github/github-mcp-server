@@ -185,8 +185,9 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // exposing UI-enabled tools). That is detected from the HasUISupport context
 // flag or from parsed ClientCapabilities on the request. In that case
 // app-only tools (whose _meta.ui.visibility excludes "model") are omitted
-// entirely. When the capability is unknown (e.g. stdio paths that do not
-// populate either source) the metadata is kept.
+// entirely. When the capability is unknown at registration (e.g. stdio, which
+// registers before initialize) the metadata is kept; app-only tools are then
+// filtered per session at tools/list from the client's declared capabilities.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
@@ -235,16 +236,39 @@ const mcpAppsUIExtensionKey = "io.modelcontextprotocol/ui"
 // client is known not to support MCP Apps UI: either the HasUISupport context
 // flag is explicitly false, or the request's parsed ClientCapabilities omit
 // the io.modelcontextprotocol/ui extension. When neither source is present
-// (e.g. stdio paths that do not populate capabilities) the metadata is kept.
+// (e.g. stdio paths that register before initialize) the metadata is kept;
+// list-time filtering still omits app-only tools for that session.
 func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 	if supported, ok := ghcontext.HasUISupport(ctx); ok {
 		return !supported
 	}
 	if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil && info.ClientCapabilities != nil {
-		_, hasUI := info.ClientCapabilities.Extensions[mcpAppsUIExtensionKey]
-		return !hasUI
+		return !clientAdvertisesMCPApps(info.ClientCapabilities)
 	}
 	return false
+}
+
+// clientAdvertisesMCPApps reports whether caps include the MCP Apps UI
+// extension. Nil or empty capabilities do not advertise support.
+func clientAdvertisesMCPApps(caps *mcp.ClientCapabilities) bool {
+	if caps == nil {
+		return false
+	}
+	_, hasUI := caps.Extensions[mcpAppsUIExtensionKey]
+	return hasUI
+}
+
+// clientSupportsMCPAppsUI is the list-time capability check. Prefer explicit
+// HasUISupport / parsed MCPMethodInfo (HTTP), then the request's session
+// capabilities (stdio after initialize).
+func clientSupportsMCPAppsUI(ctx context.Context, caps *mcp.ClientCapabilities) bool {
+	if supported, ok := ghcontext.HasUISupport(ctx); ok {
+		return supported
+	}
+	if info, ok := ghcontext.MCPMethod(ctx); ok && info != nil && info.ClientCapabilities != nil {
+		return clientAdvertisesMCPApps(info.ClientCapabilities)
+	}
+	return clientAdvertisesMCPApps(caps)
 }
 
 // RegisterTools registers all available tools with the server using the provided dependencies.
@@ -253,7 +277,9 @@ func shouldStripMCPAppsMetadata(ctx context.Context) bool {
 // MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools when
 // the client did not advertise the io.modelcontextprotocol/ui extension. The
 // strip happens here (rather than at Build() time) so the per-request
-// context, which carries the client capability, is in scope.
+// context, which carries the client capability, is in scope. Stdio servers
+// register before initialize, so app-only tools stay registered and are
+// filtered per session at tools/list.
 //
 // Schema definitions must remain immutable and be reused across registrations.
 // Their encodings are retained process-wide, keyed by source schema identity.
@@ -271,6 +297,7 @@ func (r *Inventory) RegisterToolsForProtocolEra(ctx context.Context, s *mcp.Serv
 func (r *Inventory) registerTools(ctx context.Context, s *mcp.Server, deps any, era ProtocolEra, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
 	addToolAvailabilityMiddleware(s, tools)
+	addAppOnlyToolFilterMiddleware(s, tools)
 	schemas := make(map[string]listedToolSchemas, len(tools))
 	registrations := make(map[string]*typedToolRegistration, len(tools))
 	for _, tool := range tools {
