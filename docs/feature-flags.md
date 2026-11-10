@@ -40,7 +40,8 @@ end users. Insiders-only flags are not user-toggleable.
 ### Agent automations
 
 Enable `--features=agent_automations` (or `GITHUB_FEATURES=agent_automations`)
-to expose the repository automation tools in the `copilot` toolset. This flag
+to expose the repository automation tools in the opt-in `copilot_automations`
+toolset (enable it with `--toolsets=copilot_automations` or `all`). This flag
 is **off by default**, including in Insiders mode. The MCP flag only exposes
 the tools; GitHub API access still depends on the authenticated client's
 permissions and access to the explicitly named repository. Read-only mode
