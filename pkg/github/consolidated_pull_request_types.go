@@ -69,6 +69,8 @@ type UpdatePullRequestBranchInput struct {
 	ExpectedHeadSHA *string `json:"expectedHeadSha,omitempty"`
 }
 
+// PullRequestReviewWriteInput covers both feature variants; resolutionReason
+// is advertised and used only by the resolution-reason variant.
 type PullRequestReviewWriteInput struct {
 	Method           string  `json:"method"`
 	Owner            string  `json:"owner"`

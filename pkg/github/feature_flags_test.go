@@ -238,23 +238,23 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		hasReason bool
 	}{
 		{
-			name:      "consolidated",
+			name:      "consolidated flag on",
 			toolName:  "pull_request_review_write",
 			hasReason: true,
 		},
 		{
-			name:      "granular",
+			name:      "granular flag on",
 			flags:     []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			toolName:  "resolve_review_thread",
 			hasReason: true,
 		},
 		{
-			name:     "consolidated GHES",
+			name:     "consolidated flag on GHES",
 			host:     utils.HostTypeGHES,
 			toolName: "pull_request_review_write",
 		},
 		{
-			name:     "granular GHES",
+			name:     "granular flag on GHES",
 			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			host:     utils.HostTypeGHES,
 			toolName: "resolve_review_thread",

@@ -1718,7 +1718,7 @@ func TestGranularResolveReviewThread(t *testing.T) {
 		expectedReason   *string
 	}{
 		{
-			name:             "forwards resolution reason",
+			name:             "enabled variant forwards resolution reason",
 			resolutionReason: new("addressed"),
 			expectedReason:   new("ADDRESSED"),
 		},
