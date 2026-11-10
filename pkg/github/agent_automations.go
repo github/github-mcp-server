@@ -73,7 +73,7 @@ func newAgentAutomationTool[Input any](
 	build agentAutomationRequestBuilder[Input],
 ) inventory.ServerTool {
 	tool := NewTool[Input, json.RawMessage](
-		ToolsetMetadataCopilot,
+		ToolsetMetadataCopilotAutomations,
 		mcp.Tool{
 			Name:         name,
 			Description:  t("TOOL_"+name+"_DESCRIPTION", description),
