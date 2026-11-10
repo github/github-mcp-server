@@ -346,7 +346,7 @@ As an intentional exception, content authored by trusted bot accounts (currently
 
 **Best for:** Sandboxing an agent to specific repositories when the token can see more, for example a fine-grained token that also has read access to public repositories.
 
-Pass `owner/repo` or `owner/*` entries. Tool calls and `repo://` resource reads outside the list are rejected before any GitHub API request is made, and search queries must be scoped with `repo:`, `org:` or `user:` qualifiers inside the list. See [Allowed Repositories](../README.md#allowed-repositories) for the full rules. This option is only available for the local server.
+Pass `owner/repo` or `owner/*` entries. Tool calls, `repo://` resource reads and resource completions outside the list are rejected before any GitHub API request is made, search queries must be scoped with positive `repo:`, `org:` or `user:` qualifiers inside the list, and tools whose target cannot be told from their arguments (notification threads, project items, enterprise-level settings) are rejected. See [Allowed Repositories](../README.md#allowed-repositories) for the full rules. This option is only available for the local server.
 
 ```json
 {

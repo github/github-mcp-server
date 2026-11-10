@@ -1716,12 +1716,15 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-When an allowlist is set, every tool call and `repo://` resource read is checked before any GitHub API request is made:
+When an allowlist is set, every tool call, `repo://` resource read and resource completion is checked before any GitHub API request is made. The check fails closed: a call goes through only when every repository it can reach is known from its arguments and is in the list.
 
-- Calls with `owner` and `repo` must name an allowed repository.
-- Calls scoped to a whole owner or organization (for example project tools or organization security advisories) need an `owner/*` entry.
-- Search tools need `repo:`, `org:` or `user:` qualifiers in the query, and every one of them must be allowed. Negated qualifiers such as `-repo:` are ignored.
-- Tools that can't be tied to a repository, such as notification details by ID, are rejected. Tools that never return repository content (`get_me`, `get_teams`, `get_team_members`, `search_users`, `search_orgs`, global security advisories and gists) keep working.
+- Calls with `owner` and `repo` must name an allowed repository. Secondary repositories named by other arguments (`parent_owner`/`parent_repo` on issue creation, `related_owner`/`related_repo` on issue dependencies, `item_owner`/`item_repo` on project items) are checked the same way.
+- Calls scoped to a whole owner or organization (for example project tools or organization security advisories) need an `owner/*` entry. `list_notifications` and `mark_all_notifications_read` need both `owner` and `repo`, because without them they cover every repository.
+- `create_repository` and `fork_repository` need an `organization` with an `owner/*` entry; the personal account cannot be checked.
+- Rulesets and custom properties are checked at the selected `level`: `repository` needs `owner` and `repo`, `organization` needs `org` with an `org/*` entry, and `enterprise` is rejected.
+- Search tools need a positive `repo:`, `org:` or `user:` qualifier in the query, and every such qualifier must be allowed. Negated qualifiers such as `-repo:` only narrow the results and are ignored; quoted qualifiers are free text and don't count as scope. Queries with `OR`, `NOT`, `AND` or parentheses are rejected, because a qualifier in one branch doesn't constrain the others. `search_issues` and `search_pull_requests` also accept `owner` and `repo` arguments, as long as the query has no `repo:` qualifier of its own.
+- Tools that can't be tied to a repository are rejected: notification threads addressed by ID, project items (`list_project_items`, `get_project_item`, and item updates or deletions that don't name `item_owner`, `item_repo` and `issue_number`), and project views or status updates addressed by node ID. Tools that never return repository content (`get_me`, `get_teams`, `get_team_members`, `search_users`, `search_orgs`, global security advisories and gists) keep working, and so do the bundled `ui://` app resources.
+- Resource completions for `repo://` templates are checked against the resolved `owner` and `repo`; owner suggestions, and repository suggestions for an owner without an `owner/*` entry, are rejected.
 
 Rejected calls return a tool error that names the repository and the allowlist, so the model can correct itself. The allowlist limits what this server will do; it doesn't change what the token itself can access.
 
