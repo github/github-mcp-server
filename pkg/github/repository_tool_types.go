@@ -57,6 +57,9 @@ type DeleteFileInput struct {
 	Path    string `json:"path"`
 	Message string `json:"message"`
 	Branch  string `json:"branch"`
+	// Sha, when set, is the blob SHA the caller expects; the delete is rejected
+	// if the file has changed since it was read.
+	Sha string `json:"sha,omitempty"`
 }
 
 type CreateBranchInput struct {

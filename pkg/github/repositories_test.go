@@ -4299,7 +4299,8 @@ func Test_DeleteFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "path")
 	assert.Contains(t, schema.Properties, "message")
 	assert.Contains(t, schema.Properties, "branch")
-	// SHA is no longer required since we're using Git Data API
+	// sha is an optional precondition; the call still works without it
+	assert.Contains(t, schema.Properties, "sha")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "message", "branch"})
 
 	// Setup mock objects for Git Data API
@@ -4347,6 +4348,15 @@ func Test_DeleteFile(t *testing.T) {
 				WithRequestMatch(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
+				),
+				// Get contents of the path being deleted
+				WithRequestMatch(
+					contentsRoute,
+					&github.RepositoryContent{
+						Type: new("file"),
+						Path: new("docs/example.md"),
+						SHA:  new("blob123"),
+					},
 				),
 				// Create tree
 				WithRequestMatchHandler(
@@ -4465,6 +4475,159 @@ func Test_DeleteFile(t *testing.T) {
 			assert.Equal(t, tc.expectedCommitSHA, commitSHA)
 		})
 	}
+}
+
+// contentsRoute matches the contents endpoint for paths with slashes; the plain
+// {path} placeholder only matches a single URL segment.
+const contentsRoute EndpointPattern = "GET /repos/{owner}/{repo}/contents/{path:.*}"
+
+func Test_DeleteFile_Precondition(t *testing.T) {
+	serverTool := DeleteFile(translations.NullTranslationHelper)
+
+	mockRef := &github.Reference{
+		Ref:    new("refs/heads/main"),
+		Object: &github.GitObject{SHA: new("abc123")},
+	}
+	mockCommit := &github.Commit{
+		SHA:  new("abc123"),
+		Tree: &github.Tree{SHA: new("def456")},
+	}
+
+	tests := []struct {
+		name         string
+		contents     any
+		status       int
+		args         map[string]any
+		expectedText string
+	}{
+		{
+			name: "rejects a stale sha",
+			contents: &github.RepositoryContent{
+				Type: new("file"),
+				Path: new("docs/example.md"),
+				SHA:  new("blob-current"),
+			},
+			status:       http.StatusOK,
+			args:         map[string]any{"owner": "owner", "repo": "repo", "path": "docs/example.md", "message": "Delete", "branch": "main", "sha": "blob-stale"},
+			expectedText: "sha mismatch",
+		},
+		{
+			name: "rejects a directory path",
+			contents: []*github.RepositoryContent{
+				{Type: new("file"), Path: new("docs"), SHA: new("blob-a")},
+				{Type: new("file"), Path: new("docs/sub"), SHA: new("blob-b")},
+			},
+			status:       http.StatusOK,
+			args:         map[string]any{"owner": "owner", "repo": "repo", "path": "docs", "message": "Delete", "branch": "main"},
+			expectedText: "is a directory",
+		},
+		{
+			name:         "reports a missing path instead of committing nothing",
+			contents:     map[string]string{"message": "Not Found"},
+			status:       http.StatusNotFound,
+			args:         map[string]any{"owner": "owner", "repo": "repo", "path": "docs/gone.md", "message": "Delete", "branch": "main"},
+			expectedText: "failed to get contents",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, NewMockedHTTPClient(
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+				WithRequestMatch(GetReposGitCommitsByOwnerByRepoByCommitSHA, mockCommit),
+				WithRequestMatchHandler(contentsRoute,
+					mockResponse(t, tc.status, tc.contents),
+				),
+			))
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, tc.expectedText)
+		})
+	}
+}
+
+func Test_DeleteFile_AcceptsMatchingSha(t *testing.T) {
+	serverTool := DeleteFile(translations.NullTranslationHelper)
+
+	mockRef := &github.Reference{
+		Ref:    new("refs/heads/main"),
+		Object: &github.GitObject{SHA: new("abc123")},
+	}
+	mockCommit := &github.Commit{
+		SHA:  new("abc123"),
+		Tree: &github.Tree{SHA: new("def456")},
+	}
+	mockTree := &github.Tree{SHA: new("ghi789")}
+	mockNewCommit := &github.Commit{
+		SHA:     new("jkl012"),
+		Message: new("Delete example file"),
+		HTMLURL: new("https://github.com/owner/repo/commit/jkl012"),
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(
+		WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+		WithRequestMatch(GetReposGitCommitsByOwnerByRepoByCommitSHA, mockCommit),
+		WithRequestMatch(contentsRoute, &github.RepositoryContent{
+			Type: new("file"),
+			Path: new("docs/example.md"),
+			SHA:  new("blob123"),
+		}),
+		WithRequestMatchHandler(PostReposGitTreesByOwnerByRepo,
+			expectRequestBody(t, map[string]any{
+				"base_tree": "def456",
+				"tree": []any{
+					map[string]any{
+						"path": "docs/example.md",
+						"mode": "100644",
+						"type": "blob",
+						"sha":  nil,
+					},
+				},
+			}).andThen(mockResponse(t, http.StatusCreated, mockTree)),
+		),
+		WithRequestMatchHandler(PostReposGitCommitsByOwnerByRepo,
+			expectRequestBody(t, map[string]any{
+				"message": "Delete example file",
+				"tree":    "ghi789",
+				"parents": []any{"abc123"},
+			}).andThen(mockResponse(t, http.StatusCreated, mockNewCommit)),
+		),
+		WithRequestMatchHandler(PatchReposGitRefsByOwnerByRepoByRef,
+			expectRequestBody(t, map[string]any{
+				"sha":   "jkl012",
+				"force": false,
+			}).andThen(mockResponse(t, http.StatusOK, &github.Reference{
+				Ref:    new("refs/heads/main"),
+				Object: &github.GitObject{SHA: new("jkl012")},
+			})),
+		),
+	))
+
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":   "owner",
+		"repo":    "repo",
+		"path":    "docs/example.md",
+		"message": "Delete example file",
+		"branch":  "main",
+		"sha":     "blob123",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	commit, ok := response["commit"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "jkl012", commit["sha"])
 }
 
 func Test_ListTags(t *testing.T) {

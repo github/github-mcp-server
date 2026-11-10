@@ -1413,8 +1413,9 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `branch`: Branch to delete the file from (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file to delete (string, required)
+  - `path`: Path to the file to delete. A directory path is rejected; pass a single file path. (string, required)
   - `repo`: Repository name (string, required)
+  - `sha`: Blob SHA of the file, as returned by get_file_contents. When set, the delete is rejected if another writer changed the file since it was read. Omit to delete whatever is at the path. (string, optional)
 
 - **delete_repository** - Delete repository
   - **OAuth Challenge Scopes**: `delete_repo`, `repo`
