@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -332,6 +333,7 @@ func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
 		patchStatus     int
 		wantCalls       []string
 		wantErrContains string
+		wantErrOmits    string
 	}{
 		{
 			name:            "rejected field value changes nothing",
@@ -339,6 +341,14 @@ func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
 			postStatus:      http.StatusUnprocessableEntity,
 			wantCalls:       []string{"POST"},
 			wantErrContains: "failed to set issue field values; the issue was not updated",
+		},
+		{
+			name:            "server error on the field write does not claim nothing changed",
+			values:          []*gogithub.IssueRequestFieldValue{{FieldID: 101, Value: "P2"}},
+			postStatus:      http.StatusBadGateway,
+			wantCalls:       []string{"POST"},
+			wantErrContains: "failed to set issue field values, which may have been applied anyway; the rest of the issue update was not attempted",
+			wantErrOmits:    "the issue was not updated",
 		},
 		{
 			name:            "failed clear names the set and cleared fields and skips the PATCH",
@@ -356,6 +366,23 @@ func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
 			patchStatus:     http.StatusUnprocessableEntity,
 			wantCalls:       []string{"POST", "PATCH"},
 			wantErrContains: "issue field values updated but the rest of the issue update failed",
+		},
+		{
+			name:            "failed PATCH after a confirmed clear says the fields were updated",
+			fieldIDsToClear: []int64{101},
+			deleteStatus:    http.StatusNoContent,
+			patchStatus:     http.StatusUnprocessableEntity,
+			wantCalls:       []string{"DELETE", "PATCH"},
+			wantErrContains: "issue field values updated but the rest of the issue update failed",
+		},
+		{
+			name:            "failed PATCH after clearing only absent fields does not claim a field write",
+			fieldIDsToClear: []int64{101, 202},
+			deleteStatus:    http.StatusNotFound,
+			patchStatus:     http.StatusUnprocessableEntity,
+			wantCalls:       []string{"DELETE", "DELETE", "PATCH"},
+			wantErrContains: "failed to update issue",
+			wantErrOmits:    "issue field values updated",
 		},
 	}
 
@@ -384,7 +411,7 @@ func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
 
 			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesIssueFieldValuesByOwnerByRepoByIssueNumber:  record("POST", respond(tc.postStatus, []any{})),
-				DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber: record("DELETE", failWith(tc.deleteStatus)),
+				DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber: record("DELETE", respond(tc.deleteStatus, "")),
 				PatchReposIssuesByOwnerByRepoByIssueNumber:                 record("PATCH", respond(max(tc.patchStatus, http.StatusOK), mockIssue)),
 			}))
 
@@ -401,10 +428,64 @@ func Test_UpdateIssue_FieldWriteFailuresReportWhatWasApplied(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, result.IsError, "expected an error result")
 			require.Contains(t, getTextResult(t, result).Text, tc.wantErrContains)
+			if tc.wantErrOmits != "" {
+				require.NotContains(t, getTextResult(t, result).Text, tc.wantErrOmits)
+			}
 
 			mu.Lock()
 			defer mu.Unlock()
 			require.Equal(t, tc.wantCalls, calls)
 		})
 	}
+}
+
+// failingPostTransport fails every POST without a response, as a dropped
+// connection does, and passes other requests on.
+type failingPostTransport struct {
+	next  http.RoundTripper
+	mu    sync.Mutex
+	calls []string
+}
+
+func (f *failingPostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	f.mu.Lock()
+	f.calls = append(f.calls, req.Method)
+	f.mu.Unlock()
+	if req.Method == http.MethodPost {
+		return nil, errors.New("connection reset by peer")
+	}
+	return f.next.RoundTrip(req)
+}
+
+// Test_UpdateIssue_LostFieldWriteResponseDoesNotClaimNothingChanged: when the
+// field-values POST gets no response, GitHub may have applied it. The error
+// must not say the issue is unchanged, and the PATCH must not be sent.
+func Test_UpdateIssue_LostFieldWriteResponseDoesNotClaimNothingChanged(t *testing.T) {
+	t.Parallel()
+
+	transport := &failingPostTransport{next: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &gogithub.Issue{Number: new(42)}),
+	}).Transport}
+	restClient := mustNewGHClient(t, &http.Client{Transport: transport})
+
+	result, err := UpdateIssue(
+		context.Background(),
+		restClient,
+		githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+		"owner", "repo", 42,
+		"", "new body", nil, nil, 0, "",
+		[]*gogithub.IssueRequestFieldValue{{FieldID: 101, Value: "P2"}},
+		nil,
+		"", "", 0,
+	)
+	require.NoError(t, err)
+	require.True(t, result.IsError, "expected an error result")
+
+	resultText := getTextResult(t, result).Text
+	require.Contains(t, resultText, "failed to set issue field values, which may have been applied anyway; the rest of the issue update was not attempted")
+	require.NotContains(t, resultText, "the issue was not updated")
+
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
+	require.Equal(t, []string{"POST"}, transport.calls, "the PATCH must not be sent after a failed field write")
 }

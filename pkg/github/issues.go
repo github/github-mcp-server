@@ -3358,11 +3358,12 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	// Field values are written before the PATCH so that a rejected value (an
 	// invalid date or unknown option, say) fails the call before anything else
 	// on the issue changes.
-	if errResult := writeIssueFieldValues(ctx, client, owner, repo, issueNumber, issueFieldValues, fieldIDsToDelete); errResult != nil {
+	fieldValuesChanged, errResult := writeIssueFieldValues(ctx, client, owner, repo, issueNumber, issueFieldValues, fieldIDsToDelete)
+	if errResult != nil {
 		return errResult, nil, nil
 	}
 	patchFailureMessage := "failed to update issue"
-	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
+	if fieldValuesChanged {
 		patchFailureMessage = "issue field values updated but the rest of the issue update failed"
 	}
 
@@ -3496,13 +3497,22 @@ func patchIssue(ctx context.Context, client *github.Client, owner, repo string, 
 // per-field endpoints. The issue PATCH is not used because it replaces the
 // whole set, so writing back values read earlier would revert concurrent
 // changes to other fields. It returns an error result that says which field
-// writes were applied, or nil on success.
-func writeIssueFieldValues(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, values []*github.IssueRequestFieldValue, fieldIDsToDelete []int64) *mcp.CallToolResult {
+// writes were applied, or nil on success. The bool reports whether GitHub
+// confirmed at least one write; clearing a field that had no value is not one.
+func writeIssueFieldValues(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, values []*github.IssueRequestFieldValue, fieldIDsToDelete []int64) (bool, *mcp.CallToolResult) {
+	changed := false
 	if len(values) > 0 {
 		resp, err := addIssueFieldValues(ctx, client, owner, repo, issueNumber, values)
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to set issue field values; the issue was not updated", resp, err)
+			// A 4xx is GitHub rejecting the request. Without a response, or
+			// with a 5xx, the values may have been written all the same.
+			msg := "failed to set issue field values; the issue was not updated"
+			if resp == nil || resp.StatusCode >= http.StatusInternalServerError {
+				msg = "failed to set issue field values, which may have been applied anyway; the rest of the issue update was not attempted"
+			}
+			return false, ghErrors.NewGitHubAPIErrorResponse(ctx, msg, resp, err)
 		}
+		changed = true
 	}
 
 	// Errors are aggregated (not short-circuited) so callers can see which
@@ -3530,11 +3540,14 @@ func writeIssueFieldValues(ctx context.Context, client *github.Client, owner, re
 			}
 			continue
 		}
+		if err == nil {
+			changed = true
+		}
 		clearedIDs = append(clearedIDs, fieldID)
 		_ = resp.Body.Close()
 	}
 	if len(failedIDs) == 0 {
-		return nil
+		return changed, nil
 	}
 
 	msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, clearedIDs)
@@ -3546,7 +3559,7 @@ func writeIssueFieldValues(ctx context.Context, client *github.Client, owner, re
 		msg += fmt.Sprintf(", set=%v", setIDs)
 	}
 	msg += "; the rest of the issue update was not applied"
-	return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr)
+	return changed, ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr)
 }
 
 // addIssueFieldValues sets the given issue field values and leaves every other
