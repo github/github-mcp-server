@@ -1699,6 +1699,32 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+## Allowed Repositories
+
+When running locally (stdio), you can restrict the server to a fixed set of repositories with `--allowed-repos` or the `GITHUB_ALLOWED_REPOS` environment variable. This is useful when a token can see more than an agent should, for example a fine-grained token, which can always read public repositories.
+
+Each entry is `owner/repo`, or `owner/*` for every repository of an owner. The repository part also accepts wildcards such as `octo-org/svc-*`. Names are matched case-insensitively.
+
+```bash
+./github-mcp-server stdio --allowed-repos=octo-org/*,octocat/hello-world
+```
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ALLOWED_REPOS=octo-org/*,octocat/hello-world \
+  ghcr.io/github/github-mcp-server
+```
+
+When an allowlist is set, every tool call and `repo://` resource read is checked before any GitHub API request is made:
+
+- Calls with `owner` and `repo` must name an allowed repository.
+- Calls scoped to a whole owner or organization (for example project tools or organization security advisories) need an `owner/*` entry.
+- Search tools need `repo:`, `org:` or `user:` qualifiers in the query, and every one of them must be allowed. Negated qualifiers such as `-repo:` are ignored.
+- Tools that can't be tied to a repository, such as notification details by ID, are rejected. Tools that never return repository content (`get_me`, `get_teams`, `get_team_members`, `search_users`, `search_orgs`, global security advisories and gists) keep working.
+
+Rejected calls return a tool error that names the repository and the allowlist, so the model can correct itself. The allowlist limits what this server will do; it doesn't change what the token itself can access.
+
 ## Lockdown Mode
 
 Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.

@@ -12,6 +12,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Exclude Tools | `X-MCP-Exclude-Tools` header | `--exclude-tools` flag or `GITHUB_EXCLUDE_TOOLS` env var |
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
+| Allowed Repositories | Not available | `--allowed-repos` flag or `GITHUB_ALLOWED_REPOS` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
 | Feature Flags | `X-MCP-Features` header or `?features=` URL query parameter | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
@@ -338,6 +339,30 @@ As an intentional exception, content authored by trusted bot accounts (currently
 </td>
 </tr>
 </table>
+
+---
+
+### Allowed Repositories
+
+**Best for:** Sandboxing an agent to specific repositories when the token can see more, for example a fine-grained token that also has read access to public repositories.
+
+Pass `owner/repo` or `owner/*` entries. Tool calls and `repo://` resource reads outside the list are rejected before any GitHub API request is made, and search queries must be scoped with `repo:`, `org:` or `user:` qualifiers inside the list. See [Allowed Repositories](../README.md#allowed-repositories) for the full rules. This option is only available for the local server.
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--allowed-repos=octo-org/*,octocat/hello-world"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
 
 ---
 

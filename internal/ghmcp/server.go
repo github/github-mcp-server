@@ -289,6 +289,10 @@ type StdioServerConfig struct {
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 
+	// AllowedRepos restricts tool calls and resource reads to these
+	// repositories ("owner/repo" or "owner/*"). Empty means no restriction.
+	AllowedRepos []string
+
 	// OAuthManager, when non-nil, enables OAuth 2.1 login for stdio mode. The
 	// server starts without a token and runs the authorization flow on the
 	// first tool call (see createOAuthMiddleware). It is mutually exclusive with
@@ -360,6 +364,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
+	allowedRepos, err := parseRepoAllowlist(cfg.AllowedRepos)
+	if err != nil {
+		return err
+	}
+	if allowedRepos != nil {
+		logger.Info("restricting tools to allowed repositories", "allowedRepos", allowedRepos.String())
+	}
+
 	tokenProvider := cfg.TokenProvider
 	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
@@ -388,6 +400,9 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+	if allowedRepos != nil {
+		ghServer.AddReceivingMiddleware(allowedReposMiddleware(allowedRepos))
 	}
 
 	if cfg.ExportTranslations {
