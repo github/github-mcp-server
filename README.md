@@ -1022,7 +1022,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - **OAuth Challenge Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body content. For 'update', an empty string clears the body; omit body to keep it unchanged. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
   - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
@@ -1040,7 +1040,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: Issue title (string, optional)
+  - `title`: Issue title. Required for 'create'. For 'update', an empty string is rejected; omit title to keep it unchanged. (string, optional)
   - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **list_issue_fields** - List issue fields

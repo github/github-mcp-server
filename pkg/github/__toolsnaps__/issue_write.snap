@@ -24,7 +24,7 @@
         "type": "array"
       },
       "body": {
-        "description": "Issue body content",
+        "description": "Issue body content. For 'update', an empty string clears the body; omit body to keep it unchanged.",
         "type": "string"
       },
       "duplicate_of": {
@@ -126,7 +126,7 @@
         "type": "string"
       },
       "title": {
-        "description": "Issue title",
+        "description": "Issue title. Required for 'create'. For 'update', an empty string is rejected; omit title to keep it unchanged.",
         "type": "string"
       },
       "type": {
