@@ -58,6 +58,7 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		enabledFeatures []string
+		toolsets        []string
 		insidersMode    bool
 		readOnly        bool
 		wantAvailable   bool
@@ -75,6 +76,17 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 			readOnly:        true,
 			wantAvailable:   true,
 		},
+		{
+			name:            "explicit opt-in with default toolsets",
+			enabledFeatures: []string{FeatureFlagAgentAutomations},
+			toolsets:        []string{"default"},
+		},
+		{
+			name:            "explicit opt-in with copilot_automations toolset",
+			enabledFeatures: []string{FeatureFlagAgentAutomations},
+			toolsets:        []string{"copilot_automations"},
+			wantAvailable:   true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			enabled := ResolveFeatureFlags(tc.enabledFeatures, tc.insidersMode)[FeatureFlagAgentAutomations]
@@ -82,9 +94,13 @@ func TestAgentAutomationFeatureFlagAvailability(t *testing.T) {
 			if enabled {
 				flags = append(flags, FeatureFlagAgentAutomations)
 			}
+			toolsets := tc.toolsets
+			if toolsets == nil {
+				toolsets = []string{"all"}
+			}
 			inv, err := inventory.NewBuilder().
 				SetTools(AllTools(translations.NullTranslationHelper)).
-				WithToolsets([]string{"all"}).
+				WithToolsets(toolsets).
 				WithReadOnly(tc.readOnly).
 				WithFeatureChecker(featureCheckerFor(flags...)).
 				Build()

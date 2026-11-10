@@ -147,7 +147,7 @@ func newAgentAutomationTool[Input any](
 ) inventory.ServerTool {
 	annotations.Title = t("TOOL_"+name+"_USER_TITLE", title)
 	tool := NewTool[Input, json.RawMessage](
-		ToolsetMetadataCopilot,
+		ToolsetMetadataCopilotAutomations,
 		mcp.Tool{
 			Name:         name,
 			Description:  t("TOOL_"+name+"_DESCRIPTION", description),
