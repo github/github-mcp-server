@@ -12,6 +12,46 @@ import (
 // multi-round-trip input requests.
 const ProtocolVersionMultiRoundTrip = "2026-07-28"
 
+// latestLegacyProtocolVersion is the newest protocol version the deprecated
+// initialize handshake can negotiate.
+const latestLegacyProtocolVersion = "2025-11-25"
+
+// knownProtocolVersions lists the MCP protocol versions this server understands,
+// oldest first. Availability is decided by comparing against these entries
+// instead of comparing version strings lexically.
+var knownProtocolVersions = []string{
+	"2024-11-05",
+	"2025-03-26",
+	"2025-06-18",
+	latestLegacyProtocolVersion,
+	ProtocolVersionMultiRoundTrip,
+}
+
+// knownProtocolVersionRank returns the position of version in
+// knownProtocolVersions, oldest first.
+func knownProtocolVersionRank(version string) (int, bool) {
+	for i, known := range knownProtocolVersions {
+		if version == known {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// availabilityProtocolVersionRank ranks a client-declared protocol version for
+// the >= comparison. Versions the server does not know negotiate down to
+// latestLegacyProtocolVersion, and an unset version ranks below every known one.
+func availabilityProtocolVersionRank(version string) int {
+	if version == "" {
+		return -1
+	}
+	if rank, ok := knownProtocolVersionRank(version); ok {
+		return rank
+	}
+	legacyRank, _ := knownProtocolVersionRank(latestLegacyProtocolVersion)
+	return legacyRank
+}
+
 // ElicitationMode identifies a client-supported elicitation interaction mode.
 type ElicitationMode string
 
@@ -116,8 +156,9 @@ func toolAvailabilityMiddleware(availabilityByName map[string]toolAvailability) 
 			}
 
 			tools := make([]*mcp.Tool, 0, len(list.Tools))
+			protocolVersion := protocolVersionForTools(requestMetaProtocolVersion(req.Params.Meta), req.ProtocolVersion())
 			for _, tool := range list.Tools {
-				if toolAvailable(req.ProtocolVersion(), req.ClientCapabilities(), availabilityByName[tool.Name]) {
+				if toolAvailable(protocolVersion, req.ClientCapabilities(), availabilityByName[tool.Name]) {
 					tools = append(tools, tool)
 				}
 			}
@@ -133,7 +174,8 @@ func (st *ServerTool) wrapAvailabilityCheck(next mcp.ToolHandler) mcp.ToolHandle
 		return next
 	}
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if toolAvailable(req.ProtocolVersion(), req.ClientCapabilities(), availability) {
+		protocolVersion := protocolVersionForTools(requestMetaProtocolVersion(req.Params.Meta), req.ProtocolVersion())
+		if toolAvailable(protocolVersion, req.ClientCapabilities(), availability) {
 			return next(ctx, req)
 		}
 		return toolUnavailableResult(st.Tool.Name, req, availability), nil
@@ -146,8 +188,39 @@ func toolAvailable(protocolVersion string, capabilities *mcp.ClientCapabilities,
 }
 
 func protocolVersionAllowed(protocolVersion, minimum string) bool {
-	// MCP protocol versions use ISO dates, so lexical ordering is chronological.
-	return minimum == "" || protocolVersion >= minimum
+	if minimum == "" {
+		return true
+	}
+	minimumRank, ok := knownProtocolVersionRank(minimum)
+	if !ok {
+		// Keep comparing lexically when the requirement itself is not a
+		// version this server knows about.
+		return protocolVersion >= minimum
+	}
+	return availabilityProtocolVersionRank(protocolVersion) >= minimumRank
+}
+
+// protocolVersionForTools resolves the protocol version that gates tool
+// availability for a request. The per-request _meta version is authoritative.
+// Otherwise the request falls back to the session version established during
+// initialize, which the server always negotiates down to
+// latestLegacyProtocolVersion.
+func protocolVersionForTools(metaVersion, sessionVersion string) string {
+	if metaVersion != "" {
+		return metaVersion
+	}
+	if sessionVersion == "" {
+		return ""
+	}
+	legacyRank, _ := knownProtocolVersionRank(latestLegacyProtocolVersion)
+	rank := availabilityProtocolVersionRank(sessionVersion)
+	if rank > legacyRank {
+		return latestLegacyProtocolVersion
+	}
+	if _, ok := knownProtocolVersionRank(sessionVersion); !ok {
+		return latestLegacyProtocolVersion
+	}
+	return sessionVersion
 }
 
 func elicitationModeSupported(capabilities *mcp.ClientCapabilities, requiredMode ElicitationMode) bool {
@@ -170,9 +243,10 @@ func elicitationModeSupported(capabilities *mcp.ClientCapabilities, requiredMode
 }
 
 func toolUnavailableResult(name string, req *mcp.CallToolRequest, availability toolAvailability) *mcp.CallToolResult {
+	protocolVersion := protocolVersionForTools(requestMetaProtocolVersion(req.Params.Meta), req.ProtocolVersion())
 	message := fmt.Sprintf("Tool %q is unavailable for this client.", name)
 	switch {
-	case !protocolVersionAllowed(req.ProtocolVersion(), availability.minimumProtocolVersion):
+	case !protocolVersionAllowed(protocolVersion, availability.minimumProtocolVersion):
 		message = fmt.Sprintf(
 			"Tool %q requires MCP protocol version %s or later.",
 			name,
