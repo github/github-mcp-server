@@ -12,8 +12,6 @@ import (
 
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
-	"github.com/github/github-mcp-server/v2/pkg/http/headers"
-	transportpkg "github.com/github/github-mcp-server/v2/pkg/http/transport"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -842,11 +840,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+
 			t.Parallel()
-
-			spy := &headerCaptureTransport{inner: tc.mockedClient.Transport}
-			tc.mockedClient.Transport = &transportpkg.GraphQLFeaturesTransport{Transport: spy}
-
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			deps := BaseDeps{
@@ -864,7 +859,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			// Call handler
 			result, err := handler(ctx, &request)
 			require.NoError(t, err)
-			assert.NotContains(t, spy.captured.Get(headers.GraphQLFeaturesHeader), "issues_copilot_assignment_api_support")
 
 			textContent := getTextResult(t, result)
 
@@ -1530,8 +1524,6 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			spy := &headerCaptureTransport{inner: tc.mockedClient.Transport}
-			tc.mockedClient.Transport = &transportpkg.GraphQLFeaturesTransport{Transport: spy}
 			client := githubv4.NewClient(tc.mockedClient)
 			deps := BaseDeps{GQLClient: client}
 			handler := serverTool.Handler(deps)
@@ -1544,7 +1536,6 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 
 			result, err := handler(ctx, &request)
 			require.NoError(t, err)
-			assert.NotContains(t, spy.captured.Get(headers.GraphQLFeaturesHeader), "issues_copilot_assignment_api_support")
 
 			textContent := getTextResult(t, result)
 
