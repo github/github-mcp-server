@@ -56,6 +56,10 @@ Possible options:
 				Type:        "number",
 				Description: "Pull request number",
 			},
+			"include_reactions": {
+				Type:        "boolean",
+				Description: "Include reaction counts for get_reviews or get_review_comments. Defaults to false.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
@@ -148,10 +152,10 @@ Possible options:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, output, err := getPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
+				result, output, err := getPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination, input.IncludeReactions)
 				return attachIFC(result), output, err
 			case "get_reviews":
-				result, output, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
+				result, output, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination, input.IncludeReactions)
 				return attachIFC(result), output, err
 			case "get_comments":
 				result, output, err := getIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -510,9 +514,47 @@ type reviewCommentNode struct {
 	Author            struct {
 		Login githubv4.String
 	}
-	CreatedAt githubv4.DateTime
-	UpdatedAt githubv4.DateTime
-	URL       githubv4.URI
+	CreatedAt      githubv4.DateTime
+	UpdatedAt      githubv4.DateTime
+	URL            githubv4.URI
+	ReactionGroups []reviewReactionGroup `graphql:"reactionGroups @include(if: $includeReactions)"`
+}
+
+type reviewReactionGroup struct {
+	Content githubv4.ReactionContent
+	Users   struct {
+		TotalCount githubv4.Int
+	} `graphql:"users(first: 1)"`
+}
+
+func summarizeReviewReactions(groups []reviewReactionGroup) *MinimalReactions {
+	if groups == nil {
+		return nil
+	}
+	summary := &MinimalReactions{}
+	for _, group := range groups {
+		count := int(group.Users.TotalCount)
+		summary.TotalCount += count
+		switch group.Content {
+		case githubv4.ReactionContentThumbsUp:
+			summary.PlusOne = count
+		case githubv4.ReactionContentThumbsDown:
+			summary.MinusOne = count
+		case githubv4.ReactionContentLaugh:
+			summary.Laugh = count
+		case githubv4.ReactionContentConfused:
+			summary.Confused = count
+		case githubv4.ReactionContentHeart:
+			summary.Heart = count
+		case githubv4.ReactionContentHooray:
+			summary.Hooray = count
+		case githubv4.ReactionContentRocket:
+			summary.Rocket = count
+		case githubv4.ReactionContentEyes:
+			summary.Eyes = count
+		}
+	}
+	return summary
 }
 
 type pageInfoFragment struct {
@@ -523,11 +565,11 @@ type pageInfoFragment struct {
 }
 
 func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams) (*mcp.CallToolResult, error) {
-	result, _, err := getPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, pagination)
+	result, _, err := getPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, pagination, false)
 	return result, err
 }
 
-func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
+func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams, includeReactions bool) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -547,6 +589,7 @@ func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
 		"first":             githubv4.Int(*gqlParams.First),
 		"commentsPerThread": githubv4.Int(100),
+		"includeReactions":  githubv4.Boolean(includeReactions),
 	}
 
 	// Add cursor if provided
@@ -599,11 +642,11 @@ func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	result, _, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
+	result, _, err := getPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination, false)
 	return result, err
 }
 
-func getPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
+func getPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, includeReactions bool) (*mcp.CallToolResult, *PullRequestReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -652,12 +695,55 @@ func getPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		reviews = filteredReviews
 	}
 
+	var reactions map[string]*MinimalReactions
+	if includeReactions {
+		reactions, err = fetchReviewReactions(ctx, deps, reviews)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get pull request review reactions", err), nil, nil
+		}
+	}
 	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
 	for _, review := range reviews {
-		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
+		minimal := convertToMinimalPullRequestReview(review)
+		minimal.Reactions = reactions[review.GetNodeID()]
+		minimalReviews = append(minimalReviews, minimal)
 	}
 
 	return MarshalledTextResult(minimalReviews), &PullRequestReadOutput{Reviews: &minimalReviews}, nil
+}
+
+func fetchReviewReactions(ctx context.Context, deps ToolDependencies, reviews []*github.PullRequestReview) (map[string]*MinimalReactions, error) {
+	ids := make([]githubv4.ID, 0, len(reviews))
+	for _, review := range reviews {
+		if id := review.GetNodeID(); id != "" {
+			ids = append(ids, githubv4.ID(id))
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	client, err := deps.GetGQLClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		Nodes []struct {
+			Review struct {
+				ID             githubv4.ID
+				ReactionGroups []reviewReactionGroup
+			} `graphql:"... on PullRequestReview"`
+		} `graphql:"nodes(ids: $ids)"`
+	}
+	if err := client.Query(ctx, &query, map[string]any{"ids": ids}); err != nil {
+		return nil, err
+	}
+	reactions := make(map[string]*MinimalReactions, len(query.Nodes))
+	for _, node := range query.Nodes {
+		if id, ok := node.Review.ID.(string); ok {
+			reactions[id] = summarizeReviewReactions(node.Review.ReactionGroups)
+		}
+	}
+	return reactions, nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.

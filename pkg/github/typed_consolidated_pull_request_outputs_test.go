@@ -149,10 +149,12 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 		case path == "/repos/owner/repo/pulls/1/commits":
 			write(http.StatusOK, `[{"sha":"abc","html_url":"https://github.com/owner/repo/commit/abc","commit":{"message":"msg","author":{"name":"Octo","email":"octo@example.com","date":"2026-01-01T00:00:00Z"}}}]`)
 		case path == "/repos/owner/repo/pulls/1/reviews":
-			write(http.StatusOK, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`)
+			write(http.StatusOK, `[{"id":9,"node_id":"R_1","state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`)
 		case path == "/repos/owner/repo/pulls/3/reviews":
 			// A successful null list payload is normalized to an empty list.
 			write(http.StatusOK, `null`)
+		case path == "/repos/owner/repo/pulls/4/reviews":
+			write(http.StatusOK, `[{"id":10,"node_id":"R_EMPTY","state":"COMMENTED","html_url":"https://github.com/owner/repo/pull/4#pullrequestreview-10"}]`)
 		case path == "/repos/owner/repo/issues/1/comments":
 			write(http.StatusOK, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/pull/1#issuecomment-42"}]`)
 		case path == "/repos/owner/repo/pulls/1/merge":
@@ -174,7 +176,8 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 	})}}
 	gql := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Query string `json:"query"`
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
 		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 		var body string
@@ -193,6 +196,16 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 			body = `{"data":{"resolveReviewThread":{"thread":{"id":"T_1","isResolved":true}}}}`
 		case strings.Contains(q, "reviewThreads("):
 			body = typedPRReviewThreads
+			if req.Variables["includeReactions"] == true {
+				body = strings.Replace(body, `"body":"nit"`, `"body":"nit","reactionGroups":[{"content":"HEART","users":{"totalCount":1}}]`, 1)
+			}
+		case strings.Contains(q, "nodes(ids:") && strings.Contains(q, "... on PullRequestReview"):
+			if reflect.DeepEqual(req.Variables["ids"], []any{"R_EMPTY"}) {
+				body = `{"data":{"nodes":[{"id":"R_EMPTY","reactionGroups":[]}]}}`
+			} else {
+				assert.Equal(t, []any{"R_1"}, req.Variables["ids"])
+				body = `{"data":{"nodes":[{"id":"R_1","reactionGroups":[{"content":"THUMBS_UP","users":{"totalCount":2}},{"content":"ROCKET","users":{"totalCount":1}}]}]}}`
+			}
 		case strings.Contains(q, "reviews(first: 100"):
 			body = `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[{"id":"R_1","author":{"userId":"U_1"}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}}`
 		case strings.Contains(q, "viewer{"):
@@ -286,8 +299,12 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "get_commits", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_review_comments", "pullNumber": 1, "perPage": 10, "after": "cursor"}, `{"review_threads":[{"id":"T_1","is_resolved":false,"is_outdated":false,"is_collapsed":false,"comments":[{"body":"nit","path":"file","line":3,"original_line":3,"author":"octocat","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","html_url":"https://github.com/owner/repo/pull/1#discussion_r1"}],"total_count":1}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"startCursor":"s","endCursor":"e"}}`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1}, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1, "include_reactions": true}, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER","reactions":{"total_count":3,"+1":2,"-1":0,"laugh":0,"confused":0,"heart":0,"hooray":0,"rocket":1,"eyes":0}}]`},
+		{"pull_request_read", map[string]any{"method": "get_review_comments", "pullNumber": 1, "include_reactions": true}, `{"review_threads":[{"id":"T_1","is_resolved":false,"is_outdated":false,"is_collapsed":false,"comments":[{"body":"nit","path":"file","line":3,"original_line":3,"author":"octocat","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","html_url":"https://github.com/owner/repo/pull/1#discussion_r1","reactions":{"total_count":1,"+1":0,"-1":0,"laugh":0,"confused":0,"heart":1,"hooray":0,"rocket":0,"eyes":0}}],"total_count":1}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"startCursor":"s","endCursor":"e"}}`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 3}, `[]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 3, "include_reactions": true}, `[]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 4, "include_reactions": true}, `[{"id":10,"state":"COMMENTED","html_url":"https://github.com/owner/repo/pull/4#pullrequestreview-10","reactions":{"total_count":0,"+1":0,"-1":0,"laugh":0,"confused":0,"heart":0,"hooray":0,"rocket":0,"eyes":0}}]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 1}, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/pull/1#issuecomment-42"}]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1}, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`},

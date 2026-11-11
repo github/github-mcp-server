@@ -781,14 +781,15 @@ type MinimalProjectStatusUpdate struct {
 
 // MinimalPullRequestReview is the trimmed output type for pull request review objects to reduce verbosity.
 type MinimalPullRequestReview struct {
-	ID                int64        `json:"id"`
-	State             string       `json:"state"`
-	Body              string       `json:"body,omitempty"`
-	HTMLURL           string       `json:"html_url"`
-	User              *MinimalUser `json:"user,omitempty"`
-	CommitID          string       `json:"commit_id,omitempty"`
-	SubmittedAt       string       `json:"submitted_at,omitempty"`
-	AuthorAssociation string       `json:"author_association,omitempty"`
+	ID                int64             `json:"id"`
+	State             string            `json:"state"`
+	Body              string            `json:"body,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	User              *MinimalUser      `json:"user,omitempty"`
+	CommitID          string            `json:"commit_id,omitempty"`
+	SubmittedAt       string            `json:"submitted_at,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
 }
 
 // Helper functions
@@ -1947,16 +1948,17 @@ type MinimalPageInfo struct {
 
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
 type MinimalReviewComment struct {
-	Body              string `json:"body,omitempty"`
-	Path              string `json:"path"`
-	Line              *int   `json:"line,omitempty"`
-	OriginalLine      *int   `json:"original_line,omitempty"`
-	StartLine         *int   `json:"start_line,omitempty"`
-	OriginalStartLine *int   `json:"original_start_line,omitempty"`
-	Author            string `json:"author,omitempty"`
-	CreatedAt         string `json:"created_at,omitempty"`
-	UpdatedAt         string `json:"updated_at,omitempty"`
-	HTMLURL           string `json:"html_url"`
+	Body              string            `json:"body,omitempty"`
+	Path              string            `json:"path"`
+	Line              *int              `json:"line,omitempty"`
+	OriginalLine      *int              `json:"original_line,omitempty"`
+	StartLine         *int              `json:"start_line,omitempty"`
+	OriginalStartLine *int              `json:"original_start_line,omitempty"`
+	Author            string            `json:"author,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+	UpdatedAt         string            `json:"updated_at,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
 }
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
@@ -2285,10 +2287,11 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    sanitize.Content(string(c.Body)),
-		Path:    string(c.Path),
-		Author:  string(c.Author.Login),
-		HTMLURL: c.URL.String(),
+		Body:      sanitize.Content(string(c.Body)),
+		Path:      string(c.Path),
+		Author:    string(c.Author.Login),
+		HTMLURL:   c.URL.String(),
+		Reactions: summarizeReviewReactions(c.ReactionGroups),
 	}
 
 	if c.Line != nil {
