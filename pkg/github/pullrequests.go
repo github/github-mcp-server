@@ -524,7 +524,7 @@ type reviewReactionGroup struct {
 	Content githubv4.ReactionContent
 	Users   struct {
 		TotalCount githubv4.Int
-	} `graphql:"users(first: 1)"`
+	} `graphql:"users: reactors(first: 1)"`
 }
 
 func summarizeReviewReactions(groups []reviewReactionGroup) *MinimalReactions {

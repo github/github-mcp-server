@@ -197,9 +197,11 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 		case strings.Contains(q, "reviewThreads("):
 			body = typedPRReviewThreads
 			if req.Variables["includeReactions"] == true {
+				assert.Contains(t, q, "users: reactors(first: 1){totalCount}")
 				body = strings.Replace(body, `"body":"nit"`, `"body":"nit","reactionGroups":[{"content":"HEART","users":{"totalCount":1}}]`, 1)
 			}
 		case strings.Contains(q, "nodes(ids:") && strings.Contains(q, "... on PullRequestReview"):
+			assert.Contains(t, q, "users: reactors(first: 1){totalCount}")
 			if reflect.DeepEqual(req.Variables["ids"], []any{"R_EMPTY"}) {
 				body = `{"data":{"nodes":[{"id":"R_EMPTY","reactionGroups":[]}]}}`
 			} else {
