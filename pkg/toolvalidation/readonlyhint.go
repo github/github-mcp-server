@@ -58,7 +58,7 @@ func (v ReadOnlyHintViolation) String() string {
 //	violations, err := toolvalidation.ScanReadOnlyHint(dir)
 func ScanReadOnlyHint(dir string) ([]ReadOnlyHintViolation, error) {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
+	pkgs, err := parser.ParseDir(fset, dir, func(info os.FileInfo) bool { //nolint:staticcheck // SA1019: This source-level validator intentionally scans all files regardless of build tags, without loading packages.
 		// Skip test files: they are allowed to construct mcp.Tool literals
 		// for fixtures or mocks where ReadOnlyHint is not meaningful.
 		return !strings.HasSuffix(info.Name(), "_test.go")

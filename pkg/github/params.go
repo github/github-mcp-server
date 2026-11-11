@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
@@ -34,10 +34,35 @@ func OptionalParamOK[T any, A map[string]any](args A, p string) (value T, ok boo
 	return
 }
 
+// OptionalNullableStringParam preserves omitted, null, and non-empty string values.
+func OptionalNullableStringParam(args map[string]any, p string) (*string, bool, error) {
+	value, ok := args[p]
+	if !ok {
+		return nil, false, nil
+	}
+	if value == nil {
+		return nil, true, nil
+	}
+
+	stringValue, ok := value.(string)
+	if !ok {
+		return nil, true, fmt.Errorf("parameter %s is not of type string or null, is %T", p, value)
+	}
+	if stringValue == "" {
+		return nil, true, fmt.Errorf("parameter %s must not be empty", p)
+	}
+	return &stringValue, true, nil
+}
+
 // isAcceptedError checks if the error is an accepted error.
 func isAcceptedError(err error) bool {
 	var acceptedError *github.AcceptedError
 	return errors.As(err, &acceptedError)
+}
+
+func inSignedIntRange(f float64, bitSize int) bool {
+	limit := math.Ldexp(1, bitSize-1)
+	return f >= -limit && f < limit
 }
 
 // toInt converts a value to int, handling both float64 and string representations.
@@ -63,7 +88,7 @@ func toInt(val any) (int, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	if f > math.MaxInt || f < math.MinInt {
+	if !inSignedIntRange(f, strconv.IntSize) {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil
@@ -71,7 +96,7 @@ func toInt(val any) (int, error) {
 
 // toInt64 converts a value to int64, handling both float64 and string representations.
 // Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values that lose precision in the float64→int64 conversion.
+// fractional values, and values outside the int64 range.
 func toInt64(val any) (int64, error) {
 	var f float64
 	switch v := val.(type) {
@@ -92,12 +117,10 @@ func toInt64(val any) (int64, error) {
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	result := int64(f)
-	// Check round-trip to detect precision loss for large int64 values
-	if float64(result) != f {
+	if !inSignedIntRange(f, 64) {
 		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
 	}
-	return result, nil
+	return int64(f), nil
 }
 
 // RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
@@ -328,14 +351,14 @@ func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Page number for pagination (min 1)",
-		Minimum:     jsonschema.Ptr(1.0),
+		Minimum:     new(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	return schema
@@ -347,14 +370,14 @@ func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Page number for pagination (min 1)",
-		Minimum:     jsonschema.Ptr(1.0),
+		Minimum:     new(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{
@@ -370,8 +393,8 @@ func WithCursorPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
-		Minimum:     jsonschema.Ptr(1.0),
-		Maximum:     jsonschema.Ptr(100.0),
+		Minimum:     new(1.0),
+		Maximum:     new(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{

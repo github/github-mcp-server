@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	gogithub "github.com/google/go-github/v87/github"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
@@ -41,10 +41,12 @@ const (
 	PostReposForksByOwnerByRepo           = "POST /repos/{owner}/{repo}/forks"
 	GetReposSubscriptionByOwnerByRepo     = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo     = "PUT /repos/{owner}/{repo}/subscription"
+	DeleteReposByOwnerByRepo              = "DELETE /repos/{owner}/{repo}"
 	DeleteReposSubscriptionByOwnerByRepo  = "DELETE /repos/{owner}/{repo}/subscription"
 	ListCollaborators                     = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
+	GetReposGitBlobsByOwnerByRepoByFileSHA     = "GET /repos/{owner}/{repo}/git/blobs/{file_sha}"
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
 	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
@@ -64,13 +66,16 @@ const (
 	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
 	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
 	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PatchReposIssuesCommentByOwnerByRepoByCommentID             = "PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}"
 	PostReposIssuesReactionsByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/reactions"
+	DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber        = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
 	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
 	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
 	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
 	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
 	PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID    = "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+	DeleteReposIssuesCommentsReactionsByOwnerByRepoByCommentID  = "DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}"
 	DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}"
 
 	// Pull request endpoints
@@ -86,6 +91,7 @@ const (
 	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
 	PostReposPullsCommentsByOwnerByRepoByPullNumber           = "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
 	PostReposPullsCommentsReactionsByOwnerByRepoByCommentID   = "POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
+	DeleteReposPullsCommentsReactionsByOwnerByRepoByCommentID = "DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
 
 	// Notifications endpoints
 	GetNotifications                                 = "GET /notifications"

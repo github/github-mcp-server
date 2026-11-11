@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	gogithub "github.com/google/go-github/v87/github"
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,8 +23,8 @@ import (
 func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 	t.Parallel()
 
-	req := &gogithub.IssueRequest{
-		Title:            gogithub.Ptr("still here"),
+	req := &gogithub.UpdateIssueRequest{
+		Title:            new("still here"),
 		IssueFieldValues: []*gogithub.IssueRequestFieldValue{},
 	}
 	body, err := json.Marshal(req)
@@ -44,10 +44,10 @@ func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &gogithub.Issue{
-		Number:  gogithub.Ptr(42),
-		Title:   gogithub.Ptr("Test issue"),
-		State:   gogithub.Ptr("open"),
-		HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("Test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 	}
 
 	var (
@@ -145,10 +145,10 @@ func Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &gogithub.Issue{
-		Number:  gogithub.Ptr(42),
-		Title:   gogithub.Ptr("Test issue"),
-		State:   gogithub.Ptr("open"),
-		HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("Test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 	}
 
 	var (
@@ -242,10 +242,10 @@ func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &gogithub.Issue{
-		Number:  gogithub.Ptr(42),
-		Title:   gogithub.Ptr("Test issue"),
-		State:   gogithub.Ptr("open"),
-		HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("Test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 	}
 
 	var (
@@ -334,10 +334,10 @@ func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &gogithub.Issue{
-		Number:  gogithub.Ptr(42),
-		Title:   gogithub.Ptr("Test issue"),
-		State:   gogithub.Ptr("open"),
-		HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/42"),
+		Number:  new(42),
+		Title:   new("Test issue"),
+		State:   new("open"),
+		HTMLURL: new("https://github.com/owner/repo/issues/42"),
 	}
 
 	var (

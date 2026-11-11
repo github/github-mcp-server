@@ -27,7 +27,7 @@ go build -o mcpcurl
 
 ### Using Go Install
 ```bash
-go install github.com/github/github-mcp-server/cmd/mcpcurl@latest
+go install github.com/github/github-mcp-server/v2/cmd/mcpcurl@latest
 ```
 
 ### Verify Installation

@@ -1,16 +1,19 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/ifc"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -18,6 +21,74 @@ import (
 
 // GetMeUIResourceURI is the URI for the get_me tool's MCP App UI resource.
 const GetMeUIResourceURI = "ui://github-mcp-server/get-me"
+
+type GetMeInput struct{}
+
+type GetTeamsInput struct {
+	User string `json:"user,omitempty" jsonschema:"Username to get teams for. If not provided, uses the authenticated user."`
+}
+
+type GetTeamMembersInput struct {
+	Org      string `json:"org" jsonschema:"Organization login (owner) that contains the team."`
+	TeamSlug string `json:"team_slug" jsonschema:"Team slug"`
+}
+
+func contextToolInputSchema[In any](descriptions map[string]string) *jsonschema.Schema {
+	schema, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate context tool input schema: %v", err))
+	}
+	if schema.Properties == nil {
+		schema.Properties = make(map[string]*jsonschema.Schema)
+	}
+	schema.AdditionalProperties = nil
+	for name, description := range descriptions {
+		schema.Properties[name].Description = description
+	}
+	return schema
+}
+
+func contextToolValidationSchema(schema *jsonschema.Schema) *jsonschema.Schema {
+	validationSchema := schema.CloneSchemas()
+	validationSchema.AdditionalProperties = &jsonschema.Schema{}
+	return validationSchema
+}
+
+func normalizeGetTeamsInput(arguments json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &fields); err != nil {
+		return nil, err
+	}
+	if user, exists := fields["user"]; exists && bytes.Equal(bytes.TrimSpace(user), []byte("null")) {
+		return nil, &inventory.ToolInputError{Message: "parameter user is not of type string, is <nil>"}
+	}
+	return normalizeContextRoutingKeys(arguments, fields, "user")
+}
+
+func normalizeGetTeamMembersInput(arguments json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &fields); err != nil {
+		return nil, err
+	}
+	return normalizeContextRoutingKeys(arguments, fields, "org", "team_slug")
+}
+
+func normalizeContextRoutingKeys(arguments json.RawMessage, fields map[string]json.RawMessage, routingKeys ...string) (json.RawMessage, error) {
+	changed := false
+	for name := range fields {
+		for _, key := range routingKeys {
+			if name != key && strings.EqualFold(name, key) {
+				delete(fields, name)
+				changed = true
+				break
+			}
+		}
+	}
+	if !changed {
+		return arguments, nil
+	}
+	return json.Marshal(fields)
+}
 
 // UserDetails contains additional fields about a GitHub user not already
 // present in MinimalUser. Used by get_me context tool but omitted from search_users.
@@ -34,8 +105,8 @@ type UserDetails struct {
 	PublicGists       int       `json:"public_gists"`
 	Followers         int       `json:"followers"`
 	Following         int       `json:"following"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	CreatedAt         time.Time `json:"created_at" jsonschema:"Account creation time in RFC3339 format."`
+	UpdatedAt         time.Time `json:"updated_at" jsonschema:"Last profile update time in RFC3339 format."`
 	PrivateGists      int       `json:"private_gists,omitempty"`
 	TotalPrivateRepos int64     `json:"total_private_repos,omitempty"`
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
@@ -43,7 +114,8 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	inputSchema := contextToolInputSchema[GetMeInput](nil)
+	return NewToolWithSchemaOptions[GetMeInput, MinimalUser](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
@@ -52,9 +124,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
-			// Use json.RawMessage to ensure "properties" is included even when empty.
-			// OpenAI strict mode requires the properties field to be present.
-			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+			InputSchema: inputSchema,
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
@@ -62,11 +132,14 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			},
 		},
-		nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+		scopes.NoScopes(),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ GetMeInput) (*mcp.CallToolResult, MinimalUser, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), MinimalUser{}, nil
 			}
 
 			user, res, err := client.Users.Get(ctx, "")
@@ -75,7 +148,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"failed to get user",
 					res,
 					err,
-				), nil, nil
+				), MinimalUser{}, nil
 			}
 
 			// Create minimal user representation instead of returning full user object
@@ -107,7 +180,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := MarshalledTextResult(minimalUser)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGetMe())
-			return result, nil, nil
+			return result, minimalUser, nil
 		},
 	)
 }
@@ -124,7 +197,10 @@ type OrganizationTeams struct {
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	inputSchema := contextToolInputSchema[GetTeamsInput](map[string]string{
+		"user": t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
+	})
+	return NewToolWithSchemaOptions[GetTeamsInput, []OrganizationTeams](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_teams",
@@ -133,26 +209,16 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"user": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user."),
-					},
-				},
-			},
+			InputSchema: inputSchema,
 		},
-		[]scopes.Scope{scopes.ReadOrg},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			user, err := OptionalParam[string](args, "user")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+		scopes.RequireAll(scopes.ReadOrg),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamsInput) (*mcp.CallToolResult, []OrganizationTeams, error) {
 			var username string
-			if user != "" {
-				username = user
+			if args.User != "" {
+				username = args.User
 			} else {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
@@ -221,13 +287,22 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). Org team rosters are visible only
 			// to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
-			return result, nil, nil
+			if organizations == nil {
+				organizations = []OrganizationTeams{}
+			}
+			return result, organizations, nil
 		},
+		normalizeGetTeamsInput,
 	)
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	inputSchema := contextToolInputSchema[GetTeamMembersInput](map[string]string{
+		"org":       t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
+		"team_slug": t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
+	})
+
+	return NewToolWithSchemaOptions[GetTeamMembersInput, []string](
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_team_members",
@@ -236,31 +311,18 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"org": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
-					},
-					"team_slug": {
-						Type:        "string",
-						Description: t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
-					},
-				},
-				Required: []string{"org", "team_slug"},
-			},
+			InputSchema: inputSchema,
 		},
-		[]scopes.Scope{scopes.ReadOrg},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			org, err := RequiredParam[string](args, "org")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		scopes.RequireAll(scopes.ReadOrg),
+		inventory.TypedSchemaOptions{
+			ValidationInputSchema: contextToolValidationSchema(inputSchema),
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GetTeamMembersInput) (*mcp.CallToolResult, []string, error) {
+			if args.Org == "" {
+				return utils.NewToolResultError("missing required parameter: org"), nil, nil
 			}
-
-			teamSlug, err := RequiredParam[string](args, "team_slug")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if args.TeamSlug == "" {
+				return utils.NewToolResultError("missing required parameter: team_slug"), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -280,8 +342,8 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				} `graphql:"organization(login: $org)"`
 			}
 			vars := map[string]any{
-				"org":      githubv4.String(org),
-				"teamSlug": githubv4.String(teamSlug),
+				"org":      githubv4.String(args.Org),
+				"teamSlug": githubv4.String(args.TeamSlug),
 			}
 			if err := gqlClient.Query(ctx, &q, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get team members", err), nil, nil
@@ -297,7 +359,11 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// outside contributors (trusted). A team's member roster is visible
 			// only to org members, so confidentiality is private.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
-			return result, nil, nil
+			if members == nil {
+				members = []string{}
+			}
+			return result, members, nil
 		},
+		normalizeGetTeamMembersInput,
 	)
 }

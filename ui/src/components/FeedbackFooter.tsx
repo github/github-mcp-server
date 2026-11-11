@@ -1,17 +1,19 @@
-import { Box, Text } from "@primer/react";
+import { Text } from "@primer/react";
 
 export function FeedbackFooter() {
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      mt={2}
-    >
-      <Text sx={{ color: "fg.subtle", fontSize: 0, textAlign: "center" }}>
+    <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+      <Text
+        style={{
+          color: "var(--fgColor-muted)",
+          fontSize: 12,
+          textAlign: "center",
+        }}
+      >
         Help us improve MCP Apps support in the GitHub MCP Server
         <br />
         github.com/github/github-mcp-server/issues/new?template=insiders-feedback.md
       </Text>
-    </Box>
+    </div>
   );
 }

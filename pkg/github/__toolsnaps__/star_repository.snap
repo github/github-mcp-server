@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Star repository"
   },
   "description": "Star a GitHub repository",
@@ -19,11 +21,13 @@
     "properties": {
       "owner": {
         "description": "Repository owner",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "owner"
       },
       "repo": {
         "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "x-mcp-header": "repo"
       }
     },
     "required": [
@@ -32,5 +36,20 @@
     ],
     "type": "object"
   },
-  "name": "star_repository"
+  "name": "star_repository",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
 }

@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Mark all notifications as read"
   },
   "description": "Mark all notifications as read",
@@ -20,5 +22,17 @@
     },
     "type": "object"
   },
-  "name": "mark_all_notifications_read"
+  "name": "mark_all_notifications_read",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": "object"
+  }
 }

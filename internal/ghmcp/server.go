@@ -8,36 +8,36 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/oauth"
-	"github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/transport"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	mcplog "github.com/github/github-mcp-server/pkg/log"
-	"github.com/github/github-mcp-server/pkg/observability"
-	"github.com/github/github-mcp-server/pkg/observability/metrics"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v87/github"
+	"github.com/github/github-mcp-server/v2/internal/oauth"
+	"github.com/github/github-mcp-server/v2/internal/requeststate"
+	"github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/http/transport"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/lockdown"
+	mcplog "github.com/github/github-mcp-server/v2/pkg/log"
+	"github.com/github/github-mcp-server/v2/pkg/observability"
+	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
+	"github.com/github/github-mcp-server/v2/pkg/raw"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
 // githubClients holds all the GitHub API clients created for a server instance.
 type githubClients struct {
-	rest         *gogithub.Client
-	restUATransp *transport.UserAgentTransport
-	gql          *githubv4.Client
-	gqlHTTP      *http.Client // retained for middleware to modify transport
-	raw          *raw.Client
-	repoAccess   *lockdown.RepoAccessCache
+	rest       *gogithub.Client
+	gql        *githubv4.Client
+	raw        *raw.Client
+	repoAccess *lockdown.RepoAccessCache
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
@@ -62,30 +62,36 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured (OAuth), we
-	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
-	// the latter installs its own round tripper that would pin the static token
-	// and shadow the dynamic one.
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		restURL.Host,
+		uploadURL.Host,
+		graphQLURL.Host,
+		rawURL.Host,
+	}
+
+	// Construct REST client. BearerAuthTransport handles both static and
+	// provider-backed tokens so every authentication mode uses the same host
+	// restrictions.
+	//
+	// ETagTransport sits below the user-agent (and auth) layers so that, by the
+	// time it runs, the Authorization header is set and can scope the
+	// conditional-request cache per token. It adds ETag/If-None-Match handling
+	// so unchanged resources are revalidated with a 304 instead of being
+	// re-downloaded in full.
+	//
+	// The conditional-request cache is enabled only for the REST API client on
+	// this long-lived local (stdio) server. The raw-content client below uses a
+	// separate transport without it, so large file bodies are never buffered
+	// into the cache. The hosted, horizontally-scaled server builds a fresh REST
+	// client per request (see pkg/github RequestDeps) and does not use this path.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
-		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+		Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
+		Agent:     stdioUserAgent(cfg, nil),
 	}
-	var restClient *gogithub.Client
-	if cfg.TokenProvider != nil {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-				Transport:     restUATransport,
-				TokenProvider: cfg.TokenProvider,
-			}}),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	} else {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-			gogithub.WithAuthToken(cfg.Token),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	}
+	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -95,17 +101,31 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: &transport.UserAgentTransport{
+					Transport: http.DefaultTransport,
+					Agent:     stdioUserAgent(cfg, nil),
+				},
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
 		},
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
-	// Create raw content client (shares REST client's HTTP transport)
-	rawClient, err := raw.NewClient(restClient, rawURL)
+	// Create raw content client. It shares the REST client's authentication but
+	// uses a transport without the conditional-request cache: raw file bodies can
+	// be large and are streamed rather than retained in memory.
+	rawUATransport := &transport.UserAgentTransport{
+		Transport: http.DefaultTransport,
+		Agent:     stdioUserAgent(cfg, nil),
+	}
+	rawRESTClient, err := newRESTClient(cfg, rawUATransport, restURL.String(), uploadURL.String(), allowedHosts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw REST client: %w", err)
+	}
+	rawClient, err := raw.NewClient(rawRESTClient, rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw client: %w", err)
 	}
@@ -123,19 +143,38 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}
 
 	return &githubClients{
-		rest:         restClient,
-		restUATransp: restUATransport,
-		gql:          gqlClient,
-		gqlHTTP:      gqlHTTPClient,
-		raw:          rawClient,
-		repoAccess:   repoAccessCache,
+		rest:       restClient,
+		gql:        gqlClient,
+		raw:        rawClient,
+		repoAccess: repoAccessCache,
 	}, nil
+}
+
+// newRESTClient builds a go-github REST client that sends requests through the
+// supplied user-agent transport. Authentication uses BearerAuthTransport for
+// both static and provider-backed tokens, and allowedHosts scopes the token to
+// the configured GitHub hosts so it is never leaked to off-host redirects.
+func newRESTClient(cfg github.MCPServerConfig, uaTransport *transport.UserAgentTransport, restURL, uploadURL string, allowedHosts []string) (*gogithub.Client, error) {
+	return gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:     uaTransport,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
+		}}),
+		gogithub.WithEnterpriseURLs(restURL, uploadURL),
+	)
 }
 
 func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
+	}
+
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to classify API host: %w", err)
 	}
 
 	clients, err := createGitHubClients(cfg, apiHost)
@@ -164,8 +203,12 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		featureChecker,
 		obs,
 	)
+	deps.StateSealer, err = requeststate.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure request-state protection: %w", err)
+	}
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
+	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
@@ -189,7 +232,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg))
 
 	return ghServer, nil
 }
@@ -213,7 +256,7 @@ type StdioServerConfig struct {
 	EnabledTools []string
 
 	// EnabledFeatures is a list of feature flags that are enabled
-	// Items with FeatureFlagEnable matching an entry in this list will be available
+	// Tool feature rules evaluate entries in this list.
 	EnabledFeatures []string
 
 	// ReadOnly indicates if we should only register read-only tools
@@ -257,15 +300,21 @@ type StdioServerConfig struct {
 	// are hidden. The default set is the full supported list, which hides
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
+
+	// TokenProvider supplies a token for each GitHub API request.
+	TokenProvider func() string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
-	// OAuth login and a static token are mutually exclusive: they would
-	// disagree on how the token is sourced (lazy provider vs. static) and on
-	// scope filtering, so reject the ambiguous combination up front.
-	if cfg.OAuthManager != nil && cfg.Token != "" {
-		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	authModes := 0
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
+		if on {
+			authModes++
+		}
+	}
+	if authModes > 1 {
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
 	}
 
 	// Create app context
@@ -311,39 +360,34 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	// For OAuth, the token is resolved lazily: empty until the user authorizes
-	// on the first tool call, then refreshed for the rest of the session.
-	var tokenProvider func() string
+	tokenProvider := cfg.TokenProvider
+	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken
+		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		InsidersMode:      cfg.InsidersMode,
-		ExcludeTools:      cfg.ExcludeTools,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
-		TokenProvider:     tokenProvider,
+		Version:               cfg.Version,
+		Host:                  cfg.Host,
+		Token:                 cfg.Token,
+		EnabledToolsets:       cfg.EnabledToolsets,
+		EnabledTools:          cfg.EnabledTools,
+		EnabledFeatures:       cfg.EnabledFeatures,
+		ReadOnly:              cfg.ReadOnly,
+		Translator:            t,
+		ContentWindowSize:     cfg.ContentWindowSize,
+		LockdownMode:          cfg.LockdownMode,
+		InsidersMode:          cfg.InsidersMode,
+		ExcludeTools:          cfg.ExcludeTools,
+		Logger:                logger,
+		RepoAccessTTL:         cfg.RepoAccessCacheTTL,
+		TokenScopes:           tokenScopes,
+		TokenProvider:         tokenProvider,
+		ToolHandlerMiddleware: toolHandlerMiddleware,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
-	}
-
-	// With OAuth, intercept tool calls to run the authorization flow on first
-	// use, before the handler tries to call GitHub with an empty token.
-	if cfg.OAuthManager != nil {
-		ghServer.AddReceivingMiddleware(createOAuthMiddleware(cfg.OAuthManager, logger))
 	}
 
 	if cfg.ExportTranslations {
@@ -397,36 +441,28 @@ func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory
 	}
 }
 
-func addUserAgentsMiddleware(cfg github.MCPServerConfig, restUATransp *transport.UserAgentTransport, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+func stdioUserAgent(cfg github.MCPServerConfig, client *mcp.Implementation) string {
+	agent := fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+	if client != nil {
+		comment := strconv.Quote(client.Name + "/" + client.Version)
+		comment = comment[1 : len(comment)-1]
+		comment = strings.NewReplacer("(", `\(`, ")", `\)`).Replace(comment)
+		agent += " (" + comment + ")"
+	}
+	if cfg.InsidersMode {
+		agent += " (insiders)"
+	}
+	return agent
+}
+
+func addUserAgentsMiddleware(cfg github.MCPServerConfig) func(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
-			if method != "initialize" {
-				return next(ctx, method, request)
+			var client *mcp.Implementation
+			if info, ok := request.(interface{ ClientInfo() *mcp.Implementation }); ok {
+				client = info.ClientInfo()
 			}
-
-			initializeRequest, ok := request.(*mcp.InitializeRequest)
-			if !ok {
-				return next(ctx, method, request)
-			}
-
-			message := initializeRequest
-			userAgent := fmt.Sprintf(
-				"github-mcp-server/%s (%s/%s)",
-				cfg.Version,
-				message.Params.ClientInfo.Name,
-				message.Params.ClientInfo.Version,
-			)
-			if cfg.InsidersMode {
-				userAgent += " (insiders)"
-			}
-
-			restUATransp.Agent = userAgent
-
-			gqlHTTPClient.Transport = &transport.UserAgentTransport{
-				Transport: gqlHTTPClient.Transport,
-				Agent:     userAgent,
-			}
-
+			ctx = transport.WithUserAgent(ctx, stdioUserAgent(cfg, client))
 			return next(ctx, method, request)
 		}
 	}

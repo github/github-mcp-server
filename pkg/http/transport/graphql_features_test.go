@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/headers"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 
 			// Create the transport
 			transport := &GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: newIsolatedTransport(t),
 			}
 
 			// Create a request
@@ -91,9 +91,10 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 	}
 }
 
+// TestGraphQLFeaturesTransport_NilTransport exercises the real
+// http.DefaultTransport fallback, so it can't run in parallel with tests that
+// close their own servers (that closes DefaultTransport's idle conns too).
 func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
-	t.Parallel()
-
 	var capturedHeader string
 
 	// Create a test server
@@ -133,7 +134,7 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 
 	// Create the transport
 	transport := &GraphQLFeaturesTransport{
-		Transport: http.DefaultTransport,
+		Transport: newIsolatedTransport(t),
 	}
 
 	// Create a request with features

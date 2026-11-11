@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Delete branch"
   },
   "description": "Delete a branch from a GitHub repository. Protected branches cannot be deleted.",

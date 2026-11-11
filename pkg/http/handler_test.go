@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,14 +12,17 @@ import (
 	"strings"
 	"testing"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/http/headers"
+	"github.com/github/github-mcp-server/v2/pkg/http/middleware"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/scopes"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +51,7 @@ type allScopesFetcher struct{}
 func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
 	return []string{
 		string(scopes.Repo),
+		string(scopes.DeleteRepo),
 		string(scopes.WriteOrg),
 		string(scopes.User),
 		string(scopes.Gist),
@@ -55,12 +61,54 @@ func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]strin
 
 var _ scopes.FetcherInterface = allScopesFetcher{}
 
-func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
-	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	if disableFlag != "" {
-		tool.FeatureFlagDisable = []string{disableFlag}
+func TestDefaultInventoryFactoryReusesSchemaDefinitions(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"https://github.com", "https://example.ghe.com", "https://github.example.com"} {
+		t.Run(host, func(t *testing.T) {
+			factory, err := NewDefaultInventoryFactory(&ServerConfig{Host: host}, translations.NullTranslationHelper, nil, allScopesFetcher{})
+			require.NoError(t, err)
+			request := httptest.NewRequest(http.MethodPost, "/", nil)
+			request = request.WithContext(ghcontext.WithToolsets(request.Context(), []string{"all"}))
+			first, err := factory(request)
+			require.NoError(t, err)
+			definitions := first.AllTools()
+			require.NotEmpty(t, definitions)
+			for range 10 {
+				next, err := factory(request)
+				require.NoError(t, err)
+				tools := next.AllTools()
+				require.Len(t, tools, len(definitions))
+				for i, tool := range tools {
+					assert.Equal(t, definitions[i].Tool.Name, tool.Tool.Name)
+					if _, ok := definitions[i].Tool.InputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.InputSchema, tool.Tool.InputSchema)
+					}
+					if _, ok := definitions[i].Tool.OutputSchema.(*jsonschema.Schema); ok {
+						assert.Same(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					} else {
+						assert.Equal(t, definitions[i].Tool.OutputSchema, tool.Tool.OutputSchema)
+					}
+				}
+			}
+		})
 	}
+}
+
+func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag inventory.FeatureFlag) inventory.ServerTool {
+	tool := mockTool(name, toolsetID, readOnly)
+	features := make([]inventory.FeatureFlag, 0, 2)
+	if enableFlag != "" {
+		features = append(features, enableFlag)
+	}
+	if disableFlag != "" {
+		features = append(features, disableFlag)
+	}
+	tool.FeatureRule = inventory.NewFeatureRule(features, func(featureAsBool inventory.FeatureResolver) bool {
+		return (enableFlag == "" || featureAsBool(enableFlag)) &&
+			(disableFlag == "" || !featureAsBool(disableFlag))
+	})
 	return tool
 }
 
@@ -172,9 +220,9 @@ func testTools() []inventory.ServerTool {
 		mockTool("create_issue", "issues", false),
 		mockTool("list_pull_requests", "pull_requests", true),
 		mockTool("create_pull_request", "pull_requests", false),
-		// Feature-flagged tools for testing X-MCP-Features header
-		mockToolWithFeatureFlag("needs_holdback", "repos", true, "mcp_holdback_consolidated_projects", ""),
-		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", "mcp_holdback_consolidated_projects"),
+		// Feature-flagged tools for testing per-request feature selection.
+		mockToolWithFeatureFlag("needs_holdback", "repos", true, github.FeatureFlagIssueDependencies, ""),
+		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", github.FeatureFlagIssueDependencies),
 	}
 }
 
@@ -288,13 +336,36 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			name: "X-MCP-Features header enables flagged tool",
 			path: "/",
 			headers: map[string]string{
-				headers.MCPFeaturesHeader: "mcp_holdback_consolidated_projects",
+				headers.MCPFeaturesHeader: github.FeatureFlagIssueDependencies,
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
 		},
 		{
 			name: "X-MCP-Features header with unknown flag is ignored",
 			path: "/",
+			headers: map[string]string{
+				headers.MCPFeaturesHeader: "unknown_flag",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name:          "features query parameter enables allowlisted feature",
+			path:          "/?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
+		},
+		{
+			name:          "features query parameter works with toolset and readonly routes",
+			path:          "/x/repos/readonly?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "needs_holdback"},
+		},
+		{
+			name:          "unknown feature in query parameter is ignored",
+			path:          "/?features=unknown_flag",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name: "unknown header suppresses allowlisted query feature",
+			path: "/?features=" + github.FeatureFlagIssueDependencies,
 			headers: map[string]string{
 				headers.MCPFeaturesHeader: "unknown_flag",
 			},
@@ -341,10 +412,13 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 			var capturedCtx context.Context
 
-			// Create feature checker that reads from context without whitelist validation
-			// (the whitelist is tested separately; here we test the filtering logic)
+			// Match the production allowlist and insiders expansion behavior.
 			featureChecker := func(ctx context.Context, flag string) (bool, error) {
-				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
+				effective := github.ResolveFeatureFlags(
+					ghcontext.GetHeaderFeatures(ctx),
+					ghcontext.IsInsidersMode(ctx),
+				)
+				return effective[flag], nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
@@ -556,7 +630,8 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build static tools the same way the production code does
-			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools)
+			staticTools, staticResources, staticPrompts, err := buildStaticInventoryFromTools(tt.config, tools)
+			require.NoError(t, err)
 			hasStatic := hasStaticConfig(tt.config)
 
 			validToolNames := make(map[string]bool, len(staticTools))
@@ -634,15 +709,90 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+func TestDefaultInventoryFactoriesRejectInvalidEnabledTools(t *testing.T) {
+	tests := []struct {
+		name         string
+		enabledTools []string
+		unknownTools []string
+	}{
+		{
+			name:         "mixed valid and invalid tools",
+			enabledTools: []string{"get_file_contents", "nonexistent_tool"},
+			unknownTools: []string{"nonexistent_tool"},
+		},
+		{
+			name:         "all invalid tools",
+			enabledTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+			unknownTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &ServerConfig{Version: "test", EnabledTools: tt.enabledTools}
+			factory, err := NewDefaultInventoryFactory(
+				cfg,
+				translations.NullTranslationHelper,
+				nil,
+				allScopesFetcher{},
+			)
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			for _, unknownTool := range tt.unknownTools {
+				assert.Contains(t, err.Error(), unknownTool)
+			}
+			assert.Nil(t, factory, "invalid static configuration must not produce a widened inventory factory")
+
+			factory = DefaultInventoryFactory(
+				cfg,
+				translations.NullTranslationHelper,
+				nil,
+				allScopesFetcher{},
+			)
+			inv, err := factory(httptest.NewRequest(http.MethodPost, "/", nil))
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			assert.Nil(t, inv, "the compatibility factory must preserve the validation error")
+		})
+	}
+}
+
+func TestStaticInventoryInvalidEnabledToolsReturnsBadRequest(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test", EnabledTools: []string{"nonexistent_tool"}},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+	)
+
+	r := chi.NewRouter()
+	handler.RegisterMiddleware(r)
+	handler.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "unknown tools specified")
+}
+
 func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	tools := []inventory.ServerTool{
 		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
 		mockToolWithFeatureFlag("list_issues", "issues", true, github.FeatureFlagCSVOutput, ""),
 	}
+
 	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
 	featureChecker := createHTTPFeatureChecker(nil, false)
 
-	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools)
+	staticTools, _, _, err := buildStaticInventoryFromTools(cfg, tools)
+	require.NoError(t, err)
 	require.Len(t, staticTools, 2, "static upper bounds should preserve both feature variants")
 
 	inv, err := inventory.NewBuilder().
@@ -656,7 +806,33 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	available := inv.AvailableTools(ctx)
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
-	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+	assert.True(t, available[0].FeatureRule.Enabled(func(flag inventory.FeatureFlag) bool {
+		return flag == github.FeatureFlagCSVOutput
+	}))
+}
+
+func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
+	cfg := &ServerConfig{disableDeleteRepository: true}
+	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		names = append(names, tool.Tool.Name)
+	}
+	assert.NotContains(t, names, github.DeleteRepositoryToolName)
+	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
+}
+
+func TestStaticInventoryKeepsExplicitDeleteRepositoryDisabled(t *testing.T) {
+	cfg := &ServerConfig{
+		EnabledTools:            []string{github.DeleteRepositoryToolName},
+		disableDeleteRepository: true,
+	}
+	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	require.NoError(t, err)
+
+	assert.Empty(t, tools, "an unavailable explicit allowlist must not widen to other tools")
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler
@@ -756,9 +932,9 @@ func TestContentTypeHandling(t *testing.T) {
 
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
-func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt, error) {
 	if !hasStaticConfig(cfg) {
-		return tools, nil, nil
+		return tools, nil, nil, nil
 	}
 
 	b := inventory.NewBuilder().
@@ -776,11 +952,65 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 
 	inv, err := b.Build()
 	if err != nil {
-		return tools, nil, nil
+		return nil, nil, nil, err
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx), nil
+}
+
+// TestStaticInventoryAppliesHostCapabilities guards against HTTP deployments
+// silently getting dotcom behaviour. ServerConfig.Host can point at GHES, where
+// semantic issue search 403s, so the static inventory has to classify the host
+// rather than fall through to the zero value.
+func TestStaticInventoryAppliesHostCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		host            string
+		wantDescription string
+	}{
+		{
+			name:            "empty host defaults to dotcom",
+			host:            "",
+			wantDescription: "semantic",
+		},
+		{
+			name:            "dotcom",
+			host:            "https://github.com",
+			wantDescription: "semantic",
+		},
+		{
+			name:            "GHES falls back to lexical",
+			host:            "https://ghes.example.com",
+			wantDescription: "lexical",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &ServerConfig{Version: "test", Host: tt.host}
+			staticTools, _, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+			var found bool
+			for _, st := range staticTools {
+				if st.Tool.Name != "search_issues" {
+					continue
+				}
+				found = true
+				isSemantic := strings.Contains(st.Tool.Description, "semantic matching")
+				if tt.wantDescription == "semantic" {
+					assert.True(t, isSemantic, "expected semantic description, got: %s", st.Tool.Description)
+				} else {
+					assert.False(t, isSemantic, "expected lexical description, got: %s", st.Tool.Description)
+				}
+			}
+			require.True(t, found, "search_issues should be in the static inventory")
+		})
+	}
 }
 
 func TestCrossOriginProtection(t *testing.T) {
@@ -852,62 +1082,428 @@ func TestCrossOriginProtection(t *testing.T) {
 	}
 }
 
-// TestInsidersRoutePreservesUIMeta is a regression test for the bug where
-// _meta.ui was stripped from tools/list responses on the HTTP /insiders route.
-//
-// Before the fix:
-//   - buildStaticInventory called Build() on a builder configured with the
-//     HTTP feature checker (which reads insiders mode from the request ctx).
-//   - Build() invoked checkFeatureFlag(context.Background()) — bg ctx has no
-//     insiders mode, so the FF reported MCP Apps off, and stripMCPAppsMetadata
-//     ran eagerly against the static tool slice at server startup.
-//   - Per-request inventory factories then served pre-stripped tools regardless
-//     of whether the request actually came in via /insiders.
-//
-// After the fix:
-//   - Build() no longer touches MCP Apps metadata.
-//   - RegisterTools applies the strip per-request, using the request context
-//     where the HTTP feature checker correctly observes insiders mode.
-func TestInsidersRoutePreservesUIMeta(t *testing.T) {
+func TestFeatureResolutionUsesOuterHTTPContext(t *testing.T) {
+	type userContextKey struct{}
+	const (
+		userValue   = "remote-user"
+		featureFlag = inventory.FeatureFlag("remote-feature")
+	)
+
+	var checkerCalls int
+	tool := mockTool("feature_tool", "test", true)
+	tool.FeatureRule = inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{featureFlag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(featureFlag)
+		},
+	)
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		checker := func(ctx context.Context, flag string) (bool, error) {
+			checkerCalls++
+			return flag == string(featureFlag) && ctx.Value(userContextKey{}) == userValue, nil
+		}
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{tool}).
+			WithToolsets([]string{"all"}).
+			WithFeatureChecker(checker).
+			Build()
+	}
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithGitHubMCPServerFactory(func(r *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			assert.True(t, inventory.ResolveFeature(r.Context(), nil, featureFlag))
+			require.Len(t, inv.AvailableTools(r.Context()), 1)
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, userValue)))
+		})
+	})
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+	req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+	req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", "tools/list")
+	req.Header.Set(headers.AuthorizationHeader, "ghs_test-token")
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+	assert.Equal(t, 1, checkerCalls)
+}
+
+func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{github.DeleteRepository(translations.NullTranslationHelper)}).
+			WithToolsets([]string{"all"}).
+			Build()
+	}
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		github.BaseDeps{},
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	for _, tt := range []struct {
+		name                    string
+		protocolVersion         string
+		elicitationCapabilities map[string]any
+		wantDeleteRepoTool      bool
+	}{
+		{
+			name:                    "current protocol with form elicitation includes delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
+			wantDeleteRepoTool:      true,
+		},
+		{
+			name:                    "current protocol with URL-only elicitation hides delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"url": map[string]any{}},
+		},
+		{
+			name:            "current protocol without elicitation hides delete repository",
+			protocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+		},
+		{
+			name:                    "legacy protocol hides delete repository",
+			protocolVersion:         "2025-11-25",
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clientCapabilities := map[string]any{}
+			if tt.elicitationCapabilities != nil {
+				clientCapabilities["elicitation"] = tt.elicitationCapabilities
+			}
+			body, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"method":  "tools/list",
+				"params": map[string]any{
+					"_meta": map[string]any{
+						mcp.MetaKeyProtocolVersion:    tt.protocolVersion,
+						mcp.MetaKeyClientCapabilities: clientCapabilities,
+						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "v0.0.1"},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("Mcp-Protocol-Version", tt.protocolVersion)
+			req.Header.Set("Mcp-Method", "tools/list")
+			req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+			require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+
+			var response struct {
+				Result struct {
+					Tools []struct {
+						Name string `json:"name"`
+					} `json:"tools"`
+				} `json:"result"`
+			}
+			responseBody := recorder.Body.String()
+			for line := range strings.SplitSeq(responseBody, "\n") {
+				if data, ok := strings.CutPrefix(line, "data: "); ok {
+					responseBody = data
+					break
+				}
+			}
+			require.NoError(t, json.Unmarshal([]byte(responseBody), &response))
+
+			toolNames := make([]string, 0, len(response.Result.Tools))
+			for _, tool := range response.Result.Tools {
+				toolNames = append(toolNames, tool.Name)
+			}
+			if tt.wantDeleteRepoTool {
+				assert.Contains(t, toolNames, "delete_repository")
+			} else {
+				assert.NotContains(t, toolNames, "delete_repository")
+			}
+		})
+	}
+}
+
+func TestHTTPStatelessTypedOutputProtocolHeaders(t *testing.T) {
+	type output struct {
+		Values []string `json:"values"`
+	}
+	tool := inventory.NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_http_tool"},
+		inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test tool"},
+		func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, output, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "legacy text"}},
+			}, output{Values: []string{"one", "two"}}, nil
+		},
+	)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(*http.Request) (*inventory.Inventory, error) {
+			return inv, nil
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+			inv.RegisterTools(context.Background(), server, nil)
+			return server, nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	for _, tc := range []struct {
+		name          string
+		headerVersion string
+		metaVersion   string
+		wantModern    bool
+	}{
+		{name: "modern header and metadata", headerVersion: inventory.ProtocolVersionMultiRoundTrip, metaVersion: inventory.ProtocolVersionMultiRoundTrip, wantModern: true},
+		{name: "legacy header and metadata", headerVersion: "2025-11-25", metaVersion: "2025-11-25"},
+		{name: "absent protocol version"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			post := func(method string, id int) map[string]json.RawMessage {
+				t.Helper()
+				params := map[string]any{"name": "typed_http_tool", "arguments": map[string]any{}}
+				if tc.metaVersion != "" {
+					params["_meta"] = map[string]any{
+						mcp.MetaKeyProtocolVersion:    tc.metaVersion,
+						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "1.0.0"},
+						mcp.MetaKeyClientCapabilities: map[string]any{},
+					}
+				}
+				requestBody, err := json.Marshal(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      id,
+					"method":  method,
+					"params":  params,
+				})
+				require.NoError(t, err)
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(requestBody)))
+				req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+				req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+				req.Header.Set(headers.MCPMethodHeader, method)
+				if method == "tools/call" {
+					req.Header.Set(headers.MCPNameHeader, "typed_http_tool")
+				}
+				if tc.headerVersion != "" {
+					req.Header.Set(headers.MCPProtocolVersionHeader, tc.headerVersion)
+				}
+
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, req)
+				require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+
+				responseBody := recorder.Body.String()
+				for line := range strings.SplitSeq(responseBody, "\n") {
+					if data, ok := strings.CutPrefix(line, "data: "); ok {
+						responseBody = data
+						break
+					}
+				}
+				var response struct {
+					Result json.RawMessage `json:"result"`
+					Error  json.RawMessage `json:"error"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(responseBody), &response), "response body: %s", responseBody)
+				require.Empty(t, response.Error, "JSON-RPC error: %s", response.Error)
+
+				var result map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(response.Result, &result))
+				return result
+			}
+
+			listResult := post("tools/list", 1)
+			var listed []struct {
+				Name         string          `json:"name"`
+				OutputSchema json.RawMessage `json:"outputSchema"`
+			}
+			require.NoError(t, json.Unmarshal(listResult["tools"], &listed))
+			require.Len(t, listed, 1)
+			require.Equal(t, "typed_http_tool", listed[0].Name)
+			if tc.wantModern {
+				assert.JSONEq(t, `{"type":"object","properties":{"values":{"type":["null","array"],"items":{"type":"string"}}},"required":["values"],"additionalProperties":false}`, string(listed[0].OutputSchema))
+			} else {
+				assert.Empty(t, listed[0].OutputSchema, "legacy and unknown protocol versions must not advertise output schemas")
+			}
+
+			callResult := post("tools/call", 2)
+			var called struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+				StructuredContent json.RawMessage `json:"structuredContent"`
+			}
+			callResultJSON, err := json.Marshal(callResult)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(callResultJSON, &called))
+			require.Len(t, called.Content, 1, "SDK fallback serialization must not duplicate the existing text")
+			assert.Equal(t, "text", called.Content[0].Type)
+			if tc.wantModern {
+				assert.JSONEq(t, `{"values":["one","two"]}`, string(called.StructuredContent))
+				assert.Equal(t, `{"values":["one","two"]}`, called.Content[0].Text)
+			} else {
+				assert.Equal(t, "legacy text", called.Content[0].Text)
+				assert.Empty(t, called.StructuredContent, "legacy and unknown protocol versions must not expose structured content")
+			}
+		})
+	}
+}
+
+func TestSubscriptionsListenIsRejected(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+	)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}},"notifications":{"toolsListChanged":true}}}`
+	tests := []struct {
+		name             string
+		methodHeader     string
+		expectedStatus   int
+		expectedJSONCode int
+	}{
+		{
+			name:             "matching method header",
+			methodHeader:     subscriptionsListenMethod,
+			expectedStatus:   http.StatusNotFound,
+			expectedJSONCode: jsonrpc.CodeMethodNotFound,
+		},
+		{
+			name:             "missing method header",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+		{
+			name:             "mismatched method header",
+			methodHeader:     "tools/list",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+			if tt.methodHeader != "" {
+				req.Header.Set(headers.MCPMethodHeader, tt.methodHeader)
+			}
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+			assert.Equal(t, headers.ContentTypeJSON, rr.Header().Get(headers.ContentTypeHeader))
+
+			var response struct {
+				ID    int `json:"id"`
+				Error struct {
+					Code int `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Equal(t, 1, response.ID)
+			assert.Equal(t, tt.expectedJSONCode, response.Error.Code)
+		})
+	}
+}
+
+// TestUIMetaPreservedByDefault verifies that _meta.ui is preserved in the
+// registered tool surface on both the /insiders route and the default route:
+// MCP Apps UI metadata is no longer gated behind a feature flag.
+func TestUIMetaPreservedByDefault(t *testing.T) {
 	const uiURI = "ui://test/widget"
 	uiTool := mockTool("with_ui", "repos", true)
 	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
 
-	checker := createHTTPFeatureChecker(nil, false)
-	build := func() *inventory.Inventory {
-		inv, err := inventory.NewBuilder().
-			SetTools([]inventory.ServerTool{uiTool}).
-			WithFeatureChecker(checker).
-			WithToolsets([]string{"all"}).
-			Build()
-		require.NoError(t, err)
-		return inv
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{uiTool}).
+		WithFeatureChecker(createHTTPFeatureChecker(nil, false)).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	for name, ctx := range map[string]context.Context{
+		"insiders": ghcontext.WithInsidersMode(context.Background(), true),
+		"default":  context.Background(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			tools := inv.ToolsForRegistration(ctx)
+			require.Len(t, tools, 1)
+			require.NotNil(t, tools[0].Tool.Meta, "_meta should be present")
+			require.Equal(t, uiURI, tools[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
+		})
 	}
-
-	// Simulate a /insiders request: ctx has insiders mode set.
-	insidersCtx := ghcontext.WithInsidersMode(context.Background(), true)
-
-	// AvailableTools no longer strips _meta.ui (post-fix), regardless of ctx.
-	// The strip lives in RegisterTools, gated on the per-request FF check.
-	insidersTools := build().AvailableTools(insidersCtx)
-	plainTools := build().AvailableTools(context.Background())
-
-	// On the /insiders path, the FF check returns true → no strip → _meta preserved.
-	enabled, _ := checker(insidersCtx, "remote_mcp_ui_apps")
-	require.True(t, enabled, "FF should be on for /insiders ctx")
-	require.Len(t, insidersTools, 1)
-	require.NotNil(t, insidersTools[0].Tool.Meta, "_meta should be present on /insiders")
-	require.Equal(t, uiURI, insidersTools[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
-
-	// On the non-insiders path, RegisterTools strips _meta.ui.
-	plainEnabled, _ := checker(context.Background(), "remote_mcp_ui_apps")
-	require.False(t, plainEnabled, "FF should be off for non-insiders ctx")
-	require.Len(t, plainTools, 1)
 }
 
-// TestUIMetaStrippedWhenClientLacksCapability verifies that even on the
-// /insiders path (where the feature flag is on), UI metadata is stripped from
-// tools/list responses when the client did NOT advertise the
+// TestUIMetaStrippedWhenClientLacksCapability verifies that UI metadata is
+// stripped from tools/list responses when the client did NOT advertise the
 // io.modelcontextprotocol/ui extension capability. Per the 2026-01-26 MCP
 // Apps spec, servers SHOULD check client capabilities before exposing
 // UI-enabled tools.
@@ -940,8 +1536,140 @@ func TestUIMetaStrippedWhenClientLacksCapability(t *testing.T) {
 	require.NotNil(t, preserved[0].Tool.Meta["ui"], "_meta.ui should be preserved when client advertises UI capability")
 	require.Equal(t, uiURI, preserved[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
 
-	// Unknown capability falls through to the FF gate (insiders ctx → kept).
 	unknown := build().ToolsForRegistration(insidersCtx)
 	require.Len(t, unknown, 1)
-	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown and FF is on")
+	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown")
+}
+
+// TestMaxRequestBodyBytes checks the effective limit and, critically, that it
+// sits above the MCP SDK default — which is why it must also be passed to
+// StreamableHTTPOptions rather than left to the SDK.
+func TestMaxRequestBodyBytes(t *testing.T) {
+	t.Run("default leaves headroom above the MCP SDK limit", func(t *testing.T) {
+		h := &Handler{config: &ServerConfig{}}
+
+		assert.Equal(t, int64(5<<20), h.maxRequestBodyBytes())
+		assert.Greater(t, h.maxRequestBodyBytes(), int64(mcp.DefaultMaxRequestBodyBytes),
+			"the default intentionally exceeds the SDK limit, so the SDK must be told about it")
+	})
+
+	t.Run("configured value overrides the default", func(t *testing.T) {
+		h := &Handler{config: &ServerConfig{MaxRequestBodyBytes: 1234}}
+		assert.Equal(t, int64(1234), h.maxRequestBodyBytes())
+	})
+}
+
+// TestMaxRequestBodySizeEnforcement exercises both layers the limit is applied
+// at: the early middleware, and the MCP SDK handler the request is delegated to.
+func TestMaxRequestBodySizeEnforcement(t *testing.T) {
+	const limit = 256
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	buildBody := func(size int) string {
+		payload := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"pad":"PADDING"}}`
+		if len(payload) >= size {
+			return payload
+		}
+		pad := strings.Repeat("x", size-len(payload))
+		return strings.Replace(payload, "PADDING", "PADDING"+pad, 1)
+	}
+
+	newHandler := func(t *testing.T, maxBytes int64, mcpServerFactoryCalled *bool) *Handler {
+		t.Helper()
+		return NewHTTPMcpHandler(
+			context.Background(),
+			&ServerConfig{Version: "test", MaxRequestBodyBytes: maxBytes},
+			nil,
+			translations.NullTranslationHelper,
+			slog.Default(),
+			apiHost,
+			WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+				return inventory.NewBuilder().Build()
+			}),
+			WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				if mcpServerFactoryCalled != nil {
+					*mcpServerFactoryCalled = true
+				}
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}),
+			WithScopeFetcher(allScopesFetcher{}),
+		)
+	}
+
+	newRouter := func(h *Handler) http.Handler {
+		r := chi.NewRouter()
+		h.RegisterMiddleware(r)
+		h.RegisterRoutes(r)
+		return r
+	}
+
+	newRequest := func(body string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+		req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+		return req
+	}
+
+	t.Run("middleware rejects an oversized request before the MCP server is built", func(t *testing.T) {
+		var mcpServerFactoryCalled bool
+		r := newRouter(newHandler(t, limit, &mcpServerFactoryCalled))
+
+		body := buildBody(limit + 1)
+		require.Greater(t, len(body), limit)
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, newRequest(body))
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+		assert.Contains(t, rr.Body.String(), "request body too large")
+		assert.False(t, mcpServerFactoryCalled, "the MCP server should never be constructed for an oversized request")
+	})
+
+	t.Run("request at the configured limit succeeds", func(t *testing.T) {
+		var mcpServerFactoryCalled bool
+		r := newRouter(newHandler(t, limit, &mcpServerFactoryCalled))
+
+		body := buildBody(limit)
+		require.Len(t, body, limit)
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, newRequest(body))
+
+		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
+		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
+	})
+
+	t.Run("SDK handler enforces the configured limit when the middleware is bypassed", func(t *testing.T) {
+		h := newHandler(t, limit, nil)
+
+		body := buildBody(limit + 1)
+		require.Greater(t, len(body), limit)
+
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, newRequest(body))
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+		assert.Contains(t, rr.Body.String(), fmt.Sprintf("request body exceeds %d bytes", limit),
+			"the SDK should report the configured limit, not its own default")
+	})
+
+	// The default headroom only exists if it reaches the SDK as well; leaving
+	// the SDK on its own default would silently reject this request.
+	t.Run("unconfigured handler accepts a request above the MCP SDK limit", func(t *testing.T) {
+		var mcpServerFactoryCalled bool
+		r := newRouter(newHandler(t, 0, &mcpServerFactoryCalled))
+
+		body := buildBody(mcp.DefaultMaxRequestBodyBytes + 1024)
+		require.Greater(t, int64(len(body)), int64(mcp.DefaultMaxRequestBodyBytes))
+		require.Less(t, int64(len(body)), middleware.DefaultMaxRequestBodyBytes)
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, newRequest(body))
+
+		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
+		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
+	})
 }

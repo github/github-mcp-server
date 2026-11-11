@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Add reply to pull request comment"
   },
   "description": "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required.",
@@ -48,5 +50,67 @@
     ],
     "type": "object"
   },
-  "name": "add_reply_to_pull_request_comment"
+  "name": "add_reply_to_pull_request_comment",
+  "outputSchema": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "html_url": {
+            "description": "Browser URL.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "additionalProperties": false,
+            "properties": {
+              "html_url": {
+                "description": "Browser URL.",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "reaction": {
+            "additionalProperties": false,
+            "properties": {
+              "html_url": {
+                "description": "Browser URL.",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "comment",
+          "reaction"
+        ],
+        "type": "object"
+      }
+    ]
+  }
 }

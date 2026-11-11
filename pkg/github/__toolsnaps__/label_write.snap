@@ -1,5 +1,8 @@
 {
   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Write operations on repository labels"
   },
   "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
@@ -47,5 +50,26 @@
     ],
     "type": "object"
   },
-  "name": "label_write"
+  "name": "label_write",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "type": "string"
+      },
+      "method": {
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "message"
+    ],
+    "type": "object"
+  }
 }

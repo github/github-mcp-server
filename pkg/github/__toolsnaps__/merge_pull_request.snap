@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Merge pull request"
   },
   "description": "Merge a pull request in a GitHub repository.",
@@ -23,6 +25,10 @@
       },
       "commit_title": {
         "description": "Title for merge commit",
+        "type": "string"
+      },
+      "expectedHeadSha": {
+        "description": "The expected SHA of the pull request's HEAD ref",
         "type": "string"
       },
       "merge_method": {
@@ -54,5 +60,35 @@
     ],
     "type": "object"
   },
-  "name": "merge_pull_request"
+  "name": "merge_pull_request",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "merged": {
+        "description": "Whether the pull request was merged.",
+        "type": [
+          "null",
+          "boolean"
+        ]
+      },
+      "message": {
+        "description": "Operation result message.",
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "sha": {
+        "description": "Git commit SHA.",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "type": [
+      "object",
+      "null"
+    ]
+  }
 }

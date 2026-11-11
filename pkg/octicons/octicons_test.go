@@ -1,12 +1,19 @@
 package octicons
 
 import (
+	"embed"
+	"encoding/base64"
+	"io/fs"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+//go:embed icons/*.png
+var iconPNGs embed.FS
 
 func TestDataURI(t *testing.T) {
 	tests := []struct {
@@ -37,6 +44,13 @@ func TestDataURI(t *testing.T) {
 			wantDataURI: false,
 			wantEmpty:   true,
 		},
+		{
+			name:        "unknown theme returns empty string",
+			icon:        "repo",
+			theme:       Theme("unknown"),
+			wantDataURI: false,
+			wantEmpty:   true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -51,6 +65,36 @@ func TestDataURI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDataURIForEveryEmbeddedIcon(t *testing.T) {
+	paths, err := fs.Glob(iconPNGs, "icons/*.png")
+	require.NoError(t, err)
+	require.NotEmpty(t, paths)
+
+	for _, path := range paths {
+		filename := strings.TrimSuffix(strings.TrimPrefix(path, "icons/"), ".png")
+		separator := strings.LastIndexByte(filename, '-')
+		if separator <= 0 {
+			t.Errorf("cannot parse embedded icon path %q", path)
+			continue
+		}
+		name := filename[:separator]
+		theme := Theme(filename[separator+1:])
+		t.Run(filename, func(t *testing.T) {
+			png, err := iconPNGs.ReadFile(path)
+			require.NoError(t, err)
+
+			dataURI := DataURI(name, theme)
+			require.True(t, strings.HasPrefix(dataURI, "data:image/png;base64,"))
+			encodedPNG := strings.TrimPrefix(dataURI, "data:image/png;base64,")
+			decodedPNG, err := base64.StdEncoding.DecodeString(encodedPNG)
+			require.NoError(t, err)
+			assert.Equal(t, png, decodedPNG)
+		})
+	}
+
+	assert.Len(t, dataURIs, len(paths))
 }
 
 func TestIcons(t *testing.T) {
