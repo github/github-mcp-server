@@ -173,7 +173,6 @@ Located in `.github/workflows/`:
 ### Code Patterns
 
 - **Keep changes minimal and focused** on the specific issue being addressed
-- **Prefer clarity over cleverness** - code must be understandable by a wide audience
 - **Atomic commits** - each commit should be a complete, logical change
 - **Maintain or improve structure** - never degrade code organization
 - Use table-driven tests for behavioral testing
