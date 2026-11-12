@@ -277,4 +277,3 @@ server.json         - MCP server registry metadata
 10. Toolsnaps are API documentation - treat changes seriously
 11. Build/test/lint are very fast (~1s each) - run frequently
 12. CI failures for docs-check or license-check have simple fixes (run the script)
-13. mcpcurl is secondary - don't break it, but it's not the priority
