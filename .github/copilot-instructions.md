@@ -96,7 +96,7 @@ go test ./pkg/github -run Test_GetMe
 - **Dockerfile:** Multi-stage build (golang:1.27.3-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
-- **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary
+- **.gitignore:** Excludes bin/, dist/, vendor/, .DS_Store, github-mcp-server binary
 
 ### Important Scripts (script/ directory)
 
