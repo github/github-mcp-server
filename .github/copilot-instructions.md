@@ -102,7 +102,7 @@ go test ./pkg/github -run Test_GetMe
 
 - **script/lint** - Runs `gofmt` + `golangci-lint`.
 - **script/test** - Runs `go test -race ./...` (full test suite)
-- **script/generate-docs** - Updates README.md tool documentation. Run after tool changes
+- **script/generate-docs** - Updates README.md tool documentation.
 - **script/licenses** - Updates third-party license files when dependencies change
 - **script/licenses-check** - Validates license compliance (runs in CI)
 - **script/get-me** - Quick test script for get_me tool
