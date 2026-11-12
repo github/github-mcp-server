@@ -264,7 +264,7 @@ server.json         - MCP server registry metadata
 ### Main Entry Point
 
 `cmd/github-mcp-server/main.go` - Uses cobra for CLI, viper for config, supports:
-- `stdio` command (default) - MCP stdio transport
+- `stdio` command - MCP stdio transport
 - `generate-docs` command - Documentation generation
 - Flags: --toolsets, --read-only, --gh-host, --log-file
 
