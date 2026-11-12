@@ -129,7 +129,7 @@ Located in `.github/workflows/`:
 ### Unit Tests
 
 - Use `testify` for assertions (`require` for critical checks, `assert` for non-blocking)
-- Tests are in `*_test.go` files alongside implementation (internal tests, not `_test` package)
+- Tests are in `*_test.go` files alongside implementation
 - Mock GitHub API with `go-github-mock` (REST) or `githubv4mock` (GraphQL)
 - Test structure for tools:
   1. Test tool snapshot
