@@ -86,7 +86,7 @@ mcp.Tool{
         Type: "string",
         Description: "Filter dependabot alerts by state. Defaults to open",
         Enum: []any{"open", "fixed", "dismissed", "auto_dismissed"},
-        Default: "open",
+        Default: json.RawMessage(`"open"`),
       },
       "severity": {
         Type: "string",
