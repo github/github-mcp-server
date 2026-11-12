@@ -270,7 +270,6 @@ server.json         - MCP server registry metadata
 
 ## Important Reminders
 
-1. **PRIMARY FOCUS:** The local stdio MCP server (github-mcp-server) - this is what you should work on and test with
 2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked). This repo is used as a library by the remote server, so keep functions exported (capitalized) if they could be called by other repos, even if not needed internally.
 3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 4. **NEVER** use `script/tag-release` or push tags
