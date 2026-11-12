@@ -109,4 +109,4 @@ You can update the snapshots by setting `UPDATE_TOOLSNAPS=true` before running t
 UPDATE_TOOLSNAPS=true go test ./...
 ```
 
-You should however, only update the toolsnaps after confirming that the schema changes are intentional and correct. Some schema changes are unavoidable, such as argument ordering, however the schemas themselves should remain logically equivalent.
+You should however, only update the toolsnaps after confirming that the schema changes are intentional and correct. Some schema changes are unavoidable, however the schemas themselves should remain logically equivalent.
