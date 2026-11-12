@@ -53,10 +53,10 @@ func resolveIssueMetadataScope(ctx context.Context, client *github.Client, owner
 		return scope, ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get authenticated user", resp, err)
 	}
 	if !strings.EqualFold(viewer.GetLogin(), owner) {
-		return scope, utils.NewToolResultError(fmt.Sprintf(
-			"%s is a user account, and GitHub lists a user's issue types and fields only to that user. Pass repo to list them for one of %s's repositories.",
-			owner, owner,
-		))
+		// owner is untrusted model input, so the error doesn't echo it.
+		return scope, utils.NewToolResultError(
+			"The owner is a user account other than the authenticated user, and GitHub lists a user's issue types and fields only to that user. Pass repo to list them for one of the owner's repositories.",
+		)
 	}
 	scope.Kind = issueMetadataViewer
 	return scope, nil

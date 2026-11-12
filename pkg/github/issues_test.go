@@ -7332,6 +7332,7 @@ func Test_ListIssueTypes(t *testing.T) {
 		expectError        bool
 		expectedIssueTypes []*github.IssueType
 		expectedErrMsg     string
+		notInErrMsg        string
 	}{
 		{
 			name: "organization owner lists organization issue types",
@@ -7376,7 +7377,8 @@ func Test_ListIssueTypes(t *testing.T) {
 				"owner": "hubot",
 			},
 			expectError:    true,
-			expectedErrMsg: "Pass repo to list them for one of hubot's repositories",
+			expectedErrMsg: "Pass repo to list them for one of the owner's repositories",
+			notInErrMsg:    "hubot",
 		},
 		{
 			name: "owner not found",
@@ -7462,6 +7464,9 @@ func Test_ListIssueTypes(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				if tc.notInErrMsg != "" {
+					assert.NotContains(t, errorContent.Text, tc.notInErrMsg, "the error must not echo untrusted input")
+				}
 				return
 			}
 
