@@ -100,7 +100,7 @@ go test ./pkg/github -run Test_GetMe
 
 ### Important Scripts (script/ directory)
 
-- **script/lint** - Runs `gofmt` + `golangci-lint`. **MUST RUN** before committing
+- **script/lint** - Runs `gofmt` + `golangci-lint`.
 - **script/test** - Runs `go test -race ./...` (full test suite)
 - **script/generate-docs** - Updates README.md tool documentation. Run after tool changes
 - **script/licenses** - Updates third-party license files when dependencies change
