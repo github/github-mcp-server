@@ -273,7 +273,6 @@ server.json         - MCP server registry metadata
 2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked).
 3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 4. **NEVER** use `script/tag-release` or push tags
-5. **NEVER** skip `script/lint` before committing Go code changes
 6. **ALWAYS** update toolsnaps when changing MCP tool schemas
 7. **ALWAYS** run `script/generate-docs` after modifying tools
 8. For specific test files, use `go test ./path -run TestName` not full suite
