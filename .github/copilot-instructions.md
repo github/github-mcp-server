@@ -176,7 +176,6 @@ Located in `.github/workflows/`:
 - Use table-driven tests for behavioral testing
 - Follow standard Go conventions (Effective Go, Go proverbs)
 - **Test changes thoroughly** before committing
-- Export functions (capitalize) if they could be used by other repos as a library
 
 ## Common Development Workflows
 
