@@ -103,7 +103,7 @@ mcp.Tool{
 
 After migrating the tool code and test file, ensure that all tests pass successfully. If any tests fail, review the error messages and adjust the migrated code as necessary to resolve any issues. If you encounter any challenges or need further assistance during the migration process, please let me know.
 
-At the end of your changes, you will continue to have an issue with the `toolsnaps` tests, these validate that the schema has not changed unexpectedly. You can update the snapshots by setting `UPDATE_TOOLSNAPS=true` before running the tests, e.g.:
+You can update the snapshots by setting `UPDATE_TOOLSNAPS=true` before running the tests, e.g.:
 
 ```bash
 UPDATE_TOOLSNAPS=true go test ./...
