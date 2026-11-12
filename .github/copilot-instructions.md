@@ -70,7 +70,7 @@ go test ./pkg/github -run Test_GetMe
 ├── pkg/                      # Public API packages
 │   ├── github/               # GitHub API MCP tools implementation
 │   │   └── __toolsnaps__/    # Tool schema snapshots (*.snap files)
-│   ├── toolsets/             # Toolset configuration & management
+│   ├── inventory/            # Toolset configuration & management
 │   ├── errors/               # Error handling utilities
 │   ├── sanitize/             # HTML/content sanitization
 │   ├── log/                  # Logging utilities
