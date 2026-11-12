@@ -119,7 +119,7 @@ Located in `.github/workflows/`:
 4. **code-scanning.yml** - CodeQL security analysis for Go and GitHub Actions
 5. **license-check.yml** - Runs `script/licenses-check` to validate compliance
 6. **docker-publish.yml** - Publishes container image to ghcr.io
-7. **goreleaser.yml** - Creates releases (main branch only)
+7. **goreleaser.yml** - Creates releases (version tags)
 8. **registry-releaser.yml** - Updates MCP registry
 
 **All of these must pass for PR merge.** If docs-check fails, run `script/generate-docs` and commit changes.
