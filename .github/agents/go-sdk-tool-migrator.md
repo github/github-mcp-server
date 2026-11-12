@@ -60,11 +60,11 @@ return mcp.NewTool(
 ...
 ```
 
-The corresponding input schema in modelcontextprotocol/go-sdk would look like this:
+The `mcp.Tool` component of the migrated `inventory.ServerTool` would look like this:
 
 ```go
 ...
-return mcp.Tool{
+mcp.Tool{
   Name: "list_dependabot_alerts",
   Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),
   Annotations: &mcp.ToolAnnotations{
