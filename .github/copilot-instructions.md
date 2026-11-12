@@ -274,7 +274,6 @@ server.json         - MCP server registry metadata
 3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 4. **NEVER** use `script/tag-release` or push tags
 8. For specific test files, use `go test ./path -run TestName` not full suite
-9. E2E tests require PAT token - you likely cannot run them
 10. Toolsnaps are API documentation - treat changes seriously
 11. Build/test/lint are very fast (~1s each) - run frequently
 12. CI failures for docs-check or license-check have simple fixes (run the script)
