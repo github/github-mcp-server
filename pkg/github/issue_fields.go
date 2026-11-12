@@ -101,7 +101,16 @@ type issueFieldsOrgQuery struct {
 	} `graphql:"organization(login: $login)"`
 }
 
-// ListIssueFields creates a tool to list issue field definitions for a repository or organization.
+// issueFieldsUserQuery is the GraphQL query for listing issue fields on a user account.
+type issueFieldsUserQuery struct {
+	User struct {
+		IssueFields struct {
+			Nodes []issueFieldNode
+		} `graphql:"issueFields(first: 100)"`
+	} `graphql:"user(login: $login)"`
+}
+
+// ListIssueFields creates a tool to list issue field definitions for a repository or its owner.
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewToolWithSchemaOptions[IssueMetadataInput, []IssueFieldOutput](
 		ToolsetMetadataIssues,
@@ -136,12 +145,21 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
 			}
 
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+			scope, errResult := resolveIssueMetadataScope(ctx, client, owner, repo)
+			if errResult != nil {
+				return errResult, nil, nil
+			}
+
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			fields, err := fetchIssueFields(ctx, gqlClient, owner, repo)
+			fields, err := fetchIssueFields(ctx, gqlClient, scope)
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to list issue fields", err), nil, nil
 			}
@@ -152,44 +170,47 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Issue field definitions are repo/org structural metadata
+			// Issue field definitions are repo/owner structural metadata
 			// (trusted). When scoped to a specific repo, confidentiality
-			// follows that repo's visibility; for an org-level lookup (no
+			// follows that repo's visibility; for an owner-level lookup (no
 			// repo) it is conservatively treated as private.
-			if repo == "" {
-				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
-			} else {
+			if scope.Kind == issueMetadataRepo {
 				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			} else {
+				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
 			}
 			return result, issueFieldOutputs(fields), nil
 		}, normalizeIssueStrings([]string{"owner"}, []string{"repo"}))
 	return st
 }
 
-// fetchIssueFields returns the issue field definitions for the given owner.
-// If repo is provided, fields are scoped to that repository (inherited from its
-// organization); otherwise fields are returned directly from the organization.
-func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, repo string) ([]IssueField, error) {
-	if repo != "" {
+// fetchIssueFields returns the issue field definitions for scope. A repository
+// returns the fields it inherits from its owner.
+func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, scope issueMetadataScope) ([]IssueField, error) {
+	switch scope.Kind {
+	case issueMetadataOrg:
+		var query issueFieldsOrgQuery
+		if err := gqlClient.Query(ctx, &query, map[string]any{"login": githubv4.String(scope.Owner)}); err != nil {
+			return nil, err
+		}
+		return issueFieldsFromNodes(query.Organization.IssueFields.Nodes), nil
+	case issueMetadataViewer:
+		var query issueFieldsUserQuery
+		if err := gqlClient.Query(ctx, &query, map[string]any{"login": githubv4.String(scope.Owner)}); err != nil {
+			return nil, err
+		}
+		return issueFieldsFromNodes(query.User.IssueFields.Nodes), nil
+	default:
 		var query issueFieldsRepoQuery
 		vars := map[string]any{
-			"owner": githubv4.String(owner),
-			"name":  githubv4.String(repo),
+			"owner": githubv4.String(scope.Owner),
+			"name":  githubv4.String(scope.Repo),
 		}
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
 			return nil, err
 		}
 		return issueFieldsFromNodes(query.Repository.IssueFields.Nodes), nil
 	}
-
-	var query issueFieldsOrgQuery
-	vars := map[string]any{
-		"login": githubv4.String(owner),
-	}
-	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return nil, err
-	}
-	return issueFieldsFromNodes(query.Organization.IssueFields.Nodes), nil
 }
 
 // issueFieldsFromNodes converts GraphQL issue field union nodes into IssueField values.

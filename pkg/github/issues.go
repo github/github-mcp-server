@@ -1291,7 +1291,7 @@ func getIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	return utils.NewToolResultText(string(out)), &IssueReadOutput{Method: "get_labels", Labels: &response.Labels, TotalCount: &response.TotalCount}, nil
 }
 
-// ListIssueTypes creates a tool to list defined issue types for an organization or repository.
+// ListIssueTypes creates a tool to list defined issue types for a repository or its owner.
 // This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool[IssueMetadataInput, []*IssueTypeOutput](
@@ -1331,49 +1331,14 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			if repo != "" {
-				apiURL := fmt.Sprintf("repos/%s/%s/issue-types", owner, repo)
-				req, err := client.NewRequest(ctx, "GET", apiURL, nil)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
-				}
-				var issueTypes []*github.IssueType
-				resp, err := client.Do(req, &issueTypes)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue types", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(issueTypes)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
-				}
-
-				result := utils.NewToolResultText(string(r))
-				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
-				return result, issueTypeOutputs(issueTypes), nil
+			scope, errResult := resolveIssueMetadataScope(ctx, client, owner, repo)
+			if errResult != nil {
+				return errResult, nil, nil
 			}
 
-			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
+			issueTypes, resp, err := fetchIssueTypes(ctx, client, scope)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue types", resp, err), nil, nil
 			}
 
 			r, err := json.Marshal(issueTypes)
@@ -1382,11 +1347,15 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Issue types are org-defined structural metadata (trusted, not
-			// attacker-authored). They are scoped to an organization rather
-			// than a single repo, so confidentiality is conservatively treated
-			// as private (restricted to org members).
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
+			if scope.Kind == issueMetadataRepo {
+				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			} else {
+				// Issue types are owner-defined structural metadata (trusted,
+				// not attacker-authored). They are scoped to an account rather
+				// than a single repo, so confidentiality is conservatively
+				// treated as private.
+				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
+			}
 			return result, issueTypeOutputs(issueTypes), nil
 		}, normalizeIssueStrings([]string{"owner"}, []string{"repo"}))
 	return st
@@ -3907,7 +3876,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// coerce each value into the right typed slot on IssueFieldValueFilter.
 			fieldFilters := []IssueFieldValueFilter{}
 			if len(rawFilters) > 0 {
-				fields, err := fetchIssueFields(ctx, client, owner, repo)
+				fields, err := fetchIssueFields(ctx, client, issueMetadataScope{Owner: owner, Repo: repo})
 				if err != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), output, nil
 				}

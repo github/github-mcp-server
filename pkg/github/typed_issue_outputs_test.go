@@ -34,6 +34,7 @@ func typedIssueDeps(t *testing.T) BaseDeps {
 		IssueURL: new("https://api.github.com/repos/owner/repo/issues/123"),
 	}
 	handlers := map[string]http.HandlerFunc{
+		"GET /users/{owner}":                                                mockResponse(t, http.StatusOK, &github.User{Login: new("owner"), Type: new("Organization")}),
 		"GET /orgs/{owner}/issue-types":                                     mockResponse(t, http.StatusOK, types),
 		"GET /repos/{owner}/{repo}/issue-types":                             mockResponse(t, http.StatusOK, types),
 		string(endpointGetIssue):                                            mockResponse(t, http.StatusOK, relatedIssue),
@@ -232,6 +233,7 @@ func TestTypedIssueNullOutput(t *testing.T) {
 	inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).WithToolsets([]string{"all"}).Build()
 	require.NoError(t, err)
 	deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"GET /users/{owner}": mockResponse(t, http.StatusOK, &github.User{Login: new("owner"), Type: new("Organization")}),
 		"GET /orgs/{owner}/issue-types": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("null"))
 		},
@@ -301,8 +303,8 @@ func TestTypedIssueAPIErrors(t *testing.T) {
 		args map[string]any
 		text string
 	}{
-		{ListIssueTypes(translate), map[string]any{"owner": "owner"}, "failed to list issue types"},
-		{ListIssueFields(translate), map[string]any{"owner": "owner"}, "failed to list issue fields"},
+		{ListIssueTypes(translate), map[string]any{"owner": "owner", "repo": "repo"}, "failed to list issue types"},
+		{ListIssueFields(translate), map[string]any{"owner": "owner", "repo": "repo"}, "failed to list issue fields"},
 		{AddIssueComment(translate), map[string]any{"owner": "owner", "repo": "repo", "issue_number": 123, "body": "Hello"}, "failed to create comment"},
 		{UpdateIssueComment(translate), map[string]any{"owner": "owner", "repo": "repo", "comment_id": 42, "body": "Hello"}, "failed to update issue comment"},
 		{IssueDependencyRead(translate), map[string]any{"method": "get_blocked_by", "owner": "owner", "repo": "repo", "issue_number": 123}, "failed to list blocked-by issues"},
