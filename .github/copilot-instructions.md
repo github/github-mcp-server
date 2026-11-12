@@ -270,10 +270,10 @@ server.json         - MCP server registry metadata
 
 ## Important Reminders
 
-2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked).
-3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
-4. **NEVER** use `script/tag-release` or push tags
-8. For specific test files, use `go test ./path -run TestName` not full suite
-10. Toolsnaps are API documentation - treat changes seriously
-11. Build/test/lint are very fast (~1s each) - run frequently
-12. CI failures for docs-check or license-check have simple fixes (run the script)
+1. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked).
+2. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
+3. **NEVER** use `script/tag-release` or push tags
+4. For specific test files, use `go test ./path -run TestName` not full suite
+5. Toolsnaps are API documentation - treat changes seriously
+6. Build/test/lint are very fast (~1s each) - run frequently
+7. CI failures for docs-check or license-check have simple fixes (run the script)
