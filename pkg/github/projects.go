@@ -2861,25 +2861,32 @@ type ProjectV2IterationFieldIterationInput struct {
 	Title     githubv4.String `json:"title"`
 }
 
+// ownerAccountType reports whether a login is a "user" or an "org", or "" for
+// any other account type.
+func ownerAccountType(ctx context.Context, client *github.Client, owner string) (string, *github.Response, error) {
+	account, resp, err := client.Users.Get(ctx, owner)
+	if err != nil {
+		return "", resp, err
+	}
+	switch account.GetType() {
+	case "User":
+		return "user", resp, nil
+	case "Organization":
+		return "org", resp, nil
+	}
+	return "", resp, nil
+}
+
 // detectOwnerType attempts to detect whether the project owner is a user or org.
 // It first asks GitHub for the account type, then falls back to project probes
 // for older or mocked clients where the account type is unavailable.
 func detectOwnerType(ctx context.Context, client *github.Client, owner string, projectNumber int) (string, error) {
-	user, resp, err := client.Users.Get(ctx, owner)
-	if resp != nil && resp.Body != nil {
-		_ = resp.Body.Close()
-	}
-	if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
-		switch user.GetType() {
-		case "User":
-			return "user", nil
-		case "Organization":
-			return "org", nil
-		}
+	if ownerType, _, err := ownerAccountType(ctx, client, owner); err == nil && ownerType != "" {
+		return ownerType, nil
 	}
 
 	// Try user first (more common for personal projects)
-	_, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
+	_, resp, err := client.Projects.GetUserProject(ctx, owner, projectNumber)
 	if err == nil && resp.StatusCode == http.StatusOK {
 		_ = resp.Body.Close()
 		return "user", nil
