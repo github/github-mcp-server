@@ -60,7 +60,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"repo": {
 						Type:        "string",
-						Description: "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
+						Description: "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers; optional for issue types)",
 					},
 				},
 				Required: []string{"method", "owner"},

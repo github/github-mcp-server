@@ -1298,7 +1298,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
-			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for a repository or its owner organization. When repo is omitted, returns org-level issue types directly."),
+			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for a repository or its owner (user or organization). When repo is omitted, returns the owner's issue types directly, which works for organizations and the authenticated user."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_TYPES_USER_TITLE", "List available issue types"),
 				ReadOnlyHint: true,
@@ -1308,11 +1308,11 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
 						Type:        "string",
-						Description: "The account owner of the repository or organization.",
+						Description: "The account owner of the repository (user or organization).",
 					},
 					"repo": {
 						Type:        "string",
-						Description: "The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly.",
+						Description: "The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns the owner's issue types directly.",
 					},
 				},
 				Required: []string{"owner"},
@@ -2735,7 +2735,7 @@ Options are:
 							{Type: "string", MinLength: new(1)},
 							{Type: "null"},
 						},
-						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
+						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner. If the repository doesn't support issue types, omit this parameter.",
 					},
 					"state": {
 						Type:        "string",
@@ -2761,7 +2761,7 @@ Options are:
 								"field_name": {
 									Type: "string",
 									Description: "Issue field name (case-insensitive). Must match a field " +
-										"returned by list_issue_fields for this repository or its organization.",
+										"returned by list_issue_fields for this repository or its owner.",
 								},
 								"value": {
 									Types: []string{"string", "number", "boolean"},

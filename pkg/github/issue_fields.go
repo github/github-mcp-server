@@ -116,7 +116,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
-			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."),
+			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", "List issue fields for a repository or its owner (user or organization). Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns the owner's fields directly, which works for organizations and the authenticated user."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_FIELDS_USER_TITLE", "List issue fields"),
 				ReadOnlyHint: true,
@@ -126,11 +126,11 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
 						Type:        "string",
-						Description: "The account owner of the repository or organization. The name is not case sensitive.",
+						Description: "The account owner of the repository (user or organization). The name is not case sensitive.",
 					},
 					"repo": {
 						Type:        "string",
-						Description: "The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly.",
+						Description: "The name of the repository. When provided, returns fields for this specific repository (inherited from its owner). When omitted, returns the owner's fields directly.",
 					},
 				},
 				Required: []string{"owner"},
