@@ -133,7 +133,9 @@ Use one of the tools:
 
 ## Dynamic Commands
 
-All tools provided by the MCP server are automatically available as subcommands under the `tools` command. Each generated command has:
+To recover a missing `mcpcurl` subcommand blocked by another tool's schema, replace `--toolsets=<set>` with `--tools=<tool>` in the `--stdio-server-cmd` server command.
+
+Each generated command has:
 
 - Appropriate flags matching the tool's input schema
 - Validation for required parameters
