@@ -273,7 +273,6 @@ server.json         - MCP server registry metadata
 2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked).
 3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 4. **NEVER** use `script/tag-release` or push tags
-7. **ALWAYS** run `script/generate-docs` after modifying tools
 8. For specific test files, use `go test ./path -run TestName` not full suite
 9. E2E tests require PAT token - you likely cannot run them
 10. Toolsnaps are API documentation - treat changes seriously
