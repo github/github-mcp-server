@@ -352,7 +352,7 @@ func TestTypedPullRequestReviewWriteResolutionReasonVariant(t *testing.T) {
 				}
 			}
 			runTypedPullRequestCases(t, session, schemas, []typedPullRequestCase{
-				{"pull_request_review_write", map[string]any{"Method": "resolve_thread", "ThreadID": "T_1", "resolutionReason": "OUTDATED"}, "review thread resolved successfully"},
+				{"pull_request_review_write", map[string]any{"Method": "resolve_thread", "ThreadID": "T_1", "resolutionReason": "invalid"}, "review thread resolved successfully"},
 				{"pull_request_review_write", map[string]any{"method": "create", "pullNumber": 1.5}, "pending pull request created"},
 			})
 		})

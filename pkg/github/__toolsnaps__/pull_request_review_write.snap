@@ -49,6 +49,11 @@
       },
       "resolutionReason": {
         "description": "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+        "enum": [
+          "addressed",
+          "wont-fix",
+          "invalid"
+        ],
         "type": "string"
       },
       "threadId": {

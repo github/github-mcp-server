@@ -2034,6 +2034,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc, opts ...ToolOp
 		schema.Properties["resolutionReason"] = &jsonschema.Schema{
 			Type:        "string",
 			Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+			Enum:        []any{"addressed", "wont-fix", "invalid"},
 		}
 	}
 

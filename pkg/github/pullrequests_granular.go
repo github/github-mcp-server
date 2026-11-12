@@ -590,6 +590,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc, opts ...T
 		properties["resolutionReason"] = &jsonschema.Schema{
 			Type:        "string",
 			Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+			Enum:        []any{"addressed", "wont-fix", "invalid"},
 		}
 	}
 
