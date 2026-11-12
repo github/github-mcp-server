@@ -55,7 +55,7 @@ go build -v ./cmd/github-mcp-server
 go test ./pkg/github -v
 
 # Run specific test
-go test ./pkg/github -run TestGetMe
+go test ./pkg/github -run Test_GetMe
 ```
 
 ## Project Structure
