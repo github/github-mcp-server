@@ -173,7 +173,6 @@ Located in `.github/workflows/`:
 ### Code Patterns
 
 - **Keep changes minimal and focused** on the specific issue being addressed
-- **Maintain or improve structure** - never degrade code organization
 - Use table-driven tests for behavioral testing
 - Comment sparingly - code should be self-documenting
 - Follow standard Go conventions (Effective Go, Go proverbs)
