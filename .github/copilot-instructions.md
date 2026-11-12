@@ -10,7 +10,6 @@ This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that co
 - **Primary Package:** github-mcp-server (stdio MCP server - **this is the main focus**)
 - **Secondary Package:** mcpcurl (testing utility - don't break it, but not the priority)
 - **Framework:** Uses modelcontextprotocol/go-sdk for MCP protocol, google/go-github for GitHub API
-- **Size:** ~60MB repository, 70 Go files
 - **Library Usage:** This repository is also used as a library by the remote server. Functions that could be called by other repositories should be exported (capitalized), even if not required internally. Preserve existing export patterns.
 
 **Code Quality Standards:**
