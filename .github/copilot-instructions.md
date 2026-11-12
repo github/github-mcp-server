@@ -111,7 +111,7 @@ go test ./pkg/github -run Test_GetMe
 
 ## GitHub Workflows (CI/CD)
 
-All workflows run on push/PR unless noted. Located in `.github/workflows/`:
+Located in `.github/workflows/`:
 
 1. **go.yml** - Build and test on ubuntu/windows/macos. Runs `script/test` and builds binary
 2. **lint.yml** - Runs golangci-lint-action v2.5 (GitHub Action) with actions/setup-go stable
