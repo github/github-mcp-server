@@ -287,6 +287,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
+		PullRequestArtifactRead(t),
+		PullRequestArtifactWrite(t),
 		pullRequestReviewWrite(t, false, cfg),
 		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
