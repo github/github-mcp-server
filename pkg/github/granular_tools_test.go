@@ -275,6 +275,8 @@ func TestGranularUpdateIssueAssignees(t *testing.T) {
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+	require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+	assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
 	handler := serverTool.Handler(deps)
 
 	request := createMCPRequest(map[string]any{
@@ -512,6 +514,8 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 			}))
 			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
