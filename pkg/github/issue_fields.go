@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
@@ -171,14 +170,13 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 // If repo is provided, fields are scoped to that repository (inherited from its
 // organization); otherwise fields are returned directly from the organization.
 func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, repo string) ([]IssueField, error) {
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 	if repo != "" {
 		var query issueFieldsRepoQuery
 		vars := map[string]any{
 			"owner": githubv4.String(owner),
 			"name":  githubv4.String(repo),
 		}
-		if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+		if err := gqlClient.Query(ctx, &query, vars); err != nil {
 			return nil, err
 		}
 		return issueFieldsFromNodes(query.Repository.IssueFields.Nodes), nil
@@ -188,7 +186,7 @@ func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, re
 	vars := map[string]any{
 		"login": githubv4.String(owner),
 	}
-	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
 		return nil, err
 	}
 	return issueFieldsFromNodes(query.Organization.IssueFields.Nodes), nil

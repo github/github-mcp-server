@@ -192,7 +192,7 @@ func Test_ResolveIssueFieldForUpdate(t *testing.T) {
 			if tt.wantOption.ID != "" {
 				assert.Equal(t, []ResolvedFieldOption{tt.wantOption}, field.Options)
 			}
-			assert.Equal(t, "issue_fields", capture.captured.Get(headers.GraphQLFeaturesHeader))
+			assert.Empty(t, capture.captured.Get(headers.GraphQLFeaturesHeader))
 		})
 	}
 }

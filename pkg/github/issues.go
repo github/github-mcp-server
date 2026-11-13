@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
@@ -310,13 +309,12 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		return nil, nil, nil
 	}
 
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 	var query issueFieldWriteMetadataQuery
 	vars := map[string]any{
 		"owner": githubv4.String(owner),
 		"repo":  githubv4.String(repo),
 	}
-	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
 		return nil, nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
 	}
 
@@ -406,8 +404,6 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 // fetchExistingIssueFieldValues retrieves the current field values for an issue
 // as IssueRequestFieldValue entries, ready to be merged before an update.
 func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) ([]*github.IssueRequestFieldValue, error) {
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -424,7 +420,7 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 		"number": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
 	}
 
-	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
 		return nil, fmt.Errorf("failed to fetch existing issue field values: %w", err)
 	}
 
@@ -2655,11 +2651,11 @@ var issueWriteFormParams = map[string]struct{}{
 }
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
-// returned when issue_write hands off to the MCP App form. The body is shared
-// by IssueWrite and LegacyIssueWrite. The result is marked IsError=true so
-// agents that bail on error don't claim success or chain dependent tool calls
-// while the user is still interacting with the form; the host renders the UI
-// regardless because rendering is keyed off the tool's _meta.ui resourceUri.
+// returned when issue_write hands off to the MCP App form. The result is
+// marked IsError=true so agents that bail on error don't claim success or
+// chain dependent tool calls while the user is still interacting with the
+// form; the host renders the UI regardless because rendering is keyed off the
+// tool's _meta.ui resourceUri.
 func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *mcp.CallToolResult {
 	var msg string
 	if method == "update" {
@@ -2684,12 +2680,7 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
-// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
-// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
-// is off. Both register under the tool name "issue_write"; exactly one is
-// active at a time via mutually exclusive feature-flag annotations. When the
-// flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
-// fields on IssueWrite.
+// IssueWrite creates the consolidated issue_write tool.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool[IssueWriteInput, *IssueWriteOutput](
 		ToolsetMetadataIssues,
@@ -3958,11 +3949,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
-			// The list_issues query references the issue_fields-gated IssueFieldValueFilter
-			// input type unconditionally, so we always opt into the feature via header. This
-			// is a no-op once the flags are globally rolled out.
-			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-			issueFieldsErr := client.Query(ctxWithFeatures, issueQuery, vars)
+			issueFieldsErr := client.Query(ctx, issueQuery, vars)
 
 			var resp MinimalIssuesResponse
 			var isPrivate bool

@@ -4375,15 +4375,13 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		require.False(t, res.IsError, getTextResult(t, res).Text)
 	})
 
-	t.Run("sends GraphQL-Features: issue_fields, repo_issue_fields header", func(t *testing.T) {
+	t.Run("does not send a GraphQL-Features header", func(t *testing.T) {
 		vars := baseVars()
 		vars["issueFieldValues"] = []any{}
 		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
 
 		// Build a transport chain matching production: GraphQLFeaturesTransport
 		// wraps a header-capturing spy, which forwards to the mock's RoundTripper.
-		// This verifies the handler sets the issue_fields context value and the
-		// transport translates it into the outgoing header.
 		mockClient := githubv4mock.NewMockedHTTPClient(matcher)
 		spy := &headerCaptureTransport{inner: mockClient.Transport}
 		httpClient := &http.Client{
@@ -4397,7 +4395,7 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 		require.NoError(t, err)
 		require.False(t, res.IsError, getTextResult(t, res).Text)
-		assert.Equal(t, "issue_fields, repo_issue_fields", spy.captured.Get(headers.GraphQLFeaturesHeader))
+		assert.Empty(t, spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
 }
 
