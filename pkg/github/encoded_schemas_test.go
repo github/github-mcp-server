@@ -49,8 +49,16 @@ type schemaListWire struct {
 	Error  json.RawMessage      `json:"error"`
 }
 
-func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory, optimized bool, transport, protocol string, pageSize int, schemaCache *mcp.SchemaCache) ([][]byte, []string) {
+func schemaListClientCapabilitiesJSON(ui bool) string {
+	if ui {
+		return `{"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}}}`
+	}
+	return `{}`
+}
+
+func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory, optimized bool, transport, protocol string, pageSize int, schemaCache *mcp.SchemaCache, ui bool) ([][]byte, []string) {
 	t.Helper()
+	capsJSON := schemaListClientCapabilitiesJSON(ui)
 	var request func(string) []byte
 	switch transport {
 	case "stdio":
@@ -68,7 +76,7 @@ func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory
 			require.NoError(t, err)
 			return response
 		}
-		init := exchange(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":%q,"capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`, protocol))
+		init := exchange(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":%q,"capabilities":%s,"clientInfo":{"name":"test","version":"1"}}}`, protocol, capsJSON))
 		require.NotContains(t, string(init), `"error"`)
 		_, err = io.WriteString(clientConn, `{"jsonrpc":"2.0","method":"notifications/initialized"}`+"\n")
 		require.NoError(t, err)
@@ -97,7 +105,7 @@ func schemaListPages(ctx context.Context, t *testing.T, inv *inventory.Inventory
 	var pages [][]byte
 	names := make([]string, 0)
 	listRequest := func(id int, cursor string) string {
-		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/list","params":{"cursor":%q,"_meta":{"io.modelcontextprotocol/protocolVersion":%q,"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`, id, cursor, protocol)
+		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/list","params":{"cursor":%q,"_meta":{"io.modelcontextprotocol/protocolVersion":%q,"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":%s}}}`, id, cursor, protocol, capsJSON)
 	}
 	cursor := ""
 	for {
@@ -195,8 +203,8 @@ func TestEncodedSchemasWireParity(t *testing.T) {
 					wantNames = slices.Compact(wantNames)
 					for _, transport := range []string{"stdio", "http"} {
 						t.Run(transport, func(t *testing.T) {
-							before, baselineNames := schemaListPages(ctx, t, inv, false, transport, protocol, 7, schemaCache)
-							after, encodedNames := schemaListPages(ctx, t, inv, true, transport, protocol, 7, schemaCache)
+							before, baselineNames := schemaListPages(ctx, t, inv, false, transport, protocol, 7, schemaCache, sel.ui)
+							after, encodedNames := schemaListPages(ctx, t, inv, true, transport, protocol, 7, schemaCache, sel.ui)
 							assert.Equal(t, before, after, "complete JSON-RPC wire responses, including cursors and errors")
 							assert.Equal(t, wantNames, baselineNames)
 							assert.Equal(t, wantNames, encodedNames)
