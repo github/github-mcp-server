@@ -189,12 +189,19 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 1. Add tool implementation in `pkg/github/` (e.g., `foo_tools.go`)
 2. Register tool in appropriate toolset in `pkg/github/` or `pkg/toolsets/`
-3. Write unit tests following the tool test pattern
-4. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
-5. Run `script/generate-docs` to update README
-6. Run `script/lint` and `script/test` before committing
-7. If e2e tests are relevant, update `e2e/e2e_test.go` using existing test style
-8. Commit code + snapshots + README changes together
+3. Update the relevant bundled skill, or add a reasoned exemption in `pkg/skills/catalog/availability_test.go`. Every tool must be covered or explicitly exempted.
+4. Write unit tests following the tool test pattern
+5. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
+6. Run `script/generate-docs` to update README
+7. Run `script/lint` and `script/test` before committing
+8. If e2e tests are relevant, update `e2e/e2e_test.go` using existing test style
+9. Commit code + snapshots + README changes together
+
+When adding or changing a toolset `InstructionsFunc`, update the associated
+skills as well: skills mode suppresses those instructions. The
+`TestToolsetInstructionsAreCoveredBySkills` failure names the skills to revisit;
+after updating them, refresh its digest with
+`UPDATE_SKILLS_INSTRUCTIONS=true go test ./pkg/github -run TestToolsetInstructionsAreCoveredBySkills -count=1`.
 
 ### Fixing a Bug
 

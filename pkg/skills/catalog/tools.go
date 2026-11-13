@@ -14,7 +14,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"codebase-exploration": {
 		required: [][]string{{"get_file_contents"}, {"search_code"}},
-		optional: []string{"get_repository_tree", "list_branches", "list_tags", "list_commits", "get_commit", "search_commits", "get_tag"},
+		optional: []string{"get_file_blame", "get_repository_tree", "list_branches", "list_tags", "list_commits", "get_commit", "search_commits", "get_tag"},
 	},
 	"copilot-task-delegation": {
 		required: [][]string{{"issue_read"}, {"assign_copilot_to_issue", "assign_copilot_to_issue_with_intent"}},
@@ -26,11 +26,11 @@ var requirements = map[string]toolRequirements{
 	},
 	"issue-authoring": {
 		required: [][]string{{"search_issues"}, {"issue_write", "create_issue"}},
-		optional: []string{"issue_read", "list_issue_types", "list_issue_fields", "list_label", "sub_issue_write"},
+		optional: []string{"issue_read", "list_issue_types", "list_issue_fields", "list_label", "sub_issue_write", "add_sub_issue", "remove_sub_issue", "set_issue_fields", "update_issue_assignees", "update_issue_body", "update_issue_labels", "update_issue_milestone", "update_issue_title", "update_issue_type"},
 	},
 	"issue-backlog-triage": {
 		required: [][]string{{"list_issues"}, {"issue_write", "update_issue_state"}},
-		optional: []string{"search_issues", "issue_read", "sub_issue_write", "add_issue_comment", "list_label", "list_issue_types"},
+		optional: []string{"search_issues", "issue_read", "sub_issue_write", "add_issue_comment", "list_label", "list_issue_types", "find_duplicate", "add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue", "set_issue_fields", "update_issue_assignees", "update_issue_body", "update_issue_labels", "update_issue_milestone", "update_issue_title", "update_issue_type"},
 	},
 	"label-scheme-management": {
 		required: [][]string{{"list_label"}, {"label_write"}},
@@ -45,11 +45,11 @@ var requirements = map[string]toolRequirements{
 	},
 	"pull-request-authoring": {
 		required: [][]string{{"create_pull_request"}},
-		optional: []string{"list_branches", "list_commits", "update_pull_request", "pull_request_read", "update_pull_request_branch", "actions_list", "merge_pull_request", "fork_repository", "get_file_contents"},
+		optional: []string{"list_branches", "list_commits", "update_pull_request", "pull_request_read", "update_pull_request_branch", "actions_list", "merge_pull_request", "fork_repository", "get_file_contents", "request_pull_request_reviewers", "update_pull_request_body", "update_pull_request_draft_state", "update_pull_request_state", "update_pull_request_title"},
 	},
 	"pull-request-code-review": {
 		required: [][]string{{"pull_request_read"}, {"pull_request_review_write", "create_pull_request_review"}, {"pull_request_review_write", "submit_pending_pull_request_review"}, {"add_comment_to_pending_review", "add_pull_request_review_comment"}},
-		optional: []string{"get_file_contents", "get_code_quality_finding"},
+		optional: []string{"get_file_contents", "get_code_quality_finding", "delete_pending_pull_request_review", "resolve_review_thread", "unresolve_review_thread"},
 	},
 	"pull-request-review-feedback": {
 		required: [][]string{{"pull_request_read"}, {"add_reply_to_pull_request_comment"}},
