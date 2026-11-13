@@ -298,3 +298,14 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		})
 	}
 }
+
+func TestUnrecognizedFeatureFlags(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, UnrecognizedFeatureFlags(nil))
+	assert.Empty(t, UnrecognizedFeatureFlags(AllowedFeatureFlags))
+	assert.Equal(t,
+		[]string{"not_a_feature", "csv-output"},
+		UnrecognizedFeatureFlags([]string{FeatureFlagCSVOutput, "not_a_feature", "csv-output", "not_a_feature"}),
+	)
+}

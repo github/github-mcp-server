@@ -137,3 +137,17 @@ func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string
 	}
 	return effective
 }
+
+// UnrecognizedFeatureFlags returns the entries of enabledFeatures that are not in
+// AllowedFeatureFlags, preserving order and dropping duplicates. ResolveFeatureFlags
+// ignores them silently; callers with trusted operator input (the --features CLI flag)
+// can use this to warn about typos.
+func UnrecognizedFeatureFlags(enabledFeatures []string) []string {
+	var unrecognized []string
+	for _, feature := range enabledFeatures {
+		if !slices.Contains(AllowedFeatureFlags, feature) && !slices.Contains(unrecognized, feature) {
+			unrecognized = append(unrecognized, feature)
+		}
+	}
+	return unrecognized
+}

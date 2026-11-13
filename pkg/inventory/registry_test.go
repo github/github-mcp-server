@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2555,5 +2557,52 @@ func TestForMCPRequest_PreservesInstructions(t *testing.T) {
 	for _, m := range []string{MCPMethodDiscover, MCPMethodInitialize, MCPMethodToolsList} {
 		require.Equal(t, want, reg.ForMCPRequest(m, "").Instructions(),
 			"instructions must be preserved for %s (server identity)", m)
+	}
+}
+
+func TestUnrecognizedExcludeTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+	}
+	aliases := map[string]string{"old_tool": "tool1"}
+
+	tests := []struct {
+		name     string
+		excluded []string
+		expected []string
+	}{
+		{name: "nothing excluded", excluded: nil, expected: nil},
+		{name: "all known", excluded: []string{"tool1", "tool2"}, expected: nil},
+		{name: "deprecated alias is not resolved", excluded: []string{"old_tool"}, expected: []string{"old_tool"}},
+		{name: "typo reported", excluded: []string{"tool1", "tool_2"}, expected: []string{"tool_2"}},
+		{name: "duplicates and whitespace cleaned", excluded: []string{" nope ", "nope", "tool1"}, expected: []string{"nope"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv, err := NewBuilder().
+				SetTools(tools).
+				WithDeprecatedAliases(aliases).
+				WithToolsets([]string{"all"}).
+				WithExcludeTools(tt.excluded).
+				Build()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, inv.UnrecognizedExcludeTools())
+			// The typo must stay a no-op: known tools are still excluded, unknown ones change nothing.
+			for _, name := range tt.excluded {
+				for _, tool := range inv.AvailableTools(context.Background()) {
+					assert.NotEqual(t, strings.TrimSpace(name), tool.Tool.Name)
+				}
+			}
+			if tt.name == "deprecated alias is not resolved" {
+				// Excluding an alias does not exclude the canonical tool it points to.
+				var names []string
+				for _, tool := range inv.AvailableTools(context.Background()) {
+					names = append(names, tool.Tool.Name)
+				}
+				assert.Contains(t, names, "tool1")
+			}
+		})
 	}
 }
