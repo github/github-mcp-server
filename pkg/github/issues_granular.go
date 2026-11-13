@@ -945,6 +945,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	NumberValue          *githubv4.Float   `json:"numberValue,omitempty"`
 	DateValue            *githubv4.String  `json:"dateValue,omitempty"`
 	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
+	MultiSelectOptionIDs *[]githubv4.ID    `json:"multiSelectOptionIds,omitempty"`
 	Delete               *githubv4.Boolean `json:"delete,omitempty"`
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
@@ -1003,7 +1004,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
+						Description: "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, 'single_select_option_id' (the GraphQL node ID of the option) for single select fields, or 'multi_select_option_ids' (an array of GraphQL node IDs) for multi select fields. Set 'delete' to true to remove a field value.",
 						MinItems:    new(1),
 						Items: &jsonschema.Schema{
 							Type: "object",
@@ -1027,6 +1028,13 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 								"single_select_option_id": {
 									Type:        "string",
 									Description: "The GraphQL node ID of the option to set for a single select field",
+								},
+								"multi_select_option_ids": {
+									Type:        "array",
+									Description: "The GraphQL node IDs of the options to set for a multi select field",
+									Items: &jsonschema.Schema{
+										Type: "string",
+									},
 								},
 								"delete": {
 									Type:        "boolean",

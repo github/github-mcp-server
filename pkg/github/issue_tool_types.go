@@ -349,8 +349,8 @@ func listIssueFieldsOutputSchema() *jsonschema.Schema {
 	schema.Items.Properties["description"].Description = "The field description, when available."
 	schema.Items.Properties["data_type"].Description = "The field value type."
 	schema.Items.Properties["visibility"].Description = "The visibility policy for the field."
-	schema.Items.Properties["options"].Description = "Available values for single-select fields."
-	schema.Items.Properties["data_type"].Enum = []any{"TEXT", "NUMBER", "DATE", "SINGLE_SELECT"}
+	schema.Items.Properties["options"].Description = "Available values for single-select and multi-select fields."
+	schema.Items.Properties["data_type"].Enum = []any{"TEXT", "NUMBER", "DATE", "SINGLE_SELECT", "MULTI_SELECT"}
 	schema.Items.Properties["options"].Items.Properties["id"].Description = "The option node ID."
 	schema.Items.Properties["options"].Items.Properties["name"].Description = "The option name."
 	schema.Items.Properties["options"].Items.Properties["description"].Description = "The option description, when available."

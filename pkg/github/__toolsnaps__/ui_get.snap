@@ -434,7 +434,8 @@
                     "text",
                     "number",
                     "date",
-                    "single_select"
+                    "single_select",
+                    "multi_select"
                   ],
                   "type": "string"
                 },
