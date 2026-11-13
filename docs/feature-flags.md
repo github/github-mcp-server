@@ -136,6 +136,72 @@ Get, create, and update return an `artifact` object. List returns a `list` objec
 containing `artifacts`, `page`, and `perPage`; delete returns a `deleted` object
 containing `issue_number`, `artifact_number`, and a confirmation message.
 
+### Pull request artifacts
+
+Enable `--features=pull_request_artifacts` (or
+`GITHUB_FEATURES=pull_request_artifacts`) to expose
+`pull_request_artifact_read` (`method: list`) and
+`pull_request_artifact_write` (`method: upsert | delete`) in the
+`pull_requests` toolset. This flag is **off by default**, including in Insiders
+mode. Read-only mode exposes only the read tool. Both tools reject calls in
+lockdown mode.
+
+The MCP exposure flag `pull_request_artifacts` is separate from GitHub's
+`pull_request_artifacts_api` rollout flag. **The API checks the rollout flag
+for the target repository, with organization context, on every operation.**
+Enabling the MCP flag does not enable the API for a repository. The tools do
+not substitute a per-user feature check or cache repository rollout decisions.
+A 404 can mean a disabled rollout, missing resource, or insufficient access;
+it is not interpreted as a definitive flag status.
+
+All operations require `owner`, `repo`, and `pull_number`. The tools resolve
+the repository's numeric ID and use the configured authenticated GitHub
+client and API base URL. They declare `repo` in OAuth challenge metadata;
+the API separately enforces pull request read access for list and artifact
+write access for upsert/delete, including repository writeability and storage
+availability. No endpoint-specific preview header is added.
+
+Upsert and delete address artifacts by **name**, not artifact number or global
+ID. Supply exactly one of `name` (the exact original name) or `name_key` (the
+lossless key returned by reads and writes). Returned `name` values are sanitized
+for display and must not be used as mutation keys: distinct original names can
+have the same display name. Pass `name_key` verbatim to update or delete an
+artifact discovered through a read. Keys use unpadded URL-safe Base64 encoding
+of the original name and are not authorization tokens.
+Upsert requires `body` and optionally accepts `commit_oid`.
+The body is sent unchanged, including an empty string; the API validates its
+content and constraints. Upsert accepts both creation (201) and replacement
+(200) responses. Delete rejects `body` and `commit_oid`.
+Before deletion, the client must obtain explicit user confirmation of the exact
+repository, PR number, and artifact name through form elicitation. Confirmation
+requires MCP protocol `2026-07-28` or later and configured request-state protection.
+The protected state binds approval to the target repository ID, PR, and artifact
+name and expires after ten minutes. Missing, invalid, expired, declined, or
+canceled confirmation prevents deletion, as does a changed repository identity.
+Clients without the required protocol or form-elicitation support cannot delete;
+list and upsert remain available. This relies on the client to present the
+confirmation to the user rather than answer on the model's behalf.
+Writes are not automatically retried; API errors, including conflicts,
+validation failures, throttling, and storage failures, are returned explicitly.
+
+List includes artifact bodies and accepts `commit_oid`: omit it or use
+`current` for the PR's current head, use `all` for every commit, or supply an
+explicit commit OID. For a stable commit selection across pages, use an
+explicit OID instead of a moving PR head. List returns one requested page
+(`page` defaults to 1, `perPage` defaults to 30 and is limited to 100).
+Request `next_page` when present; its value comes from the API's REST Link
+header, not the number of returned artifacts.
+
+Upsert returns an `artifact` object. List returns a `list` object containing
+`artifacts`, `page`, `perPage`, and optional `next_page`. Delete returns a
+`deleted` object containing `pull_number`, display `name`, lossless `name_key`,
+and a confirmation message.
+Artifact IDs are opaque JSON strings or integers and are never mutation
+identifiers. Results preserve nullable commit, creator, and timestamp
+metadata; list metadata describes the returned artifact version. Names and
+creator logins receive plain-text sanitization, and bodies use the existing
+content sanitizer, preserving HTML source while filtering invisible characters.
+
 Tools, resources, and prompts use `inventory.NewFeatureRule` when feature flags
 change whether they are available. Each rule declares the flags it references
 and evaluates them with a fail-closed `FeatureResolver`, so normal Go boolean
@@ -517,6 +583,29 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `type`:  (string, optional)
+
+### `pull_request_artifacts`
+
+- **pull_request_artifact_read** - Read pull request artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `commit_oid`: Commit selection: omitted or current for the current PR head, all for every commit, or an explicit commit OID (string, optional)
+  - `method`:  (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1 (default 1) (integer, optional)
+  - `perPage`: Results per page, from 1 to 100 (default 30) (integer, optional)
+  - `pull_number`: Positive pull request number (integer, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_artifact_write** - Write pull request artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: Required for upsert: artifact content; an empty string is sent unchanged. Not supported for delete (string, optional)
+  - `commit_oid`: Optional commit OID for upsert only; omission preserves the API default (string, optional)
+  - `method`:  (string, required)
+  - `name`: Exact artifact name for creation or addressing; mutually exclusive with name_key. Do not copy sanitized display names from read results (string, optional)
+  - `name_key`: Lossless addressing key returned by artifact reads or writes; mutually exclusive with name. Pass verbatim without decoding (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `pull_number`: Positive pull request number (integer, required)
+  - `repo`: Repository name (string, required)
 
 ### `duplicate_detection`
 
