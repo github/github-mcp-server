@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/requeststate"
@@ -30,6 +31,7 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		CreateAutomation(t),
 		UpdateAutomation(t),
 		DeleteAutomation(t),
+		RunAutomation(t),
 	}
 }
 
@@ -590,6 +592,187 @@ func TestAgentAutomationWriteToolsRejectUnsafePathSegments(t *testing.T) {
 	}
 }
 
+func TestRunAutomation(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/agents/repos/octo-org/octo-repo/automations/automation-id/tasks", r.URL.Path)
+		assert.Equal(t, agentAutomationAPIVersion, r.Header.Get("X-GitHub-Api-Version"))
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"event":"manual","context":"Please focus on recently opened issues."}`, string(body))
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"task_id":"task-id","automation_id":"automation-id","event":"manual"}`))
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	sealer, err := requeststate.NewRandom()
+	require.NoError(t, err)
+	deps.StateSealer = sealer
+	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+		"event": "manual", "context": "Please focus on recently opened issues.",
+	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", []string{"39 characters"}, []string{"Please focus on recently opened issues."})
+	if result.IsError {
+		t.Fatal(getErrorResult(t, result).Text)
+	}
+	assert.JSONEq(t, `{"task_id":"task-id","automation_id":"automation-id","event":"manual"}`, getTextResult(t, result).Text)
+}
+
+func TestRunAutomationRejectsUnsupportedEvents(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("unsupported event should not make a request")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "interval",
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "event must be manual")
+}
+
+func TestRunAutomationRejectsEmptyAcceptedResponse(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	sealer, err := requeststate.NewRandom()
+	require.NoError(t, err)
+	deps.StateSealer = sealer
+	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
+	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", nil, nil)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "empty response after HTTP 202")
+	assert.Contains(t, getErrorResult(t, result).Text, "may have succeeded")
+	assert.Contains(t, getErrorResult(t, result).Text, "Verify its status before retrying")
+}
+
+func TestRunAutomationRejectsUnsafePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{
+			name: "dot owner",
+			args: map[string]any{"owner": ".", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual"},
+		},
+		{
+			name: "dot-dot repo",
+			args: map[string]any{"owner": "octo-org", "repo": "..", "automation_id": "automation-id", "event": "manual"},
+		},
+		{
+			name: "dot automation ID",
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": ".", "event": "manual"},
+		},
+		{
+			name: "reserved automation ID",
+			args: map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "revisions", "event": "manual"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tool := RunAutomation(translations.NullTranslationHelper)
+			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("invalid path segment must not make a request")
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+			request := createMCPRequest(tc.args)
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+		})
+	}
+}
+
+func TestRunAutomationRejectsOversizedContext(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("oversized context should not make a request")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+		"event": "manual", "context": strings.Repeat("x", maxAutomationRunContextLength+1),
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "no more than 10000 characters")
+}
+
+func TestRunAutomationConfirmationBindsRequest(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	requestCount := 0
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		requestCount++
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	sealer, err := requeststate.NewRandom()
+	require.NoError(t, err)
+	deps.StateSealer = sealer
+
+	args := map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
+		"event": "manual", "context": "Please focus on recently opened issues.",
+	}
+	handler := tool.Handler(deps)
+	request := createMCPRequest(args)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, result.InputRequests, agentAutomationConfirmationIDPrefix+"run")
+
+	args["context"] = "Run against a different set of issues."
+	retry := createMCPRequest(args)
+	retry.Params.RequestState = result.RequestState
+	retry.Params.InputResponses = mcp.InputResponseMap{
+		agentAutomationConfirmationIDPrefix + "run": &mcp.ElicitResult{
+			Action: "accept",
+			Content: map[string]any{
+				agentAutomationConfirmationField: "RUN octo-org/octo-repo/automation-id",
+			},
+		},
+	}
+	result, err = handler(ContextWithDeps(context.Background(), deps), &retry)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "changed after confirmation")
+	assert.Zero(t, requestCount)
+}
+
+func TestRunAutomationRequiresRequestStateProtection(t *testing.T) {
+	t.Parallel()
+
+	tool := RunAutomation(translations.NullTranslationHelper)
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("run should not be sent without request-state protection")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
+	})
+	result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "request-state protection is not configured")
+}
+
 func TestDeleteAutomationRequiresRequestStateProtection(t *testing.T) {
 	t.Parallel()
 
@@ -686,6 +869,7 @@ func TestAutomationMutationsRequireFormElicitation(t *testing.T) {
 		CreateAutomation(translations.NullTranslationHelper),
 		UpdateAutomation(translations.NullTranslationHelper),
 		DeleteAutomation(translations.NullTranslationHelper),
+		RunAutomation(translations.NullTranslationHelper),
 	} {
 		assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, tool.MinimumProtocolVersion)
 		assert.Equal(t, inventory.ElicitationModeForm, tool.RequiredElicitationMode)
