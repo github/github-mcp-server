@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,6 +57,76 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 
 	t.Setenv("GITHUB_AUTHORIZATION_SERVER", "https://oauth-proxy.example.com")
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
+}
+
+func TestValidateBoolSettingsFromEnv(t *testing.T) {
+	// Clear every checked variable so inherited values can't affect the
+	// assertions; t.Setenv restores the original values at cleanup.
+	for _, key := range boolSettings {
+		envName := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+		t.Setenv(envName, "")
+		require.NoError(t, os.Unsetenv(envName))
+	}
+
+	tests := []struct {
+		value   string
+		want    bool
+		wantErr bool
+	}{
+		{value: "1", want: true},
+		{value: "true", want: true},
+		{value: "TRUE", want: true},
+		{value: "t", want: true},
+		{value: "T", want: true},
+		{value: "True", want: true},
+		{value: "0", want: false},
+		{value: "false", want: false},
+		{value: "F", want: false},
+		{value: "FALSE", want: false},
+		{value: "False", want: false},
+		{value: "", wantErr: true},
+		{value: "yes", wantErr: true},
+		{value: "on", wantErr: true},
+		{value: "enabled", wantErr: true},
+		{value: "tru", wantErr: true},
+	}
+
+	for _, envName := range []string{"GITHUB_READ_ONLY", "GITHUB_LOCKDOWN_MODE"} {
+		key := strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(envName, "GITHUB_")), "_", "-")
+		for _, tc := range tests {
+			t.Run(envName+"="+tc.value, func(t *testing.T) {
+				t.Setenv(envName, tc.value)
+				initConfig()
+
+				err := validateBoolSettings(pflag.NewFlagSet("test", pflag.ContinueOnError), boolSettings...)
+				if tc.wantErr {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), envName)
+					assert.Contains(t, err.Error(), fmt.Sprintf("%q", tc.value))
+					assert.Contains(t, err.Error(), "1, t, T, true, TRUE, True, 0, f, F, false, FALSE, False")
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, viper.GetBool(key))
+			})
+		}
+	}
+
+	t.Run("explicit flag overrides empty env", func(t *testing.T) {
+		t.Setenv("GITHUB_READ_ONLY", "")
+		initConfig()
+
+		flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		flags.Bool("read-only", false, "")
+		require.NoError(t, flags.Parse([]string{"--read-only=true"}))
+		require.NoError(t, validateBoolSettings(flags, boolSettings...))
+	})
+
+	t.Run("unset", func(t *testing.T) {
+		initConfig()
+		require.NoError(t, validateBoolSettings(pflag.NewFlagSet("test", pflag.ContinueOnError), boolSettings...))
+		assert.False(t, viper.GetBool("read-only"))
+	})
 }
 
 func TestWriteToolDocScopes(t *testing.T) {

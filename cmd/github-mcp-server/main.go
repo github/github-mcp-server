@@ -40,6 +40,10 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateBoolSettings(cmd.Flags(), boolSettings...); err != nil {
+				return err
+			}
+
 			info, _ := debug.ReadBuildInfo()
 			serverVersion := resolveServerVersion(version, commit, info)
 			if serverVersion == developmentServerVersion {
@@ -172,7 +176,11 @@ var (
 		Use:   "http",
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateBoolSettings(cmd.Flags(), append(boolSettings, "scope-challenge", "trust-proxy-headers")...); err != nil {
+				return err
+			}
+
 			// Parse toolsets (same approach as stdio — see comment there)
 			var enabledToolsets []string
 			if viper.IsSet("toolsets") {
