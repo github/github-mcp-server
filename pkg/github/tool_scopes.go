@@ -51,6 +51,9 @@ func uiGetScopeAccess() inventory.ScopeAccess {
 				return nil
 			}
 			if method == "issue_types" {
+				if repo, ok := arguments["repo"].(string); ok && repo != "" {
+					return scopes.ChallengeAll(activeScopes, scopes.Repo)
+				}
 				return scopes.ChallengeAll(activeScopes, scopes.ReadOrg)
 			}
 			if method == "reviewers" {

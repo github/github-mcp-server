@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Set Issue Fields"
   },
-  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue.",
+  "description": "Set issue field values for an issue. Fields are custom fields (text, number, date, or single select) defined by the repository owner (user or organization). Use this to create or update field values on an issue.",
   "icons": [
     {
       "mimeType": "image/png",

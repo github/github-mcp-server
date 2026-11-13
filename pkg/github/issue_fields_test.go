@@ -3,11 +3,13 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -39,16 +41,21 @@ func Test_ListIssueFields(t *testing.T) {
 	defaultOrgVars := map[string]any{
 		"login": githubv4.String("testowner"),
 	}
+	orgAccount := &github.User{Login: new("testowner"), Type: new("Organization")}
+	viewerAccount := &github.User{Login: new("testowner"), Type: new("User")}
+	otherUserAccount := &github.User{Login: new("hubot"), Type: new("User")}
 
 	tests := []struct {
 		name            string
 		requestArgs     map[string]any
+		restHandlers    map[string]http.HandlerFunc
 		mockQueryStruct any
 		mockVars        map[string]any
 		gqlResponse     githubv4mock.GQLResponse
 		expectError     bool
 		expectedFields  []IssueField
 		expectedErrMsg  string
+		notInErrMsg     string
 	}{
 		{
 			name: "no fields returns empty list",
@@ -159,9 +166,12 @@ func Test_ListIssueFields(t *testing.T) {
 			expectedErrMsg: "missing required parameter: owner",
 		},
 		{
-			name: "no repo returns org-level fields",
+			name: "organization owner returns organization fields",
 			requestArgs: map[string]any{
 				"owner": "testowner",
+			},
+			restHandlers: map[string]http.HandlerFunc{
+				"GET /users/testowner": mockResponse(t, http.StatusOK, orgAccount),
 			},
 			mockQueryStruct: orgQueryStruct,
 			mockVars:        defaultOrgVars,
@@ -184,6 +194,53 @@ func Test_ListIssueFields(t *testing.T) {
 			expectedFields: []IssueField{
 				{ID: "IFT_1", DatabaseID: 77, Name: "DRI", DataType: "TEXT", Visibility: "ORG_ONLY"},
 			},
+		},
+		{
+			name: "authenticated user owner returns their own fields",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+			},
+			restHandlers: map[string]http.HandlerFunc{
+				"GET /users/testowner": mockResponse(t, http.StatusOK, viewerAccount),
+				"GET /user":            mockResponse(t, http.StatusOK, viewerAccount),
+			},
+			mockQueryStruct: issueFieldsUserQuery{},
+			mockVars:        defaultOrgVars,
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"user": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldDate",
+								"id":             "IFD_9",
+								"fullDatabaseId": "909",
+								"name":           "Due",
+								"dataType":       "DATE",
+								"visibility":     "ALL",
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{ID: "IFD_9", DatabaseID: 909, Name: "Due", DataType: "DATE", Visibility: "ALL"},
+			},
+		},
+		{
+			name: "another user owner asks for repo",
+			requestArgs: map[string]any{
+				"owner": "hubot",
+			},
+			restHandlers: map[string]http.HandlerFunc{
+				"GET /users/hubot": mockResponse(t, http.StatusOK, otherUserAccount),
+				"GET /user":        mockResponse(t, http.StatusOK, viewerAccount),
+			},
+			mockQueryStruct: issueFieldsUserQuery{},
+			mockVars:        map[string]any{"login": githubv4.String("hubot")},
+			gqlResponse:     githubv4mock.ErrorResponse("FORBIDDEN"),
+			expectError:     true,
+			expectedErrMsg:  "Pass repo to list them for one of the owner's repositories",
+			notInErrMsg:     "hubot",
 		},
 		{
 			name: "number field returned",
@@ -264,6 +321,9 @@ func Test_ListIssueFields(t *testing.T) {
 			)
 			gqlClient := githubv4.NewClient(mockedHTTPClient)
 			deps := BaseDeps{GQLClient: gqlClient}
+			if tc.restHandlers != nil {
+				deps.Client = mustNewGHClient(t, MockHTTPClientWithHandlers(tc.restHandlers))
+			}
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
@@ -278,6 +338,9 @@ func Test_ListIssueFields(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				if tc.notInErrMsg != "" {
+					assert.NotContains(t, errorContent.Text, tc.notInErrMsg, "the error must not echo untrusted input")
+				}
 				return
 			}
 
@@ -289,7 +352,7 @@ func Test_ListIssueFields(t *testing.T) {
 			var returnedFields []IssueField
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFields)
 			require.NoError(t, err)
-			require.Equal(t, len(tc.expectedFields), len(returnedFields))
+			require.Equal(t, len(tc.expectedFields), len(returnedFields), "field count in %s", textContent.Text)
 			for i, expected := range tc.expectedFields {
 				assert.Equal(t, expected.ID, returnedFields[i].ID)
 				assert.Equal(t, expected.DatabaseID, returnedFields[i].DatabaseID)

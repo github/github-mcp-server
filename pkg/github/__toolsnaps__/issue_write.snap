@@ -41,7 +41,7 @@
               "type": "boolean"
             },
             "field_name": {
-              "description": "Issue field name (case-insensitive). Must match a field returned by list_issue_fields for this repository or its organization.",
+              "description": "Issue field name (case-insensitive). Must match a field returned by list_issue_fields for this repository or its owner.",
               "type": "string"
             },
             "field_option_name": {
@@ -139,7 +139,7 @@
             "type": "null"
           }
         ],
-        "description": "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter."
+        "description": "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner. If the repository doesn't support issue types, omit this parameter."
       }
     },
     "required": [

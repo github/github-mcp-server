@@ -217,8 +217,27 @@ func Test_UIGet(t *testing.T) {
 			},
 		},
 		{
+			name: "issue_types with repo lists the repository's issue types",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/octocat/hello-world/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
+			requestArgs: map[string]any{
+				"method": "issue_types",
+				"owner":  "octocat",
+				"repo":   "hello-world",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var issueTypes []map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &issueTypes))
+				require.Len(t, issueTypes, 2, "repository issue types in %s", responseText)
+				assert.Equal(t, "Bug", issueTypes[0]["name"])
+			},
+		},
+		{
 			name: "successful issue_types fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/owner":            mockResponse(t, http.StatusOK, &github.User{Login: new("owner"), Type: new("Organization")}),
 				"GET /orgs/owner/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
 			}),
 			requestArgs: map[string]any{
@@ -236,6 +255,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name: "issue_types API error returns response context",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/owner":            mockResponse(t, http.StatusOK, &github.User{Login: new("owner"), Type: new("Organization")}),
 				"GET /orgs/owner/issue-types": mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"}),
 			}),
 			requestArgs: map[string]any{

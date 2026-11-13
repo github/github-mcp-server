@@ -71,6 +71,8 @@ func typedCopilotUIClient(t *testing.T, fixture ...string) ToolDependencies {
 			default:
 				return nil, assert.AnError
 			}
+		case "/users/owner":
+			body = `{"login":"owner","type":"Organization"}`
 		case "/orgs/owner/issue-types":
 			switch fixtureMode {
 			case "nonempty":

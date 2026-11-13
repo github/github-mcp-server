@@ -978,7 +978,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "set_issue_fields",
-			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue."),
+			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are custom fields (text, number, date, or single select) defined by the repository owner (user or organization). Use this to create or update field values on an issue."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_SET_ISSUE_FIELDS_USER_TITLE", "Set Issue Fields"),
 				ReadOnlyHint:    false,

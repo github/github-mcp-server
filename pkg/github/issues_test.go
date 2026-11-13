@@ -7321,6 +7321,10 @@ func Test_ListIssueTypes(t *testing.T) {
 		},
 	}
 
+	orgAccount := &github.User{Login: new("testorg"), Type: new("Organization")}
+	viewerAccount := &github.User{Login: new("octocat"), Type: new("User")}
+	otherUserAccount := &github.User{Login: new("hubot"), Type: new("User")}
+
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
@@ -7328,10 +7332,12 @@ func Test_ListIssueTypes(t *testing.T) {
 		expectError        bool
 		expectedIssueTypes []*github.IssueType
 		expectedErrMsg     string
+		notInErrMsg        string
 	}{
 		{
-			name: "successful issue types retrieval",
+			name: "organization owner lists organization issue types",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/testorg":            mockResponse(t, http.StatusOK, orgAccount),
 				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
 			}),
 			requestArgs: map[string]any{
@@ -7341,12 +7347,58 @@ func Test_ListIssueTypes(t *testing.T) {
 			expectedIssueTypes: mockIssueTypes,
 		},
 		{
-			name: "organization not found",
+			name: "authenticated user owner lists their own issue types",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Organization not found"}`),
+				"GET /users/OctoCat":    mockResponse(t, http.StatusOK, viewerAccount),
+				"GET /user":             mockResponse(t, http.StatusOK, viewerAccount),
+				"GET /user/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+				"GET /orgs/OctoCat/issue-types": func(w http.ResponseWriter, _ *http.Request) {
+					t.Error("a user owner must not be listed through the organization endpoint")
+					w.WriteHeader(http.StatusNotFound)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner": "OctoCat",
+			},
+			expectError:        false,
+			expectedIssueTypes: mockIssueTypes,
+		},
+		{
+			name: "another user owner asks for repo",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/hubot": mockResponse(t, http.StatusOK, otherUserAccount),
+				"GET /user":        mockResponse(t, http.StatusOK, viewerAccount),
+				"GET /user/issue-types": func(w http.ResponseWriter, _ *http.Request) {
+					t.Error("the authenticated user's issue types must not be returned for another user")
+					w.WriteHeader(http.StatusOK)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner": "hubot",
+			},
+			expectError:    true,
+			expectedErrMsg: "Pass repo to list them for one of the owner's repositories",
+			notInErrMsg:    "hubot",
+		},
+		{
+			name: "owner not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/nonexistent": mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
 			requestArgs: map[string]any{
 				"owner": "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to look up owner",
+		},
+		{
+			name: "organization issue types error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/testorg":            mockResponse(t, http.StatusOK, orgAccount),
+				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusForbidden, `{"message": "Forbidden"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list issue types",
@@ -7412,6 +7464,9 @@ func Test_ListIssueTypes(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				if tc.notInErrMsg != "" {
+					assert.NotContains(t, errorContent.Text, tc.notInErrMsg, "the error must not echo untrusted input")
+				}
 				return
 			}
 

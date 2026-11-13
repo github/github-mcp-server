@@ -778,7 +778,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - **OAuth Challenge Scopes**: `repo`, `read:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
-  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers; optional for issue types) (string, optional)
 
 </details>
 
@@ -1069,17 +1069,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
+  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **list_issue_fields** - List issue fields
   - **OAuth Challenge Scopes**: `repo`, `read:org`
-  - `owner`: The account owner of the repository or organization. The name is not case sensitive. (string, required)
-  - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly. (string, optional)
+  - `owner`: The account owner of the repository (user or organization). The name is not case sensitive. (string, required)
+  - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its owner). When omitted, returns the owner's fields directly. (string, optional)
 
 - **list_issue_types** - List available issue types
   - **OAuth Challenge Scopes**: `repo`, `read:org`
-  - `owner`: The account owner of the repository or organization. (string, required)
-  - `repo`: The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly. (string, optional)
+  - `owner`: The account owner of the repository (user or organization). (string, required)
+  - `repo`: The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns the owner's issue types directly. (string, optional)
 
 - **list_issues** - List issues
   - **OAuth Challenge Scopes**: `repo`
