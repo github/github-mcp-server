@@ -1436,6 +1436,12 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether the repository should be private. Defaults to true (private) when omitted. (boolean, optional)
 
+- **delete_branch** - Delete branch
+  - **OAuth Challenge Scopes**: `repo`
+  - `branch`: Name of the branch to delete (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **delete_file** - Delete file
   - **OAuth Challenge Scopes**: `repo`, `workflow`
   - `branch`: Branch to delete the file from (string, required)
