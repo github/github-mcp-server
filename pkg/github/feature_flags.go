@@ -39,9 +39,6 @@ const FeatureFlagIssueArtifacts = "issue_artifacts"
 // opt-in.
 const FeatureFlagDuplicateDetection = "duplicate_detection"
 
-// FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
-const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
-
 // FeatureFlagSkillsExtension replaces server instructions with MCP-served skills.
 const FeatureFlagSkillsExtension = "skills"
 
@@ -60,7 +57,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssueDependencies,
 	FeatureFlagIssueArtifacts,
 	FeatureFlagDuplicateDetection,
-	FeatureFlagThreadResolutionReason,
 	FeatureFlagSkillsExtension,
 }
 

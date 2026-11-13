@@ -6,12 +6,10 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -24,29 +22,20 @@ import (
 
 var typedPullRequestProtocols = []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""}
 
-func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string, ui bool, flags ...inventory.FeatureFlag) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
+func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string, ui bool) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
 	t.Helper()
 	tr := translations.NullTranslationHelper
 	tools := []inventory.ServerTool{
 		PullRequestRead(tr), CreatePullRequest(tr), UpdatePullRequest(tr), MergePullRequest(tr),
-		UpdatePullRequestBranch(tr), PullRequestReviewWrite(tr), PullRequestReviewWriteWithResolutionReason(tr),
+		UpdatePullRequestBranch(tr), PullRequestReviewWrite(tr),
 		AddCommentToPendingReview(tr), AddReplyToPullRequestComment(tr),
 	}
 	canonicalSchemas := make(map[string]string)
 	for _, tool := range tools {
-		if tool.Tool.Name == "pull_request_review_write" {
-			continue
-		}
 		canonicalSchemas[tool.Tool.Name] = mustMarshalJSON(t, tool.Tool.OutputSchema)
 	}
-	review := PullRequestReviewWrite(tr)
-	if slices.Contains(flags, FeatureFlagThreadResolutionReason) {
-		review = PullRequestReviewWriteWithResolutionReason(tr)
-		require.NoError(t, toolsnaps.Test("pull_request_review_write_resolution_reason", review.Tool))
-	}
-	canonicalSchemas[review.Tool.Name] = mustMarshalJSON(t, review.Tool.OutputSchema)
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
-		WithFeatureChecker(featureCheckerFor(flags...)).Build()
+		WithFeatureChecker(featureCheckerFor()).Build()
 	require.NoError(t, err)
 	server := mcp.NewServer(&mcp.Implementation{Name: "consolidated-pull-requests", Version: "v1"}, nil)
 	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
@@ -85,8 +74,7 @@ func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string
 	session := connectCommentVisibilityClient(t, server, version)
 	list, err := session.ListTools(context.Background(), nil)
 	require.NoError(t, err)
-	// Exactly one pull_request_review_write variant is exposed for a feature set.
-	require.Len(t, list.Tools, len(tools)-1)
+	require.Len(t, list.Tools, len(tools))
 	schemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
 		if protocol != inventory.ProtocolVersionMultiRoundTrip {
@@ -355,7 +343,7 @@ func TestTypedPullRequestFilesLinkPagination(t *testing.T) {
 func TestTypedPullRequestReviewWriteResolutionReasonVariant(t *testing.T) {
 	for _, protocol := range typedPullRequestProtocols {
 		t.Run("protocol="+protocol, func(t *testing.T) {
-			session, schemas := consolidatedPullRequestSession(t, consolidatedPullRequestDeps(t), protocol, false, FeatureFlagThreadResolutionReason)
+			session, schemas := consolidatedPullRequestSession(t, consolidatedPullRequestDeps(t), protocol, false)
 			list, err := session.ListTools(context.Background(), nil)
 			require.NoError(t, err)
 			for _, tool := range list.Tools {
@@ -364,7 +352,7 @@ func TestTypedPullRequestReviewWriteResolutionReasonVariant(t *testing.T) {
 				}
 			}
 			runTypedPullRequestCases(t, session, schemas, []typedPullRequestCase{
-				{"pull_request_review_write", map[string]any{"Method": "resolve_thread", "ThreadID": "T_1", "resolutionReason": "OUTDATED"}, "review thread resolved successfully"},
+				{"pull_request_review_write", map[string]any{"Method": "resolve_thread", "ThreadID": "T_1", "resolutionReason": "invalid"}, "review thread resolved successfully"},
 				{"pull_request_review_write", map[string]any{"method": "create", "pullNumber": 1.5}, "pending pull request created"},
 			})
 		})

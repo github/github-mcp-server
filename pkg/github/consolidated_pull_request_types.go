@@ -598,7 +598,7 @@ func normalizePullRequestReviewWriteArguments(raw json.RawMessage) (json.RawMess
 		"method": params.Method, "owner": params.Owner, "repo": params.Repo, "pullNumber": params.PullNumber,
 	}
 	// Empty optional strings are equivalent to omitted ones for the handler,
-	// but would fail the schema's enum for event.
+	// but would fail the schema's enums for event and resolutionReason.
 	for key, value := range map[string]string{"body": params.Body, "event": params.Event, "threadId": params.ThreadID} {
 		if value != "" {
 			canonical[key] = value
@@ -607,7 +607,7 @@ func normalizePullRequestReviewWriteArguments(raw json.RawMessage) (json.RawMess
 	if params.CommitID != nil {
 		canonical["commitID"] = *params.CommitID
 	}
-	if params.ResolutionReason != nil {
+	if params.ResolutionReason != nil && *params.ResolutionReason != "" {
 		canonical["resolutionReason"] = *params.ResolutionReason
 	}
 	for key := range args {

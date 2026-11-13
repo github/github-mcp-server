@@ -22,17 +22,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func granularPullRequestTools() []inventory.ServerTool {
+func granularPullRequestTools(opts ...ToolOption) []inventory.ServerTool {
 	t := translations.NullTranslationHelper
 	return []inventory.ServerTool{
 		GranularUpdatePullRequestTitle(t), GranularUpdatePullRequestBody(t),
 		GranularUpdatePullRequestState(t), GranularUpdatePullRequestDraftState(t),
 		GranularRequestPullRequestReviewers(t), GranularCreatePullRequestReview(t),
 		GranularSubmitPendingPullRequestReview(t), GranularDeletePendingPullRequestReview(t),
-		GranularAddPullRequestReviewComment(t), GranularResolveReviewThread(t),
+		GranularAddPullRequestReviewComment(t), GranularResolveReviewThread(t, opts...),
 		GranularUnresolveReviewThread(t), GranularAddPullRequestReviewCommentReaction(t),
 		GranularRemovePullRequestReviewCommentReaction(t),
-		GranularResolveReviewThreadWithResolutionReason(t),
 	}
 }
 
@@ -186,13 +185,13 @@ func granularPRDeps(t *testing.T, current **granularPRCase, outcome string) Base
 
 func granularPRSession(t *testing.T, deps ToolDependencies, protocol string, reason bool) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
 	t.Helper()
-	tools := granularPullRequestTools()
-	flags := []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)}
-	if reason {
-		flags = append(flags, FeatureFlagThreadResolutionReason)
+	var opts []ToolOption
+	if !reason {
+		opts = append(opts, WithHost(utils.HostTypeGHES))
 	}
+	tools := granularPullRequestTools(opts...)
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
-		WithFeatureChecker(featureCheckerFor(flags...)).Build()
+		WithFeatureChecker(featureCheckerFor(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))).Build()
 	require.NoError(t, err)
 	server := mcp.NewServer(&mcp.Implementation{Name: "granular-pr", Version: "v1"}, nil)
 	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
@@ -221,9 +220,6 @@ func granularPRSession(t *testing.T, deps ToolDependencies, protocol string, rea
 	schemas := make(map[string]*jsonschema.Resolved)
 	for _, tool := range list.Tools {
 		name := tool.Name
-		if name == "resolve_review_thread" && reason {
-			name += "_resolution_reason"
-		}
 		// Resolve the advertised input schema as well as every modern output.
 		var inputSchema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &inputSchema))
@@ -234,7 +230,9 @@ func granularPRSession(t *testing.T, deps ToolDependencies, protocol string, rea
 			continue
 		}
 		require.NotNil(t, tool.OutputSchema, name)
-		require.NoError(t, toolsnaps.Test(name, *tool))
+		if reason || name != "resolve_review_thread" {
+			require.NoError(t, toolsnaps.Test(name, *tool))
+		}
 		var schema jsonschema.Schema
 		require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
 		resolved, err := schema.Resolve(nil)
@@ -391,11 +389,8 @@ func TestGranularPullRequestFeatureVariants(t *testing.T) {
 		assert.Equal(t, []string{"repo"}, tool.ScopeAccess.Scopes, tool.Tool.Name)
 		assert.False(t, tool.FeatureRule.Enabled(func(inventory.FeatureFlag) bool { return false }), tool.Tool.Name)
 	}
-	variant := GranularResolveReviewThreadWithResolutionReason(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES))
-	require.NotNil(t, variant.Enabled)
-	enabled, err := variant.Enabled(context.Background())
-	require.NoError(t, err)
-	assert.False(t, enabled)
+	schema := GranularResolveReviewThread(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES)).Tool.InputSchema.(*jsonschema.Schema)
+	assert.NotContains(t, schema.Properties, "resolutionReason")
 }
 
 func TestGranularPullRequestAdvertisedInputConstraints(t *testing.T) {
@@ -487,9 +482,8 @@ func TestGranularPullRequestReactionSchema(t *testing.T) {
 }
 
 func TestGranularPullRequestParentBehavior(t *testing.T) {
-	tools := granularPullRequestTools()
 	byName := make(map[string]inventory.ServerTool)
-	for _, tool := range tools[:len(tools)-1] {
+	for _, tool := range granularPullRequestTools() {
 		byName[tool.Tool.Name] = tool
 	}
 	var current *granularPRCase
@@ -539,7 +533,7 @@ func TestTypedGranularPullRequestClientErrors(t *testing.T) {
 func TestTypedGranularPullRequestResolutionReasonPayload(t *testing.T) {
 	for _, protocol := range typedPullRequestProtocols {
 		for _, reason := range []bool{false, true} {
-			for _, value := range []string{"addressed", "wont-fix", "invalid", ""} {
+			for value, want := range map[string]string{"addressed": "ADDRESSED", "wont-fix": "WONT_FIX", "invalid": "INVALID", "": ""} {
 				client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					var request struct {
 						Variables struct {
@@ -551,9 +545,9 @@ func TestTypedGranularPullRequestResolutionReasonPayload(t *testing.T) {
 					}
 					require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 					assert.Equal(t, "T_1", request.Variables.Input.ThreadID)
-					if reason {
+					if reason && want != "" {
 						require.NotNil(t, request.Variables.Input.ResolutionReason)
-						assert.Equal(t, value, *request.Variables.Input.ResolutionReason)
+						assert.Equal(t, want, *request.Variables.Input.ResolutionReason)
 					} else {
 						assert.Nil(t, request.Variables.Input.ResolutionReason)
 					}

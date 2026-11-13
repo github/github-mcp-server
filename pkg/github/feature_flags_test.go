@@ -202,11 +202,6 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{FeatureFlagIssuesGranular},
 		},
 		{
-			name:            "thread resolution reason can be directly enabled",
-			enabledFeatures: []string{FeatureFlagThreadResolutionReason},
-			expectedFlags:   []string{FeatureFlagThreadResolutionReason},
-		},
-		{
 			name:            "insiders does not enable user-only allowed flags",
 			enabledFeatures: nil,
 			insidersMode:    true,
@@ -243,35 +238,24 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		hasReason bool
 	}{
 		{
-			name:     "consolidated flag off",
-			toolName: "pull_request_review_write",
-		},
-		{
 			name:      "consolidated flag on",
-			flags:     []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
 			toolName:  "pull_request_review_write",
 			hasReason: true,
 		},
 		{
-			name:     "granular flag off",
-			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
-			toolName: "resolve_review_thread",
-		},
-		{
 			name:      "granular flag on",
-			flags:     []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
+			flags:     []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			toolName:  "resolve_review_thread",
 			hasReason: true,
 		},
 		{
 			name:     "consolidated flag on GHES",
-			flags:    []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
 			host:     utils.HostTypeGHES,
 			toolName: "pull_request_review_write",
 		},
 		{
 			name:     "granular flag on GHES",
-			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
+			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			host:     utils.HostTypeGHES,
 			toolName: "resolve_review_thread",
 		},
