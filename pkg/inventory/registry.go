@@ -60,6 +60,8 @@ type Inventory struct {
 	unrecognizedToolsets []string
 	// server instructions hold high-level instructions for agents to use the server effectively
 	instructions string
+	// configuration preserves tool availability before per-method registration narrowing.
+	configuration *Inventory
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
@@ -105,6 +107,7 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	// Note: lazy-init maps (toolsByName, etc.) are NOT copied - the new Registry
 	// will initialize its own maps on first use if needed
 	result := &Inventory{
+		configuration:        r,
 		tools:                r.tools,
 		resourceTemplates:    r.resourceTemplates,
 		prompts:              r.prompts,
@@ -195,6 +198,16 @@ func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 		tools = stripMCPAppsMetadata(tools)
 	}
 	return tools
+}
+
+// ConfiguredTools returns the tools available under the configured filters,
+// independently of ForMCPRequest's registration optimization. Extensions that
+// depend on tools must use this view even on resource and discovery requests.
+func (r *Inventory) ConfiguredTools(ctx context.Context) []ServerTool {
+	if r.configuration != nil {
+		return r.configuration.ConfiguredTools(ctx)
+	}
+	return r.ToolsForRegistration(ctx)
 }
 
 // RequiredFeatures returns the deduplicated feature flags used to expose the
