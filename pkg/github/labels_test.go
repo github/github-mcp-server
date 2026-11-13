@@ -217,6 +217,24 @@ func TestListLabels(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "perPage value 101 exceeds maximum of 100",
 		},
+		{
+			// Explicit 0 must not be treated as "omitted" and replaced by the default of 100.
+			// The mock matches first=100 so a silent default would succeed and fail this case.
+			name: "rejects a page size of 0",
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"perPage": float64(0),
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(listLabelsMatcher(100, (*githubv4.String)(nil), map[string]any{
+				"hasNextPage":     githubv4.Boolean(false),
+				"hasPreviousPage": githubv4.Boolean(false),
+				"startCursor":     githubv4.String("c1"),
+				"endCursor":       githubv4.String("c2"),
+			})),
+			expectToolError:    true,
+			expectedToolErrMsg: "perPage value 0 is below minimum of 1",
+		},
 	}
 
 	for _, tc := range tests {
