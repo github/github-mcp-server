@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List available automation triggers"
+  },
+  "description": "List the trigger types that can be used by automations in a repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_available_automation_triggers",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "type": "array"
+  }
+}

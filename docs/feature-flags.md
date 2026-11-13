@@ -99,6 +99,16 @@ catalog per request and removes instructions when its feature checker enables
 
 ## Declaring tool availability
 
+### Agent automations
+
+Enable `--features=agent_automations` (or `GITHUB_FEATURES=agent_automations`)
+to expose the repository automation tools in the opt-in `copilot_automations`
+toolset (enable it with `--toolsets=copilot_automations` or `all`). This flag
+is **off by default**, including in Insiders mode. The MCP flag only exposes
+the tools; GitHub API access still depends on the authenticated client's
+permissions and access to the explicitly named repository. Read-only mode
+exposes only the read tools.
+
 ### Issue artifacts
 
 Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
@@ -517,6 +527,52 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `type`:  (string, optional)
+
+### `agent_automations`
+
+- **get_automation** - Get a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation_revision** - Get an automation revision
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `revision_id`: The revision identifier. (string, required)
+
+- **get_automations_configuration_for_repository** - Get repository automation configuration
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_automation_revisions** - List automation revisions
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `cursor`: Opaque pagination cursor. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_automations** - List repository automations
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1. (integer, optional)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`: Filter automations by type. (string, optional)
+
+- **list_available_automation_tools** - List available automation tools
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_available_automation_triggers** - List available automation triggers
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 ### `duplicate_detection`
 
