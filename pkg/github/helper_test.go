@@ -114,6 +114,7 @@ const (
 	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
 
 	// Code quality endpoints
+	GetReposCodeQualityFindingsByOwnerByRepo                = "GET /repos/{owner}/{repo}/code-quality/findings"
 	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"
 
 	// Code scanning endpoints
