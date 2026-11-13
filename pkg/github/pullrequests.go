@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v92/github"
@@ -877,10 +878,14 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					TeamReviewers: teamReviewers,
 				}
 
+				// The pull request already exists at this point, so a reviewer failure must still
+				// tell the caller which pull request was created. Otherwise a retry only reports
+				// that a pull request for the head branch already exists.
+				reviewerErrMsg := fmt.Sprintf("pull request #%d was created (%s), but failed to request reviewers", pr.GetNumber(), pr.GetHTMLURL())
 				_, reviewerResp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pr.GetNumber(), reviewersRequest)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to request reviewers",
+						reviewerErrMsg,
 						reviewerResp,
 						err,
 					), nil, nil
@@ -896,7 +901,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request reviewers", reviewerResp, bodyBytes), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, reviewerErrMsg, reviewerResp, bodyBytes), nil, nil
 				}
 			}
 
@@ -1080,6 +1085,16 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError("No update parameters provided."), nil, nil
 			}
 
+			// The steps below are separate API calls. Once one of them has changed the pull
+			// request, a later failure must say so, or the caller assumes nothing changed.
+			updated := false
+			stepErrMsg := func(step string) string {
+				if updated {
+					return fmt.Sprintf("pull request #%d was updated, but %s%s", pullNumber, strings.ToLower(step[:1]), step[1:])
+				}
+				return step
+			}
+
 			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := deps.GetClient(ctx)
@@ -1104,6 +1119,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request", resp, bodyBytes), nil, nil
 				}
+				updated = true
 			}
 
 			// Handle draft status changes using GraphQL
@@ -1128,7 +1144,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
 				})
 				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil, nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, stepErrMsg("Failed to find pull request"), err), nil, nil
 				}
 
 				currentIsDraft := bool(prQuery.Repository.PullRequest.IsDraft)
@@ -1149,7 +1165,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 							PullRequestID: prQuery.Repository.PullRequest.ID,
 						}, nil)
 						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil, nil
+							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, stepErrMsg("Failed to convert pull request to draft"), err), nil, nil
 						}
 					} else {
 						// Mark as ready for review
@@ -1166,9 +1182,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 							PullRequestID: prQuery.Repository.PullRequest.ID,
 						}, nil)
 						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to mark pull request ready for review", err), nil, nil
+							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, stepErrMsg("Failed to mark pull request ready for review"), err), nil, nil
 						}
 					}
+					updated = true
 				}
 			}
 
@@ -1188,7 +1205,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				_, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, reviewersRequest)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to request reviewers",
+						stepErrMsg("failed to request reviewers"),
 						resp,
 						err,
 					), nil, nil
@@ -1204,8 +1221,9 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request reviewers", resp, bodyBytes), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, stepErrMsg("failed to request reviewers"), resp, bodyBytes), nil, nil
 				}
+				updated = true
 			}
 
 			// Get the final state of the PR to return
@@ -1216,7 +1234,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			finalPR, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get pull request", resp, err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, stepErrMsg("Failed to get pull request"), resp, err), nil, nil
 			}
 			defer func() {
 				if resp != nil && resp.Body != nil {
