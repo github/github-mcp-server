@@ -139,6 +139,49 @@ func TestURIRootHasNoTrailingSlashAndSkillFileIsExplicit(t *testing.T) {
 	assert.Equal(t, "writing", u.Name())
 }
 
+func TestSkillURIEscapesAndDecodesReservedPathCharacters(t *testing.T) {
+	t.Parallel()
+
+	const skillPath = "example.com/team space/writing"
+	const filePath = "refs/quick start#draft?.md"
+	want := "skill://example.com/team%20space/writing/refs/quick%20start%23draft%3F.md"
+
+	assert.Equal(t, want, SkillURI(skillPath, filePath))
+	assert.True(t, WithinSkill(skillPath, want))
+	assert.False(t, WithinSkill(skillPath, want+"?download=1"))
+	assert.False(t, WithinSkill(skillPath, want+"#draft"))
+	assert.False(t, WithinSkill(skillPath, "skill://example.com/team%20space/writing/refs/a%2Fb.md"))
+
+	parsed, err := ParseURI(SkillURI(skillPath, SkillFile))
+	require.NoError(t, err)
+	assert.Equal(t, skillPath, parsed.SkillPath)
+	assert.Equal(t, SkillFile, parsed.FilePath)
+}
+
+func TestSkillPublishesReservedFilePathAsReadableResource(t *testing.T) {
+	t.Parallel()
+
+	content := []byte("# Quick start\n")
+	skill, err := NewSkill("example.com/team space/writing", []File{
+		{Path: SkillFile, Content: skillMD("writing", "Writing guidance.")},
+		{Path: "refs/quick start#draft?.md", Content: content},
+	})
+	require.NoError(t, err)
+	registry, err := NewRegistry(skill)
+	require.NoError(t, err)
+
+	files, err := registry.Files(t.Context())
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+	assert.Equal(t, "skill://example.com/team%20space/writing/refs/quick%20start%23draft%3F.md", files[1].URI)
+	assert.Equal(t, content, files[1].File.Content)
+
+	children, found, err := registry.ReadDirectory(t.Context(), "skill://example.com/team%20space")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, []string{"skill://example.com/team%20space/writing"}, childURIs(children))
+}
+
 func TestValidateName(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +262,19 @@ func TestParseFrontmatterErrors(t *testing.T) {
 			t.Parallel()
 			_, _, err := ParseFrontmatter([]byte(tc.content))
 			assert.Error(t, err)
+		})
+	}
+}
+
+func TestParseFrontmatterRejectsNonFiniteNumbers(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{".nan", ".inf", "-.inf"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			content := []byte("---\nname: writing\ndescription: d\nmetadata:\n  score: " + value + "\n---\n")
+			_, _, err := ParseFrontmatter(content)
+			require.ErrorContains(t, err, "non-finite number")
 		})
 	}
 }

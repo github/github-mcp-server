@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,38 @@ func TestEntryRejectsRelativeResourceSegments(t *testing.T) {
 	}
 }
 
+func TestSkillCopiesCallerOwnedFileContentAndFiles(t *testing.T) {
+	t.Parallel()
+
+	main := skillMD("writing", "Writing guidance.")
+	originalMain := slices.Clone(main)
+	supporting := []byte("# Original\n")
+	skill, err := NewSkill("example.com/writing", []File{
+		{Path: SkillFile, Content: main},
+		{Path: "refs/style.md", Content: supporting},
+	})
+	require.NoError(t, err)
+
+	main[0] = 'x'
+	supporting[0] = 'x'
+	gotFiles := skill.Files()
+	require.Len(t, gotFiles, 2)
+	assert.Equal(t, originalMain, gotFiles[0].Content)
+	assert.Equal(t, []byte("# Original\n"), gotFiles[1].Content)
+	gotFiles[1].Path = "renamed.md"
+	gotFiles[1].Content[0] = 'x'
+
+	gotFile, ok := skill.File("refs/style.md")
+	require.True(t, ok)
+	assert.Equal(t, []byte("# Original\n"), gotFile.Content)
+	gotFile.Content[0] = 'x'
+
+	assert.Equal(t, "refs/style.md", skill.Files()[1].Path)
+	assert.Equal(t, originalMain, skill.Files()[0].Content)
+	assert.Equal(t, []byte("# Original\n"), skill.Files()[1].Content)
+	require.NoError(t, skill.Entry().Validate())
+}
+
 func TestFrontmatterNumbersMatchJSONWithoutLosingPrecision(t *testing.T) {
 	t.Parallel()
 	parsed, _, err := ParseFrontmatter([]byte("---\nname: writing\ndescription: d\nversion: 2\nmetadata:\n  priority: 1\n  weights: [0.5, 2]\n---\n"))
@@ -58,6 +91,18 @@ func TestFrontmatterNumbersMatchJSONWithoutLosingPrecision(t *testing.T) {
 	assert.False(t, FrontmatterEqual(Frontmatter{"n": 2}, Frontmatter{"n": "2"}))
 	assert.False(t, FrontmatterEqual(Frontmatter{"n": math.NaN()}, Frontmatter{"n": math.NaN()}))
 	assert.True(t, FrontmatterEqual(Frontmatter{"n": int64(9007199254740993)}, Frontmatter{"n": json.Number("9007199254740993")}))
+}
+
+func TestRegistryRejectsFileDirectoryURICollision(t *testing.T) {
+	t.Parallel()
+
+	parent := newTestSkill(t, "example.com/parent", File{
+		Path: "child", Content: []byte("a file, not a directory"),
+	})
+	child := newTestSkill(t, "example.com/parent/child")
+
+	_, err := NewRegistry(parent, child)
+	require.ErrorContains(t, err, "both a file and a directory")
 }
 
 func TestRegistryRejectsIncompleteEnclosingManifest(t *testing.T) {

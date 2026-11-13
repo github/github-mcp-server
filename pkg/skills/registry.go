@@ -14,7 +14,9 @@ import (
 // A listing may be empty or partial — a server with a large, generated, or
 // otherwise unenumerable catalog is not required to enumerate it — but a source
 // MUST still answer Get for every skill it serves, including skills that never
-// appear in a listing.
+// appear in a listing. Every listed skill's resources must be supplied by a
+// ContentSource; Publisher.Install validates the listed manifests against those
+// files before registering the extension.
 type Source interface {
 	// List returns the entries the server publishes, in a stable order. The
 	// order must not change between paginated calls, or an atomic page
@@ -147,15 +149,21 @@ func NewRegistry(skills ...*Skill) (*Registry, error) {
 		}
 	}
 
+	for uri := range r.files {
+		if _, isDirectory := dirSets[uri]; isDirectory {
+			return nil, fmt.Errorf("resource %q is both a file and a directory", uri)
+		}
+	}
+
 	for _, parent := range skills {
 		if parent.Dynamic {
 			continue
 		}
 		for uri := range r.files {
-			if !WithinSkill(parent.SkillPath, uri) {
+			relative, within := relativeFilePath(parent.SkillPath, uri)
+			if !within {
 				continue
 			}
-			relative := strings.TrimPrefix(uri, SkillURI(parent.SkillPath, "")+"/")
 			if _, ok := parent.File(relative); !ok {
 				return nil, fmt.Errorf("skill %q: enclosing manifest is missing resource %q", parent.SkillPath, uri)
 			}
@@ -179,12 +187,12 @@ func NewRegistry(skills ...*Skill) (*Registry, error) {
 // those that happen to contain a file directly.
 func indexAncestors(dirSets map[string]map[string]Child, skillPath string) {
 	segments := strings.Split(skillPath, "/")
-	dir := URIScheme + "://" + segments[0]
+	dir := SkillURI(segments[0], "")
 	if _, ok := dirSets[dir]; !ok {
 		dirSets[dir] = make(map[string]Child)
 	}
 	for _, seg := range segments[1:] {
-		childURI := dir + "/" + seg
+		childURI := dir + "/" + escapePath(seg)
 		dirSets[dir][childURI] = Child{URI: childURI, Name: seg, MIMEType: DirectoryMIMEType}
 		if _, ok := dirSets[childURI]; !ok {
 			dirSets[childURI] = make(map[string]Child)
@@ -344,7 +352,9 @@ func (r *Registry) Files(context.Context) ([]ResourceFile, error) {
 	sort.Strings(uris)
 	out := make([]ResourceFile, 0, len(uris))
 	for _, uri := range uris {
-		out = append(out, r.files[uri])
+		file := r.files[uri]
+		file.File.Content = slices.Clone(file.File.Content)
+		out = append(out, file)
 	}
 	return out, nil
 }

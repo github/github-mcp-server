@@ -69,6 +69,12 @@ func TestNewSkillRejectsMalformedInput(t *testing.T) {
 			wantErr:   "missing a description",
 		},
 		{
+			name:      "non-finite frontmatter numbers cannot be serialized",
+			skillPath: "example.com/writing",
+			files:     []File{{Path: SkillFile, Content: skillMD("writing", "d", "metadata: {score: .nan}")}},
+			wantErr:   "non-finite number",
+		},
+		{
 			name:      "missing frontmatter",
 			skillPath: "example.com/writing",
 			files:     []File{{Path: SkillFile, Content: []byte("# Writing\n")}},
@@ -439,6 +445,15 @@ func TestRegistryFiles(t *testing.T) {
 		if strings.HasSuffix(f.URI, "/refs/style.md") {
 			assert.Equal(t, "style.md", f.Name, "a supporting file is named after its own path")
 			assert.Empty(t, f.Description)
+			f.File.Content[0] = 'x'
+		}
+	}
+
+	files, err = r.Files(context.Background())
+	require.NoError(t, err)
+	for _, f := range files {
+		if strings.HasSuffix(f.URI, "/refs/style.md") {
+			assert.Equal(t, []byte("# Style"), f.File.Content)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
@@ -55,6 +56,19 @@ func (s *listOnlySource) Get(_ context.Context, uri string) (Entry, bool, error)
 		}
 	}
 	return Entry{}, false, nil
+}
+
+func (s *listOnlySource) Files(context.Context) ([]ResourceFile, error) {
+	return nil, nil
+}
+
+type sharedDirectorySource struct {
+	*listOnlySource
+	children []Child
+}
+
+func (s *sharedDirectorySource) ReadDirectory(context.Context, string) ([]Child, bool, error) {
+	return s.children, true, nil
 }
 
 func TestCapabilityDeclaration(t *testing.T) {
@@ -121,6 +135,21 @@ func TestInstallRegistersExactlyTheDeclaredMethods(t *testing.T) {
 		t.Parallel()
 		p := NewPublisher(newTestRegistry(t))
 		require.NoError(t, p.Install(newBareServer(t)))
+	})
+
+	t.Run("a source without a content provider is rejected", func(t *testing.T) {
+		t.Parallel()
+		source := struct{ Source }{Source: &listOnlySource{}}
+		err := NewPublisher(source).Install(newBareServer(t))
+		require.ErrorContains(t, err, "requires a ContentSource")
+	})
+
+	t.Run("listed resources must be supplied by the content provider", func(t *testing.T) {
+		t.Parallel()
+		entry := newTestSkill(t, "example.com/writing").Entry()
+		source := &listOnlySource{entries: []Entry{entry}}
+		err := NewPublisher(source).Install(newBareServer(t))
+		require.ErrorContains(t, err, "content source does not provide it")
 	})
 
 	t.Run("skill files are registered as ordinary resources", func(t *testing.T) {
@@ -457,6 +486,50 @@ func TestHandleReadDirectory(t *testing.T) {
 		assert.Empty(t, second.NextCursor)
 		assert.NotEqual(t, first.Resources[0].URI, second.Resources[0].URI)
 	})
+}
+
+func TestHandleReadDirectoryDoesNotMutateSourceChildren(t *testing.T) {
+	t.Parallel()
+
+	children := []Child{
+		{URI: "skill://example.com/writing/z.md", Name: "z.md", MIMEType: "text/markdown"},
+		{URI: "skill://example.com/writing/a.md", Name: "a.md", MIMEType: "text/markdown"},
+	}
+	source := &sharedDirectorySource{listOnlySource: &listOnlySource{}, children: children}
+	publisher := NewPublisher(source)
+
+	const requests = 8
+	var wg sync.WaitGroup
+	results := make(chan []string, requests)
+	errs := make(chan error, requests)
+	for range requests {
+		wg.Go(func() {
+			got, err := publisher.handleReadDirectory(modernCtx(), nil, &ReadDirectoryParams{URI: "skill://example.com/writing"})
+			if err != nil {
+				errs <- err
+				return
+			}
+			uris := make([]string, len(got.Resources))
+			for i, resource := range got.Resources {
+				uris[i] = resource.URI
+			}
+			results <- uris
+		})
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	for got := range results {
+		assert.Equal(t, []string{
+			"skill://example.com/writing/a.md",
+			"skill://example.com/writing/z.md",
+		}, got)
+	}
+	assert.Equal(t, "skill://example.com/writing/z.md", children[0].URI, "publisher sorting must not mutate source-owned memory")
 }
 
 // A stateless server answers each request on its own terms, so two requests on

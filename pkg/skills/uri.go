@@ -2,6 +2,7 @@ package skills
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -44,7 +45,11 @@ func (u URI) Name() string {
 // Root returns the skill's root directory URI: the SKILL.md suffix removed, no
 // trailing slash.
 func (u URI) Root() string {
-	return u.Scheme + "://" + u.SkillPath
+	segments := strings.Split(u.SkillPath, "/")
+	if len(segments) == 1 {
+		return u.Scheme + "://" + segments[0]
+	}
+	return u.Scheme + "://" + segments[0] + "/" + escapePath(strings.Join(segments[1:], "/"))
 }
 
 // String renders the URI. A URI with no file path renders as the skill root.
@@ -52,7 +57,15 @@ func (u URI) String() string {
 	if u.FilePath == "" {
 		return u.Root()
 	}
-	return u.Root() + "/" + u.FilePath
+	return u.Root() + "/" + escapePath(u.FilePath)
+}
+
+func escapePath(path string) string {
+	segments := strings.Split(path, "/")
+	for i := range segments {
+		segments[i] = url.PathEscape(segments[i])
+	}
+	return strings.Join(segments, "/")
 }
 
 // SkillURI builds the URI of a file within a skill. An empty filePath yields
@@ -76,23 +89,46 @@ func ParseURI(raw string) (URI, error) {
 	if rest == "" {
 		return URI{}, fmt.Errorf("missing skill path: %q", raw)
 	}
-	if strings.HasSuffix(rest, "/") {
+	if strings.ContainsAny(rest, "?#") {
+		return URI{}, fmt.Errorf("query and fragment components are not permitted: %q", raw)
+	}
+	authority, path, hasPath := strings.Cut(rest, "/")
+	if !regNameRe.MatchString(authority) {
+		return URI{}, fmt.Errorf("invalid skill authority %q", authority)
+	}
+	if hasPath && strings.HasSuffix(path, "/") {
 		return URI{}, fmt.Errorf("trailing slash is not permitted: %q", raw)
 	}
-	if strings.Contains(rest, "//") {
+	if hasPath && (strings.HasPrefix(path, "/") || strings.Contains(path, "//")) {
 		return URI{}, fmt.Errorf("empty path segment: %q", raw)
+	}
+	var pathSegments []string
+	if hasPath {
+		for segment := range strings.SplitSeq(path, "/") {
+			if strings.ContainsAny(segment, " \t\r\n") {
+				return URI{}, fmt.Errorf("unescaped whitespace in path segment %q", segment)
+			}
+			decoded, err := url.PathUnescape(segment)
+			if err != nil {
+				return URI{}, fmt.Errorf("invalid escaped path segment %q: %w", segment, err)
+			}
+			if strings.Contains(decoded, "/") {
+				return URI{}, fmt.Errorf("escaped path separator in segment %q", segment)
+			}
+			pathSegments = append(pathSegments, decoded)
+		}
 	}
 	// The final SKILL.md, when present, terminates the skill path: everything
 	// before it is the skill path and everything after would be a file inside
 	// a nested skill, which is addressed under its own skill path.
-	if skillPath, ok := strings.CutSuffix(rest, "/"+SkillFile); ok {
-		u := URI{Scheme: URIScheme, SkillPath: skillPath, FilePath: SkillFile}
+	if len(pathSegments) > 0 && pathSegments[len(pathSegments)-1] == SkillFile {
+		u := URI{Scheme: URIScheme, SkillPath: strings.Join(append([]string{authority}, pathSegments[:len(pathSegments)-1]...), "/"), FilePath: SkillFile}
 		return u, validateSkillPath(u.SkillPath)
 	}
 	// Otherwise the caller has not told us where the skill path ends. Treat the
-	// whole thing as a skill root; ParseFileURI resolves file URIs against a
+	// whole thing as a skill root; WithinSkill resolves file URIs against a
 	// known skill path instead of guessing.
-	u := URI{Scheme: URIScheme, SkillPath: rest}
+	u := URI{Scheme: URIScheme, SkillPath: strings.Join(append([]string{authority}, pathSegments...), "/")}
 	return u, validateSkillPath(u.SkillPath)
 }
 
@@ -164,10 +200,56 @@ func validateFilePath(filePath string) error {
 // the origin-scoping rule that a skill's resources may only name that skill's
 // own files.
 func WithinSkill(skillPath, uri string) bool {
-	root := SkillURI(skillPath, "")
-	if uri == root {
-		return false // the root is a directory, not a file of the skill
+	_, ok := relativeFilePath(skillPath, uri)
+	return ok
+}
+
+func relativeFilePath(skillPath, uri string) (string, bool) {
+	rest, ok := strings.CutPrefix(uri, URIScheme+"://")
+	if !ok || strings.ContainsAny(rest, "?#") {
+		return "", false
 	}
-	suffix, ok := strings.CutPrefix(uri, root+"/")
-	return ok && validateFilePath(suffix) == nil
+	authority, path, hasPath := strings.Cut(rest, "/")
+	if !hasPath || !regNameRe.MatchString(authority) {
+		return "", false
+	}
+	uriSegments, err := unescapePathSegments(path)
+	if err != nil {
+		return "", false
+	}
+	skillSegments := strings.Split(skillPath, "/")
+	if len(skillSegments) == 0 || authority != skillSegments[0] || len(uriSegments) <= len(skillSegments)-1 {
+		return "", false
+	}
+	for i, segment := range skillSegments[1:] {
+		if uriSegments[i] != segment {
+			return "", false
+		}
+	}
+	filePath := strings.Join(uriSegments[len(skillSegments)-1:], "/")
+	if err := validateFilePath(filePath); err != nil {
+		return "", false
+	}
+	return filePath, true
+}
+
+func unescapePathSegments(path string) ([]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	var segments []string
+	for segment := range strings.SplitSeq(path, "/") {
+		if strings.ContainsAny(segment, " \t\r\n") {
+			return nil, fmt.Errorf("unescaped whitespace in path segment %q", segment)
+		}
+		decoded, err := url.PathUnescape(segment)
+		if err != nil {
+			return nil, err
+		}
+		if decoded == "" || strings.Contains(decoded, "/") {
+			return nil, fmt.Errorf("invalid path segment %q", segment)
+		}
+		segments = append(segments, decoded)
+	}
+	return segments, nil
 }

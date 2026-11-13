@@ -69,6 +69,7 @@ func NewSkill(skillPath string, files []File) (*Skill, error) {
 	var total int64
 	for i := range files {
 		f := files[i]
+		f.Content = slices.Clone(f.Content)
 		if err := validateFilePath(f.Path); err != nil {
 			return nil, fmt.Errorf("skill %q: %w", skillPath, err)
 		}
@@ -76,14 +77,23 @@ func NewSkill(skillPath string, files []File) (*Skill, error) {
 			return nil, fmt.Errorf("skill %q: file %q listed more than once", skillPath, f.Path)
 		}
 		seen[f.Path] = struct{}{}
-		if f.Path == SkillFile {
-			skillDoc = &files[i]
-		}
 		total += int64(len(f.Content))
 		normalized = append(normalized, f)
+		if f.Path == SkillFile {
+			skillDoc = &normalized[len(normalized)-1]
+		}
 	}
 	if skillDoc == nil {
 		return nil, fmt.Errorf("skill %q: missing %s", skillPath, SkillFile)
+	}
+	for _, file := range normalized {
+		segments := strings.Split(file.Path, "/")
+		for i := 1; i < len(segments); i++ {
+			parent := strings.Join(segments[:i], "/")
+			if _, isFile := seen[parent]; isFile {
+				return nil, fmt.Errorf("skill %q: file %q conflicts with directory %q", skillPath, parent, parent)
+			}
+		}
 	}
 	if len(normalized) > MaxResourcesPerSkill {
 		return nil, fmt.Errorf("skill %q: %d files exceeds the limit of %d", skillPath, len(normalized), MaxResourcesPerSkill)
@@ -122,13 +132,21 @@ func (s *Skill) URI() string { return SkillURI(s.SkillPath, SkillFile) }
 // slash.
 func (s *Skill) Root() string { return SkillURI(s.SkillPath, "") }
 
-// Files returns the skill's files in path order.
-func (s *Skill) Files() []File { return s.files }
+// Files returns a copy of the skill's files in path order.
+func (s *Skill) Files() []File {
+	files := make([]File, len(s.files))
+	for i, file := range s.files {
+		files[i] = file
+		files[i].Content = slices.Clone(file.Content)
+	}
+	return files
+}
 
 // File returns the file at a path relative to the skill root.
 func (s *Skill) File(relPath string) (File, bool) {
 	for _, f := range s.files {
 		if f.Path == relPath {
+			f.Content = slices.Clone(f.Content)
 			return f, true
 		}
 	}

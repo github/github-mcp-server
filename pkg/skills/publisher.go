@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -15,7 +16,8 @@ import (
 // governs regardless.
 const ListTTL = 60_000
 
-// Publisher serves the skills extension for one Source.
+// Publisher serves the skills extension for one Source. A source must also
+// implement ContentSource for Install to register the files its entries name.
 //
 // Declaring the extension commits a server to both skills/list and skills/get,
 // so DeclareCapability and Install belong together: declare the capability on
@@ -71,8 +73,16 @@ func (p *Publisher) DeclareCapability(caps *mcp.ServerCapabilities) {
 // skills/list and skills/get are always registered, because declaring the
 // extension commits the server to both. resources/directory/read is registered
 // only when the source implements DirectorySource, matching what
-// DeclareCapability advertised.
+// DeclareCapability advertised. Installation requires a ContentSource and
+// validates every listed manifest against its files before registering methods.
 func (p *Publisher) Install(s *mcp.Server) error {
+	content, ok := p.source.(ContentSource)
+	if !ok {
+		return fmt.Errorf("installing skills publisher requires a ContentSource")
+	}
+	if err := installResources(s, content, p.source); err != nil {
+		return err
+	}
 	if err := mcp.AddReceivingCustomMethod(s, MethodListSkills, p.handleList); err != nil {
 		return fmt.Errorf("registering %s: %w", MethodListSkills, err)
 	}
@@ -84,11 +94,6 @@ func (p *Publisher) Install(s *mcp.Server) error {
 			return fmt.Errorf("registering %s: %w", MethodReadDirectory, err)
 		}
 	}
-	if content, ok := p.source.(ContentSource); ok {
-		if err := installResources(s, content); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -96,10 +101,37 @@ func (p *Publisher) Install(s *mcp.Server) error {
 // that skill content is read through the standard resources/read method. The
 // extension defines no skill-specific read semantics, and reading a SKILL.md
 // this way does not activate the skill.
-func installResources(s *mcp.Server, source ContentSource) error {
+func installResources(s *mcp.Server, source ContentSource, entriesSource Source) error {
 	files, err := source.Files(context.Background())
 	if err != nil {
 		return fmt.Errorf("enumerating skill files: %w", err)
+	}
+	available := make(map[string]ResourceFile, len(files))
+	for _, file := range files {
+		available[file.URI] = file
+	}
+	entries, err := entriesSource.List(context.Background())
+	if err != nil {
+		return fmt.Errorf("validating skill content: listing skills: %w", err)
+	}
+	for _, entry := range entries {
+		if err := entry.Validate(); err != nil {
+			return fmt.Errorf("validating skill %q: %w", entry.URI, err)
+		}
+		if _, ok := available[entry.URI]; !ok {
+			return fmt.Errorf("skill %q references resource %q, but the content source does not provide it", entry.URI, entry.URI)
+		}
+		if !entry.Dynamic {
+			for _, resource := range entry.Resources {
+				file, ok := available[resource.URI]
+				if !ok {
+					return fmt.Errorf("skill %q references resource %q, but the content source does not provide it", entry.URI, resource.URI)
+				}
+				if err := Verify(file.File.Content, resource); err != nil {
+					return fmt.Errorf("validating skill %q content: %w", entry.URI, err)
+				}
+			}
+		}
 	}
 	for _, f := range files {
 		s.AddResource(&mcp.Resource{
@@ -210,6 +242,7 @@ func (p *Publisher) handleReadDirectory(ctx context.Context, ss *mcp.ServerSessi
 		return nil, invalidParams(fmt.Errorf("%q is not a directory resource", params.URI))
 	}
 
+	children = slices.Clone(children)
 	sort.Slice(children, func(i, j int) bool { return children[i].URI < children[j].URI })
 	page, next, err := paginate(children, params.Cursor, p.PageSize)
 	if err != nil {

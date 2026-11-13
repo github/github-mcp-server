@@ -3,6 +3,7 @@ package skills
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -101,7 +102,12 @@ func normalizeMapping(in map[string]any) (map[string]any, error) {
 
 func normalizeValue(v any) (any, error) {
 	switch t := v.(type) {
-	case nil, bool, string, int, int64, uint64, float64:
+	case float64:
+		if math.IsNaN(t) || math.IsInf(t, 0) {
+			return nil, fmt.Errorf("non-finite number %v cannot be represented in JSON", t)
+		}
+		return t, nil
+	case nil, bool, string, int, int64, uint64:
 		return t, nil
 	case []any:
 		out := make([]any, len(t))
