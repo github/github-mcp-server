@@ -120,9 +120,9 @@ Access is always constrained by GitHub's public API permission model and the aut
 * **Limitations:** PATs do not adhere to OAuth App policies and GitHub App installation controls. They are user-scoped and not recommended for production automation.
 * **Organization controls:**
   * Classic PATs: Can be completely disabled organization-wide
-  * Fine-grained PATs: Cannot be disabled but require explicit approval for organization access
+  * Fine-grained PATs: Can also be blocked from organization resources, set separately on the Fine-grained tokens tab. By default, tokens created by organization members also need an organization owner's approval before it can access organization resources; owners can turn this approval requirement off ([PAT policies](https://docs.github.com/organizations/managing-programmatic-access-to-your-organization/setting-a-personal-access-token-policy-for-your-organization#enforcing-an-approval-policy-for-fine-grained-personal-access-tokens))
 
-> **Recommendation:** We recommend using fine-grained PATs over classic tokens. Classic tokens have broader scopes and can be disabled in organization settings.
+> **Recommendation:** We recommend using fine-grained PATs over classic tokens. Classic tokens have broader scopes. Both token types can be blocked from organization resources in organization settings.
 
 ### 4. SSO Enforcement (overlay control)
 
