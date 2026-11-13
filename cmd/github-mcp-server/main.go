@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -116,6 +117,28 @@ var (
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
+
+			readOnly, err := parseBoolSetting("read-only", cmd.Flag("read-only"))
+			if err != nil {
+				return err
+			}
+			lockdownMode, err := parseBoolSetting("lockdown-mode", cmd.Flag("lockdown-mode"))
+			if err != nil {
+				return err
+			}
+			insidersMode, err := parseBoolSetting("insiders", cmd.Flag("insiders"))
+			if err != nil {
+				return err
+			}
+			exportTranslations, err := parseBoolSetting("export-translations", cmd.Flag("export-translations"))
+			if err != nil {
+				return err
+			}
+			enableCommandLogging, err := parseBoolSetting("enable-command-logging", cmd.Flag("enable-command-logging"))
+			if err != nil {
+				return err
+			}
+
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              serverVersion,
 				Host:                 viper.GetString("host"),
@@ -123,13 +146,13 @@ var (
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
-				ReadOnly:             viper.GetBool("read-only"),
-				ExportTranslations:   viper.GetBool("export-translations"),
-				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				ReadOnly:             readOnly,
+				ExportTranslations:   exportTranslations,
+				EnableCommandLogging: enableCommandLogging,
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
-				LockdownMode:         viper.GetBool("lockdown-mode"),
-				InsidersMode:         viper.GetBool("insiders"),
+				LockdownMode:         lockdownMode,
+				InsidersMode:         insidersMode,
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
 			}
@@ -172,7 +195,7 @@ var (
 		Use:   "http",
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Parse toolsets (same approach as stdio — see comment there)
 			var enabledToolsets []string
 			if viper.IsSet("toolsets") {
@@ -203,6 +226,36 @@ var (
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
+
+			readOnly, err := parseBoolSetting("read-only", cmd.Flag("read-only"))
+			if err != nil {
+				return err
+			}
+			lockdownMode, err := parseBoolSetting("lockdown-mode", cmd.Flag("lockdown-mode"))
+			if err != nil {
+				return err
+			}
+			insidersMode, err := parseBoolSetting("insiders", cmd.Flag("insiders"))
+			if err != nil {
+				return err
+			}
+			exportTranslations, err := parseBoolSetting("export-translations", cmd.Flag("export-translations"))
+			if err != nil {
+				return err
+			}
+			enableCommandLogging, err := parseBoolSetting("enable-command-logging", cmd.Flag("enable-command-logging"))
+			if err != nil {
+				return err
+			}
+			scopeChallenge, err := parseBoolSetting("scope-challenge", cmd.Flag("scope-challenge"))
+			if err != nil {
+				return err
+			}
+			trustProxyHeaders, err := parseBoolSetting("trust-proxy-headers", cmd.Flag("trust-proxy-headers"))
+			if err != nil {
+				return err
+			}
+
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
@@ -211,20 +264,20 @@ var (
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
 				AuthorizationServer:  viper.GetString("authorization-server"),
-				ExportTranslations:   viper.GetBool("export-translations"),
-				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				ExportTranslations:   exportTranslations,
+				EnableCommandLogging: enableCommandLogging,
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
-				LockdownMode:         viper.GetBool("lockdown-mode"),
+				LockdownMode:         lockdownMode,
 				RepoAccessCacheTTL:   &ttl,
-				ScopeChallenge:       viper.GetBool("scope-challenge"),
-				ReadOnly:             viper.GetBool("read-only"),
+				ScopeChallenge:       scopeChallenge,
+				ReadOnly:             readOnly,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				ExcludeTools:         excludeTools,
 				EnabledFeatures:      enabledFeatures,
-				InsidersMode:         viper.GetBool("insiders"),
-				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				InsidersMode:         insidersMode,
+				TrustProxyHeaders:    trustProxyHeaders,
 				MRTRStateKey:         os.Getenv(ghhttp.MRTRStateKeyEnv),
 			}
 
@@ -372,4 +425,32 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+func parseBoolSetting(key string, flag *pflag.Flag) (bool, error) {
+	if flag != nil && flag.Changed {
+		return strconv.ParseBool(flag.Value.String())
+	}
+	if !viper.IsSet(key) {
+		if flag != nil {
+			return strconv.ParseBool(flag.DefValue)
+		}
+		return false, nil
+	}
+	str := strings.TrimSpace(viper.GetString(key))
+	if str == "" {
+		if flag != nil {
+			return strconv.ParseBool(flag.DefValue)
+		}
+		return false, nil
+	}
+	switch strings.ToLower(str) {
+	case "1", "t", "true", "yes", "y", "on", "enabled":
+		return true, nil
+	case "0", "f", "false", "no", "n", "off", "disabled":
+		return false, nil
+	default:
+		envVar := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+		return false, fmt.Errorf("invalid boolean value %q for %s: expected true, false, 1, 0, yes, no, on, off", str, envVar)
+	}
 }
