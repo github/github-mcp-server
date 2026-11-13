@@ -100,6 +100,19 @@ Because this changes list tool response shape, clients that require JSON list re
 
 ---
 
+## Skills instead of server instructions
+
+Insiders Mode enables the `skills` feature flag. The server advertises the MCP
+skills extension and serves a tool-filtered catalog of workflow guidance instead
+of sending server instructions. Clients that do not consume skills receive no
+replacement instructions. Use the normal non-insiders configuration without the
+`skills` flag to retain existing server instructions.
+
+See [MCP skills](./feature-flags.md#mcp-skills) for activation, protocol details
+and client configuration.
+
+---
+
 ## How feature flags are resolved
 
 > [!NOTE]
