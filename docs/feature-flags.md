@@ -162,10 +162,25 @@ write access for upsert/delete, including repository writeability and storage
 availability. No endpoint-specific preview header is added.
 
 Upsert and delete address artifacts by **name**, not artifact number or global
-ID. Upsert requires `name` and `body`, and optionally accepts `commit_oid`.
+ID. Supply exactly one of `name` (the exact original name) or `name_key` (the
+lossless key returned by reads and writes). Returned `name` values are sanitized
+for display and must not be used as mutation keys: distinct original names can
+have the same display name. Pass `name_key` verbatim to update or delete an
+artifact discovered through a read. Keys use unpadded URL-safe Base64 encoding
+of the original name and are not authorization tokens.
+Upsert requires `body` and optionally accepts `commit_oid`.
 The body is sent unchanged, including an empty string; the API validates its
 content and constraints. Upsert accepts both creation (201) and replacement
-(200) responses. Delete requires `name` and rejects `body` and `commit_oid`.
+(200) responses. Delete rejects `body` and `commit_oid`.
+Before deletion, the client must obtain explicit user confirmation of the exact
+repository, PR number, and artifact name through form elicitation. Confirmation
+requires MCP protocol `2026-07-28` or later and configured request-state protection.
+The protected state binds approval to the target repository ID, PR, and artifact
+name and expires after ten minutes. Missing, invalid, expired, declined, or
+canceled confirmation prevents deletion, as does a changed repository identity.
+Clients without the required protocol or form-elicitation support cannot delete;
+list and upsert remain available. This relies on the client to present the
+confirmation to the user rather than answer on the model's behalf.
 Writes are not automatically retried; API errors, including conflicts,
 validation failures, throttling, and storage failures, are returned explicitly.
 
@@ -179,7 +194,8 @@ header, not the number of returned artifacts.
 
 Upsert returns an `artifact` object. List returns a `list` object containing
 `artifacts`, `page`, `perPage`, and optional `next_page`. Delete returns a
-`deleted` object containing `pull_number`, `name`, and a confirmation message.
+`deleted` object containing `pull_number`, display `name`, lossless `name_key`,
+and a confirmation message.
 Artifact IDs are opaque JSON strings or integers and are never mutation
 identifiers. Results preserve nullable commit, creator, and timestamp
 metadata; list metadata describes the returned artifact version. Names and
@@ -585,7 +601,8 @@ as output formatting) won't appear here.
   - `body`: Required for upsert: artifact content; an empty string is sent unchanged. Not supported for delete (string, optional)
   - `commit_oid`: Optional commit OID for upsert only; omission preserves the API default (string, optional)
   - `method`:  (string, required)
-  - `name`: Artifact name, not its number or global ID (string, required)
+  - `name`: Exact artifact name for creation or addressing; mutually exclusive with name_key. Do not copy sanitized display names from read results (string, optional)
+  - `name_key`: Lossless addressing key returned by artifact reads or writes; mutually exclusive with name. Pass verbatim without decoding (string, optional)
   - `owner`: Repository owner (string, required)
   - `pull_number`: Positive pull request number (integer, required)
   - `repo`: Repository name (string, required)

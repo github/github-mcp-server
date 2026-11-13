@@ -5,7 +5,7 @@
     "readOnlyHint": false,
     "title": "Write pull request artifacts"
   },
-  "description": "Upsert or delete a GitHub pull request artifact by name, not its number or global ID. Upsert requires body and optionally accepts commit_oid; creates a new artifact or replaces the named artifact's content. Delete does not accept body or commit_oid. Writes are not automatically retried. Repository access and the repository's pull_request_artifacts_api rollout are enforced by GitHub. Unavailable in lockdown mode.",
+  "description": "Upsert or delete a GitHub pull request artifact using exactly one of name (the exact original name) or name_key (the lossless key returned by reads or writes), not its number or global ID. Never use a sanitized display name to address an existing artifact. Upsert requires body and optionally accepts commit_oid; creates a new artifact or replaces the named artifact's content. Delete requires explicit user confirmation through form elicitation with MCP protocol 2026-07-28 or later, and does not accept body or commit_oid. Writes are not automatically retried. Repository access and the repository's pull_request_artifacts_api rollout are enforced by GitHub. Unavailable in lockdown mode.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -37,7 +37,12 @@
         "type": "string"
       },
       "name": {
-        "description": "Artifact name, not its number or global ID",
+        "description": "Exact artifact name for creation or addressing; mutually exclusive with name_key. Do not copy sanitized display names from read results",
+        "minLength": 1,
+        "type": "string"
+      },
+      "name_key": {
+        "description": "Lossless addressing key returned by artifact reads or writes; mutually exclusive with name. Pass verbatim without decoding",
         "minLength": 1,
         "type": "string"
       },
@@ -63,8 +68,7 @@
       "owner",
       "repo",
       "pull_number",
-      "method",
-      "name"
+      "method"
     ],
     "type": "object"
   },
@@ -110,13 +114,18 @@
             ]
           },
           "id": {
-            "description": "Opaque artifact ID; mutations use name instead",
+            "description": "Opaque artifact ID; mutations use name or name_key instead",
             "type": [
               "string",
               "integer"
             ]
           },
           "name": {
+            "description": "Sanitized display name; use name_key when addressing this artifact",
+            "type": "string"
+          },
+          "name_key": {
+            "description": "Lossless base64url-encoded artifact name; pass verbatim as name_key to write operations",
             "type": "string"
           },
           "number": {
@@ -133,6 +142,7 @@
           "id",
           "number",
           "name",
+          "name_key",
           "body",
           "commit_oid",
           "creator",
@@ -151,6 +161,11 @@
             "type": "string"
           },
           "name": {
+            "description": "Sanitized display name of the deleted artifact",
+            "type": "string"
+          },
+          "name_key": {
+            "description": "Lossless addressing key of the deleted artifact",
             "type": "string"
           },
           "pull_number": {
@@ -160,6 +175,7 @@
         "required": [
           "pull_number",
           "name",
+          "name_key",
           "message"
         ],
         "type": [

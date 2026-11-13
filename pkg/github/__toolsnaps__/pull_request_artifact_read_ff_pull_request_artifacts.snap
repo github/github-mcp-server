@@ -5,7 +5,7 @@
     "readOnlyHint": true,
     "title": "Read pull request artifacts"
   },
-  "description": "List GitHub pull request artifact versions including their bodies. commit_oid defaults to the current PR head; use all or an explicit commit OID to change the selection. Returns one page; request next_page when present. Repository access and the repository's pull_request_artifacts_api rollout are enforced by GitHub. Unavailable in lockdown mode.",
+  "description": "List GitHub pull request artifact versions including their bodies. Names are sanitized for display; use the returned name_key, not name, for subsequent writes. commit_oid defaults to the current PR head; use all or an explicit commit OID to change the selection. Returns one page; request next_page when present. Repository access and the repository's pull_request_artifacts_api rollout are enforced by GitHub. Unavailable in lockdown mode.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -114,13 +114,18 @@
                   ]
                 },
                 "id": {
-                  "description": "Opaque artifact ID; mutations use name instead",
+                  "description": "Opaque artifact ID; mutations use name or name_key instead",
                   "type": [
                     "string",
                     "integer"
                   ]
                 },
                 "name": {
+                  "description": "Sanitized display name; use name_key when addressing this artifact",
+                  "type": "string"
+                },
+                "name_key": {
+                  "description": "Lossless base64url-encoded artifact name; pass verbatim as name_key to write operations",
                   "type": "string"
                 },
                 "number": {
@@ -137,6 +142,7 @@
                 "id",
                 "number",
                 "name",
+                "name_key",
                 "body",
                 "commit_oid",
                 "creator",

@@ -46,7 +46,7 @@ func pullRequestArtifactTestClient(t *testing.T, handler http.HandlerFunc) *gogi
 	return client
 }
 
-func pullRequestArtifactTestSession(t *testing.T, deps BaseDeps, protocol string) *mcp.ClientSession {
+func pullRequestArtifactTestSession(t *testing.T, deps BaseDeps, protocol string, options ...*mcp.ClientOptions) *mcp.ClientSession {
 	t.Helper()
 	inv, err := inventory.NewBuilder().SetTools(pullRequestArtifactTestTools()).
 		WithFeatureChecker(featureCheckerFor(FeatureFlagPullRequestArtifacts)).Build()
@@ -54,6 +54,18 @@ func pullRequestArtifactTestSession(t *testing.T, deps BaseDeps, protocol string
 	server := mcp.NewServer(&mcp.Implementation{Name: "pull-request-artifacts", Version: "v1"}, nil)
 	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 	inv.RegisterTools(context.Background(), server, deps)
+	if len(options) > 0 {
+		serverTransport, clientTransport := mcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = serverSession.Close() })
+		client := mcp.NewClient(&mcp.Implementation{Name: "artifact-approval-test", Version: "v1"}, options[0])
+		session, err := client.Connect(context.Background(), commentVisibilityProtocolTransport{clientTransport, protocol}, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = session.Close() })
+		require.Equal(t, protocol, session.InitializeResult().ProtocolVersion)
+		return session
+	}
 	return connectCommentVisibilityClient(t, server, protocol)
 }
 
@@ -74,9 +86,6 @@ func TestPullRequestArtifactTools(t *testing.T) {
 		assert.Equal(t, !readOnly, *tool.Tool.Annotations.DestructiveHint)
 		schema := tool.Tool.InputSchema.(*jsonschema.Schema)
 		required := []string{"owner", "repo", "pull_number", "method"}
-		if !readOnly {
-			required = append(required, "name")
-		}
 		assert.ElementsMatch(t, required, schema.Required)
 	}
 	for _, tc := range []struct {
@@ -129,7 +138,7 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 		}{
 			{name: "upsert create empty body", method: "upsert", verb: "PUT", args: map[string]any{"name": "report", "body": ""}, body: `{"body":""}`, status: 201, response: artifact},
 			{name: "upsert update with commit", method: "upsert", verb: "PUT", args: map[string]any{"name": "report", "body": "new", "commit_oid": "abc123"}, body: `{"body":"new","commit_oid":"abc123"}`, status: 200, response: artifact},
-			{name: "delete", method: "delete", verb: "DELETE", args: map[string]any{"name": "report"}, status: 204},
+			{name: "upsert with lossless key", method: "upsert", verb: "PUT", args: map[string]any{"name_key": "cmVwb3J0", "body": "new"}, body: `{"body":"new"}`, status: 200, response: artifact},
 			{name: "list default", method: "list", verb: "GET", query: "page=1&per_page=30", status: 200, response: "[" + artifact + "]"},
 			{name: "list current", method: "list", verb: "GET", args: map[string]any{"commit_oid": "current"}, query: "commit_oid=current&page=1&per_page=30", status: 200, response: "[" + artifact + "]"},
 			{name: "list all", method: "list", verb: "GET", args: map[string]any{"commit_oid": "all"}, query: "commit_oid=all&page=1&per_page=30", status: 200, response: "[" + artifact + "]"},
@@ -143,7 +152,7 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 				client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 					calls++
 					w.Header().Set("Content-Type", "application/json")
-					if calls == 1 {
+					if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/repos/") {
 						assert.Equal(t, http.MethodGet, r.Method)
 						assert.Equal(t, "/api/v3/repos/o/r", r.URL.Path)
 						_, _ = w.Write([]byte(`{"id":42,"private":true}`))
@@ -182,12 +191,7 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 				} else {
 					assert.Nil(t, result.StructuredContent)
 				}
-				if tc.method == "delete" {
-					assert.JSONEq(t, `{"deleted":{"pull_number":12,"name":"report","message":"artifact deleted"}}`, text)
-					assert.NotContains(t, result.Meta, "ifc")
-				} else {
-					assert.JSONEq(t, mustMarshalJSON(t, ifc.PrivateTrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
-				}
+				assert.JSONEq(t, mustMarshalJSON(t, ifc.PrivateTrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
 				switch tc.method {
 				case "list":
 					var output PullRequestArtifactReadOutput
@@ -204,7 +208,8 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 						assert.Equal(t, 1, output.List.PerPage)
 					}
 				case "upsert":
-					assert.JSONEq(t, `{"artifact":`+artifact+`}`, text)
+					expected := strings.Replace(artifact, `"name":"report"`, `"name":"report","name_key":"cmVwb3J0"`, 1)
+					assert.JSONEq(t, `{"artifact":`+expected+`}`, text)
 				}
 			})
 		}
@@ -218,7 +223,7 @@ func TestPullRequestArtifactEscapedNames(t *testing.T) {
 			calls := 0
 			client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				calls++
-				if calls == 1 {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/repos/") {
 					_, _ = w.Write([]byte(`{"id":42}`))
 					return
 				}
@@ -235,12 +240,13 @@ func TestPullRequestArtifactEscapedNames(t *testing.T) {
 				args["body"] = ""
 			}
 			deps := BaseDeps{Client: client}
-			tool := pullRequestArtifactTestTool(method)
-			request := createMCPRequest(args)
-			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
+			result := invokePullRequestArtifactWithApproval(context.Background(), t, deps, args)
 			require.False(t, result.IsError, mustMarshalJSON(t, result))
-			assert.Equal(t, 2, calls)
+			expectedCalls := 2
+			if method == "delete" {
+				expectedCalls++
+			}
+			assert.Equal(t, expectedCalls, calls)
 			if method == "upsert" {
 				assert.Contains(t, getTextResult(t, result).Text, `"id":9007199254740993`)
 			}
@@ -285,6 +291,12 @@ func TestPullRequestArtifactInvalidInputs(t *testing.T) {
 		{"backslash name", "delete", map[string]any{"name": `a\b`}},
 		{"delete body", "delete", map[string]any{"body": ""}},
 		{"delete commit", "delete", map[string]any{"commit_oid": "abc"}},
+		{"both name and key", "upsert", map[string]any{"name_key": "cmVwb3J0", "body": ""}},
+		{"invalid key", "upsert", map[string]any{"name": "", "name_key": "%", "body": ""}},
+		{"noncanonical key", "upsert", map[string]any{"name": "", "name_key": "cmVwb3J0\n", "body": ""}},
+		{"invalid UTF-8 key", "upsert", map[string]any{"name": "", "name_key": "_w", "body": ""}},
+		{"slash key", "upsert", map[string]any{"name": "", "name_key": "YS9i", "body": ""}},
+		{"traversal key", "delete", map[string]any{"name": "", "name_key": "Li4"}},
 		{"negative pull", "list", map[string]any{"pull_number": -1}},
 		{"missing pull", "list", map[string]any{"pull_number": 0}},
 		{"empty owner", "list", map[string]any{"owner": " "}},
@@ -349,10 +361,10 @@ func TestPullRequestArtifactFailures(t *testing.T) {
 		for _, status := range []int{400, 401, 403, 404, 409, 422, 429, 500, 503} {
 			t.Run(method+"/"+http.StatusText(status), func(t *testing.T) {
 				calls := 0
-				client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 					calls++
 					w.Header().Set("Content-Type", "application/json")
-					if calls == 1 {
+					if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/repos/") {
 						_, _ = w.Write([]byte(`{"id":42}`))
 						return
 					}
@@ -363,7 +375,6 @@ func TestPullRequestArtifactFailures(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message":"artifact access failed"}`))
 				})
 				deps := BaseDeps{Client: client}
-				tool := pullRequestArtifactTestTool(method)
 				args := map[string]any{"owner": "o", "repo": "r", "pull_number": 12, "method": method}
 				if method != "list" {
 					args["name"] = "report"
@@ -371,15 +382,17 @@ func TestPullRequestArtifactFailures(t *testing.T) {
 				if method == "upsert" {
 					args["body"] = ""
 				}
-				request := createMCPRequest(args)
-				result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
-				require.NoError(t, err)
+				result := invokePullRequestArtifactWithApproval(context.Background(), t, deps, args)
 				require.True(t, result.IsError)
 				assert.Contains(t, getTextResult(t, result).Text, "artifact")
 				if status == http.StatusTooManyRequests {
 					assert.Contains(t, getTextResult(t, result).Text, "Retry after")
 				}
-				assert.Equal(t, 2, calls, "errors must not cause retries or fallback requests")
+				expectedCalls := 2
+				if method == "delete" {
+					expectedCalls++
+				}
+				assert.Equal(t, expectedCalls, calls, "errors must not cause retries or fallback requests")
 			})
 		}
 	}
@@ -444,7 +457,6 @@ func TestPullRequestArtifactRepositoryGate(t *testing.T) {
 			})
 			deps := BaseDeps{Client: client}
 			ctx := inventory.WithFeatureState(ContextWithDeps(context.Background(), deps), featureCheckerFor(FeatureFlagPullRequestArtifacts))
-			tool := pullRequestArtifactTestTool(method)
 			for _, repo := range []string{"enabled", "disabled", "enabled"} {
 				args := map[string]any{"owner": "o", "repo": repo, "pull_number": 12, "method": method}
 				if method != "list" {
@@ -453,12 +465,14 @@ func TestPullRequestArtifactRepositoryGate(t *testing.T) {
 				if method == "upsert" {
 					args["body"] = ""
 				}
-				request := createMCPRequest(args)
-				result, err := tool.Handler(deps)(ctx, &request)
-				require.NoError(t, err)
+				result := invokePullRequestArtifactWithApproval(ctx, t, deps, args)
 				assert.Equal(t, repo == "disabled", result.IsError, mustMarshalJSON(t, result))
 			}
-			assert.Equal(t, 6, calls)
+			expectedCalls := 6
+			if method == "delete" {
+				expectedCalls = 9
+			}
+			assert.Equal(t, expectedCalls, calls)
 		})
 	}
 }
@@ -478,9 +492,9 @@ func TestPullRequestArtifactResponseValidation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				calls++
-				if calls == 1 {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/repos/") {
 					_, _ = w.Write([]byte(`{"id":42}`))
 					return
 				}
@@ -488,7 +502,6 @@ func TestPullRequestArtifactResponseValidation(t *testing.T) {
 				_, _ = w.Write([]byte(tc.response))
 			})
 			deps := BaseDeps{Client: client}
-			tool := pullRequestArtifactTestTool(tc.method)
 			args := map[string]any{"owner": "o", "repo": "r", "pull_number": 12, "method": tc.method}
 			if tc.method != "list" {
 				args["name"] = "report"
@@ -496,11 +509,13 @@ func TestPullRequestArtifactResponseValidation(t *testing.T) {
 			if tc.method == "upsert" {
 				args["body"] = ""
 			}
-			request := createMCPRequest(args)
-			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
+			result := invokePullRequestArtifactWithApproval(context.Background(), t, deps, args)
 			require.True(t, result.IsError)
-			assert.Equal(t, 2, calls)
+			expectedCalls := 2
+			if tc.method == "delete" {
+				expectedCalls++
+			}
+			assert.Equal(t, expectedCalls, calls)
 		})
 	}
 }

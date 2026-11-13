@@ -4,9 +4,10 @@ import "encoding/json"
 
 // PullRequestArtifact is an artifact or artifact version returned by the PR API.
 type PullRequestArtifact struct {
-	ID        json.RawMessage             `json:"id" jsonschema:"Opaque artifact ID; mutations use name instead"`
+	ID        json.RawMessage             `json:"id" jsonschema:"Opaque artifact ID; mutations use name or name_key instead"`
 	Number    int                         `json:"number"`
-	Name      string                      `json:"name"`
+	Name      string                      `json:"name" jsonschema:"Sanitized display name; use name_key when addressing this artifact"`
+	NameKey   string                      `json:"name_key" jsonschema:"Lossless base64url-encoded artifact name; pass verbatim as name_key to write operations"`
 	Body      string                      `json:"body"`
 	CommitOID *string                     `json:"commit_oid"`
 	Creator   *PullRequestArtifactCreator `json:"creator"`
@@ -40,7 +41,8 @@ type PullRequestArtifactReadInput struct {
 type PullRequestArtifactWriteInput struct {
 	PullRequestArtifactCoordinates
 	Method    string  `json:"method" jsonschema:"Write operation: upsert or delete"`
-	Name      string  `json:"name" jsonschema:"Artifact name, not its number or global ID"`
+	Name      string  `json:"name,omitempty" jsonschema:"Exact artifact name for creation or addressing; mutually exclusive with name_key. Do not copy sanitized display names from read results"`
+	NameKey   string  `json:"name_key,omitempty" jsonschema:"Lossless addressing key returned by artifact reads or writes; mutually exclusive with name. Pass verbatim without decoding"`
 	Body      *string `json:"body,omitempty" jsonschema:"Required for upsert: artifact content; an empty string is sent unchanged. Not supported for delete"`
 	CommitOID *string `json:"commit_oid,omitempty" jsonschema:"Optional commit OID for upsert only; omission preserves the API default"`
 }
@@ -67,6 +69,7 @@ type PullRequestArtifactWriteOutput struct {
 // DeletePullRequestArtifactOutput confirms the named artifact that was deleted.
 type DeletePullRequestArtifactOutput struct {
 	PullNumber int    `json:"pull_number"`
-	Name       string `json:"name"`
+	Name       string `json:"name" jsonschema:"Sanitized display name of the deleted artifact"`
+	NameKey    string `json:"name_key" jsonschema:"Lossless addressing key of the deleted artifact"`
 	Message    string `json:"message"`
 }
