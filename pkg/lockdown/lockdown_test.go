@@ -302,3 +302,55 @@ func TestRepoAccessCacheRejectsEmptyViewerLogin(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "empty")
 }
+
+func TestRepoAccessCache_BotPermissions(t *testing.T) {
+	ctx := t.Context()
+
+	// Server that returns 404 for "custom-bot" but 200 with "write" for "custom-bot[bot]"
+	restServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/collaborators/custom-bot/") {
+			http.Error(w, `{"message":"custom-bot is not a user"}`, http.StatusNotFound)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/collaborators/custom-bot[bot]/") {
+			resp := gogithub.RepositoryPermissionLevel{Permission: new("write")}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/collaborators/read-only-bot[bot]/") {
+			resp := gogithub.RepositoryPermissionLevel{Permission: new("read")}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+	}))
+	t.Cleanup(restServer.Close)
+
+	restClient, err := gogithub.NewClient(gogithub.WithEnterpriseURLs(restServer.URL+"/", restServer.URL+"/"))
+	require.NoError(t, err)
+
+	gqlClient, _ := newMockGQLClient("viewer", false)
+	cache := NewRepoAccessCache(gqlClient, restClient, WithCacheName(t.Name()))
+
+	// Trusted bot with [bot] suffix directly succeeds
+	safe, err := cache.IsSafeContent(ctx, "github-actions[bot]", testOwner, testRepo)
+	require.NoError(t, err)
+	require.True(t, safe)
+
+	// Bot with [bot] suffix that has write permission succeeds
+	safe, err = cache.IsSafeContent(ctx, "custom-bot[bot]", testOwner, testRepo)
+	require.NoError(t, err)
+	require.True(t, safe)
+
+	// Bot with [bot] suffix that only has read permission is rejected
+	safe, err = cache.IsSafeContent(ctx, "read-only-bot[bot]", testOwner, testRepo)
+	require.NoError(t, err)
+	require.False(t, safe)
+
+	// Built-in trusted bot "copilot" directly succeeds
+	safe, err = cache.IsSafeContent(ctx, "copilot", testOwner, testRepo)
+	require.NoError(t, err)
+	require.True(t, safe)
+}
