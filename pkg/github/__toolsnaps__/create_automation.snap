@@ -1,0 +1,79 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create a repository automation"
+  },
+  "description": "Create a Copilot automation in a repository after explicit user confirmation.",
+  "inputSchema": {
+    "properties": {
+      "continuous_history": {
+        "description": "Whether the automation keeps a continuous conversation history.",
+        "type": "boolean"
+      },
+      "enabled": {
+        "description": "Whether the automation is enabled.",
+        "type": "boolean"
+      },
+      "model": {
+        "description": "The model used by the automation.",
+        "type": "string"
+      },
+      "name": {
+        "description": "The name of the automation.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prompt": {
+        "description": "The prompt used when the automation runs.",
+        "type": "string"
+      },
+      "reasoning_effort": {
+        "description": "The reasoning effort used by the automation.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "require_actor_write_permission": {
+        "description": "Whether the triggering actor must have write permission.",
+        "type": "boolean"
+      },
+      "tools": {
+        "description": "The tools enabled for the automation.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "triggers": {
+        "description": "Trigger configuration for the automation.",
+        "type": "object"
+      },
+      "type": {
+        "description": "The automation type.",
+        "enum": [
+          "personal",
+          "shared"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "name",
+      "prompt"
+    ],
+    "type": "object"
+  },
+  "name": "create_automation",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

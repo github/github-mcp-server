@@ -399,11 +399,20 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	opts := []github.ToolOption{github.WithHost(hostType)}
 	tools := github.AllTools(t, opts...)
 	filterUnavailable := func(tools []inventory.ServerTool) []inventory.ServerTool {
-		if !cfg.disableDeleteRepository {
+		if !cfg.disableDeleteRepository && !cfg.disableAgentAutomationMutations {
 			return tools
 		}
 		return slices.DeleteFunc(tools, func(tool inventory.ServerTool) bool {
-			return tool.Tool.Name == github.DeleteRepositoryToolName
+			if cfg.disableDeleteRepository && tool.Tool.Name == github.DeleteRepositoryToolName {
+				return true
+			}
+			if cfg.disableAgentAutomationMutations {
+				switch tool.Tool.Name {
+				case "create_automation", "update_automation", "delete_automation":
+					return true
+				}
+			}
+			return false
 		})
 	}
 
