@@ -76,6 +76,31 @@ func TestGranularToolSnaps(t *testing.T) {
 	}
 }
 
+func TestGranularReplaceToolsAreDestructive(t *testing.T) {
+	// update_issue_labels and update_issue_assignees replace the current list,
+	// so entries that are not in it are removed. Hosts key confirmation prompts
+	// off destructiveHint, so a replace-semantics tool must not claim to be
+	// non-destructive.
+	tests := []struct {
+		name      string
+		construct func(translations.TranslationHelperFunc) inventory.ServerTool
+	}{
+		{name: "update_issue_labels", construct: GranularUpdateIssueLabels},
+		{name: "update_issue_assignees", construct: GranularUpdateIssueAssignees},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tool := tc.construct(translations.NullTranslationHelper).Tool
+			require.NotNil(t, tool.Annotations)
+			require.NotNil(t, tool.Annotations.DestructiveHint, "the hint must be stated explicitly")
+			assert.True(t, *tool.Annotations.DestructiveHint)
+			// The description is what documents the replace semantics.
+			assert.Contains(t, tool.Description, "replaces")
+		})
+	}
+}
+
 func TestIssuesGranularToolset(t *testing.T) {
 	t.Run("toolset contains expected granular tools", func(t *testing.T) {
 		tools := granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular)
