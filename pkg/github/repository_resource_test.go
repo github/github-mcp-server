@@ -118,6 +118,49 @@ func TestRepositoryResourceContentsDecodesUTF8Path(t *testing.T) {
 	require.Equal(t, "package x", result.Contents[0].Text)
 }
 
+func TestRepositoryResourceContentsPercentInFileName(t *testing.T) {
+	tests := []struct {
+		name     string
+		uri      string
+		wantPath string
+	}{
+		{
+			name:     "literal percent sign",
+			uri:      "repo://owner/repo/contents/docs/100%25.txt",
+			wantPath: "/owner/repo/HEAD/docs/100%.txt",
+		},
+		{
+			name:     "file name that looks like a percent escape",
+			uri:      "repo://owner/repo/contents/%2541.txt",
+			wantPath: "/owner/repo/HEAD/%41.txt",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			base, _ := url.Parse("https://raw.example.com/")
+			var gotPath string
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, r *http.Request) {
+					gotPath = r.URL.Path
+					w.Header().Set("Content-Type", "text/plain")
+					_, err := w.Write([]byte("file body"))
+					require.NoError(t, err)
+				},
+			}))
+			rawClient, err := raw.NewClient(client, base)
+			require.NoError(t, err)
+			ctx := ContextWithDeps(context.Background(), BaseDeps{Client: client, RawClient: rawClient})
+			handler := RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
+
+			result, err := handler(ctx, &mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: tc.uri}})
+			require.NoError(t, err)
+			require.Equal(t, "file body", result.Contents[0].Text)
+			require.Equal(t, tc.wantPath, gotPath)
+		})
+	}
+}
+
 func Test_repositoryResourceContents(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
 	tests := []struct {

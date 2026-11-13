@@ -92,7 +92,7 @@ func (c *Client) refURL(owner, repo, ref, path string) (string, error) {
 	if err := rejectPathTraversal(owner, repo, ref, path); err != nil {
 		return "", err
 	}
-	return c.url.JoinPath(owner, repo, ref, path).String(), nil
+	return c.url.JoinPath(escapePathSegments(owner, repo, ref, path)...).String(), nil
 }
 
 func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) (string, error) {
@@ -110,7 +110,26 @@ func (c *Client) commitURL(owner, repo, sha, path string) (string, error) {
 	if err := rejectPathTraversal(owner, repo, sha, path); err != nil {
 		return "", err
 	}
-	return c.url.JoinPath(owner, repo, sha, path).String(), nil
+	return c.url.JoinPath(escapePathSegments(owner, repo, sha, path)...).String(), nil
+}
+
+// escapePathSegments percent-encodes every "/"-separated segment of the given
+// components. The components are decoded text (for example a file path taken
+// from a repo:// resource URI), but url.URL.JoinPath treats its arguments as
+// already escaped: a literal "%41" would be decoded again (fetching "A"), and
+// an invalid escape such as "100%.txt" makes JoinPath silently fall back to
+// the base URL. Escaping each segment keeps the file name exactly as given
+// while preserving "/" as the path separator.
+func escapePathSegments(components ...string) []string {
+	escaped := make([]string, 0, len(components))
+	for _, component := range components {
+		segments := strings.Split(component, "/")
+		for i, segment := range segments {
+			segments[i] = url.PathEscape(segment)
+		}
+		escaped = append(escaped, strings.Join(segments, "/"))
+	}
+	return escaped
 }
 
 type ContentOpts struct {
