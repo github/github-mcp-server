@@ -212,7 +212,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":
-			return nil, nil
+			return &mcp.CompleteResult{
+				Completion: mcp.CompletionResultDetails{Values: []string{}},
+			}, nil
 		default:
 			return nil, fmt.Errorf("unsupported ref type: %s", req.Params.Ref.Type)
 		}

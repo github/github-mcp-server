@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
@@ -526,7 +527,7 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 								},
 								"add": {
 									Type:        "array",
-									Description: "Label names to add to this issue (GitHub creates missing labels implicitly)",
+									Description: "Label names to add to this issue",
 									Items:       &jsonschema.Schema{Type: "string", MinLength: jsonschema.Ptr(1)},
 								},
 								"remove": {
@@ -624,12 +625,17 @@ func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) invent
 						_ = resp.Body.Close()
 					}
 					if err != nil {
+						// The failed request may have changed the remote state.
+						outcome.Labels = nil
 						outcome.Error = fmt.Sprintf("remove %q failed: %v", label, err)
 						outcome.Applied = false
 						hadFailure = true
 						failed = true
 						break
 					}
+					outcome.Labels = slices.DeleteFunc(outcome.Labels, func(existing string) bool {
+						return strings.EqualFold(existing, label)
+					})
 				}
 				if failed {
 					outcomes = append(outcomes, outcome)

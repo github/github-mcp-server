@@ -165,12 +165,18 @@ func TestGranularBatchUpdateIssueLabelsTransport(t *testing.T) {
 	for _, invalid := range []bool{false, true} {
 		t.Run(map[bool]string{false: "valid batch", true: "invalid later operation"}[invalid], func(t *testing.T) {
 			calls := 0
+			deletes := 0
 			httpClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepoByIssueNumberLabels: func(w http.ResponseWriter, r *http.Request) {
 					calls++
 					expectPath(t, "/repos/owner/repo/issues/1/labels").
 						andThen(expectRequestBody(t, []any{"bug"}).
-							andThen(mockResponse(t, http.StatusOK, []*gogithub.Label{{Name: "bug"}})))(w, r)
+							andThen(mockResponse(t, http.StatusOK, []*gogithub.Label{{Name: "bug"}, {Name: "stale"}})))(w, r)
+				},
+				DeleteReposIssuesByOwnerByRepoByIssueNumberLabel: func(w http.ResponseWriter, r *http.Request) {
+					deletes++
+					assert.Equal(t, "/repos/owner/repo/issues/1/labels/stale", r.URL.Path)
+					w.WriteHeader(http.StatusNoContent)
 				},
 			})
 			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
@@ -191,7 +197,7 @@ func TestGranularBatchUpdateIssueLabelsTransport(t *testing.T) {
 			cs, err := mcp.NewClient(&mcp.Implementation{Name: "batch-label-client"}, nil).Connect(ctx, ct, nil)
 			require.NoError(t, err)
 			defer func() { _ = cs.Close() }()
-			operations := []any{map[string]any{"issue_number": 1, "add": []string{"bug"}}}
+			operations := []any{map[string]any{"issue_number": 1, "add": []string{"bug"}, "remove": []string{"stale"}}}
 			if invalid {
 				operations = append(operations, map[string]any{"issue_number": 2, "add": []string{" "}})
 			}
@@ -203,10 +209,13 @@ func TestGranularBatchUpdateIssueLabelsTransport(t *testing.T) {
 			assert.Equal(t, invalid, result.IsError)
 			if invalid {
 				assert.Zero(t, calls, "validation must precede every mutation")
+				assert.Zero(t, deletes)
 				assert.Contains(t, getErrorResult(t, result).Text, "operations[1]")
 			} else {
 				assert.Equal(t, 1, calls)
+				assert.Equal(t, 1, deletes)
 				assert.Contains(t, getTextResult(t, result).Text, `"applied":true`)
+				assert.Contains(t, getTextResult(t, result).Text, `"labels":["bug"]`)
 			}
 		})
 	}
@@ -281,4 +290,45 @@ func TestGranularBatchUpdateIssueLabelsModernTypedSession(t *testing.T) {
 	assert.Nil(t, invalid.StructuredContent)
 	assert.Contains(t, getErrorResult(t, invalid).Text, "operations[1]")
 	assert.Equal(t, 1, calls, "validation must precede every mutation")
+}
+
+func TestGranularBatchUpdateIssueLabelsResultAfterRemovals(t *testing.T) {
+	tests := []struct {
+		name       string
+		remove     []string
+		failLabel  string
+		wantLabels []string
+		wantError  bool
+	}{
+		{name: "remove after add", remove: []string{"STALE"}, wantLabels: []string{"bug", "keep"}},
+		{name: "failure after a successful removal", remove: []string{"stale", "keep"}, failLabel: "keep", wantLabels: nil, wantError: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepoByIssueNumberLabels: mockResponse(t, http.StatusOK, []*gogithub.Label{{Name: "bug"}, {Name: "stale"}, {Name: "keep"}}),
+				DeleteReposIssuesByOwnerByRepoByIssueNumberLabel: func(w http.ResponseWriter, r *http.Request) {
+					if tc.failLabel != "" && strings.HasSuffix(r.URL.Path, "/"+tc.failLabel) {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusNoContent)
+				},
+			}))
+			deps := BaseDeps{Client: client}
+			tool := GranularBatchUpdateIssueLabels(translations.NullTranslationHelper)
+			request := createMCPRequest(map[string]any{
+				"owner": "owner", "repo": "repo",
+				"operations": []any{map[string]any{"issue_number": 1, "add": []string{"bug"}, "remove": tc.remove}},
+			})
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantError, result.IsError)
+			var output GranularBatchUpdateIssueLabelsOutput
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &output))
+			require.Len(t, output.Results, 1)
+			assert.Equal(t, tc.wantLabels, output.Results[0].Labels)
+			assert.Equal(t, !tc.wantError, output.Results[0].Applied)
+		})
+	}
 }
