@@ -1576,11 +1576,13 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 - **get_secret_scanning_alert** - Get secret scanning alert
   - **OAuth Challenge Scopes**: `security_events`
   - `alertNumber`: The number of the alert. (number, required)
+  - `hide_secret`: Whether to exclude the secret value from the response. Defaults to false. (boolean, optional)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
 - **list_secret_scanning_alerts** - List secret scanning alerts
   - **OAuth Challenge Scopes**: `security_events`
+  - `hide_secret`: Whether to exclude secret values from the response. Defaults to false. (boolean, optional)
   - `owner`: The owner of the repository. (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
