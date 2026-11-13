@@ -40,34 +40,32 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 			if err := json.Unmarshal(value, &number); err != nil {
 				return nil, err
 			}
-			if text, ok := number.(string); ok {
-				parsed, err := strconv.ParseFloat(text, 64)
-				if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) || !inSignedIntRange(parsed, strconv.IntSize) {
+			var parsed float64
+			switch v := number.(type) {
+			case string:
+				var err error
+				parsed, err = strconv.ParseFloat(v, 64)
+				if err != nil {
 					return nil, fmt.Errorf("parameter %s is not a valid number", field)
 				}
-				number = int(parsed)
+			case float64:
+				parsed = v
+			default:
+				continue
 			}
-			if field == "page" && !preserveZeroPage {
-				if parsed, ok := number.(float64); ok && parsed == 0 {
-					delete(args, field)
-					continue
-				}
-				if parsed, ok := number.(int); ok && parsed == 0 {
-					delete(args, field)
-					continue
-				}
+			if math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) || !inSignedIntRange(parsed, strconv.IntSize) {
+				return nil, fmt.Errorf("parameter %s is not a valid number", field)
 			}
-			if field == "perPage" {
-				if parsed, ok := number.(float64); ok && parsed == 0 {
-					delete(args, field)
-					continue
-				}
-				if parsed, ok := number.(int); ok && parsed == 0 {
-					delete(args, field)
-					continue
-				}
+			intVal := int(parsed)
+			if field == "page" && !preserveZeroPage && intVal == 0 {
+				delete(args, field)
+				continue
 			}
-			normalized, err := json.Marshal(number)
+			if field == "perPage" && intVal == 0 {
+				delete(args, field)
+				continue
+			}
+			normalized, err := json.Marshal(intVal)
 			if err != nil {
 				return nil, err
 			}
