@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 // maxLineSize is the maximum size for a single log line (10MB).
@@ -55,7 +56,12 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	storeLine := func() {
 		line := currentLine.String()
 		if lineTruncated && len(line) > maxDisplayLength {
-			line = line[:maxDisplayLength]
+			// Cut on a character boundary so the kept text stays valid UTF-8.
+			cut := maxDisplayLength
+			for cut > 0 && !utf8.RuneStart(line[cut]) {
+				cut--
+			}
+			line = line[:cut]
 		}
 		if lineTruncated {
 			line += "... [TRUNCATED]"
