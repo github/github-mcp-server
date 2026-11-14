@@ -82,7 +82,6 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 		Commit:  &github.Commit{Message: new("A commit")},
 	}
 	handlers := map[string]http.HandlerFunc{
-		GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{Private: new(false)}),
 		GetReposCommitsByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2", r.URL.Query().Get("page"))
 			assert.Equal(t, "7", r.URL.Query().Get("per_page"))
@@ -103,8 +102,7 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 		},
 	}
 	deps := BaseDeps{
-		Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)),
-		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)),
 	}
 	tools := []inventory.ServerTool{
 		GetCommit(translations.NullTranslationHelper),
@@ -182,7 +180,6 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 				require.NoError(t, err, call.name)
 				require.False(t, result.IsError, "%s: %s", call.name, result)
 				require.Len(t, result.Content, 1, "%s must preserve one legacy text result", call.name)
-				assert.NotNil(t, result.Meta["ifc"], "typed and legacy outputs retain IFC labeling")
 				text := getTextResult(t, result).Text
 				if protocolVersion == "2025-11-25" {
 					assert.Equal(t, call.text, text, "%s legacy text is byte-exact", call.name)

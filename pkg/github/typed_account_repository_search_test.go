@@ -112,8 +112,7 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 					_, _ = w.Write([]byte(body))
 				}
 				deps := BaseDeps{
-					Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{fixture.path: handler})),
-					featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+					Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{fixture.path: handler})),
 				}
 				session := connectTypedSearchClient(t, tool, deps, protocol)
 				list, err := session.ListTools(context.Background(), nil)
@@ -146,15 +145,6 @@ func TestTypedAccountRepositorySearchOutputs(t *testing.T) {
 						assert.JSONEq(t, structured, getTextResult(t, result).Text)
 					} else {
 						assert.Equal(t, expected, getTextResult(t, result).Text)
-					}
-					require.NotNil(t, result.Meta)
-					label := unmarshalIFC(t, result.Meta["ifc"])
-					if tool.Tool.Name == "search_commits" && body == fixture.body {
-						assert.Equal(t, "trusted", label["integrity"])
-						assert.Equal(t, "private", label["confidentiality"])
-					} else {
-						assert.Equal(t, "untrusted", label["integrity"])
-						assert.Equal(t, "public", label["confidentiality"])
 					}
 					if resolved == nil {
 						assert.Nil(t, result.StructuredContent)

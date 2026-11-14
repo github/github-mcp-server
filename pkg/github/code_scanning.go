@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -86,12 +85,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Code scanning alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable code snippets, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, codeScanningAlertOutput(alert), nil
+			return utils.NewToolResultText(string(r)), codeScanningAlertOutput(alert), nil
 		},
 		normalizeSecurityIntegerArguments("alertNumber"),
 	)
@@ -193,12 +187,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Code scanning alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable code snippets, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, mapSecurityOutputs(alerts, codeScanningAlertOutput), nil
+			return utils.NewToolResultText(string(r)), mapSecurityOutputs(alerts, codeScanningAlertOutput), nil
 		},
 		normalizeSecurityIntegerArguments("page", "perPage"),
 		normalizeTypedReadArguments(nil, false),

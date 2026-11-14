@@ -305,71 +305,49 @@ func TestTypedActionsClientErrorPrecedence(t *testing.T) {
 	}
 }
 
-func TestTypedActionsIFCAndAnnotations(t *testing.T) {
+func TestTypedActionsAnnotations(t *testing.T) {
 	for _, protocol := range typedActionsProtocols {
-		for _, private := range []bool{false, true} {
-			for _, enabled := range []bool{false, true} {
-				for _, tc := range []actionsWireCase{
-					{name: "actions_list", method: "list_workflows"},
-					{name: "actions_get", method: "get_workflow", args: map[string]any{"resource_id": "ci.yml"}},
-					{name: "get_job_logs", args: map[string]any{"run_id": "7e0", "failed_only": true}},
-					{name: "actions_run_trigger", method: "delete_workflow_run_logs", args: map[string]any{"run_id": 7}},
-				} {
-					t.Run(fmt.Sprintf("%s/%s/private=%t/enabled=%t", tc.name, protocol, private, enabled), func(t *testing.T) {
-						client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-							if r.URL.Path == "/repos/owner/repo" {
-								_, _ = fmt.Fprintf(w, `{"private":%t}`, private)
-								return
-							}
-							if r.Method == http.MethodDelete {
-								w.WriteHeader(http.StatusNoContent)
-								return
-							}
-							_, _ = w.Write([]byte(`{}`))
-						})}}
-						deps := BaseDeps{Client: mustNewGHClient(t, client),
-							RepoAccessCache: stubRepoAccessCache(nil, time.Minute)}
-						if enabled {
-							deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-						}
-						session, schemas := actionsTypedSession(t, deps, protocol)
-						listed, err := session.ListTools(context.Background(), nil)
-						require.NoError(t, err)
-						for _, tool := range listed.Tools {
-							require.NotNil(t, tool.Annotations)
-							assert.Equal(t, tool.Name != "actions_run_trigger", tool.Annotations.ReadOnlyHint)
-							if tool.Name == "actions_run_trigger" {
-								require.NotNil(t, tool.Annotations.DestructiveHint)
-								assert.True(t, *tool.Annotations.DestructiveHint)
-							}
-						}
-						result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: actionsCaseArgs(tc)})
-						require.NoError(t, err)
-						text := getTextResult(t, result).Text
-						projected := text
-						if tc.method != "" {
-							legacy := "{}"
-							if tc.method == "delete_workflow_run_logs" {
-								legacy = `{"message":"Workflow run logs have been deleted","run_id":7,"status":"204 No Content","status_code":204}`
-							}
-							projected = actionsProjectedEnvelope(t, tc.method, legacy)
-							text = legacy
-						}
-						assertActionsWireResult(t, result, schemas[tc.name], text, false, projected)
-						if !enabled || tc.name == "actions_run_trigger" {
-							assert.Nil(t, result.Meta["ifc"])
-							return
-						}
-						label := unmarshalIFC(t, result.Meta["ifc"])
-						assert.Equal(t, "untrusted", label["integrity"])
-						confidentiality := "public"
-						if private {
-							confidentiality = "private"
-						}
-						assert.Equal(t, confidentiality, label["confidentiality"])
-					})
+		for _, tc := range []actionsWireCase{
+			{name: "actions_list", method: "list_workflows"},
+			{name: "actions_get", method: "get_workflow", args: map[string]any{"resource_id": "ci.yml"}},
+			{name: "get_job_logs", args: map[string]any{"run_id": "7e0", "failed_only": true}},
+			{name: "actions_run_trigger", method: "delete_workflow_run_logs", args: map[string]any{"run_id": 7}},
+		} {
+			t.Run(fmt.Sprintf("%s/%s", tc.name, protocol), func(t *testing.T) {
+				client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == http.MethodDelete {
+						w.WriteHeader(http.StatusNoContent)
+						return
+					}
+					_, _ = w.Write([]byte(`{}`))
+				})}}
+				deps := BaseDeps{Client: mustNewGHClient(t, client),
+					RepoAccessCache: stubRepoAccessCache(nil, time.Minute)}
+				session, schemas := actionsTypedSession(t, deps, protocol)
+				listed, err := session.ListTools(context.Background(), nil)
+				require.NoError(t, err)
+				for _, tool := range listed.Tools {
+					require.NotNil(t, tool.Annotations)
+					assert.Equal(t, tool.Name != "actions_run_trigger", tool.Annotations.ReadOnlyHint)
+					if tool.Name == "actions_run_trigger" {
+						require.NotNil(t, tool.Annotations.DestructiveHint)
+						assert.True(t, *tool.Annotations.DestructiveHint)
+					}
 				}
-			}
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.name, Arguments: actionsCaseArgs(tc)})
+				require.NoError(t, err)
+				text := getTextResult(t, result).Text
+				projected := text
+				if tc.method != "" {
+					legacy := "{}"
+					if tc.method == "delete_workflow_run_logs" {
+						legacy = `{"message":"Workflow run logs have been deleted","run_id":7,"status":"204 No Content","status_code":204}`
+					}
+					projected = actionsProjectedEnvelope(t, tc.method, legacy)
+					text = legacy
+				}
+				assertActionsWireResult(t, result, schemas[tc.name], text, false, projected)
+			})
 		}
 	}
 }

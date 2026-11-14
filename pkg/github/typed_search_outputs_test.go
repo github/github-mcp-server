@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
@@ -32,7 +31,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 		assert.Equal(t, []string{"repo"}, tool.ScopeAccess.Scopes, "%s must retain repository read scope", tool.Tool.Name)
 	}
 	deps := BaseDeps{
-		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetSearchCode: mockResponse(t, http.StatusOK, &github.CodeSearchResult{
 				Total:             new(1),
@@ -43,7 +41,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 					SHA:  new("abc123"),
 					Repository: &github.Repository{
 						FullName: new("owner/repo"),
-						Private:  new(false),
 					},
 					TextMatches: []*github.TextMatch{{
 						ObjectType: new("FileContent"),
@@ -72,7 +69,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 			GetReposTagsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.RepositoryTag{
 				{Name: new("v1.0.0"), Commit: &github.Commit{SHA: new("abc123")}},
 			}),
-			GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, &github.Repository{Private: new(false)}),
 		})),
 	}
 
@@ -118,7 +114,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, branches.IsError, branches)
 			assert.Equal(t, "[]", getTextResult(t, branches).Text)
-			assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(false)), mustMarshalJSON(t, branches.Meta["ifc"]))
 			if protocolVersion == inventory.ProtocolVersionMultiRoundTrip {
 				assert.Equal(t, "[]", mustMarshalJSON(t, branches.StructuredContent))
 				require.NoError(t, outputSchemas["list_branches"].Validate(branches.StructuredContent))
@@ -133,7 +128,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError, result)
 			require.Equal(t, `[{"name":"v1.0.0","sha":"abc123"}]`, getTextResult(t, result).Text)
-			assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(false)), mustMarshalJSON(t, result.Meta["ifc"]))
 			if protocolVersion == "2025-11-25" {
 				assert.Nil(t, result.StructuredContent)
 			} else {
@@ -155,7 +149,6 @@ func TestTypedProjectedReadToolOutputSchemas(t *testing.T) {
 			if protocolVersion == "2025-11-25" {
 				assert.Equal(t, `{"incomplete_results":false,"items":[{"name":"main.go"}],"total_count":1}`, getTextResult(t, result).Text)
 			}
-			assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelSearchIssues([]bool{false})), mustMarshalJSON(t, result.Meta["ifc"]))
 			if protocolVersion == "2025-11-25" {
 				assert.Nil(t, result.StructuredContent)
 			} else {
