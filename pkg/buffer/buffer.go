@@ -8,9 +8,13 @@ import (
 	"strings"
 )
 
-// maxLineSize is the maximum size for a single log line (10MB).
-// GitHub Actions logs can contain extremely long lines (base64 content, minified JS, etc.)
-const maxLineSize = 10 * 1024 * 1024
+// MaxLogBytes bounds retained log content, including truncation markers.
+const MaxLogBytes = 1 << 20 // 1 MiB
+
+const (
+	maxLineSize      = 16 << 10 // 16 KiB per line
+	truncationMarker = "... [TRUNCATED]"
+)
 
 // ProcessResponseAsRingBufferToEnd reads the body of an HTTP response line by line,
 // storing only the last maxJobLogLines lines using a ring buffer (sliding window).
@@ -30,7 +34,8 @@ const maxLineSize = 10 * 1024 * 1024
 //
 // The function uses a ring buffer to efficiently store only the last maxJobLogLines lines.
 // If the response contains more lines than maxJobLogLines, only the most recent lines are kept.
-// Lines exceeding maxLineSize are truncated with a marker.
+// Lines exceeding maxLineSize are truncated with a marker. Oldest lines are
+// also evicted when necessary to keep the output within MaxLogBytes.
 func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines int) (string, int, *http.Response, error) {
 	if maxJobLogLines <= 0 {
 		maxJobLogLines = 500
@@ -40,12 +45,19 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	}
 
 	lines := make([]string, maxJobLogLines)
-	validLines := make([]bool, maxJobLogLines)
 	totalLines := 0
-	writeIndex := 0
+	first, count, retainedBytes := 0, 0, 0
+	byteTruncated := false
+	// Reserve room for the marker and its newline if the byte budget evicts lines.
+	contentBudget := MaxLogBytes - len(truncationMarker) - 1
+	evict := func() {
+		retainedBytes -= len(lines[first]) + 1
+		lines[first] = ""
+		first = (first + 1) % maxJobLogLines
+		count--
+	}
 
 	const readBufferSize = 64 * 1024 // 64KB read buffer
-	const maxDisplayLength = 1000    // Keep first 1000 chars of truncated lines
 
 	readBuf := make([]byte, readBufferSize)
 	var currentLine strings.Builder
@@ -54,16 +66,20 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	// storeLine saves the current line to the ring buffer and resets state
 	storeLine := func() {
 		line := currentLine.String()
-		if lineTruncated && len(line) > maxDisplayLength {
-			line = line[:maxDisplayLength]
-		}
 		if lineTruncated {
-			line += "... [TRUNCATED]"
+			line = strings.ToValidUTF8(line, "") + truncationMarker
 		}
-		lines[writeIndex] = line
-		validLines[writeIndex] = true
+		if count == maxJobLogLines {
+			evict()
+		}
+		for count > 0 && retainedBytes+len(line)+1 > contentBudget {
+			evict()
+			byteTruncated = true
+		}
+		lines[(first+count)%maxJobLogLines] = line
+		count++
+		retainedBytes += len(line) + 1
 		totalLines++
-		writeIndex = (writeIndex + 1) % maxJobLogLines
 		currentLine.Reset()
 		lineTruncated = false
 	}
@@ -114,20 +130,18 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 		}
 	}
 
-	var result []string
-	linesInBuffer := min(totalLines, maxJobLogLines)
-
-	startIndex := 0
-	if totalLines > maxJobLogLines {
-		startIndex = writeIndex
+	var result strings.Builder
+	result.Grow(retainedBytes + len(truncationMarker) + 1)
+	if byteTruncated {
+		result.WriteString(truncationMarker)
+		result.WriteByte('\n')
 	}
-
-	for i := range linesInBuffer {
-		idx := (startIndex + i) % maxJobLogLines
-		if validLines[idx] {
-			result = append(result, lines[idx])
+	for i := range count {
+		if i > 0 {
+			result.WriteByte('\n')
 		}
+		result.WriteString(lines[(first+i)%maxJobLogLines])
 	}
 
-	return strings.Join(result, "\n"), totalLines, httpResp, nil
+	return result.String(), totalLines, httpResp, nil
 }
