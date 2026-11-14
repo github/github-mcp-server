@@ -288,10 +288,19 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1}, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 3}, `[]`},
+		// `fields` projects the response for both the text content and the
+		// structured content; runTypedPullRequestCases asserts they stay
+		// byte-for-byte equivalent JSON and validates against the output schema.
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1, "fields": []any{"state", "user"}}, `[{"state":"APPROVED","user":{"login":"octocat"}}]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1, "fields": []any{"body"}}, `[{"body":"lgtm"}]`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1, "fields": []any{}}, `[{"id":9,"state":"APPROVED","body":"lgtm","html_url":"https://github.com/owner/repo/pull/1#pullrequestreview-9","user":{"login":"octocat"},"commit_id":"abc","author_association":"MEMBER"}]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 1}, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/pull/1#issuecomment-42"}]`},
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1}, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "page": 2}, `{"total_count":0,"check_runs":[]}`},
+		// total_count is response metadata and must survive filtering.
+		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "fields": []any{"name", "conclusion"}}, `{"total_count":1,"check_runs":[{"conclusion":"success","name":"build"}]}`},
+		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "fields": []any{}}, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`},
 		{"create_pull_request", map[string]any{"title": "Subject", "head": "feature", "base": "main", "draft": false}, prRef},
 		{"update_pull_request", map[string]any{"pullNumber": "1", "title": "Subject", "maintainer_can_modify": false}, prRef},
 		{"merge_pull_request", map[string]any{"pullNumber": 1, "merge_method": "squash", "expectedHeadSha": "abc"}, `{"sha":"abc","merged":true,"message":"Pull Request successfully merged"}`},
@@ -406,6 +415,9 @@ func TestTypedConsolidatedPullRequestErrors(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": "1.5"}, "parameter pullNumber is not a valid number: non-integer numeric value: 1.5"},
 		{"pull_request_read", map[string]any{"method": "get_files", "pullNumber": 1, "page": "x"}, "parameter page is not a valid number"},
 		{"pull_request_read", map[string]any{"method": "unknown", "pullNumber": 1}, "unknown method: unknown"},
+		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 1, "fields": []any{"state"}}, `fields is not supported for pull_request_read method "get"`},
+		{"pull_request_read", map[string]any{"method": "get_reviews", "pullNumber": 1, "fields": []any{"name"}}, `field "name" is not supported for pull_request_read method "get_reviews"`},
+		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "fields": []any{"body"}}, `field "body" is not supported for pull_request_read method "get_check_runs"`},
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": 1.5}, "parameter pullNumber is not a valid number: non-integer numeric value: 1.5"},
 		{"create_pull_request", map[string]any{"title": "Subject", "head": "feature", "base": "main", "draft": "yes"}, "parameter draft is not of type bool, is string"},
 		{"update_pull_request", map[string]any{"pullNumber": 0, "title": "Subject"}, "missing required parameter: pullNumber"},

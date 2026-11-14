@@ -14,13 +14,14 @@ import (
 )
 
 type PullRequestReadInput struct {
-	Method     string  `json:"method"`
-	Owner      string  `json:"owner"`
-	Repo       string  `json:"repo"`
-	PullNumber int     `json:"pullNumber"`
-	Page       *int    `json:"page,omitempty"`
-	PerPage    *int    `json:"perPage,omitempty"`
-	After      *string `json:"after,omitempty"`
+	Method     string   `json:"method"`
+	Owner      string   `json:"owner"`
+	Repo       string   `json:"repo"`
+	PullNumber int      `json:"pullNumber"`
+	Fields     []string `json:"fields,omitempty"`
+	Page       *int     `json:"page,omitempty"`
+	PerPage    *int     `json:"perPage,omitempty"`
+	After      *string  `json:"after,omitempty"`
 }
 
 type CreatePullRequestInput struct {
@@ -114,9 +115,9 @@ type PullRequestReadOutput struct {
 	Files         *[]MinimalPRFile
 	Commits       *[]MinimalPullRequestCommit
 	ReviewThreads *MinimalReviewThreadsResponse
-	Reviews       *[]MinimalPullRequestReview
+	Reviews       *[]PullRequestReviewOutput
 	Comments      *[]IssueReadCommentOutput
-	CheckRuns     *MinimalCheckRunsResult
+	CheckRuns     *PullRequestCheckRunsOutput
 }
 
 // PullRequestDiffOutput wraps the raw diff, which the text content returns verbatim.
@@ -151,6 +152,125 @@ func (out PullRequestReadOutput) MarshalJSON() ([]byte, error) {
 	}
 }
 
+// fieldSelector reports whether a field should be emitted for the given
+// selection. An empty selection keeps every field, matching the behaviour of
+// omitting the `fields` parameter entirely.
+func fieldSelector(fields []string) func(string) bool {
+	return func(field string) bool {
+		return len(fields) == 0 || slices.Contains(fields, field)
+	}
+}
+
+// PullRequestReviewOutput is the field-projected shape of a single review. Every
+// field is optional so a `fields` selection can omit anything the caller did not
+// ask for while still satisfying the typed output schema. The unfiltered case
+// populates every populated field and so matches the historical JSON exactly.
+type PullRequestReviewOutput struct {
+	ID                *int64       `json:"id,omitempty"`
+	State             *string      `json:"state,omitempty"`
+	Body              *string      `json:"body,omitempty"`
+	HTMLURL           *string      `json:"html_url,omitempty"`
+	User              *MinimalUser `json:"user,omitempty"`
+	CommitID          *string      `json:"commit_id,omitempty"`
+	SubmittedAt       *string      `json:"submitted_at,omitempty"`
+	AuthorAssociation *string      `json:"author_association,omitempty"`
+}
+
+// structuredPullRequestReviewsOutput projects converted reviews onto the selected
+// fields so structuredContent matches the filtered text response.
+func structuredPullRequestReviewsOutput(reviews []MinimalPullRequestReview, fields []string) []PullRequestReviewOutput {
+	selected := fieldSelector(fields)
+	output := make([]PullRequestReviewOutput, 0, len(reviews))
+	for _, review := range reviews {
+		item := PullRequestReviewOutput{}
+		if selected("id") {
+			item.ID = new(review.ID)
+		}
+		if selected("state") {
+			item.State = new(review.State)
+		}
+		if selected("body") && review.Body != "" {
+			item.Body = new(review.Body)
+		}
+		if selected("html_url") {
+			item.HTMLURL = new(review.HTMLURL)
+		}
+		if selected("user") && review.User != nil {
+			item.User = review.User
+		}
+		if selected("commit_id") && review.CommitID != "" {
+			item.CommitID = new(review.CommitID)
+		}
+		if selected("submitted_at") && review.SubmittedAt != "" {
+			item.SubmittedAt = new(review.SubmittedAt)
+		}
+		if selected("author_association") && review.AuthorAssociation != "" {
+			item.AuthorAssociation = new(review.AuthorAssociation)
+		}
+		output = append(output, item)
+	}
+	return output
+}
+
+// PullRequestCheckRunOutput is the field-projected shape of a single check run.
+type PullRequestCheckRunOutput struct {
+	ID          *int64  `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	Conclusion  *string `json:"conclusion,omitempty"`
+	HTMLURL     *string `json:"html_url,omitempty"`
+	DetailsURL  *string `json:"details_url,omitempty"`
+	StartedAt   *string `json:"started_at,omitempty"`
+	CompletedAt *string `json:"completed_at,omitempty"`
+}
+
+// PullRequestCheckRunsOutput keeps the total_count wrapper. total_count is
+// response metadata rather than an item field, so a `fields` selection never
+// removes it.
+type PullRequestCheckRunsOutput struct {
+	TotalCount int                         `json:"total_count"`
+	CheckRuns  []PullRequestCheckRunOutput `json:"check_runs"`
+}
+
+// structuredPullRequestCheckRunsOutput projects check runs onto the selected
+// fields while always preserving total_count.
+func structuredPullRequestCheckRunsOutput(result MinimalCheckRunsResult, fields []string) PullRequestCheckRunsOutput {
+	selected := fieldSelector(fields)
+	output := PullRequestCheckRunsOutput{
+		TotalCount: result.TotalCount,
+		CheckRuns:  make([]PullRequestCheckRunOutput, 0, len(result.CheckRuns)),
+	}
+	for _, run := range result.CheckRuns {
+		item := PullRequestCheckRunOutput{}
+		if selected("id") {
+			item.ID = new(run.ID)
+		}
+		if selected("name") {
+			item.Name = new(run.Name)
+		}
+		if selected("status") {
+			item.Status = new(run.Status)
+		}
+		if selected("conclusion") && run.Conclusion != "" {
+			item.Conclusion = new(run.Conclusion)
+		}
+		if selected("html_url") && run.HTMLURL != "" {
+			item.HTMLURL = new(run.HTMLURL)
+		}
+		if selected("details_url") && run.DetailsURL != "" {
+			item.DetailsURL = new(run.DetailsURL)
+		}
+		if selected("started_at") && run.StartedAt != "" {
+			item.StartedAt = new(run.StartedAt)
+		}
+		if selected("completed_at") && run.CompletedAt != "" {
+			item.CompletedAt = new(run.CompletedAt)
+		}
+		output.CheckRuns = append(output.CheckRuns, item)
+	}
+	return output
+}
+
 func pullRequestCommentsOutput(output *IssueReadOutput) *PullRequestReadOutput {
 	if output == nil || output.Comments == nil {
 		return nil
@@ -162,7 +282,7 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 	arrays := []*jsonschema.Schema{
 		pullRequestOutputSchema[[]MinimalPRFile](),
 		pullRequestOutputSchema[[]MinimalPullRequestCommit](),
-		pullRequestOutputSchema[[]MinimalPullRequestReview](),
+		pullRequestOutputSchema[[]PullRequestReviewOutput](),
 		pullRequestOutputSchema[[]IssueReadCommentOutput](),
 	}
 	for _, array := range arrays {
@@ -176,7 +296,7 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 		pullRequestOutputSchema[PullRequestDiffOutput](),
 		pullRequestOutputSchema[MinimalCombinedStatus](),
 		pullRequestOutputSchema[MinimalReviewThreadsResponse](),
-		pullRequestOutputSchema[MinimalCheckRunsResult](),
+		pullRequestOutputSchema[PullRequestCheckRunsOutput](),
 		&jsonschema.Schema{Type: "array", AnyOf: arrays},
 	)
 }
