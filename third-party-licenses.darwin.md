@@ -37,7 +37,7 @@ The following packages are included for the amd64, arm64 architectures.
  - [github.com/spf13/afero](https://pkg.go.dev/github.com/spf13/afero) ([Apache-2.0](https://github.com/spf13/afero/blob/v1.15.0/LICENSE.txt))
  - [github.com/spf13/cast](https://pkg.go.dev/github.com/spf13/cast) ([MIT](https://github.com/spf13/cast/blob/v1.10.0/LICENSE))
  - [github.com/spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra) ([Apache-2.0](https://github.com/spf13/cobra/blob/v1.10.2/LICENSE.txt))
- - [github.com/spf13/pflag](https://pkg.go.dev/github.com/spf13/pflag) ([BSD-3-Clause](https://github.com/spf13/pflag/blob/v1.0.10/LICENSE))
+ - [github.com/spf13/pflag](https://pkg.go.dev/github.com/spf13/pflag) ([BSD-3-Clause](https://github.com/spf13/pflag/blob/v1.1.0/LICENSE))
  - [github.com/spf13/viper](https://pkg.go.dev/github.com/spf13/viper) ([MIT](https://github.com/spf13/viper/blob/v1.21.0/LICENSE))
  - [github.com/subosito/gotenv](https://pkg.go.dev/github.com/subosito/gotenv) ([MIT](https://github.com/subosito/gotenv/blob/v1.6.0/LICENSE))
  - [github.com/yosida95/uritemplate/v3](https://pkg.go.dev/github.com/yosida95/uritemplate/v3) ([BSD-3-Clause](https://github.com/yosida95/uritemplate/blob/v3.0.2/LICENSE))
