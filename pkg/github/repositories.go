@@ -163,7 +163,13 @@ type ListCommitOutput struct {
 	Committer *MinimalUser       `json:"committer,omitempty"`
 }
 
-func structuredListCommitsOutput(commits []MinimalCommit, fields []string) []ListCommitOutput {
+// ListCommitsOutput envelopes the commit list because MCP requires
+// structuredContent to be a JSON object, not a top-level array.
+type ListCommitsOutput struct {
+	Commits []ListCommitOutput `json:"commits"`
+}
+
+func structuredListCommitsOutput(commits []MinimalCommit, fields []string) ListCommitsOutput {
 	output := make([]ListCommitOutput, 0, len(commits))
 	selected := func(field string) bool {
 		return len(fields) == 0 || slices.Contains(fields, field)
@@ -187,7 +193,7 @@ func structuredListCommitsOutput(commits []MinimalCommit, fields []string) []Lis
 		}
 		output = append(output, item)
 	}
-	return output
+	return ListCommitsOutput{Commits: output}
 }
 
 // ListCommits creates a tool to get the list of commits of a branch in a GitHub
@@ -233,7 +239,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 	WithPagination(schema)
 
-	return NewToolWithSchemaOptions[ListCommitsInput, []ListCommitOutput](
+	return NewToolWithSchemaOptions[ListCommitsInput, ListCommitsOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_commits",
@@ -246,12 +252,12 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		scopes.PublicRead(scopes.Repo),
 		inventory.TypedSchemaOptions{ValidationInputSchema: relaxedPaginationValidationSchema(schema)},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, []ListCommitOutput, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, ListCommitsOutput, error) {
 			if input.Owner == "" {
-				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+				return utils.NewToolResultError("missing required parameter: owner"), ListCommitsOutput{}, nil
 			}
 			if input.Repo == "" {
-				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+				return utils.NewToolResultError("missing required parameter: repo"), ListCommitsOutput{}, nil
 			}
 			pagination := PaginationParams{Page: 1, PerPage: 30}
 			if input.Page != nil {
@@ -275,21 +281,21 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if input.Since != "" {
 				sinceTime, err := parseISOTimestamp(input.Since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), ListCommitsOutput{}, nil
 				}
 				opts.Since = sinceTime
 			}
 			if input.Until != "" {
 				untilTime, err := parseISOTimestamp(input.Until)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), ListCommitsOutput{}, nil
 				}
 				opts.Until = untilTime
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, ListCommitsOutput{}, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			commits, resp, err := client.Repositories.ListCommits(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
@@ -297,16 +303,16 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 					fmt.Sprintf("failed to list commits: %s", input.SHA),
 					resp,
 					err,
-				), nil, nil
+				), ListCommitsOutput{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != 200 {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, ListCommitsOutput{}, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list commits", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list commits", resp, body), ListCommitsOutput{}, nil
 			}
 
 			// Convert to minimal commits
@@ -320,7 +326,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if len(input.Fields) > 0 {
 				filteredCommits, err := filterEachField(minimalCommits, input.Fields)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to filter commits", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to filter commits", err), ListCommitsOutput{}, nil
 				}
 				payload = filteredCommits
 				filtered = true
@@ -328,7 +334,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			r, err := json.Marshal(payload)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				return nil, ListCommitsOutput{}, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
 			recordFieldsUsageFor(ctx, deps, "list_commits", minimalCommits, filtered, len(r))

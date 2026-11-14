@@ -192,7 +192,12 @@ func TestTypedRepositoryCommitOutputs(t *testing.T) {
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.name)
 				structuredJSON := mustMarshalJSON(t, result.StructuredContent)
-				assert.JSONEq(t, call.text, text)
+				// list_commits envelopes its array so structuredContent is an object.
+				expected := call.text
+				if call.name == "list_commits" {
+					expected = `{"commits":` + call.text + `}`
+				}
+				assert.JSONEq(t, expected, text)
 				assert.JSONEq(t, text, structuredJSON, "modern text must serialize the typed DTO")
 
 				var schema jsonschema.Schema
