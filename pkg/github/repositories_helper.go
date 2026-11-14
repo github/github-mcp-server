@@ -71,30 +71,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	return ref, baseCommit, nil
 }
 
-// createReferenceFromDefaultBranch creates a new branch reference from the repository's default branch
-func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (*github.Reference, error) {
-	defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to resolve default branch", nil, err)
-		return nil, fmt.Errorf("failed to resolve default branch: %w", err)
-	}
-
-	// Create the new branch reference
-	createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
-		Ref: "refs/heads/" + branch,
-		SHA: *defaultRef.Object.SHA,
-	})
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create new branch reference", resp, err)
-		return nil, fmt.Errorf("failed to create new branch reference: %w", err)
-	}
-	if resp != nil && resp.Body != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	return createdRef, nil
-}
-
 const (
 	gitSymlinkMode   = "120000"
 	gitSubmoduleMode = "160000"

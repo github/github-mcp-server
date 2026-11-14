@@ -3038,6 +3038,14 @@ func Test_PushFiles(t *testing.T) {
 		},
 	}
 
+	mockCreatedBranchRef := &github.Reference{
+		Ref: new("refs/heads/new-branch"),
+		Object: &github.GitObject{
+			SHA: new("jkl012"),
+			URL: new("https://api.github.com/repos/owner/repo/git/trees/jkl012"),
+		},
+	}
+
 	// Define test cases
 	tests := []struct {
 		name           string
@@ -3678,6 +3686,193 @@ func Test_PushFiles(t *testing.T) {
 			},
 			expectError:    false,
 			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "successful push to new branch creates reference directly at new commit",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference: 404 for new-branch, 200 for default branch main
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func(w http.ResponseWriter, r *http.Request) {
+						path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+						w.Header().Set("Content-Type", "application/json")
+						switch {
+						case strings.Contains(path, "heads/new-branch"):
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						case strings.Contains(path, "heads/main"):
+							w.WriteHeader(http.StatusOK)
+							_ = json.NewEncoder(w).Encode(mockRef)
+						default:
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						}
+					},
+				),
+				// Resolve default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: new("main"),
+					},
+				),
+				// Get base commit from default branch
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				// Create tree
+				WithRequestMatch(
+					PostReposGitTreesByOwnerByRepo,
+					mockTree,
+				),
+				// Create commit
+				WithRequestMatch(
+					PostReposGitCommitsByOwnerByRepo,
+					mockNewCommit,
+				),
+				// Create reference directly at new commit
+				WithRequestMatchHandler(
+					PostReposGitRefsByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"ref": "refs/heads/new-branch",
+						"sha": "jkl012",
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockCreatedBranchRef),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "new-branch",
+				"files": []any{
+					map[string]any{
+						"path":    "README.md",
+						"content": "# New branch README",
+					},
+				},
+				"message": "Push to new branch",
+			},
+			expectError: false,
+			expectedRef: mockCreatedBranchRef,
+		},
+		{
+			name: "fails to create tree on new branch does not create branch reference",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference: 404 for new-branch, 200 for default branch main
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func(w http.ResponseWriter, r *http.Request) {
+						path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+						w.Header().Set("Content-Type", "application/json")
+						switch {
+						case strings.Contains(path, "heads/new-branch"):
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						case strings.Contains(path, "heads/main"):
+							w.WriteHeader(http.StatusOK)
+							_ = json.NewEncoder(w).Encode(mockRef)
+						default:
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						}
+					},
+				),
+				// Resolve default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: new("main"),
+					},
+				),
+				// Get base commit from default branch
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				// Fail to create tree (e.g. malformed path component)
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
+					mockResponse(t, http.StatusUnprocessableEntity, map[string]any{
+						"message": "tree.path contains a malformed path component",
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "new-branch",
+				"files": []any{
+					map[string]any{
+						"path":    ".git/config",
+						"content": "x",
+					},
+				},
+				"message": "Push with invalid path",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create tree",
+		},
+		{
+			name: "fails to create commit on new branch does not create branch reference",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference: 404 for new-branch, 200 for default branch main
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func(w http.ResponseWriter, r *http.Request) {
+						path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+						w.Header().Set("Content-Type", "application/json")
+						switch {
+						case strings.Contains(path, "heads/new-branch"):
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						case strings.Contains(path, "heads/main"):
+							w.WriteHeader(http.StatusOK)
+							_ = json.NewEncoder(w).Encode(mockRef)
+						default:
+							w.WriteHeader(http.StatusNotFound)
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
+						}
+					},
+				),
+				// Resolve default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: new("main"),
+					},
+				),
+				// Get base commit from default branch
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				// Create tree succeeds
+				WithRequestMatch(
+					PostReposGitTreesByOwnerByRepo,
+					mockTree,
+				),
+				// Fail to create commit
+				WithRequestMatchHandler(
+					PostReposGitCommitsByOwnerByRepo,
+					mockResponse(t, http.StatusInternalServerError, nil),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "new-branch",
+				"files": []any{
+					map[string]any{
+						"path":    "README.md",
+						"content": "# Test",
+					},
+				},
+				"message": "Push commit fail",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create commit",
 		},
 	}
 
