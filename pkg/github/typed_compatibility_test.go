@@ -268,7 +268,6 @@ func TestTypedCompatibilityDirectoryProjection(t *testing.T) {
 	}
 }
 
-
 // TestTypedCompatibilityDirectoryDownloadURL verifies that download URLs are
 // omitted from default directory listings across protocols and remain opt-in.
 func TestTypedCompatibilityDirectoryDownloadURL(t *testing.T) {
