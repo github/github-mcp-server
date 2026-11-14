@@ -268,6 +268,43 @@ func TestTypedCompatibilityDirectoryProjection(t *testing.T) {
 	}
 }
 
+
+// TestTypedCompatibilityDirectoryDownloadURL verifies that download URLs are
+// omitted from default directory listings across protocols and remain opt-in.
+func TestTypedCompatibilityDirectoryDownloadURL(t *testing.T) {
+	tool := GetFileContents(translations.NullTranslationHelper)
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		t.Run(protocol+"/default", func(t *testing.T) {
+			session := connectTypedSearchClient(t, tool, typedRepositoryDeps(t), protocol)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: tool.Tool.Name, Arguments: map[string]any{"owner": "owner", "repo": "repo", "path": "directory"},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			assert.NotContains(t, getTextResult(t, result).Text, "download_url")
+			if protocol == inventory.ProtocolVersionMultiRoundTrip {
+				require.NotNil(t, result.StructuredContent)
+				assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "download_url")
+			}
+		})
+		t.Run(protocol+"/explicit opt-in", func(t *testing.T) {
+			session := connectTypedSearchClient(t, tool, typedRepositoryDeps(t), protocol)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: tool.Tool.Name, Arguments: map[string]any{
+					"owner": "owner", "repo": "repo", "path": "directory", "fields": []string{"download_url"},
+				},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			assert.JSONEq(t, `[{"download_url":"https://raw.githubusercontent.com/owner/repo/main/file"}]`, getTextResult(t, result).Text)
+			if protocol == inventory.ProtocolVersionMultiRoundTrip {
+				require.NotNil(t, result.StructuredContent)
+				assert.Contains(t, mustMarshalJSON(t, result.StructuredContent), "download_url")
+			}
+		})
+	}
+}
+
 func TestTypedCompatibilityBlameIFC(t *testing.T) {
 	for _, private := range []bool{false, true} {
 		for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
