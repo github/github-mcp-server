@@ -463,6 +463,13 @@ func Test_OptionalIntParam(t *testing.T) {
 			expected:    math.MinInt,
 			expectError: false,
 		},
+		{
+			name:        "MaxInt32 float64 parameter",
+			params:      map[string]any{"count": float64(math.MaxInt32)},
+			paramName:   "count",
+			expected:    math.MaxInt32,
+			expectError: false,
+		},
 	}
 
 	for _, tc := range tests {
