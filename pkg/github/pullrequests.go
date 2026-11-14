@@ -508,7 +508,8 @@ type reviewCommentNode struct {
 	StartLine         *githubv4.Int
 	OriginalStartLine *githubv4.Int
 	Author            struct {
-		Login githubv4.String
+		Login    githubv4.String
+		TypeName githubv4.String `graphql:"__typename"`
 	}
 	CreatedAt githubv4.DateTime
 	UpdatedAt githubv4.DateTime
@@ -579,7 +580,7 @@ func getPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 			for _, comment := range thread.Comments.Nodes {
 				login := string(comment.Author.Login)
 				if login != "" {
-					isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+					isSafeContent, err := cache.IsSafeActorContent(ctx, login, string(comment.Author.TypeName), owner, repo)
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to check lockdown mode: %w", err)
 					}
