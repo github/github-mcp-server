@@ -928,7 +928,7 @@ func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 // Test_GetFileContents_DirectoryOmitsDownloadURLByDefault verifies that directory
 // listings omit bearer-token URLs from the model-visible text by default.
 func Test_GetFileContents_DirectoryOmitsDownloadURLByDefault(t *testing.T) {
-	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN"
+	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN" //nolint:gosec // G101: Synthetic tokenized download URL fixture verifies default omission; it cannot authenticate.
 	result, requests := runRepositoryReadFixture(t, repositoryReadFixture{
 		contents: []*github.RepositoryContent{{
 			Type:        new("file"),
@@ -956,7 +956,7 @@ func Test_GetFileContents_DirectoryOmitsDownloadURLByDefault(t *testing.T) {
 }
 
 func TestCloneDirectoryEntriesWithoutDownloadURLs(t *testing.T) {
-	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN"
+	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN" //nolint:gosec // G101: Synthetic tokenized download URL fixture verifies default omission; it cannot authenticate.
 	entry := &github.RepositoryContent{Name: new(".env.example"), DownloadURL: new(tokenizedURL)}
 	original := []*github.RepositoryContent{entry, nil}
 
