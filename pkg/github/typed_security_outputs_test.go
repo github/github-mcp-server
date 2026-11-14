@@ -27,11 +27,11 @@ func securityOutputSchema(t *testing.T, name string) *jsonschema.Schema {
 	case "get_code_scanning_alert":
 		schema, err = jsonschema.For[*CodeScanningAlertOutput](nil)
 	case "list_code_scanning_alerts":
-		schema, err = jsonschema.For[[]*CodeScanningAlertOutput](nil)
+		schema, err = jsonschema.For[CodeScanningAlertsOutput](nil)
 	case "get_secret_scanning_alert":
 		schema, err = jsonschema.For[*SecretScanningAlertOutput](nil)
 	case "list_secret_scanning_alerts":
-		schema, err = jsonschema.For[[]*SecretScanningAlertOutput](nil)
+		schema, err = jsonschema.For[SecretScanningAlertsOutput](nil)
 	case "get_dependabot_alert":
 		schema, err = jsonschema.For[*DependabotAlertOutput](nil)
 	case "list_dependabot_alerts":
@@ -138,10 +138,16 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 	legacyOutputs := map[string]any{
 		"get_code_quality_finding":    codeQualityFinding,
 		"get_code_scanning_alert":     codeScanningAlert,
-		"list_code_scanning_alerts":   []*github.Alert{codeScanningAlert},
-		"get_secret_scanning_alert":   secretScanningAlert,
-		"list_secret_scanning_alerts": []*github.SecretScanningAlert{secretScanningAlert},
-		"get_dependabot_alert":        dependabotAlert,
+		"list_code_scanning_alerts": struct {
+			Alerts   []*github.Alert `json:"alerts"`
+			PageInfo pageInfo        `json:"pageInfo"`
+		}{Alerts: []*github.Alert{codeScanningAlert}},
+		"get_secret_scanning_alert": secretScanningAlert,
+		"list_secret_scanning_alerts": struct {
+			Alerts   []*github.SecretScanningAlert `json:"alerts"`
+			PageInfo pageInfo                      `json:"pageInfo"`
+		}{Alerts: []*github.SecretScanningAlert{secretScanningAlert}},
+		"get_dependabot_alert": dependabotAlert,
 		"list_dependabot_alerts": struct {
 			Alerts   []*github.DependabotAlert `json:"alerts"`
 			PageInfo pageInfo                  `json:"pageInfo"`
@@ -383,7 +389,9 @@ func TestSecurityOutputDTOs(t *testing.T) {
 	for _, typ := range []reflect.Type{
 		reflect.TypeFor[CodeQualityFindingOutput](),
 		reflect.TypeFor[CodeScanningAlertOutput](),
+		reflect.TypeFor[CodeScanningAlertsOutput](),
 		reflect.TypeFor[SecretScanningAlertOutput](),
+		reflect.TypeFor[SecretScanningAlertsOutput](),
 		reflect.TypeFor[DependabotAlertsOutput](),
 		reflect.TypeFor[GlobalSecurityAdvisoryOutput](),
 	} {
