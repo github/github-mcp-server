@@ -925,6 +925,53 @@ func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 	assert.NotContains(t, textContent.Text, "download_url")
 }
 
+// Test_GetFileContents_DirectoryOmitsDownloadURLByDefault verifies that directory
+// listings omit bearer-token URLs from the model-visible text by default.
+func Test_GetFileContents_DirectoryOmitsDownloadURLByDefault(t *testing.T) {
+	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN" //nolint:gosec // G101: Synthetic tokenized download URL fixture verifies default omission; it cannot authenticate.
+	result, requests := runRepositoryReadFixture(t, repositoryReadFixture{
+		contents: []*github.RepositoryContent{{
+			Type:        new("file"),
+			Name:        new(".env.example"),
+			Path:        new(".env.example"),
+			SHA:         new("abc123"),
+			Size:        new(42),
+			HTMLURL:     new("https://github.com/owner/private-repo/blob/main/.env.example"),
+			DownloadURL: new(tokenizedURL),
+		}},
+	}, map[string]any{
+		"owner": "owner",
+		"repo":  "private-repo",
+		"path":  "src/",
+		"sha":   strings.Repeat("a", 40),
+	})
+
+	require.False(t, result.IsError)
+	assert.Equal(t, 1, requests)
+	textContent := getTextResult(t, result)
+	assert.NotContains(t, textContent.Text, "download_url")
+	assert.NotContains(t, textContent.Text, "GHSAT0AAAAA_SECRET_TOKEN")
+	assert.Contains(t, textContent.Text, ".env.example")
+	assert.Contains(t, textContent.Text, "html_url")
+}
+
+func TestCloneDirectoryEntriesWithoutDownloadURLs(t *testing.T) {
+	const tokenizedURL = "https://raw.githubusercontent.com/owner/private-repo/main/.env.example?token=GHSAT0AAAAA_SECRET_TOKEN" //nolint:gosec // G101: Synthetic tokenized download URL fixture verifies default omission; it cannot authenticate.
+	entry := &github.RepositoryContent{Name: new(".env.example"), DownloadURL: new(tokenizedURL)}
+	original := []*github.RepositoryContent{entry, nil}
+
+	cloned := cloneDirectoryEntriesWithoutDownloadURLs(original)
+
+	require.Len(t, cloned, 2)
+	require.NotNil(t, cloned[0])
+	assert.NotSame(t, entry, cloned[0])
+	assert.Nil(t, cloned[0].DownloadURL)
+	assert.Equal(t, ".env.example", cloned[0].GetName())
+	assert.Nil(t, cloned[1])
+	require.NotNil(t, entry.DownloadURL)
+	assert.Equal(t, tokenizedURL, *entry.DownloadURL)
+}
+
 func Test_GetFileContents_DirectoryFieldsTelemetry(t *testing.T) {
 	mockDirContent := []*github.RepositoryContent{
 		{

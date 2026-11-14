@@ -1466,7 +1466,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **get_file_contents** - Get file or directory contents
   - **OAuth Challenge Scopes**: `repo`
-  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
+  - `fields`: Subset of fields to return for each entry when the path is a directory. 'download_url' is omitted by default; request it explicitly in 'fields' when needed. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)

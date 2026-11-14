@@ -1007,7 +1007,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 		Required: []string{"owner", "repo"},
 	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
-		"Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+		"Subset of fields to return for each entry when the path is a directory. 'download_url' is omitted by default; request it explicitly in 'fields' when needed. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
 		fileContentFieldEnum,
 	)
 
@@ -1192,7 +1192,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false
-				var payload any = dirContent
+				var payload any
 				if len(fields) > 0 {
 					filteredEntries, err := filterEachField(dirContent, fields)
 					if err != nil {
@@ -1200,6 +1200,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					payload = filteredEntries
 					filtered = true
+				} else {
+					payload = cloneDirectoryEntriesWithoutDownloadURLs(dirContent)
 				}
 				r, err := json.Marshal(payload)
 				if err != nil {
@@ -1224,6 +1226,21 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 		},
 		normalizeRepositoryFieldsArguments,
 	)
+}
+
+// cloneDirectoryEntriesWithoutDownloadURLs returns directory entries without
+// download URLs while leaving the API response untouched.
+func cloneDirectoryEntriesWithoutDownloadURLs(entries []*github.RepositoryContent) []*github.RepositoryContent {
+	cloned := make([]*github.RepositoryContent, len(entries))
+	for i, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		entryCopy := *entry
+		entryCopy.DownloadURL = nil
+		cloned[i] = &entryCopy
+	}
+	return cloned
 }
 
 // recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
