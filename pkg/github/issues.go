@@ -2746,11 +2746,11 @@ Options are:
 					},
 					"title": {
 						Type:        "string",
-						Description: "Issue title",
+						Description: "Issue title. Required for 'create'. For 'update', an empty string is rejected; omit title to keep it unchanged.",
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content",
+						Description: "Issue body content. For 'update', an empty string clears the body; omit body to keep it unchanged.",
 					},
 					"assignees": {
 						Type:        "array",
@@ -2883,12 +2883,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			titleValue, titleProvided := args["title"]
+			titleProvided = titleProvided && titleValue != nil
 
 			// Optional parameters
 			body, err := OptionalParam[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			bodyValue, bodyProvided := args["body"]
+			bodyProvided = bodyProvided && bodyValue != nil
 
 			// Get assignees
 			assignees, err := OptionalStringArrayParam(args, "assignees")
@@ -3017,6 +3021,8 @@ Options are:
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
 					IssueTypeProvided: issueTypeProvided,
+					TitleProvided:     titleProvided,
+					BodyProvided:      bodyProvided,
 				}))
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -3385,6 +3391,11 @@ type UpdateIssueOptions struct {
 	LabelsProvided bool
 	// IssueTypeProvided sends the type field, including an explicit clear.
 	IssueTypeProvided bool
+	// TitleProvided sends the title field, including an explicitly empty value.
+	// An empty title is rejected before the request is sent.
+	TitleProvided bool
+	// BodyProvided sends the body field, so an empty string clears the body.
+	BodyProvided bool
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
@@ -3406,17 +3417,25 @@ func updateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
 		updateOptions.IssueTypeProvided = updateOptions.IssueTypeProvided || opt.IssueTypeProvided
+		updateOptions.TitleProvided = updateOptions.TitleProvided || opt.TitleProvided
+		updateOptions.BodyProvided = updateOptions.BodyProvided || opt.BodyProvided
 	}
 
 	// Create the issue request with only provided fields
 	issueRequest := github.UpdateIssueRequest{}
 
-	// Set optional parameters if provided
-	if title != "" {
+	// Set optional parameters if provided. An empty body is meaningful (it
+	// clears the body), and an empty title is rejected rather than treated as
+	// "not provided", so both are decided by presence, not by value.
+	if updateOptions.TitleProvided && title == "" {
+		return utils.NewToolResultError("title cannot be empty, omit it to keep the current title"), nil, nil
+	}
+
+	if title != "" || updateOptions.TitleProvided {
 		issueRequest.Title = new(title)
 	}
 
-	if body != "" {
+	if body != "" || updateOptions.BodyProvided {
 		issueRequest.Body = new(body)
 	}
 
