@@ -632,3 +632,47 @@ func TestConsolidatedPullRequestOutputTypesAreCurated(t *testing.T) {
 		check(typ)
 	}
 }
+
+func TestPullRequestReviewWriteResolveThreadSchema(t *testing.T) {
+	// Advertised schema must not require owner/repo/pullNumber so MCP clients can
+	// call resolve_thread / unresolve_thread with only threadId (#3501).
+	for _, protocol := range typedPullRequestProtocols {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			session, _ := consolidatedPullRequestSession(t, consolidatedPullRequestDeps(t), protocol, false)
+			list, err := session.ListTools(context.Background(), nil)
+			require.NoError(t, err)
+			var schema map[string]any
+			for _, tool := range list.Tools {
+				if tool.Name != "pull_request_review_write" {
+					continue
+				}
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &schema))
+			}
+			require.NotEmpty(t, schema)
+			required, _ := schema["required"].([]any)
+			assert.Equal(t, []any{"method"}, required)
+
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: "pull_request_review_write",
+				Arguments: map[string]any{
+					"method":   "resolve_thread",
+					"threadId": "T_1",
+				},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError, mustMarshalJSON(t, result))
+			assert.Contains(t, getTextResult(t, result).Text, "review thread resolved successfully")
+
+			missing, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: "pull_request_review_write",
+				Arguments: map[string]any{
+					"method":     "create",
+					"pullNumber": 1,
+				},
+			})
+			require.NoError(t, err)
+			require.True(t, missing.IsError)
+			assert.Contains(t, getErrorResult(t, missing).Text, "owner, repo, and pullNumber are required for create method")
+		})
+	}
+}

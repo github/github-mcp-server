@@ -594,6 +594,16 @@ func normalizePullRequestReviewWriteArguments(raw json.RawMessage) (json.RawMess
 	if !slices.Contains([]string{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"}, params.Method) {
 		return nil, fmt.Errorf("unknown method: %s", params.Method)
 	}
+	switch params.Method {
+	case "resolve_thread", "unresolve_thread":
+		if params.ThreadID == "" {
+			return nil, fmt.Errorf("threadId is required for resolve_thread and unresolve_thread methods")
+		}
+	case "create", "submit_pending", "delete_pending":
+		if params.Owner == "" || params.Repo == "" || params.PullNumber == 0 {
+			return nil, fmt.Errorf("owner, repo, and pullNumber are required for %s method", params.Method)
+		}
+	}
 	canonical := map[string]any{
 		"method": params.Method, "owner": params.Owner, "repo": params.Repo, "pullNumber": params.PullNumber,
 	}
