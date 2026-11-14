@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"maps"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
@@ -20,6 +22,7 @@ func Test_MergePullRequest_AuthorEmail(t *testing.T) {
 		name          string
 		protocol      string
 		args          map[string]any
+		wantNumber    githubv4.Int
 		wantInput     map[string]any
 		queryError    string
 		queryResult   map[string]any
@@ -29,6 +32,10 @@ func Test_MergePullRequest_AuthorEmail(t *testing.T) {
 	}{
 		{name: "default merge method"},
 		{name: "legacy protocol text result", protocol: "2025-11-25"},
+		{name: "minimum pull number", args: map[string]any{"pullNumber": 1}, wantNumber: 1},
+		{name: "maximum pull number", args: map[string]any{"pullNumber": 2147483647}, wantNumber: 2147483647},
+		{name: "minimum numeric string", args: map[string]any{"pullNumber": "1"}, wantNumber: 1},
+		{name: "maximum numeric string", args: map[string]any{"pullNumber": "2147483647"}, wantNumber: 2147483647},
 		{
 			name:      "merge",
 			args:      map[string]any{"merge_method": "merge"},
@@ -81,6 +88,10 @@ func Test_MergePullRequest_AuthorEmail(t *testing.T) {
 				"author_email": "work@example.com",
 			}
 			maps.Copy(args, tc.args)
+			wantNumber := tc.wantNumber
+			if wantNumber == 0 {
+				wantNumber = 42
+			}
 			wantInput := map[string]any{"pullRequestId": "PR_42", "authorEmail": "work@example.com"}
 			maps.Copy(wantInput, tc.wantInput)
 			queryResponse := githubv4mock.DataResponse(map[string]any{
@@ -106,7 +117,7 @@ func Test_MergePullRequest_AuthorEmail(t *testing.T) {
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					`query($owner:String!$prNum:Int!$repo:String!){repository(owner: $owner, name: $repo){pullRequest(number: $prNum){id}}}`,
-					map[string]any{"owner": githubv4.String("owner"), "repo": githubv4.String("repo"), "prNum": githubv4.Int(42)},
+					map[string]any{"owner": githubv4.String("owner"), "repo": githubv4.String("repo"), "prNum": wantNumber},
 					queryResponse,
 				),
 				githubv4mock.NewQueryMatcher(
@@ -146,6 +157,60 @@ func Test_MergePullRequest_AuthorEmail(t *testing.T) {
 			structured, err := json.Marshal(result.StructuredContent)
 			require.NoError(t, err)
 			assert.JSONEq(t, want, string(structured))
+		})
+	}
+}
+
+func Test_MergePullRequest_AuthorEmail_InvalidPullNumber(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				pullNumber any
+			}{
+				{name: "zero", pullNumber: 0},
+				{name: "negative", pullNumber: -1},
+				{name: "above maximum", pullNumber: int64(2147483648)},
+				{name: "wraps to another pull request", pullNumber: int64(4294967338)},
+				{name: "negative numeric string", pullNumber: "-1"},
+				{name: "above maximum numeric string", pullNumber: "2147483648"},
+				{name: "numeric string wraps to another pull request", pullNumber: "4294967338"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var requests atomic.Int32
+					httpClient := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						requests.Add(1)
+						var body struct {
+							Query     string         `json:"query"`
+							Variables map[string]any `json:"variables"`
+						}
+						if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+							t.Error(err)
+							w.WriteHeader(http.StatusBadRequest)
+							return
+						}
+						t.Logf("unexpected GitHub request: %s %v", body.Query, body.Variables)
+						response := `{"data":{"repository":{"pullRequest":{"id":"PR_42"}}}}`
+						if strings.HasPrefix(body.Query, "mutation") {
+							response = `{"data":{"mergePullRequest":{"pullRequest":{"merged":true,"mergeCommit":{"oid":"merge-sha"}}}}}`
+						}
+						_, err := w.Write([]byte(response))
+						assert.NoError(t, err)
+					})}}
+					deps := BaseDeps{Client: mustNewGHClient(t, httpClient), GQLClient: githubv4.NewClient(httpClient)}
+					session, _ := consolidatedPullRequestSession(t, deps, protocol, false)
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: "merge_pull_request",
+						Arguments: map[string]any{
+							"owner": "owner", "repo": "repo", "pullNumber": tc.pullNumber,
+							"author_email": "work@example.com",
+						},
+					})
+					require.NoError(t, err)
+					assert.Zero(t, requests.Load(), "invalid pull numbers must not reach GitHub")
+					assert.True(t, result.IsError, "invalid pull numbers must fail instead of merging")
+				})
+			}
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -1803,6 +1804,9 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func mergePullRequestWithAuthorEmail(ctx context.Context, deps ToolDependencies, input MergePullRequestInput) (*mcp.CallToolResult, *PullRequestMergeOutput, error) {
+	if input.PullNumber < 1 || input.PullNumber > math.MaxInt32 {
+		return utils.NewToolResultError("pullNumber must be between 1 and 2147483647"), nil, nil
+	}
 	client, err := deps.GetGQLClient(ctx)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
@@ -1817,7 +1821,7 @@ func mergePullRequestWithAuthorEmail(ctx context.Context, deps ToolDependencies,
 	err = client.Query(ctx, &query, map[string]any{
 		"owner": githubv4.String(input.Owner),
 		"repo":  githubv4.String(input.Repo),
-		"prNum": githubv4.Int(input.PullNumber), // #nosec G115 - pull request numbers are always small positive integers
+		"prNum": githubv4.Int(input.PullNumber),
 	})
 	if err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to find pull request", err), nil, nil
