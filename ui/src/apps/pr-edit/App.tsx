@@ -25,7 +25,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
-import { completedToolResult } from "../../lib/toolResult";
+import { completedToolResult, hasExactIssueReference, parseNumberFromURL } from "../../lib/toolResult";
 import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
@@ -167,7 +167,11 @@ function SuccessView({
   submittedTitle: string;
   openLink: (url: string) => Promise<void>;
 }) {
-  const prUrl = pr.html_url || pr.url || pr.URL || "#";
+  const rawUrl = pr.html_url || pr.url || pr.URL;
+  const prNumber = pr.number ?? parseNumberFromURL(rawUrl);
+  const prUrl = rawUrl || (owner && repo && prNumber ? `https://github.com/${owner}/${repo}/pull/${prNumber}` : "#");
+  const titleText = pr.title || submittedTitle;
+  const displayTitle = titleText || (prNumber ? `Pull request #${prNumber}` : "View pull request");
 
   return (
     <div
@@ -249,8 +253,8 @@ function SuccessView({
               textDecoration: "none",
             }}
           >
-            {pr.title || submittedTitle}
-            {pr.number && (
+            {displayTitle}
+            {prNumber && titleText && !hasExactIssueReference(titleText, prNumber) && (
               <Text
                 style={{
                   color: "var(--fgColor-muted)",
@@ -258,7 +262,7 @@ function SuccessView({
                   marginLeft: 4,
                 }}
               >
-                #{pr.number}
+                #{prNumber}
               </Text>
             )}
           </a>
@@ -534,7 +538,7 @@ function EditPRApp() {
   if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle || title || (toolInput?.title as string) || ""} openLink={openLink} />
       </AppProvider>
     );
   }
