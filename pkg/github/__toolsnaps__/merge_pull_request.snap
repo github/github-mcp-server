@@ -19,6 +19,10 @@
   ],
   "inputSchema": {
     "properties": {
+      "author_email": {
+        "description": "Email address to associate with the merge commit",
+        "type": "string"
+      },
       "commit_message": {
         "description": "Extra detail for merge commit",
         "type": "string"

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v92/github"
@@ -1692,6 +1693,10 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				Type:        "string",
 				Description: "Extra detail for merge commit",
 			},
+			"author_email": {
+				Type:        "string",
+				Description: "Email address to associate with the merge commit",
+			},
 			"merge_method": {
 				Type:        "string",
 				Description: "Merge method",
@@ -1758,6 +1763,9 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				SHA:         expectedHeadSHA,
 				MergeMethod: mergeMethod,
 			}
+			if input.AuthorEmail != nil && *input.AuthorEmail != "" {
+				return mergePullRequestWithAuthorEmail(ctx, deps, input)
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1792,6 +1800,76 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 			return utils.NewToolResultText(string(r)), output, nil
 		}, normalizePullRequestArguments("merge"))
+}
+
+func mergePullRequestWithAuthorEmail(ctx context.Context, deps ToolDependencies, input MergePullRequestInput) (*mcp.CallToolResult, *PullRequestMergeOutput, error) {
+	client, err := deps.GetGQLClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+	}
+	var query struct {
+		Repository struct {
+			PullRequest struct {
+				ID githubv4.ID
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+	err = client.Query(ctx, &query, map[string]any{
+		"owner": githubv4.String(input.Owner),
+		"repo":  githubv4.String(input.Repo),
+		"prNum": githubv4.Int(input.PullNumber), // #nosec G115 - pull request numbers are always small positive integers
+	})
+	if err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to find pull request", err), nil, nil
+	}
+	if query.Repository.PullRequest.ID == nil {
+		return utils.NewToolResultError("failed to find pull request"), nil, nil
+	}
+	mergeInput := githubv4.MergePullRequestInput{
+		PullRequestID: query.Repository.PullRequest.ID,
+		AuthorEmail:   githubv4.NewString(githubv4.String(*input.AuthorEmail)),
+	}
+	if input.CommitTitle != nil && *input.CommitTitle != "" {
+		mergeInput.CommitHeadline = githubv4.NewString(githubv4.String(*input.CommitTitle))
+	}
+	if input.CommitMessage != nil && *input.CommitMessage != "" {
+		mergeInput.CommitBody = githubv4.NewString(githubv4.String(*input.CommitMessage))
+	}
+	if input.MergeMethod != nil && *input.MergeMethod != "" {
+		mergeInput.MergeMethod = new(githubv4.PullRequestMergeMethod(strings.ToUpper(*input.MergeMethod)))
+	}
+	if input.ExpectedHeadSHA != nil && *input.ExpectedHeadSHA != "" {
+		mergeInput.ExpectedHeadOid = new(githubv4.GitObjectID(*input.ExpectedHeadSHA))
+	}
+	var mutation struct {
+		MergePullRequest struct {
+			PullRequest struct {
+				Merged      githubv4.Boolean
+				MergeCommit *struct {
+					OID githubv4.GitObjectID
+				}
+			}
+		} `graphql:"mergePullRequest(input: $input)"`
+	}
+	if err := client.Mutate(ctx, &mutation, mergeInput, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to merge pull request", err), nil, nil
+	}
+	pr := mutation.MergePullRequest.PullRequest
+	if !bool(pr.Merged) {
+		return utils.NewToolResultError("pull request was not merged"), nil, nil
+	}
+	result := &PullRequestMergeResult{
+		Merged:  new(true),
+		Message: new("Pull Request successfully merged"),
+	}
+	if pr.MergeCommit != nil {
+		result.SHA = new(string(pr.MergeCommit.OID))
+	}
+	r, err := json.Marshal(result)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+	return utils.NewToolResultText(string(r)), &PullRequestMergeOutput{Result: result}, nil
 }
 
 // SearchPullRequests creates a tool to search for pull requests.
