@@ -34,13 +34,17 @@
         "x-mcp-header": "owner"
       },
       "path": {
-        "description": "Path to the file to delete",
+        "description": "Path to the file to delete. A directory path is rejected; pass a single file path.",
         "type": "string"
       },
       "repo": {
         "description": "Repository name",
         "type": "string",
         "x-mcp-header": "repo"
+      },
+      "sha": {
+        "description": "Blob SHA of the file, as returned by get_file_contents. When set, the delete is rejected if another writer changed the file since it was read. Omit to delete whatever is at the path.",
+        "type": "string"
       }
     },
     "required": [

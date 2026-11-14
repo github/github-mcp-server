@@ -1355,7 +1355,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"path": {
 						Type:        "string",
-						Description: "Path to the file to delete",
+						Description: "Path to the file to delete. A directory path is rejected; pass a single file path.",
 					},
 					"message": {
 						Type:        "string",
@@ -1364,6 +1364,10 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"branch": {
 						Type:        "string",
 						Description: "Branch to delete the file from",
+					},
+					"sha": {
+						Type:        "string",
+						Description: "Blob SHA of the file, as returned by get_file_contents. When set, the delete is rejected if another writer changed the file since it was read. Omit to delete whatever is at the path.",
 					},
 				},
 				Required: []string{"owner", "repo", "path", "message", "branch"},
@@ -1425,6 +1429,40 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
+			}
+
+			// Look up what is actually at the path before deleting it. The tree
+			// entry below deletes a whole subtree when the path is a directory, and
+			// carries no precondition, so this is the only place to notice that the
+			// requested blob is missing or that the caller holds a stale sha.
+			//
+			// Pin the lookup to the commit the tree is built from: a branch can be
+			// rewound between this read and the tree creation, and then the check
+			// would validate a different tree than the deletion modifies.
+			fileContent, dirContent, contentsResp, err := client.Repositories.GetContents(ctx, owner, repo, path, &github.RepositoryContentGetOptions{Ref: baseCommit.GetSHA()})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to get contents of %s on branch %s", path, branch),
+					contentsResp,
+					err,
+				), nil, nil
+			}
+			// Close this response independently: the defers above capture resp,
+			// and a transport failure here can leave contentsResp nil.
+			if contentsResp != nil {
+				defer func() { _ = contentsResp.Body.Close() }()
+			}
+			if dirContent != nil {
+				return utils.NewToolResultError(fmt.Sprintf("path %q is a directory; delete_file only removes a single file", path)), nil, nil
+			}
+			if fileContent == nil {
+				return utils.NewToolResultError(fmt.Sprintf("path %q was not found on branch %s", path, branch)), nil, nil
+			}
+			if input.Sha != "" && fileContent.GetSHA() != input.Sha {
+				return utils.NewToolResultError(fmt.Sprintf(
+					"sha mismatch for %s: requested %s but the file is at %s; re-read the file and retry",
+					path, input.Sha, fileContent.GetSHA(),
+				)), nil, nil
 			}
 
 			// Create a tree entry for the file deletion by setting SHA to nil
