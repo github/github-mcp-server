@@ -57,6 +57,12 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
 }
 
+func TestHTTPListenHostDefaultsToLoopback(t *testing.T) {
+	flag := httpCmd.Flags().Lookup("listen-host")
+	require.NotNil(t, flag)
+	assert.Equal(t, "127.0.0.1", flag.DefValue)
+}
+
 func TestWriteToolDocScopes(t *testing.T) {
 	tool := inventory.ServerTool{
 		Tool:        mcp.Tool{Name: "delete", Annotations: &mcp.ToolAnnotations{Title: "Delete"}},
