@@ -1228,7 +1228,6 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
-
 // cloneDirectoryEntriesWithoutDownloadURLs returns directory entries without
 // download URLs while leaving the API response untouched.
 func cloneDirectoryEntriesWithoutDownloadURLs(entries []*github.RepositoryContent) []*github.RepositoryContent {
