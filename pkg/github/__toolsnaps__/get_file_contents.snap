@@ -20,7 +20,7 @@
   "inputSchema": {
     "properties": {
       "fields": {
-        "description": "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+        "description": "Subset of fields to return for each entry when the path is a directory. 'download_url' is omitted by default; request it explicitly in 'fields' when needed. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
         "items": {
           "enum": [
             "type",
