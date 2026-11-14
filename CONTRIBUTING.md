@@ -42,7 +42,7 @@ typescript-eslint, or ts-node is required.
 
 ### MCP Apps UI
 
-The `ui/` views use React 19 and Primer React 38. With Node.js 20.19+ or 22.12+, run `cd ui && npm ci && npm run typecheck && npm run build && npm audit` before `script/test`. The build writes self-contained HTML to `pkg/github/ui_dist/`, which the Go server embeds; these generated files are not committed.
+The `ui/` views use React 19 and Primer React 38. With Node.js 26.x (as required by `ui/package.json`), run `cd ui && npm ci && npm run typecheck && npm run build && npm audit` before `script/test`. The build writes self-contained HTML to `pkg/github/ui_dist/`, which the Go server embeds; these generated files are not committed.
 
 Primer 38 no longer exports `Box` or accepts `sx`/styled-system props. Use semantic HTML, native `style` props for dynamic/layout styles, and CSS Modules for nested selectors. `AppProvider` loads Primer's primitive tokens and light/dark themes, so use CSS variables rather than JavaScript theme values. Custom element typings must augment `react/jsx-runtime` rather than the global `JSX` namespace.
 
