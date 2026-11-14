@@ -925,7 +925,6 @@ func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 	assert.NotContains(t, textContent.Text, "download_url")
 }
 
-
 // Test_GetFileContents_DirectoryOmitsDownloadURLByDefault verifies that directory
 // listings omit bearer-token URLs from the model-visible text by default.
 func Test_GetFileContents_DirectoryOmitsDownloadURLByDefault(t *testing.T) {
