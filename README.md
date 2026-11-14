@@ -1343,6 +1343,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 - **pull_request_read** - Get details for a single pull request
   - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page. (string, optional)
+  - `include_reactions`: Include reaction counts for get_reviews or get_review_comments. Defaults to false. (boolean, optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
      1. get - Get details of a specific pull request.

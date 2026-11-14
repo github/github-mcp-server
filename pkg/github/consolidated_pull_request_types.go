@@ -14,13 +14,14 @@ import (
 )
 
 type PullRequestReadInput struct {
-	Method     string  `json:"method"`
-	Owner      string  `json:"owner"`
-	Repo       string  `json:"repo"`
-	PullNumber int     `json:"pullNumber"`
-	Page       *int    `json:"page,omitempty"`
-	PerPage    *int    `json:"perPage,omitempty"`
-	After      *string `json:"after,omitempty"`
+	Method           string  `json:"method"`
+	Owner            string  `json:"owner"`
+	Repo             string  `json:"repo"`
+	PullNumber       int     `json:"pullNumber"`
+	Page             *int    `json:"page,omitempty"`
+	PerPage          *int    `json:"perPage,omitempty"`
+	After            *string `json:"after,omitempty"`
+	IncludeReactions bool    `json:"include_reactions,omitempty"`
 }
 
 type CreatePullRequestInput struct {
@@ -415,6 +416,7 @@ var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 	"read": {
 		required: []string{"method", "owner", "repo"}, requiredInts: []string{"pullNumber"},
 		ints:    []string{"page", "perPage"},
+		bools:   []string{"include_reactions"},
 		methods: []string{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
 	},
 	"create": {
