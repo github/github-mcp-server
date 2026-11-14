@@ -642,7 +642,9 @@
           "number",
           "title",
           "state",
-          "assignees"
+          "labels",
+          "assignees",
+          "comments"
         ],
         "type": [
           "null",
@@ -915,6 +917,7 @@
             }
           },
           "required": [
+            "labels",
             "assignees"
           ],
           "type": [

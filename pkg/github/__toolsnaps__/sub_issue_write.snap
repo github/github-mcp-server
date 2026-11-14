@@ -240,6 +240,7 @@
           }
         },
         "required": [
+          "labels",
           "assignees"
         ],
         "type": [

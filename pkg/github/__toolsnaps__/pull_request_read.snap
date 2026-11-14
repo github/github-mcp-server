@@ -342,7 +342,10 @@
           "state",
           "draft",
           "merged",
-          "html_url"
+          "html_url",
+          "labels",
+          "assignees",
+          "requested_reviewers"
         ],
         "type": "object"
       },

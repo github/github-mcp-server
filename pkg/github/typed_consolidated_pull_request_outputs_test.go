@@ -273,7 +273,7 @@ func runTypedPullRequestCases(t *testing.T, session *mcp.ClientSession, schemas 
 }
 
 func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
-	const minimalPR = `{"number":1,"title":"Subject","body":"body","state":"open","draft":false,"merged":false,"mergeable_state":"clean","html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"},"head":{"ref":"feature","sha":"abc"},"base":{"ref":"main","sha":"def"},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`
+	const minimalPR = `{"number":1,"title":"Subject","body":"body","state":"open","draft":false,"merged":false,"mergeable_state":"clean","html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"},"labels":[],"assignees":[],"requested_reviewers":[],"head":{"ref":"feature","sha":"abc"},"base":{"ref":"main","sha":"def"},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`
 	const prRef = `{"id":"0","url":"https://github.com/owner/repo/pull/1"}`
 	cases := []typedPullRequestCase{
 		{"pull_request_read", map[string]any{"method": "get", "pullNumber": "1"}, minimalPR},
@@ -522,7 +522,7 @@ func TestTypedPullRequestContentParity(t *testing.T) {
 					require.NoError(t, schemas["pull_request_read"].Validate(result.StructuredContent))
 				} else {
 					assert.Nil(t, result.StructuredContent)
-					assert.Equal(t, `{"number":1,"title":"Subject","body":"body","state":"open","draft":false,"merged":false,"html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"}}`, text)
+					assert.Equal(t, `{"number":1,"title":"Subject","body":"body","state":"open","draft":false,"merged":false,"html_url":"https://github.com/owner/repo/pull/1","user":{"login":"octocat"},"labels":[],"assignees":[],"requested_reviewers":[]}`, text)
 				}
 			})
 		}
@@ -537,8 +537,8 @@ func TestConsolidatedPullRequestOutputSchemas(t *testing.T) {
 	}{
 		{
 			pullRequestReadOutputSchema(),
-			[]string{`null`, `[]`, `{"diff":""}`, `{"number":1,"title":"","state":"","draft":false,"merged":false,"html_url":""}`, `{"state":"","sha":"","total_count":0,"statuses":[]}`, `{"total_count":0,"check_runs":[]}`, `{"review_threads":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, `[{"filename":"f"}]`, `[{"id":1,"html_url":""}]`},
-			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `{"number":1}`, `{"number":1,"title":"","state":"unknown","draft":false,"merged":false,"html_url":""}`},
+			[]string{`null`, `[]`, `{"diff":""}`, `{"number":1,"title":"","state":"","draft":false,"merged":false,"html_url":"","labels":[],"assignees":[],"requested_reviewers":[]}`, `{"state":"","sha":"","total_count":0,"statuses":[]}`, `{"total_count":0,"check_runs":[]}`, `{"review_threads":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, `[{"filename":"f"}]`, `[{"id":1,"html_url":""}]`},
+			[]string{`{}`, `"diff"`, `{"diff":1}`, `[{"unknown":1}]`, `{"number":1}`, `{"number":1,"title":"","state":"unknown","draft":false,"merged":false,"html_url":"","labels":[],"assignees":[],"requested_reviewers":[]}`},
 		},
 		{
 			pullRequestWriteOutputSchema(),

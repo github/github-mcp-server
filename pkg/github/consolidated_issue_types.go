@@ -144,10 +144,10 @@ type IssueDetailsOutput struct {
 	HTMLURL              string                      `json:"html_url,omitempty" jsonschema:"Human-readable issue link."`
 	User                 *IssueUserOutput            `json:"user,omitempty"`
 	AuthorAssociation    string                      `json:"author_association,omitempty"`
-	Labels               []string                    `json:"labels,omitempty"`
+	Labels               []string                    `json:"labels"`
 	Assignees            []string                    `json:"assignees"`
 	Milestone            string                      `json:"milestone,omitempty"`
-	Comments             int                         `json:"comments,omitempty" jsonschema:"Number of comments."`
+	Comments             int                         `json:"comments" jsonschema:"Number of comments."`
 	Reactions            *MinimalReactions           `json:"reactions,omitempty"`
 	CreatedAt            string                      `json:"created_at,omitempty" jsonschema:"Creation time (RFC 3339)."`
 	UpdatedAt            string                      `json:"updated_at,omitempty" jsonschema:"Last update time (RFC 3339)."`
@@ -326,7 +326,7 @@ type SubIssueOutput struct {
 	StateReason      *string                     `json:"state_reason,omitempty"`
 	HTMLURL          *string                     `json:"html_url,omitempty" jsonschema:"Human-readable issue link."`
 	User             *IssueUserOutput            `json:"user,omitempty"`
-	Labels           []string                    `json:"labels,omitempty"`
+	Labels           []string                    `json:"labels"`
 	Assignees        []string                    `json:"assignees"`
 	Milestone        string                      `json:"milestone,omitempty"`
 	Comments         *int                        `json:"comments,omitempty" jsonschema:"Number of comments."`
