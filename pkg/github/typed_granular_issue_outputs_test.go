@@ -86,6 +86,8 @@ type granularIssueWireCase struct {
 }
 
 const granularMutationText = `{"id":"123","url":"https://github.com/owner/repo/issues/1"}`
+
+const granularLabelsMutationText = `{"id":"123","url":"https://github.com/owner/repo/issues/1","labels":[]}`
 const granularSubIssueAPIResponse = `{"id":7,"number":7,"title":"Child\u202e","body":"body\u202e","url":"https://api.github.com/repos/owner/repo/issues/7","html_url":"https://github.com/owner/repo/issues/7","comments_url":"https://api.github.com/repos/owner/repo/issues/7/comments","node_id":"I_7","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0},{"issue_field_id":12,"node_id":"IF_12","data_type":"text","value":""},{"issue_field_id":13,"node_id":"IF_13","data_type":"text","value":false},{"issue_field_id":14,"node_id":"IF_14","data_type":"text","value":null}]}`
 const granularSubIssueText = `{"id":7,"number":7,"title":"Child","body":"body","url":"https://api.github.com/repos/owner/repo/issues/7","html_url":"https://github.com/owner/repo/issues/7","comments_url":"https://api.github.com/repos/owner/repo/issues/7/comments","node_id":"I_7","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0},{"issue_field_id":12,"node_id":"IF_12","data_type":"text","value":""},{"issue_field_id":13,"node_id":"IF_13","data_type":"text","value":false},{"issue_field_id":14,"node_id":"IF_14","data_type":"text","value":null}]}`
 
@@ -103,9 +105,9 @@ func granularIssueWireCases() []granularIssueWireCase {
 		{"update_issue_assignees", map[string]any{"assignees": []string{}}, granularMutationText, "", `{"assignees":[]}`, "/repos/owner/repo/issues/1", "PATCH"},
 		{"update_issue_assignees", map[string]any{"assignees": []any{"octocat", map[string]any{"login": "hubot"}}}, granularMutationText, "", `{"assignees":["octocat","hubot"]}`, "/repos/owner/repo/issues/1", "PATCH"},
 		{"update_issue_assignees", map[string]any{"assignees": []any{"hubot", map[string]any{"login": "octocat", "rationale": "  Authored file  ", "confidence": " high\t", "is_suggestion": true}}}, granularMutationText, "", `{"assignees":["hubot",{"login":"octocat","rationale":"Authored file","confidence":"HIGH","suggest":true}]}`, "/repos/owner/repo/issues/1", "PATCH"},
-		{"update_issue_labels", map[string]any{"labels": []string{}}, granularMutationText, "", `{"labels":[]}`, "/repos/owner/repo/issues/1", "PATCH"},
-		{"update_issue_labels", map[string]any{"labels": []any{"bug", map[string]any{"name": "triage"}}}, granularMutationText, "", `{"labels":["bug","triage"]}`, "/repos/owner/repo/issues/1", "PATCH"},
-		{"update_issue_labels", map[string]any{"labels": []any{"triage", map[string]any{"name": "bug", "rationale": "  Crash  ", "confidence": " medium ", "is_suggestion": true}}}, granularMutationText, "", `{"labels":["triage",{"name":"bug","rationale":"Crash","confidence":"MEDIUM","suggest":true}]}`, "/repos/owner/repo/issues/1", "PATCH"},
+		{"update_issue_labels", map[string]any{"labels": []string{}}, granularLabelsMutationText, "", `{"labels":[]}`, "/repos/owner/repo/issues/1", "PATCH"},
+		{"update_issue_labels", map[string]any{"labels": []any{"bug", map[string]any{"name": "triage"}}}, granularLabelsMutationText, "", `{"labels":["bug","triage"]}`, "/repos/owner/repo/issues/1", "PATCH"},
+		{"update_issue_labels", map[string]any{"labels": []any{"triage", map[string]any{"name": "bug", "rationale": "  Crash  ", "confidence": " medium ", "is_suggestion": true}}}, granularLabelsMutationText, "", `{"labels":["triage",{"name":"bug","rationale":"Crash","confidence":"MEDIUM","suggest":true}]}`, "/repos/owner/repo/issues/1", "PATCH"},
 		{"update_issue_milestone", map[string]any{"milestone": "3e0"}, granularMutationText, "", `{"milestone":3}`, "/repos/owner/repo/issues/1", "PATCH"},
 		{"update_issue_type", map[string]any{"issue_type": nil}, granularMutationText, "", `{"type":null}`, "/repos/owner/repo/issues/1", "PATCH"},
 		{"update_issue_type", map[string]any{"issue_type": "Bug"}, granularMutationText, "", `{"type":"Bug"}`, "/repos/owner/repo/issues/1", "PATCH"},
@@ -395,7 +397,7 @@ func TestTypedGranularIssueWireErrors(t *testing.T) {
 						{"update_issue_title", map[string]any{"title": "Subject"}, `{"id":"0","url":""}`},
 						{"update_issue_body", map[string]any{"body": "Body"}, `{"id":"0","url":""}`},
 						{"update_issue_assignees", map[string]any{"assignees": []string{}}, `{"id":"0","url":""}`},
-						{"update_issue_labels", map[string]any{"labels": []string{}}, `{"id":"0","url":""}`},
+						{"update_issue_labels", map[string]any{"labels": []string{}}, `{"id":"0","url":"","labels":[]}`},
 						{"update_issue_milestone", map[string]any{"milestone": 3}, `{"id":"0","url":""}`},
 						{"update_issue_type", map[string]any{"issue_type": nil}, `{"id":"0","url":""}`},
 						{"update_issue_state", map[string]any{"state": "open"}, `{"id":"0","url":""}`},
