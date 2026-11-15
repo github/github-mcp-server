@@ -437,14 +437,14 @@ func parseBoolSetting(key string, flag *pflag.Flag) (bool, error) {
 		}
 		return false, nil
 	}
-	str := strings.TrimSpace(viper.GetString(key))
+	str := viper.GetString(key)
 	if str == "" {
 		if flag != nil {
 			return strconv.ParseBool(flag.DefValue)
 		}
 		return false, nil
 	}
-	switch strings.ToLower(str) {
+	switch strings.ToLower(strings.TrimSpace(str)) {
 	case "1", "t", "true", "yes", "y", "on", "enabled":
 		return true, nil
 	case "0", "f", "false", "no", "n", "off", "disabled":

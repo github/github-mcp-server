@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,6 +97,7 @@ func TestSchemaTypeString(t *testing.T) {
 }
 
 func TestParseBoolSetting(t *testing.T) {
+	initConfig()
 	tests := []struct {
 		envVal   string
 		expected bool
@@ -114,6 +116,7 @@ func TestParseBoolSetting(t *testing.T) {
 		{"ON", true},
 		{"enabled", true},
 		{"ENABLED", true},
+		{" yes ", true},
 		{"0", false},
 		{"f", false},
 		{"F", false},
@@ -128,6 +131,7 @@ func TestParseBoolSetting(t *testing.T) {
 		{"OFF", false},
 		{"disabled", false},
 		{"DISABLED", false},
+		{" no ", false},
 	}
 
 	for _, tc := range tests {
@@ -149,13 +153,16 @@ func TestParseBoolSetting(t *testing.T) {
 	}
 
 	t.Run("invalid boolean fails closed with descriptive error", func(t *testing.T) {
-		invalidValues := []string{"tru", "flase", "invalid", "2", "none"}
-		for _, v := range invalidValues {
-			t.Setenv("GITHUB_READ_ONLY", v)
-			flag := rootCmd.PersistentFlags().Lookup("read-only")
-			_, err := parseBoolSetting("read-only", flag)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), `invalid boolean value "`+v+`" for GITHUB_READ_ONLY`)
+		invalidValues := []string{"tru", "flase", "invalid", "2", "none", "   ", "\t\n"}
+		for _, key := range []string{"read-only", "lockdown-mode"} {
+			envVar := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+			for _, v := range invalidValues {
+				t.Setenv(envVar, v)
+				flag := rootCmd.PersistentFlags().Lookup(key)
+				_, err := parseBoolSetting(key, flag)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), fmt.Sprintf("invalid boolean value %q for %s", v, envVar))
+			}
 		}
 	})
 

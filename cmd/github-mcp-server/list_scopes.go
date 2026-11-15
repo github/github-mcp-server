@@ -99,7 +99,10 @@ func runListScopes() error {
 		}
 	}
 
-	readOnly := viper.GetBool("read-only")
+	readOnly, err := parseBoolSetting("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
+	if err != nil {
+		return err
+	}
 	outputFormat := viper.GetString("list-scopes-output")
 
 	// Create translation helper
