@@ -436,7 +436,7 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 			modernTool := *tool
 			cacheExplicitToolSchemas(&modernTool)
 			if modernTool.InputSchema == nil && reflect.TypeFor[In]() != reflect.TypeFor[any]() {
-				inferred, err := CachedInputSchemaFor[In](schemaOptions.Input, schemaOptions.InputEnums...)
+				inferred, err := CachedInputSchemaForTool[In](IsAppOnlyTool(tool), schemaOptions.Input, schemaOptions.InputEnums...)
 				if err != nil {
 					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
 				}
