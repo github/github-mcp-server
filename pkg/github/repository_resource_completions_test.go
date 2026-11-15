@@ -316,7 +316,7 @@ func TestCompletePath_RequestsTreeForResolvedRef(t *testing.T) {
 					}
 					requestedTrees = append(requestedTrees, tree)
 					mockResponse(t, http.StatusOK, &github.Tree{
-						Entries: []*github.TreeEntry{{Path: github.Ptr("README.md"), Type: github.Ptr("blob")}},
+						Entries: []*github.TreeEntry{{Path: new("README.md"), Type: new("blob")}},
 					})(w, r)
 				}
 			}))
