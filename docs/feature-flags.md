@@ -35,6 +35,68 @@ Only flags listed in
 [`AllowedFeatureFlags`](../pkg/github/feature_flags.go) can be enabled by
 end users. Insiders-only flags are not user-toggleable.
 
+## MCP skills
+
+The `skills` flag replaces server instructions with bundled workflow skills
+served through the `io.modelcontextprotocol/skills` extension. It is off by
+default and enabled automatically in Insiders Mode:
+
+```bash
+github-mcp-server stdio --features=skills
+# Equivalent opt-in: GITHUB_FEATURES=skills
+github-mcp-server stdio --insiders
+```
+
+When enabled, both initialization and `server/discover` omit instructions entirely.
+There is no discovery blurb or fallback instructions for clients without skills
+support. Without the flag, the existing server instructions are unchanged and
+the skills extension is not advertised.
+
+Clients discover skills with paginated `skills/list`, resolve one with
+`skills/get`, and read `skill://github.com/<name>/SKILL.md` and supporting files
+through `resources/read`. Directory reads are also supported. Entries contain
+the file manifests, byte lengths and SHA-256 digests defined by the
+[beta extension specification](https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx).
+
+The catalog is filtered against the current connection's tools: toolsets,
+explicit tools, exclusions, read-only mode, feature variants and token-scope
+filters apply. All required core tools must be available; missing optional tools
+are allowed. A withheld skill is unavailable through listing, direct get,
+directory reads and file reads alike. Tool associations remain server-side:
+there is no `allowed-tools` frontmatter or skill metadata on tools, and loading
+a skill grants no tool permissions.
+
+For a Copilot CLI build with experimental MCP skills support, enable
+`MCP_SKILLS=true` and add a stdio server:
+
+```bash
+MCP_SKILLS=true copilot --additional-mcp-config \
+  '{"mcpServers":{"github":{"type":"local","command":"/absolute/path/to/github-mcp-server","args":["stdio","--features=skills","--toolsets=context"],"tools":["*"]}}}'
+```
+
+In the CLI, use `/skills list` and invoke the discovered server-qualified skill
+command. For the `github` server above, the account skill command is
+`/mcp:github:skill:github.com:account-and-team-context`. Remove the context-only
+toolset restriction to expose workflows supported by the default toolsets.
+
+Supply credentials through the normal server environment, not configuration
+arguments or transcripts. Skill activation requires the client's explicit skill
+consent even with `/allow-all` or `--yolo`. Discovery, command naming and consent
+behavior depend on the CLI build; this flag alone does not establish client
+conformance.
+
+VS Code Insiders can opt into its skills client with
+`chat.agentHost.mcpSkills.enabled: true`, using the same server configuration.
+That setting is a client prerequisite, not a claim that every VS Code build
+supports every extension feature.
+
+Library integrators can extend `catalog.Source()` using `Registry.WithSkills`
+and supply the resulting registry as `MCPServerConfig.SkillsSource`. Set each
+additional skill's `RequiredTools` (groups of alternative tool names) and
+`OptionalTools` before building the registry. The shared constructor filters the
+catalog per request and removes instructions when its feature checker enables
+`github.FeatureFlagSkillsExtension`.
+
 ## Declaring tool availability
 
 ### Issue artifacts

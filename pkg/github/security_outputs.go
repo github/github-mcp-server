@@ -24,6 +24,13 @@ type GetSecurityAlertInput struct {
 	AlertNumber int    `json:"alertNumber"`
 }
 
+type GetSecretScanningAlertInput struct {
+	Owner       string `json:"owner"`
+	Repo        string `json:"repo"`
+	AlertNumber int    `json:"alertNumber"`
+	HideSecret  *bool  `json:"hide_secret,omitempty"`
+}
+
 type ListCodeScanningAlertsInput struct {
 	Owner    string `json:"owner"`
 	Repo     string `json:"repo"`
@@ -41,6 +48,7 @@ type ListSecretScanningAlertsInput struct {
 	State      string `json:"state,omitempty"`
 	SecretType string `json:"secret_type,omitempty"`
 	Resolution string `json:"resolution,omitempty"`
+	HideSecret *bool  `json:"hide_secret,omitempty"`
 	Page       *int   `json:"page,omitempty"`
 	PerPage    *int   `json:"perPage,omitempty"`
 }
