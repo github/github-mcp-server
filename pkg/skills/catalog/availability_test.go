@@ -44,6 +44,8 @@ var toolCoverageExemptions = map[string]string{
 	"update_issue_comment":                        "Editing existing issue comments is outside the current authoring and backlog workflows.",
 
 	// Copilot Automation tools are opt-in behind the agent_automations feature flag.
+	"create_automation":                            "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
+	"delete_automation":                            "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"get_automation":                               "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"get_automation_revision":                      "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"get_automations_configuration_for_repository": "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
@@ -51,6 +53,7 @@ var toolCoverageExemptions = map[string]string{
 	"list_automations":                             "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"list_available_automation_tools":              "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"list_available_automation_triggers":           "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
+	"update_automation":                            "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 }
 
 func TestCatalogToolRequirementsAreRegistered(t *testing.T) {
