@@ -53,6 +53,7 @@ var toolCoverageExemptions = map[string]string{
 	"list_automations":                             "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"list_available_automation_tools":              "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"list_available_automation_triggers":           "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
+	"run_automation":                               "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 	"update_automation":                            "Copilot Automation management is an opt-in, feature-flagged workflow not covered by the current catalog.",
 }
 
