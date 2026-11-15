@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
@@ -384,14 +385,39 @@ func TestNormalizeTypedReadArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
 		`{"perPage":"9223372036854775807"}`,
 		`{"page":"-9223372036854777856"}`,
 		`{"page": 9223372036854775808}`,
-		`{"perPage": 9223372036854775807}`,
 		`{"page": -9223372036854777856}`,
+		`{"page": -9223372036854775809}`,
+		`{"perPage": -9223372036854775809.0}`,
+		`{"page": -9.223372036854775809e18}`,
+		`{"page": 1.00000000000000001}`,
+		`{"page": 1e999999999}`,
+		`{"page": 1e-999999999}`,
 		`{"page": 1.5}`,
 	} {
 		t.Run(input, func(t *testing.T) {
 			_, err := normalize(json.RawMessage(input))
 			require.ErrorContains(t, err, "is not a valid number")
 		})
+	}
+}
+
+func TestNormalizeTypedReadArgumentsPreservesExactNumbers(t *testing.T) {
+	normalize := normalizeTypedReadArguments(nil, false)
+	for _, value := range []string{"25.0", "2.5e1", "250e-1"} {
+		t.Run(value, func(t *testing.T) {
+			normalized, err := normalize(json.RawMessage(`{"page":` + value + `}`))
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"page":25}`, string(normalized))
+		})
+	}
+	if strconv.IntSize == 64 {
+		for _, value := range []string{"9223372036854775807", "-9223372036854775808", "9007199254740993"} {
+			t.Run(value, func(t *testing.T) {
+				normalized, err := normalize(json.RawMessage(`{"perPage":` + value + `}`))
+				require.NoError(t, err)
+				assert.Equal(t, `{"perPage":`+value+`}`, string(normalized))
+			})
+		}
 	}
 }
 
