@@ -42,6 +42,9 @@ const FeatureFlagDuplicateDetection = "duplicate_detection"
 // FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
 const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 
+// FeatureFlagSkillsExtension replaces server instructions with MCP-served skills.
+const FeatureFlagSkillsExtension = "skills"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag, X-MCP-Features HTTP header, or the
 // features URL query parameter.
@@ -58,6 +61,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssueArtifacts,
 	FeatureFlagDuplicateDetection,
 	FeatureFlagThreadResolutionReason,
+	FeatureFlagSkillsExtension,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -68,6 +72,7 @@ var InsidersFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagSkillsExtension,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.
