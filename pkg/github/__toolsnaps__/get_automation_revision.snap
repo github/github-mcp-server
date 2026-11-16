@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get an automation revision"
+  },
+  "description": "Get a specific saved revision of a Copilot automation.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "revision_id": {
+        "description": "The revision identifier.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id",
+      "revision_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_automation_revision",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}
