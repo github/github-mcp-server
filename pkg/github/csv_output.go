@@ -292,7 +292,7 @@ func appendFlattenedCSVFields(row map[string]string, value map[string]any, prefi
 		case []any:
 			row[column] = csvArrayValue(v)
 		default:
-			row[column] = csvColumnValue(column, v)
+			row[column] = csvColumnValue(key, v)
 		}
 	}
 }
@@ -313,7 +313,19 @@ func csvHeaders(rows []map[string]string) []string {
 	return headers
 }
 
+// csvColumnKeyEscaper escapes the path separator inside a single key so that
+// a literal key such as "user.login" cannot collide with the nested path
+// user -> login. Escaping the escape character as well keeps the mapping
+// from key paths to column names injective.
+var csvColumnKeyEscaper = strings.NewReplacer(`\`, `\\`, `.`, `\.`)
+
+// csvColumnName joins a flattened key path with ".". Within each key, "\"
+// becomes "\\" and "." becomes "\.", so distinct source fields always map to
+// distinct columns: {"user":{"login":...}} yields user.login, while a literal
+// {"user.login":...} key yields user\.login. Keys without "." or "\" are
+// unchanged.
 func csvColumnName(prefix, key string) string {
+	key = csvColumnKeyEscaper.Replace(key)
 	if prefix == "" {
 		return key
 	}
@@ -346,9 +358,10 @@ func singleArrayKey(value map[string]any) (string, bool) {
 	return arrayKey, true
 }
 
-func csvColumnValue(column string, value any) string {
+// csvColumnValue formats a scalar field; key is the unescaped leaf key.
+func csvColumnValue(key string, value any) string {
 	str := scalarCSVValue(value)
-	if isBodyColumn(column) {
+	if isBodyKey(key) {
 		return normalizeCSVWhitespace(str)
 	}
 	return str
@@ -400,8 +413,8 @@ func scalarCSVValue(value any) string {
 	}
 }
 
-func isBodyColumn(column string) bool {
-	return column == "body" || strings.HasSuffix(column, ".body")
+func isBodyKey(key string) bool {
+	return key == "body"
 }
 
 func normalizeCSVWhitespace(value string) string {
