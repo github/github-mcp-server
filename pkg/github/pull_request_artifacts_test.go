@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	gogithub "github.com/google/go-github/v92/github"
@@ -190,7 +191,7 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 				} else {
 					assert.Nil(t, result.StructuredContent)
 				}
-				assert.NotContains(t, result.Meta, "ifc")
+				assert.JSONEq(t, mustMarshalJSON(t, ifc.PrivateUntrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
 				switch tc.method {
 				case "list":
 					var output PullRequestArtifactReadOutput
@@ -548,6 +549,59 @@ func TestPullRequestArtifactSanitization(t *testing.T) {
 	assert.Equal(t, "abc123", *artifact.CommitOID)
 	assert.Equal(t, "2026-11-13T00:00:00Z", *artifact.CreatedAt)
 	assert.Equal(t, "2026-11-13T00:00:00Z", *artifact.UpdatedAt)
-	assert.NotContains(t, result.Meta, "ifc")
+	assert.JSONEq(t, mustMarshalJSON(t, ifc.PublicUntrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
 	assert.Equal(t, 2, calls)
+}
+
+func TestPullRequestArtifactIFCLabels(t *testing.T) {
+	for _, method := range []string{"list", "upsert"} {
+		for _, visibility := range []struct {
+			name, repository string
+			label            ifc.SecurityLabel
+		}{
+			{"public", `{"id":42,"private":false}`, ifc.PublicUntrusted()},
+			{"private", `{"id":42,"private":true}`, ifc.PrivateUntrusted()},
+			{"unknown visibility", `{"id":42}`, ifc.PrivateUntrusted()},
+		} {
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/enabled=%t", method, visibility.name, enabled), func(t *testing.T) {
+					calls := 0
+					client := pullRequestArtifactTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+						calls++
+						w.Header().Set("Content-Type", "application/json")
+						if r.URL.Path == "/api/v3/repos/o/r" {
+							_, _ = w.Write([]byte(visibility.repository))
+							return
+						}
+						artifact := `{"id":1,"number":1,"name":"report","body":"artifact content"}`
+						if method == "list" {
+							artifact = "[" + artifact + "]"
+						}
+						_, _ = w.Write([]byte(artifact))
+					})
+					deps := BaseDeps{Client: client}
+					if enabled {
+						deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
+					}
+					session := pullRequestArtifactTestSession(t, deps, inventory.ProtocolVersionMultiRoundTrip)
+					args := map[string]any{"owner": "o", "repo": "r", "pull_number": 12, "method": method}
+					if method == "upsert" {
+						args["name"], args["body"] = "report", "artifact content"
+					}
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+						Name: pullRequestArtifactTestTool(method).Tool.Name, Arguments: args,
+					})
+					require.NoError(t, err)
+					require.False(t, result.IsError, mustMarshalJSON(t, result))
+					if enabled {
+						assert.JSONEq(t, mustMarshalJSON(t, visibility.label), mustMarshalJSON(t, result.Meta["ifc"]))
+					} else {
+						assert.NotContains(t, result.Meta, "ifc")
+					}
+					assert.Contains(t, getTextResult(t, result).Text, "artifact content")
+					assert.Equal(t, 2, calls, "IFC labels reuse the existing repository lookup")
+				})
+			}
+		}
+	}
 }

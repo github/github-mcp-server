@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
@@ -103,7 +104,7 @@ func PullRequestArtifactRead(t translations.TranslationHelperFunc) inventory.Ser
 				query.Set("commit_oid", input.CommitOID)
 			}
 			var artifacts []PullRequestArtifact
-			response, _, failure := pullRequestArtifactRequest(ctx, deps, input.PullRequestArtifactCoordinates, "", http.MethodGet, query, nil, &artifacts, 0, http.StatusOK)
+			response, repository, failure := pullRequestArtifactRequest(ctx, deps, input.PullRequestArtifactCoordinates, "", http.MethodGet, query, nil, &artifacts, 0, http.StatusOK)
 			if failure != nil {
 				return failure, nil, nil
 			}
@@ -119,7 +120,7 @@ func PullRequestArtifactRead(t translations.TranslationHelperFunc) inventory.Ser
 			output := &PullRequestArtifactReadOutput{List: &ListPullRequestArtifactsOutput{
 				Artifacts: artifacts, Page: input.Page, PerPage: input.PerPage, NextPage: response.NextPage,
 			}}
-			return MarshalledTextResult(output), output, nil
+			return pullRequestArtifactResult(ctx, deps, repository, output), output, nil
 		})
 }
 
@@ -152,7 +153,7 @@ func PullRequestArtifactWrite(t translations.TranslationHelperFunc) inventory.Se
 					CommitOID *string `json:"commit_oid,omitempty"`
 				}{*input.Body, input.CommitOID}
 				var artifact PullRequestArtifact
-				_, _, failure := pullRequestArtifactRequest(ctx, deps, input.PullRequestArtifactCoordinates, input.Name, http.MethodPut, nil, body, &artifact, 0, http.StatusOK, http.StatusCreated)
+				_, repository, failure := pullRequestArtifactRequest(ctx, deps, input.PullRequestArtifactCoordinates, input.Name, http.MethodPut, nil, body, &artifact, 0, http.StatusOK, http.StatusCreated)
 				if failure != nil {
 					return failure, nil, nil
 				}
@@ -164,7 +165,7 @@ func PullRequestArtifactWrite(t translations.TranslationHelperFunc) inventory.Se
 				}
 				sanitizePullRequestArtifact(&artifact)
 				output := &PullRequestArtifactWriteOutput{Artifact: &artifact}
-				return MarshalledTextResult(output), output, nil
+				return pullRequestArtifactResult(ctx, deps, repository, output), output, nil
 			case "delete":
 				if input.Body != nil || input.CommitOID != nil {
 					return utils.NewToolResultError("body and commit_oid are not supported for delete"), nil, nil
@@ -364,4 +365,12 @@ func sanitizePullRequestArtifact(artifact *PullRequestArtifact) {
 	if artifact.Creator != nil {
 		artifact.Creator.Login = sanitize.PlainText(artifact.Creator.Login)
 	}
+}
+
+func pullRequestArtifactResult(ctx context.Context, deps ToolDependencies, repository *gogithub.Repository, output any) *mcp.CallToolResult {
+	label := ifc.PrivateUntrusted()
+	if repository.Private != nil && !*repository.Private {
+		label = ifc.PublicUntrusted()
+	}
+	return attachStaticIFCLabel(ctx, deps, MarshalledTextResult(output), label)
 }
