@@ -1126,7 +1126,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if draftProvided {
 				gqlClient, err := deps.GetGQLClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+					return utils.NewToolResultErrorFromErr(stepErrMsg("failed to get GitHub GraphQL client"), err), nil, nil
 				}
 
 				var prQuery struct {
@@ -1193,7 +1193,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if len(reviewers) > 0 {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+					return utils.NewToolResultErrorFromErr(stepErrMsg("failed to get GitHub client"), err), nil, nil
 				}
 
 				userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
@@ -1219,7 +1219,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 					bodyBytes, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+						return utils.NewToolResultErrorFromErr(stepErrMsg("failed to read response body"), err), nil, nil
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, stepErrMsg("failed to request reviewers"), resp, bodyBytes), nil, nil
 				}
@@ -1229,7 +1229,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// Get the final state of the PR to return
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr(stepErrMsg("failed to get GitHub client"), err), nil, nil
 			}
 
 			finalPR, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)

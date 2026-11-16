@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net/http"
 	"testing"
@@ -186,6 +187,110 @@ func Test_UpdatePullRequest_LaterStepFailureReportsEarlierChanges(t *testing.T) 
 			deps := BaseDeps{
 				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(tc.restHandlers)),
 				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.gqlMatchers...)),
+			}
+			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			args := map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42)}
+			maps.Copy(args, tc.args)
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+
+			text := getErrorResult(t, result).Text
+			assert.Contains(t, text, tc.expectedErr)
+			if tc.notExpectText != "" {
+				assert.NotContains(t, text, tc.notExpectText)
+			}
+		})
+	}
+}
+
+// clientFailingDeps fails GetClient from its failRESTFrom-th call on (1-based), and
+// GetGQLClient on every call when failGQL is set. 0 disables the REST failure.
+type clientFailingDeps struct {
+	BaseDeps
+	restCalls    *int
+	failRESTFrom int
+	failGQL      bool
+}
+
+func (d clientFailingDeps) GetClient(ctx context.Context) (*github.Client, error) {
+	*d.restCalls++
+	if d.failRESTFrom > 0 && *d.restCalls >= d.failRESTFrom {
+		return nil, errors.New("client unavailable")
+	}
+	return d.BaseDeps.GetClient(ctx)
+}
+
+func (d clientFailingDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
+	if d.failGQL {
+		return nil, errors.New("graphql client unavailable")
+	}
+	return d.BaseDeps.GetGQLClient(ctx)
+}
+
+func Test_UpdatePullRequest_ClientFailureAfterChangeReportsEarlierChanges(t *testing.T) {
+	updatedPR := &github.PullRequest{
+		ID:      new(int64(4242)),
+		Number:  new(42),
+		HTMLURL: new("https://github.com/owner/repo/pull/42"),
+	}
+	tests := []struct {
+		name          string
+		args          map[string]any
+		failRESTFrom  int
+		failGQL       bool
+		expectedErr   string
+		notExpectText string
+	}{
+		{
+			name:        "GraphQL client fails after the title was changed",
+			args:        map[string]any{"title": "Changed title", "draft": true},
+			failGQL:     true,
+			expectedErr: "pull request #42 was updated, but failed to get GitHub GraphQL client",
+		},
+		{
+			name:         "client for the reviewer request fails after the title was changed",
+			args:         map[string]any{"title": "Changed title", "reviewers": []any{"testuser"}},
+			failRESTFrom: 2,
+			expectedErr:  "pull request #42 was updated, but failed to get GitHub client",
+		},
+		{
+			name:         "client for the final read fails after the reviewers were requested",
+			args:         map[string]any{"reviewers": []any{"testuser"}},
+			failRESTFrom: 2,
+			expectedErr:  "pull request #42 was updated, but failed to get GitHub client",
+		},
+		{
+			name:          "GraphQL client fails when nothing was changed",
+			args:          map[string]any{"draft": true},
+			failGQL:       true,
+			expectedErr:   "failed to get GitHub GraphQL client",
+			notExpectText: "was updated",
+		},
+		{
+			name:          "client for the reviewer request fails when nothing was changed",
+			args:          map[string]any{"reviewers": []any{"testuser"}},
+			failRESTFrom:  1,
+			expectedErr:   "failed to get GitHub client",
+			notExpectText: "was updated",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			deps := clientFailingDeps{
+				Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					PatchReposPullsByOwnerByRepoByPullNumber:                  mockResponse(t, http.StatusOK, updatedPR),
+					PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusCreated, updatedPR),
+				})),
+				GQLClient:    githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+				restCalls:    &calls,
+				failRESTFrom: tc.failRESTFrom,
+				failGQL:      tc.failGQL,
 			}
 			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
