@@ -259,7 +259,20 @@ func TestAgentAutomationReadToolsSanitizeNames(t *testing.T) {
 		_, _ = w.Write([]byte(response))
 	})
 	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	result := callAgentAutomationToolOverMCP(t, ListAutomations(translations.NullTranslationHelper), deps, map[string]any{"owner": "octo-org", "repo": "octo-repo"})
+	tool := ListAutomations(translations.NullTranslationHelper)
+	inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
+	require.NoError(t, err)
+	server := mcp.NewServer(&mcp.Implementation{Name: "agent-automations-test", Version: "v1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	inv.RegisterTools(context.Background(), server, deps)
+	session := connectCommentVisibilityClient(t, server, inventory.ProtocolVersionMultiRoundTrip)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      tool.Tool.Name,
+		Arguments: map[string]any{"owner": "octo-org", "repo": "octo-repo"},
+	})
+	require.NoError(t, err)
 	require.False(t, result.IsError)
 	assert.JSONEq(t, expected, getTextResult(t, result).Text)
 	structuredContent, err := json.Marshal(result.StructuredContent)
@@ -271,15 +284,18 @@ func TestAgentAutomationToolsRejectUnknownArguments(t *testing.T) {
 	t.Parallel()
 
 	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
-		assert.Fail(t, "unknown arguments must not make a request")
+		t.Fatal("unknown arguments must not make a request")
 	})
 	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	result := callAgentAutomationToolOverMCP(t, CreateAutomation(translations.NullTranslationHelper), deps, map[string]any{
+	request := createMCPRequest(map[string]any{
 		"owner": "octo-org", "repo": "octo-repo", "name": "Issue triage", "prompt": "Triage new issues.",
 		"ownership": "repository",
 	})
+	tool := CreateAutomation(translations.NullTranslationHelper)
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
 	require.True(t, result.IsError)
-	assert.Contains(t, getErrorResult(t, result).Text, "ownership")
+	assert.Equal(t, `invalid arguments: unexpected argument "ownership"`, getErrorResult(t, result).Text)
 }
 
 func TestAgentAutomationReadToolsRejectUnsafeIDsAndPathSegments(t *testing.T) {
@@ -785,22 +801,6 @@ func TestOnlyDeleteAutomationRequiresFormElicitation(t *testing.T) {
 		assert.Empty(t, tool.MinimumProtocolVersion, tool.Tool.Name)
 		assert.Empty(t, tool.RequiredElicitationMode, tool.Tool.Name)
 	}
-}
-
-func callAgentAutomationToolOverMCP(t *testing.T, tool inventory.ServerTool, deps BaseDeps, args map[string]any) *mcp.CallToolResult {
-	t.Helper()
-
-	inv, err := inventory.NewBuilder().SetTools([]inventory.ServerTool{tool}).
-		WithToolsets([]string{"all"}).
-		WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
-	require.NoError(t, err)
-	server := mcp.NewServer(&mcp.Implementation{Name: "agent-automations-test", Version: "v1"}, nil)
-	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
-	inv.RegisterTools(context.Background(), server, deps)
-	session := connectCommentVisibilityClient(t, server, inventory.ProtocolVersionMultiRoundTrip)
-	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: args})
-	require.NoError(t, err)
-	return result
 }
 
 func invokeConfirmedAutomation(

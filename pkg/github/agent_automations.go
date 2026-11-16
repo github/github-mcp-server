@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -236,6 +238,7 @@ func newAgentAutomationTool[Input any](
 			}
 			return utils.NewToolResultText(string(sanitizedResponse)), sanitizedResponse, nil
 		},
+		rejectUnknownAutomationArguments(inputSchema),
 	)
 	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
 	return tool
@@ -395,6 +398,21 @@ func agentAutomationInputSchema(properties map[string]*jsonschema.Schema, requir
 		Properties:           properties,
 		Required:             required,
 		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+}
+
+func rejectUnknownAutomationArguments(schema *jsonschema.Schema) inventory.InputNormalizer {
+	return func(raw json.RawMessage) (json.RawMessage, error) {
+		var args map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, &inventory.ToolInputError{Message: "invalid arguments: " + err.Error()}
+		}
+		for _, name := range slices.Sorted(maps.Keys(args)) {
+			if _, ok := schema.Properties[name]; !ok {
+				return nil, &inventory.ToolInputError{Message: fmt.Sprintf("invalid arguments: unexpected argument %q", name)}
+			}
+		}
+		return raw, nil
 	}
 }
 
