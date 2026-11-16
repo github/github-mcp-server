@@ -37,6 +37,7 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		CreateAutomationGroup(t),
 		AddAutomationToGroup(t),
 		RemoveAutomationFromGroup(t),
+		GetCopilotTaskStatus(t),
 	}
 }
 

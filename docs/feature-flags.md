@@ -589,6 +589,9 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **get_copilot_task_status** - Get Copilot task status
+  - `task_id`: Exact hyphenated task UUID from an existing task URL or task response id, not an automation_id. (string, required)
+
 - **list_automation_groups** - List Automation groups
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)

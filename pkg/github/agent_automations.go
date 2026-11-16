@@ -119,6 +119,7 @@ type agentAutomationRequest struct {
 	noBody         bool
 	successMessage string
 	confirmation   *agentAutomationConfirmation
+	project        func(json.RawMessage) (json.RawMessage, error)
 	// execute replaces the single request for operations that need several requests.
 	execute func(context.Context, *github.Client) (*mcp.CallToolResult, json.RawMessage, error)
 }
@@ -226,6 +227,12 @@ func newAgentAutomationTool[Input any](
 					return utils.NewToolResultError(fmt.Sprintf("GitHub agent automations returned an empty response after HTTP %d; the operation may have succeeded. Verify its status before retrying.", httpResponse.StatusCode)), nil, nil
 				}
 				return utils.NewToolResultError("GitHub agent automations returned an empty response"), nil, nil
+			}
+			if request.project != nil {
+				response, err = request.project(response)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read GitHub agent automations response", err), nil, nil
+				}
 			}
 			sanitizedResponse, err := sanitizeAutomationNames(response)
 			if err != nil {

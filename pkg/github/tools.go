@@ -318,6 +318,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		CreateAutomationGroup(t),
 		AddAutomationToGroup(t),
 		RemoveAutomationFromGroup(t),
+		GetCopilotTaskStatus(t),
 
 		// Copilot issue intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),
