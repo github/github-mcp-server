@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	gogithub "github.com/google/go-github/v92/github"
@@ -191,7 +190,7 @@ func TestPullRequestArtifactRequests(t *testing.T) {
 				} else {
 					assert.Nil(t, result.StructuredContent)
 				}
-				assert.JSONEq(t, mustMarshalJSON(t, ifc.PrivateTrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
+				assert.NotContains(t, result.Meta, "ifc")
 				switch tc.method {
 				case "list":
 					var output PullRequestArtifactReadOutput
@@ -549,6 +548,6 @@ func TestPullRequestArtifactSanitization(t *testing.T) {
 	assert.Equal(t, "abc123", *artifact.CommitOID)
 	assert.Equal(t, "2026-11-13T00:00:00Z", *artifact.CreatedAt)
 	assert.Equal(t, "2026-11-13T00:00:00Z", *artifact.UpdatedAt)
-	assert.JSONEq(t, mustMarshalJSON(t, ifc.PublicUntrusted()), mustMarshalJSON(t, result.Meta["ifc"]))
+	assert.NotContains(t, result.Meta, "ifc")
 	assert.Equal(t, 2, calls)
 }
