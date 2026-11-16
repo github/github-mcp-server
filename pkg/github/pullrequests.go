@@ -41,8 +41,9 @@ Possible options:
  7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+ 10. get_merge_queue_status - Get whether the base branch requires a merge queue and, if the pull request is queued, its position, state and estimated time to merge. Use it to choose between merge_pull_request and enqueue_pull_request.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs", "get_merge_queue_status"},
 			},
 			"owner": {
 				Type:        "string",
@@ -158,6 +159,13 @@ Possible options:
 				return attachIFC(result), pullRequestCommentsOutput(output), err
 			case "get_check_runs":
 				result, output, err := getPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				return attachIFC(result), output, err
+			case "get_merge_queue_status":
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				}
+				result, output, err := getPullRequestMergeQueueStatus(ctx, gqlClient, owner, repo, pullNumber)
 				return attachIFC(result), output, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil

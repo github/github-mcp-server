@@ -291,6 +291,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListPullRequests(t),
 		SearchPullRequests(t),
 		MergePullRequest(t),
+		EnqueuePullRequest(t),
+		DequeuePullRequest(t),
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),

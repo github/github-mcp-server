@@ -12,7 +12,7 @@
         "type": "string"
       },
       "method": {
-        "description": "Action to specify what pull request data needs to be retrieved from GitHub. \nPossible options: \n 1. get - Get details of a specific pull request.\n 2. get_diff - Get the diff of a pull request.\n 3. get_status - Get combined commit status of a head commit in a pull request.\n 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.\n 5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.\n 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.\n 7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.\n 8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.\n 9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.\n",
+        "description": "Action to specify what pull request data needs to be retrieved from GitHub. \nPossible options: \n 1. get - Get details of a specific pull request.\n 2. get_diff - Get the diff of a pull request.\n 3. get_status - Get combined commit status of a head commit in a pull request.\n 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.\n 5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.\n 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.\n 7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.\n 8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.\n 9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.\n 10. get_merge_queue_status - Get whether the base branch requires a merge queue and, if the pull request is queued, its position, state and estimated time to merge. Use it to choose between merge_pull_request and enqueue_pull_request.\n",
         "enum": [
           "get",
           "get_diff",
@@ -22,7 +22,8 @@
           "get_review_comments",
           "get_reviews",
           "get_comments",
-          "get_check_runs"
+          "get_check_runs",
+          "get_merge_queue_status"
         ],
         "type": "string"
       },
@@ -649,6 +650,78 @@
         "required": [
           "total_count",
           "check_runs"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "additionalProperties": false,
+            "properties": {
+              "enqueued_at": {
+                "description": "RFC 3339 timestamp.",
+                "type": "string"
+              },
+              "estimated_time_to_merge": {
+                "description": "Estimated number of seconds until the pull request is merged.",
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "jump": {
+                "description": "Whether the entry was added to the front of the queue.",
+                "type": "boolean"
+              },
+              "position": {
+                "description": "One-based position in the merge queue.",
+                "type": "integer"
+              },
+              "solo": {
+                "description": "Whether the entry is merged on its own rather than grouped with other entries.",
+                "type": "boolean"
+              },
+              "state": {
+                "description": "Merge queue entry state.",
+                "enum": [
+                  "QUEUED",
+                  "AWAITING_CHECKS",
+                  "MERGEABLE",
+                  "UNMERGEABLE",
+                  "LOCKED"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "position",
+              "state",
+              "enqueued_at",
+              "jump",
+              "solo"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "in_merge_queue": {
+            "description": "Whether the pull request is in the merge queue.",
+            "type": "boolean"
+          },
+          "merge_queue_enabled": {
+            "description": "Whether the base branch requires a merge queue; use enqueue_pull_request instead of merge_pull_request when true.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "merge_queue_enabled",
+          "in_merge_queue"
         ],
         "type": "object"
       },
