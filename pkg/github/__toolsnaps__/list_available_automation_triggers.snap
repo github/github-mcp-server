@@ -6,6 +6,7 @@
   },
   "description": "List the trigger types that can be used by automations in a repository.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "owner": {
         "description": "Repository owner",
