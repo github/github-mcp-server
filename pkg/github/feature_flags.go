@@ -32,6 +32,9 @@ const FeatureFlagIssueDependencies = "issue_dependencies"
 // endpoints. Access requirements are unverified; insiders mode does not enable it.
 const FeatureFlagIssueArtifacts = "issue_artifacts"
 
+// FeatureFlagAgentAutomations explicitly opts into the repository automation tools.
+const FeatureFlagAgentAutomations = "agent_automations"
+
 // FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
 // tool, which returns ranked duplicate candidates for an existing issue. It is
 // gated so the extra tool is not advertised by default, and is deliberately
@@ -59,6 +62,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagIssueArtifacts,
+	FeatureFlagAgentAutomations,
 	FeatureFlagDuplicateDetection,
 	FeatureFlagThreadResolutionReason,
 	FeatureFlagSkillsExtension,
