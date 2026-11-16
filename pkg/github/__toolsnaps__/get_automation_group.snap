@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get Automation group"
+  },
+  "description": "Get one exact repository Automation group and its current visible members. Membership comes from live state; no expected role count or completeness is inferred. No resources are changed.",
+  "inputSchema": {
+    "properties": {
+      "group_id": {
+        "description": "Exact Automation group identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "group_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_automation_group",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

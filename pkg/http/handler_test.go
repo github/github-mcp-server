@@ -828,6 +828,9 @@ func TestStaticInventoryDisablesUnprotectedMutationTools(t *testing.T) {
 	assert.NotContains(t, names, "update_automation")
 	assert.NotContains(t, names, "delete_automation")
 	assert.NotContains(t, names, "run_automation")
+	assert.NotContains(t, names, "create_automation_group")
+	assert.NotContains(t, names, "add_automation_to_group")
+	assert.NotContains(t, names, "remove_automation_from_group")
 	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
 }
 

@@ -151,7 +151,7 @@ var (
 	// ToolsetMetadataCopilotAutomations is a non-default toolset for the opt-in Copilot Automations tools.
 	ToolsetMetadataCopilotAutomations = inventory.ToolsetMetadata{
 		ID:          "copilot_automations",
-		Description: "Manage Copilot Automations, their revisions, and the tools and triggers they can use",
+		Description: "Manage Copilot Automations, their groups and revisions, and the tools and triggers they can use",
 		Icon:        "workflow",
 	}
 
@@ -313,6 +313,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdateAutomation(t),
 		DeleteAutomation(t),
 		RunAutomation(t),
+		ListAutomationGroups(t),
+		GetAutomationGroup(t),
+		CreateAutomationGroup(t),
+		AddAutomationToGroup(t),
+		RemoveAutomationFromGroup(t),
+		GetCopilotTaskStatus(t),
 
 		// Copilot issue intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),

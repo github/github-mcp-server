@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Add Automation to group"
+  },
+  "description": "Add one existing Automation to one exact group after explicit user confirmation, using its live membership version. It refuses to detach or move an Automation that already references another visible or unavailable group, and it never changes the Automation configuration or enabled state.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "group_id": {
+        "description": "Exact existing Automation group identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id",
+      "group_id"
+    ],
+    "type": "object"
+  },
+  "name": "add_automation_to_group",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create Automation group"
+  },
+  "description": "Create one repository Automation group after explicit user confirmation. This tool creates only the group; use create_automation and add_automation_to_group for members. It never retries an unconfirmed write or adopts a group by name.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "Optional group description.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Explicitly approved group name.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_automation_group",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}
