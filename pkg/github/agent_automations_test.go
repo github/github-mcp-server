@@ -32,6 +32,11 @@ func agentAutomationToolsForTest() []inventory.ServerTool {
 		UpdateAutomation(t),
 		DeleteAutomation(t),
 		RunAutomation(t),
+		ListAutomationGroups(t),
+		GetAutomationGroup(t),
+		CreateAutomationGroup(t),
+		AddAutomationToGroup(t),
+		RemoveAutomationFromGroup(t),
 	}
 }
 
@@ -870,6 +875,9 @@ func TestAutomationMutationsRequireFormElicitation(t *testing.T) {
 		UpdateAutomation(translations.NullTranslationHelper),
 		DeleteAutomation(translations.NullTranslationHelper),
 		RunAutomation(translations.NullTranslationHelper),
+		CreateAutomationGroup(translations.NullTranslationHelper),
+		AddAutomationToGroup(translations.NullTranslationHelper),
+		RemoveAutomationFromGroup(translations.NullTranslationHelper),
 	} {
 		assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, tool.MinimumProtocolVersion)
 		assert.Equal(t, inventory.ElicitationModeForm, tool.RequiredElicitationMode)

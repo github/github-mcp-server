@@ -408,7 +408,8 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 			}
 			if cfg.disableAgentAutomationMutations {
 				switch tool.Tool.Name {
-				case "create_automation", "update_automation", "delete_automation", "run_automation":
+				case "create_automation", "update_automation", "delete_automation", "run_automation",
+					"create_automation_group", "add_automation_to_group", "remove_automation_from_group":
 					return true
 				}
 			}

@@ -530,6 +530,13 @@ as output formatting) won't appear here.
 
 ### `agent_automations`
 
+- **add_automation_to_group** - Add Automation to group
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `group_id`: Exact existing Automation group identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **create_automation** - Create a repository automation
   - **OAuth Challenge Scopes**: `repo`
   - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
@@ -545,6 +552,13 @@ as output formatting) won't appear here.
   - `triggers`: Trigger configuration for the automation. (object, optional)
   - `type`: The automation type. (string, optional)
 
+- **create_automation_group** - Create Automation group
+  - **OAuth Challenge Scopes**: `repo`
+  - `description`: Optional group description. (string, optional)
+  - `name`: Explicitly approved group name. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **delete_automation** - Delete a repository automation
   - **OAuth Challenge Scopes**: `repo`
   - `automation_id`: The automation identifier. (string, required)
@@ -557,6 +571,12 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **get_automation_group** - Get Automation group
+  - **OAuth Challenge Scopes**: `repo`
+  - `group_id`: Exact Automation group identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_automation_revision** - Get an automation revision
   - **OAuth Challenge Scopes**: `repo`
   - `automation_id`: The automation identifier. (string, required)
@@ -565,6 +585,11 @@ as output formatting) won't appear here.
   - `revision_id`: The revision identifier. (string, required)
 
 - **get_automations_configuration_for_repository** - Get repository automation configuration
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_automation_groups** - List Automation groups
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -592,6 +617,13 @@ as output formatting) won't appear here.
 
 - **list_available_automation_triggers** - List available automation triggers
   - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **remove_automation_from_group** - Remove Automation from group
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `group_id`: Exact existing Automation group identifier. (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 

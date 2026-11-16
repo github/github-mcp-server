@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List Automation groups"
+  },
+  "description": "List repository Automation groups. Group data comes from live state; a saved link or name does not establish access. No resources are changed.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_automation_groups",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

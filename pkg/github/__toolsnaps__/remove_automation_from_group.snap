@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Remove Automation from group"
+  },
+  "description": "Remove one existing Automation from one exact group after explicit user confirmation, using its live membership version. It never deletes, disables, or otherwise changes the Automation.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "group_id": {
+        "description": "Exact existing Automation group identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id",
+      "group_id"
+    ],
+    "type": "object"
+  },
+  "name": "remove_automation_from_group",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

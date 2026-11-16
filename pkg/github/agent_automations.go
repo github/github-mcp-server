@@ -119,6 +119,8 @@ type agentAutomationRequest struct {
 	noBody         bool
 	successMessage string
 	confirmation   *agentAutomationConfirmation
+	// execute replaces the single request for operations that need several requests.
+	execute func(context.Context, *github.Client) (*mcp.CallToolResult, json.RawMessage, error)
 }
 
 type agentAutomationConfirmation struct {
@@ -178,11 +180,11 @@ func newAgentAutomationTool[Input any](
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
 			}
-
-			if len(request.query) > 0 {
-				request.path += "?" + request.query.Encode()
+			if request.execute != nil {
+				return request.execute(ctx, client)
 			}
-			httpRequest, err := client.NewRequest(ctx, request.method, request.path, request.body, github.WithVersion(agentAutomationAPIVersion))
+
+			httpRequest, err := newAgentAutomationHTTPRequest(ctx, client, request)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create GitHub request", err), nil, nil
 			}
@@ -234,6 +236,14 @@ func newAgentAutomationTool[Input any](
 	)
 	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
 	return tool
+}
+
+func newAgentAutomationHTTPRequest(ctx context.Context, client *github.Client, request agentAutomationRequest) (*http.Request, error) {
+	path := request.path
+	if len(request.query) > 0 {
+		path += "?" + request.query.Encode()
+	}
+	return client.NewRequest(ctx, request.method, path, request.body, github.WithVersion(agentAutomationAPIVersion))
 }
 
 func agentAutomationConfirmationResult(
