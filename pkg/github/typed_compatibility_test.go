@@ -264,7 +264,14 @@ func TestTypedCompatibilityDirectoryProjection(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.False(t, result.IsError)
-		assert.JSONEq(t, `[{"url":"api-content-url","git_url":"api-git-url"}]`, getTextResult(t, result).Text)
+		entries := `[{"url":"api-content-url","git_url":"api-git-url"}]`
+		if protocol == inventory.ProtocolVersionMultiRoundTrip {
+			// Modern text mirrors the object-valued structured content.
+			assert.JSONEq(t, `{"entries":`+entries+`}`, getTextResult(t, result).Text)
+			assert.JSONEq(t, `{"entries":`+entries+`}`, mustMarshalJSON(t, result.StructuredContent))
+			continue
+		}
+		assert.JSONEq(t, entries, getTextResult(t, result).Text)
 	}
 }
 

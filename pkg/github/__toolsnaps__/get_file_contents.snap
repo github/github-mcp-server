@@ -74,84 +74,94 @@
         "type": "null"
       },
       {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "download_url": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "description": "Entries in the directory.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "download_url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "git_url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "html_url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "path": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "sha": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "size": {
+                  "description": "File size in bytes.",
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "submodule_git_url": {
+                  "description": "Git remote URL for a submodule.",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "target": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "type": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
               "type": [
                 "null",
-                "string"
+                "object"
               ]
             },
-            "git_url": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "html_url": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "path": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "sha": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "size": {
-              "description": "File size in bytes.",
-              "type": [
-                "null",
-                "integer"
-              ]
-            },
-            "submodule_git_url": {
-              "description": "Git remote URL for a submodule.",
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "target": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "type": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "url": {
-              "type": [
-                "null",
-                "string"
-              ]
-            }
-          },
-          "type": [
-            "null",
-            "object"
-          ]
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "entries"
+        ],
+        "type": "object"
       },
       {
         "additionalProperties": false,

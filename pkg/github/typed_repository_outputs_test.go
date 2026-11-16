@@ -371,22 +371,31 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
 					require.NoError(t, schemas[call.name].Validate(output))
 					first := result.Content[0].(*mcp.TextContent).Text
+					isDirectory := strings.HasSuffix(fmt.Sprint(call.args["path"]), "directory")
 					switch {
-					case call.name == "get_file_contents" && !strings.HasPrefix(first, "["):
+					case call.name == "get_file_contents" && !isDirectory:
 						assert.JSONEq(t, `{"content":`+mustMarshalJSON(t, legacy.Content)+`}`, mustMarshalJSON(t, result.StructuredContent))
 					case call.name == "get_file_contents":
-						var entries []*RepositoryDirectoryEntryOutput
-						require.NoError(t, json.Unmarshal([]byte(first), &entries))
-						assert.JSONEq(t, mustMarshalJSON(t, entries), mustMarshalJSON(t, result.StructuredContent))
+						// Object-only clients decode structuredContent as a JSON object.
+						var object map[string]json.RawMessage
+						require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &object),
+							"directory structured content must be an object")
+						var directory RepositoryDirectoryOutput
+						require.NoError(t, json.Unmarshal([]byte(first), &directory))
+						require.NotNil(t, directory.Entries, "entries is always an array")
+						assert.JSONEq(t, mustMarshalJSON(t, directory), mustMarshalJSON(t, result.StructuredContent))
 						if call.args["fields"] == nil {
 							assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-content-url")
 						}
 						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-git-url")
 						if call.args["path"] == "submodule-directory" {
-							assert.JSONEq(t, `[{"name":"lib","path":"lib","type":"file","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]`, mustMarshalJSON(t, result.StructuredContent))
+							assert.JSONEq(t, `{"entries":[{"name":"lib","path":"lib","type":"file","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]}`, mustMarshalJSON(t, result.StructuredContent))
+						}
+						if call.args["path"] == "empty-directory" {
+							assert.JSONEq(t, `{"entries":[]}`, mustMarshalJSON(t, result.StructuredContent))
 						}
 						if call.args["path"] == "directory" && call.args["fields"] != nil && len(call.args["fields"].([]any)) == 3 {
-							assert.JSONEq(t, `[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file","url":"api-content-url"}]`, mustMarshalJSON(t, result.StructuredContent))
+							assert.JSONEq(t, `{"entries":[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file","url":"api-content-url"}]}`, mustMarshalJSON(t, result.StructuredContent))
 						}
 					case call.name == "create_branch" || call.name == "push_files":
 						assert.JSONEq(t, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"base"}}`, mustMarshalJSON(t, result.StructuredContent))
@@ -468,6 +477,9 @@ func assertLegacyRepositoryText(t *testing.T, name string, args map[string]any, 
 			assert.Equal(t, `{"firstPage":0,"items":[{"login":"octo","id":1,"role_name":"write"}],"lastPage":0,"nextPage":3,"prevPage":0}`, getTextResult(t, result).Text)
 		}
 	case "get_file_contents":
+		if strings.HasSuffix(fmt.Sprint(args["path"]), "directory") {
+			assert.True(t, strings.HasPrefix(getTextResult(t, result).Text, "["), "legacy directory text remains a JSON array")
+		}
 		fields, ok := args["fields"].([]any)
 		if args["path"] == "directory" && ok && len(fields) == 3 {
 			assert.Equal(t, `[{"html_url":"https://github.com/owner/repo/blob/main/file","size":0,"url":"api-content-url"}]`, getTextResult(t, result).Text)
@@ -544,11 +556,12 @@ func TestRepositoryOutputUnions(t *testing.T) {
 		},
 		{
 			"contents", repositoryContentsOutputSchema(),
-			[]string{`null`, `[]`, `[{"name":"file"}]`, `{"content":[]}`, `{"content":[{"type":"text","text":"status"}]}`,
+			[]string{`null`, `{"entries":[]}`, `{"entries":[{"name":"file"}]}`, `{"content":[]}`, `{"content":[{"type":"text","text":"status"}]}`,
 				`{"content":[{"type":"resource","resource":{"uri":"repo://file","mimeType":"text/plain"}}]}`,
 				`{"content":[{"type":"resource","resource":{"uri":"repo://file","blob":"AAEC"}}]}`,
 				`{"content":[{"type":"resource_link","uri":"repo://file","name":"file","size":1048576}]}`},
-			[]string{`{}`, `{"content":[{"type":"text"}]}`, `{"content":[{"type":"resource","resource":{"uri":"repo://file","text":"x","blob":"AA=="}}]}`,
+			[]string{`{}`, `[]`, `[{"name":"file"}]`, `{"entries":null}`, `{"entries":[],"content":[]}`,
+				`{"content":[{"type":"text"}]}`, `{"content":[{"type":"resource","resource":{"uri":"repo://file","text":"x","blob":"AA=="}}]}`,
 				`{"content":[{"type":"opaque","data":{}}]}`},
 		},
 	} {
@@ -566,6 +579,19 @@ func TestRepositoryOutputUnions(t *testing.T) {
 				require.Error(t, resolved.Validate(output), text)
 			}
 		})
+	}
+}
+
+// Regression test for #3864: clients that require structuredContent to be an
+// object must accept every non-null get_file_contents output variant.
+func TestRepositoryContentsOutputSchemaIsObjectValued(t *testing.T) {
+	schema := repositoryContentsOutputSchema()
+	require.NotEmpty(t, schema.OneOf)
+	for _, variant := range schema.OneOf {
+		if variant.Type == "null" {
+			continue
+		}
+		assert.Equal(t, "object", variant.Type, mustMarshalJSON(t, variant))
 	}
 }
 
