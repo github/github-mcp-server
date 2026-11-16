@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Run a repository automation"
+  },
+  "description": "Start a manual run of a Copilot automation in a repository after explicit user confirmation.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "context": {
+        "description": "Optional context for the automation run, up to 10,000 characters.",
+        "maxLength": 10000,
+        "type": "string"
+      },
+      "event": {
+        "description": "The event to trigger. Only manual runs are supported.",
+        "enum": [
+          "manual"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id",
+      "event"
+    ],
+    "type": "object"
+  },
+  "name": "run_automation",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

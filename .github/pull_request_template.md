@@ -49,3 +49,7 @@ Note: if you're renaming tools, you *must* add the tool aliases. For more inform
 
 - [ ] Not needed
 - [ ] Updated (README / docs / examples)
+
+## Skills
+<!-- If this PR adds or changes MCP tools or toolset instructions, update the relevant bundled skills or explain why no skill applies. -->
+- [ ] Updated relevant skills or confirmed no bundled skill applies
