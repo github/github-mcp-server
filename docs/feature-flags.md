@@ -35,7 +35,79 @@ Only flags listed in
 [`AllowedFeatureFlags`](../pkg/github/feature_flags.go) can be enabled by
 end users. Insiders-only flags are not user-toggleable.
 
+## MCP skills
+
+The `skills` flag replaces server instructions with bundled workflow skills
+served through the `io.modelcontextprotocol/skills` extension. It is off by
+default and enabled automatically in Insiders Mode:
+
+```bash
+github-mcp-server stdio --features=skills
+# Equivalent opt-in: GITHUB_FEATURES=skills
+github-mcp-server stdio --insiders
+```
+
+When enabled, both initialization and `server/discover` omit instructions entirely.
+There is no discovery blurb or fallback instructions for clients without skills
+support. Without the flag, the existing server instructions are unchanged and
+the skills extension is not advertised.
+
+Clients discover skills with paginated `skills/list`, resolve one with
+`skills/get`, and read `skill://github.com/<name>/SKILL.md` and supporting files
+through `resources/read`. Directory reads are also supported. Entries contain
+the file manifests, byte lengths and SHA-256 digests defined by the
+[beta extension specification](https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx).
+
+The catalog is filtered against the current connection's tools: toolsets,
+explicit tools, exclusions, read-only mode, feature variants and token-scope
+filters apply. All required core tools must be available; missing optional tools
+are allowed. A withheld skill is unavailable through listing, direct get,
+directory reads and file reads alike. Tool associations remain server-side:
+there is no `allowed-tools` frontmatter or skill metadata on tools, and loading
+a skill grants no tool permissions.
+
+For a Copilot CLI build with experimental MCP skills support, enable
+`MCP_SKILLS=true` and add a stdio server:
+
+```bash
+MCP_SKILLS=true copilot --additional-mcp-config \
+  '{"mcpServers":{"github":{"type":"local","command":"/absolute/path/to/github-mcp-server","args":["stdio","--features=skills","--toolsets=context"],"tools":["*"]}}}'
+```
+
+In the CLI, use `/skills list` and invoke the discovered server-qualified skill
+command. For the `github` server above, the account skill command is
+`/mcp:github:skill:github.com:account-and-team-context`. Remove the context-only
+toolset restriction to expose workflows supported by the default toolsets.
+
+Supply credentials through the normal server environment, not configuration
+arguments or transcripts. Skill activation requires the client's explicit skill
+consent even with `/allow-all` or `--yolo`. Discovery, command naming and consent
+behavior depend on the CLI build; this flag alone does not establish client
+conformance.
+
+VS Code Insiders can opt into its skills client with
+`chat.agentHost.mcpSkills.enabled: true`, using the same server configuration.
+That setting is a client prerequisite, not a claim that every VS Code build
+supports every extension feature.
+
+Library integrators can extend `catalog.Source()` using `Registry.WithSkills`
+and supply the resulting registry as `MCPServerConfig.SkillsSource`. Set each
+additional skill's `RequiredTools` (groups of alternative tool names) and
+`OptionalTools` before building the registry. The shared constructor filters the
+catalog per request and removes instructions when its feature checker enables
+`github.FeatureFlagSkillsExtension`.
+
 ## Declaring tool availability
+
+### Agent automations
+
+Enable `--features=agent_automations` (or `GITHUB_FEATURES=agent_automations`)
+to expose the repository automation tools in the opt-in `copilot_automations`
+toolset (enable it with `--toolsets=copilot_automations` or `all`). This flag
+is **off by default**, including in Insiders mode. The MCP flag only exposes
+the tools; GitHub API access still depends on the authenticated client's
+permissions and access to the explicitly named repository. Read-only mode
+exposes only the read tools.
 
 ### Issue artifacts
 
@@ -455,6 +527,96 @@ as output formatting) won't appear here.
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `type`:  (string, optional)
+
+### `agent_automations`
+
+- **create_automation** - Create a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, required)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
+  - `type`: The automation type. (string, optional)
+
+- **delete_automation** - Delete a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation** - Get a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation_revision** - Get an automation revision
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `revision_id`: The revision identifier. (string, required)
+
+- **get_automations_configuration_for_repository** - Get repository automation configuration
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_automation_revisions** - List automation revisions
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `cursor`: Opaque pagination cursor. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_automations** - List repository automations
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1. (integer, optional)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`: Filter automations by type. (string, optional)
+
+- **list_available_automation_tools** - List available automation tools
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_available_automation_triggers** - List available automation triggers
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **run_automation** - Run a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `context`: Optional context for the automation run, up to 10,000 characters. (string, optional)
+  - `event`: The event to trigger. Only manual runs are supported. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **update_automation** - Update a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, optional)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
 
 ### `duplicate_detection`
 
