@@ -208,7 +208,11 @@ func normalizeGranularPullRequestFields(args map[string]any, kind string) error 
 			return err
 		}
 		if kind == "resolve_reason" {
-			_, _, err := OptionalParamOK[string](args, "resolutionReason")
+			reason, _, err := OptionalParamOK[string](args, "resolutionReason")
+			if reason == "" {
+				// An empty reason means none and would fail the schema's enum.
+				delete(args, "resolutionReason")
+			}
 			return err
 		}
 		delete(args, "resolutionReason")
