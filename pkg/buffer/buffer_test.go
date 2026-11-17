@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,6 +149,24 @@ func TestProcessResponseAsRingBufferToEnd(t *testing.T) {
 		assert.Contains(t, result, "before")
 		assert.Contains(t, result, "TRUNCATED")
 		assert.Contains(t, result, "after")
+	})
+
+	t.Run("truncated line keeps multi-byte characters whole", func(t *testing.T) {
+		// "가" is 3 bytes, so the 1000-byte display cut lands inside a character.
+		longLine := strings.Repeat("가", 4*1024*1024)
+		body := "before\n" + longLine + "\nafter\n"
+		resp := &http.Response{
+			Body: io.NopCloser(strings.NewReader(body)),
+		}
+
+		result, totalLines, respOut, err := ProcessResponseAsRingBufferToEnd(resp, 10)
+		if respOut != nil && respOut.Body != nil {
+			defer respOut.Body.Close()
+		}
+		require.NoError(t, err)
+		assert.Equal(t, 3, totalLines)
+		assert.True(t, utf8.ValidString(result), "result should be valid UTF-8")
+		assert.Contains(t, result, strings.Repeat("가", 333)+"... [TRUNCATED]")
 	})
 
 	t.Run("ring buffer keeps truncated line when in last N", func(t *testing.T) {
