@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"os"
 	"slices"
 	"strings"
 
@@ -222,7 +223,7 @@ func newToolConfig(opts []ToolOption) toolConfig {
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
-	return withCSVOutput([]inventory.ServerTool{
+	tools := []inventory.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -415,7 +416,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUnhidePullRequestReviewComment(t),
 		GranularHidePullRequestReview(t),
 		GranularUnhidePullRequestReview(t),
-	})
+	}
+	if os.Getenv("GITHUB_MCP_ENABLE_GRAPHQL") == "true" {
+		tools = append(tools, graphqlOperationTool(false), graphqlOperationTool(true))
+	}
+	return withCSVOutput(tools)
 }
 
 // ToBoolPtr converts a bool to a *bool pointer.
