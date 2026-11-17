@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get a repository automation"
+  },
+  "description": "Get the configuration of a Copilot automation in a repository.",
+  "inputSchema": {
+    "properties": {
+      "automation_id": {
+        "description": "The automation identifier.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "automation_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_automation",
+  "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+  }
+}

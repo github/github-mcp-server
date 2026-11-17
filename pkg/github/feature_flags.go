@@ -32,6 +32,9 @@ const FeatureFlagIssueDependencies = "issue_dependencies"
 // endpoints. Access requirements are unverified; insiders mode does not enable it.
 const FeatureFlagIssueArtifacts = "issue_artifacts"
 
+// FeatureFlagAgentAutomations explicitly opts into the repository automation tools.
+const FeatureFlagAgentAutomations = "agent_automations"
+
 // FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
 // tool, which returns ranked duplicate candidates for an existing issue. It is
 // gated so the extra tool is not advertised by default, and is deliberately
@@ -41,6 +44,9 @@ const FeatureFlagDuplicateDetection = "duplicate_detection"
 
 // FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
 const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
+
+// FeatureFlagSkillsExtension replaces server instructions with MCP-served skills.
+const FeatureFlagSkillsExtension = "skills"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag, X-MCP-Features HTTP header, or the
@@ -56,8 +62,10 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagIssueArtifacts,
+	FeatureFlagAgentAutomations,
 	FeatureFlagDuplicateDetection,
 	FeatureFlagThreadResolutionReason,
+	FeatureFlagSkillsExtension,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -68,6 +76,7 @@ var InsidersFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagSkillsExtension,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.
