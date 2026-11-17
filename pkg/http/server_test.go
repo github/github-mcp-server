@@ -517,12 +517,13 @@ func TestResolveListenAddress(t *testing.T) {
 func TestConfigureRequestState(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	t.Run("missing key disables delete repository", func(t *testing.T) {
+	t.Run("missing key disables protected mutation tools", func(t *testing.T) {
 		cfg := &ServerConfig{}
 		sealer, err := configureRequestState(cfg, logger)
 		require.NoError(t, err)
 		assert.Nil(t, sealer)
 		assert.True(t, cfg.disableDeleteRepository)
+		assert.True(t, cfg.disableAgentAutomationMutations)
 	})
 
 	t.Run("valid key configures sealer", func(t *testing.T) {
@@ -533,6 +534,7 @@ func TestConfigureRequestState(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, sealer)
 		assert.False(t, cfg.disableDeleteRepository)
+		assert.False(t, cfg.disableAgentAutomationMutations)
 
 		token, err := sealer.Seal(context.Background(), []byte("state"))
 		require.NoError(t, err)

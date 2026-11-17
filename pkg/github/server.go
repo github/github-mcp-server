@@ -11,6 +11,7 @@ import (
 	gherrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/octicons"
+	"github.com/github/github-mcp-server/v2/pkg/skills"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -63,6 +64,11 @@ type MCPServerConfig struct {
 	// or they are explicitly listed in EnabledTools.
 	ExcludeTools []string
 
+	// SkillsSource overrides the bundled skill catalog when skills are enabled.
+	// Extend catalog.Source() with Registry.WithSkills to add integrator skills.
+	// The catalog is filtered against this request's configured tools.
+	SkillsSource *skills.Registry
+
 	// TokenScopes contains the OAuth scopes available to the token.
 	// When non-nil, tools requiring scopes not in this list will be hidden.
 	// This is used for PAT scope filtering where we can't issue scope challenges.
@@ -84,6 +90,7 @@ type MCPServerConfig struct {
 type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
+	ctx = inv.WithFeatureState(ctx)
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
 		Instructions:      inv.Instructions(),
@@ -108,7 +115,34 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
+	publisher, err := skillsPublisher(ctx, cfg, deps, inv)
+	if err != nil {
+		return nil, err
+	}
+	if publisher != nil {
+		serverOpts.Instructions = ""
+		setCacheable := serverOpts.SetCacheable
+		serverOpts.SetCacheable = func(ctx context.Context, req mcp.Request, c *mcp.Cacheable) {
+			if setCacheable != nil {
+				setCacheable(ctx, req, c)
+			}
+			switch req.(type) {
+			case *mcp.ListResourcesRequest, *mcp.ReadResourceRequest:
+				c.CacheScope = "private"
+			}
+		}
+		if serverOpts.Capabilities == nil {
+			serverOpts.Capabilities = &mcp.ServerCapabilities{}
+		}
+		publisher.DeclareCapability(serverOpts.Capabilities)
+	}
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
+	if publisher != nil {
+		if err := publisher.Install(ghServer); err != nil {
+			return nil, fmt.Errorf("install skills extension: %w", err)
+		}
+	}
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
