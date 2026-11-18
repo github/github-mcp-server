@@ -32,6 +32,7 @@ var toolCoverageExemptions = map[string]string{
 	"issue_dependency_read":                       "Issue dependency graph management is distinct from the current backlog triage workflow.",
 	"issue_dependency_write":                      "Issue dependency graph management is distinct from the current backlog triage workflow.",
 	"list_gists":                                  "Gist lifecycle is separate from the repository workflows covered by the current catalog.",
+	"list_user_events":                            "User activity history is outside the account identity and team membership workflow.",
 	"remove_issue_comment_reaction":               "Reactions are optional social signals, not a workflow in the current skills.",
 	"remove_issue_reaction":                       "Reactions are optional social signals, not a workflow in the current skills.",
 	"remove_pull_request_review_comment_reaction": "Reactions are optional social signals, not a workflow in the current skills.",
