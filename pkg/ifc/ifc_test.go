@@ -196,6 +196,24 @@ func TestLabelActionsResult(t *testing.T) {
 	})
 }
 
+func TestLabelDeployment(t *testing.T) {
+	t.Parallel()
+
+	t.Run("public repo deployment is untrusted and public", func(t *testing.T) {
+		t.Parallel()
+		label := LabelDeployment(false)
+		assert.Equal(t, IntegrityUntrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPublic, label.Confidentiality)
+	})
+
+	t.Run("private repo deployment is untrusted and private", func(t *testing.T) {
+		t.Parallel()
+		label := LabelDeployment(true)
+		assert.Equal(t, IntegrityUntrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+	})
+}
+
 func TestLabelSecurityAlert(t *testing.T) {
 	t.Parallel()
 	label := LabelSecurityAlert()
