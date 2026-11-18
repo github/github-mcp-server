@@ -156,14 +156,6 @@ Enable `--features=pull_request_artifacts` (or
 mode. Read-only mode exposes only the read tool. Both tools reject calls in
 lockdown mode.
 
-The MCP exposure flag `pull_request_artifacts` is separate from GitHub's
-`pull_request_artifacts_api` rollout flag. **The API checks the rollout flag
-for the target repository, with organization context, on every operation.**
-Enabling the MCP flag does not enable the API for a repository. The tools do
-not substitute a per-user feature check or cache repository rollout decisions.
-A 404 can mean a disabled rollout, missing resource, or insufficient access;
-it is not interpreted as a definitive flag status.
-
 All operations require `owner`, `repo`, and `pull_number`. The tools resolve
 the repository's numeric ID and use the configured authenticated GitHub
 client and API base URL. They declare `repo` in OAuth challenge metadata;
