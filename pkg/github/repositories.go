@@ -502,7 +502,7 @@ SHA MUST be provided for existing file updates.
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input CreateOrUpdateFileInput) (*mcp.CallToolResult, *MinimalFileContentResponse, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, input CreateOrUpdateFileInput) (*mcp.CallToolResult, *MinimalFileContentResponse, error) {
 			owner := input.Owner
 			if owner == "" {
 				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
@@ -521,7 +521,15 @@ SHA MUST be provided for existing file updates.
 			}
 			content := input.Content
 			if content == "" {
-				return utils.NewToolResultError("missing required parameter: content"), nil, nil
+				var args struct {
+					Content *string `json:"content"`
+				}
+				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+					return nil, nil, err
+				}
+				if args.Content == nil {
+					return utils.NewToolResultError("missing required parameter: content"), nil, nil
+				}
 			}
 			message := input.Message
 			if message == "" {
