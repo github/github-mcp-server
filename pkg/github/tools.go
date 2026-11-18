@@ -418,7 +418,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUnhidePullRequestReview(t),
 	}
 	if os.Getenv("GITHUB_MCP_ENABLE_GRAPHQL") == "true" {
-		tools = append(tools, graphqlOperationTool(false), graphqlOperationTool(true))
+		tools = append(tools, GraphQLQuery(), GraphQLMutation())
 	}
 	return withCSVOutput(tools)
 }

@@ -23,6 +23,8 @@ var toolCoverageExemptions = map[string]string{
 	"create_repository_ruleset":                   "Repository governance configuration is a distinct workflow not covered by the current catalog.",
 	"custom_properties_read":                      "Custom-property administration is a distinct governance workflow not covered by the current catalog.",
 	"custom_properties_write":                     "Custom-property administration is a distinct governance workflow not covered by the current catalog.",
+	"github_graphql_query":                        "Direct schema queries are operator-enabled and independent of bundled workflows.",
+	"github_graphql_mutation":                     "Direct schema mutations are operator-enabled and independent of bundled workflows.",
 	"get_gist":                                    "Gist lifecycle is separate from the repository workflows covered by the current catalog.",
 	"hide_issue_comment":                          "Comment moderation is outside the current issue authoring and backlog workflows.",
 	"hide_pull_request_review":                    "Review moderation is outside the current pull-request authoring and review workflows.",
@@ -58,7 +60,7 @@ var toolCoverageExemptions = map[string]string{
 }
 
 func TestCatalogToolRequirementsAreRegistered(t *testing.T) {
-	t.Parallel()
+	t.Setenv("GITHUB_MCP_ENABLE_GRAPHQL", "true")
 	known := make(map[string]bool)
 	for _, tool := range github.AllTools(translations.NullTranslationHelper) {
 		known[tool.Tool.Name] = true
