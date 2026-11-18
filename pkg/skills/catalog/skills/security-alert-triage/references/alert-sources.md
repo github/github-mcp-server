@@ -19,7 +19,8 @@ Keep them apart when reporting.
 
 ## Dependabot
 
-- **Tools** — `list_dependabot_alerts`, `get_dependabot_alert`.
+- **Tools** — `list_dependabot_alerts`, `get_dependabot_alert`,
+  `update_dependabot_alert` (when enabled and not read-only).
 - **What it finds** — known vulnerabilities in declared dependencies. It reasons about
   manifests, not about whether the project calls the affected code.
 - **Identity** — alert number, plus the advisory GHSA id.

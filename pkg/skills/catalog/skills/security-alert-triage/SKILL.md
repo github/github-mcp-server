@@ -8,9 +8,9 @@ description: "USE FOR: investigating GitHub security alerts — code scanning, D
 Turn four separate alert streams into one ordered list of decisions, each backed by
 evidence a maintainer can check.
 
-**This server reads alerts; it does not resolve them.** No tool here dismisses an
-alert, merges a fix, or revokes a credential. The output is a recommendation with
-evidence.
+The output is a recommendation with evidence unless a specific update is requested.
+When available, `update_dependabot_alert` can reopen or dismiss a Dependabot alert,
+or replace its assignees. It does not merge a fix or revoke a credential.
 
 ## Sequence
 
@@ -81,10 +81,18 @@ outranks nothing; a moderate one on a public entry point may outrank everything.
 
 ## Confirm before anything is acted on
 
-Every action this workflow leads to happens elsewhere: dismissing, upgrading,
-revoking. Present the ordered recommendations with their evidence and get explicit
-agreement before anyone acts. Never describe an alert as resolved on the strength of
-a recommendation.
+Present the ordered recommendations with their evidence and get explicit agreement
+before acting. Never describe an alert as resolved on the strength of a recommendation.
+For a requested Dependabot update, use `update_dependabot_alert` with separate
+`owner`, `repo` and a positive integer `alertNumber`. Send only fields to change:
+`state` is `open` or `dismissed`; dismissal also requires `dismissed_reason`.
+`dismissed_comment` is a non-null string of at most 280 characters.
+`assignees` replaces the entire set; `[]` clears it. Provide state or assignees;
+comments alone are not supported. Assigning `copilot-swe-agent[bot]` requests
+remediation but does not guarantee a fix or a pull request. Agent configuration is
+not supported. GitHub enforces permissions, licensing and repository policies;
+report API errors rather than claiming the update succeeded. Report the returned
+state, including when a dismissal remains open pending review.
 
 ## Empty and failure cases
 

@@ -839,6 +839,16 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `severity`: Filter dependabot alerts by severity (string, optional)
   - `state`: Filter dependabot alerts by state. Defaults to open (string, optional)
 
+- **update_dependabot_alert** - Update Dependabot alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: The repository's Dependabot alert number. (integer, required)
+  - `assignees`: Usernames replacing the entire assignee set; [] clears all, omission leaves it unchanged. Including copilot-swe-agent[bot] requests remediation, not just ownership bookkeeping. (string[], optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters; not a standalone comment API. (string, optional)
+  - `dismissed_reason`: Required when state is dismissed. (string, optional)
+  - `owner`: Repository owner (username or organization). (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
+
 </details>
 
 <details>

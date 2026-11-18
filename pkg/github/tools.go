@@ -331,6 +331,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Dependabot tools
 		GetDependabotAlert(t),
 		ListDependabotAlerts(t),
+		UpdateDependabotAlert(t),
 
 		// Notification tools
 		ListNotifications(t),

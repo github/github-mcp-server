@@ -36,6 +36,8 @@ func securityOutputSchema(t *testing.T, name string) *jsonschema.Schema {
 		schema, err = jsonschema.For[*DependabotAlertOutput](nil)
 	case "list_dependabot_alerts":
 		schema, err = jsonschema.For[DependabotAlertsOutput](nil)
+	case "update_dependabot_alert":
+		schema, err = jsonschema.For[*DependabotAlertUpdateOutput](nil)
 	case "get_global_security_advisory":
 		schema, err = jsonschema.For[*GlobalSecurityAdvisoryOutput](nil)
 	case "list_global_security_advisories":
