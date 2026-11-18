@@ -745,14 +745,12 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, filter Actions
 	}
 
 	listWorkflowRunsOptions := &github.ListWorkflowRunsOptions{
-		Actor:  filter.Actor,
-		Branch: filter.Branch,
-		Event:  filter.Event,
-		Status: filter.Status,
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+		Actor:   filter.Actor,
+		Branch:  filter.Branch,
+		Event:   filter.Event,
+		Status:  filter.Status,
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	}
 
 	var workflowRuns *github.WorkflowRuns
@@ -787,11 +785,9 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, filter Actions
 	}
 
 	workflowJobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, resourceID, &github.ListWorkflowJobsOptions{
-		Filter: filter.Filter,
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+		Filter:  filter.Filter,
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	})
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil

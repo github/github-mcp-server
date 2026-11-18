@@ -42,7 +42,7 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 			}
 			if text, ok := number.(string); ok {
 				parsed, err := strconv.ParseFloat(text, 64)
-				if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) || parsed > float64(math.MaxInt) || parsed < float64(math.MinInt) {
+				if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) || !inSignedIntRange(parsed, strconv.IntSize) {
 					return nil, fmt.Errorf("parameter %s is not a valid number", field)
 				}
 				number = int(parsed)

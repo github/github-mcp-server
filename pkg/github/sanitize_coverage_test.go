@@ -143,7 +143,7 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			content: true,
 			got: func() string {
 				resp := convertToMinimalFileContentResponse(&github.RepositoryContentResponse{
-					Commit: github.Commit{Message: new(maliciousText)},
+					Message: new(maliciousText),
 				})
 				require.NotNil(t, resp.Commit)
 				return resp.Commit.Message

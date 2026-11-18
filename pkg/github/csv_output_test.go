@@ -474,7 +474,7 @@ func buildCSVOutputInventory(t *testing.T, tools []inventory.ServerTool, _ bool)
 }
 
 func newCSVOutputTestDeps(csvOutputEnabled bool) ToolDependencies {
-	return csvOutputTestDeps{stubDeps: stubDeps{obsv: stubExporters()}, csvOn: csvOutputEnabled}
+	return csvOutputTestDeps{obsv: stubExporters(), csvOn: csvOutputEnabled}
 }
 
 type csvOutputTestDeps struct {

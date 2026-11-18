@@ -19,7 +19,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "stable"
+          go-version-file: "go.mod"
         
       - name: Fetch tags
         run: |

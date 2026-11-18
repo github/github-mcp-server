@@ -3,13 +3,15 @@ package errors
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 func TestGitHubErrorContext(t *testing.T) {
@@ -689,6 +691,34 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 }
 
 func TestNewGitHubAPIErrorResponse_ValidationMessages(t *testing.T) {
+	t.Run("large validation error lists are formatted without preallocating from their length", func(t *testing.T) {
+		const errorCount = 1000
+		validationErrors := make([]github.Error, errorCount)
+		for i := range validationErrors {
+			validationErrors[i] = github.Error{
+				Resource: "Repository",
+				Field:    fmt.Sprintf("field-%d", i),
+				Code:     "invalid",
+			}
+		}
+
+		originalErr := &github.ErrorResponse{
+			Response: &http.Response{StatusCode: http.StatusUnprocessableEntity},
+			Message:  "Validation Failed",
+			Errors:   validationErrors,
+		}
+		result := NewGitHubAPIErrorResponse(
+			ContextWithGitHubErrors(context.Background()),
+			"API call failed",
+			nil,
+			originalErr,
+		)
+
+		text := requireErrorText(t, result)
+		assert.Equal(t, errorCount+1, len(strings.Split(text, "\n")))
+		assert.Contains(t, text, "Repository.field-999 (invalid)")
+	})
+
 	t.Run("ruleset ErrorResponse includes sanitized structured validation messages", func(t *testing.T) {
 		ctx := ContextWithGitHubErrors(context.Background())
 

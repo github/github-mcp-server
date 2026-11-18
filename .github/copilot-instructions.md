@@ -5,7 +5,7 @@
 This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that connects AI tools to GitHub's platform. It enables AI agents to manage repositories, issues, pull requests, workflows, and more through natural language.
 
 **Key Details:**
-- **Language:** Go 1.24+ (~38k lines of code)
+- **Language:** Go 1.27.3+ (~38k lines of code)
 - **Type:** MCP server application with CLI interface
 - **Primary Package:** github-mcp-server (stdio MCP server - **this is the main focus**)
 - **Secondary Package:** mcpcurl (testing utility - don't break it, but not the priority)
@@ -92,9 +92,9 @@ go test ./pkg/github -run TestGetMe
 
 ### Key Configuration Files
 
-- **go.mod / go.sum:** Go module dependencies (Go 1.24.0+)
+- **go.mod / go.sum:** Go module dependencies (Go 1.27.3+)
 - **.golangci.yml:** Linter configuration (v2 format, ~15 linters enabled)
-- **Dockerfile:** Multi-stage build (golang:1.25.8-alpine → distroless)
+- **Dockerfile:** Multi-stage build (golang:1.27.3-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
 - **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary
@@ -189,12 +189,19 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 1. Add tool implementation in `pkg/github/` (e.g., `foo_tools.go`)
 2. Register tool in appropriate toolset in `pkg/github/` or `pkg/toolsets/`
-3. Write unit tests following the tool test pattern
-4. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
-5. Run `script/generate-docs` to update README
-6. Run `script/lint` and `script/test` before committing
-7. If e2e tests are relevant, update `e2e/e2e_test.go` using existing test style
-8. Commit code + snapshots + README changes together
+3. Update the relevant bundled skill, or add a reasoned exemption in `pkg/skills/catalog/availability_test.go`. Every tool must be covered or explicitly exempted.
+4. Write unit tests following the tool test pattern
+5. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
+6. Run `script/generate-docs` to update README
+7. Run `script/lint` and `script/test` before committing
+8. If e2e tests are relevant, update `e2e/e2e_test.go` using existing test style
+9. Commit code + snapshots + README changes together
+
+When adding or changing a toolset `InstructionsFunc`, update the associated
+skills as well: skills mode suppresses those instructions. The
+`TestToolsetInstructionsAreCoveredBySkills` failure names the skills to revisit;
+after updating them, refresh its digest with
+`UPDATE_SKILLS_INSTRUCTIONS=true go test ./pkg/github -run TestToolsetInstructionsAreCoveredBySkills -count=1`.
 
 ### Fixing a Bug
 

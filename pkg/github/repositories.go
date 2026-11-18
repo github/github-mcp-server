@@ -266,13 +266,11 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				perPage = 30
 			}
 			opts := &github.CommitsListOptions{
-				SHA:    input.SHA,
-				Path:   input.Path,
-				Author: input.Author,
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: perPage,
-				},
+				SHA:     input.SHA,
+				Path:    input.Path,
+				Author:  input.Author,
+				Page:    pagination.Page,
+				PerPage: perPage,
 			}
 			if input.Since != "" {
 				sinceTime, err := parseISOTimestamp(input.Since)
@@ -397,10 +395,8 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			opts := &github.BranchListOptions{
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2420,10 +2416,8 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			pagination := repositoryPagination(input.Page, input.PerPage)
 
 			opts := &github.ActivityListStarredOptions{
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 			if sort != "" {
 				opts.Sort = sort
@@ -3116,10 +3110,8 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 
 			opts := &github.ListCollaboratorsOptions{
 				Affiliation: affiliation,
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Page:        pagination.Page,
+				PerPage:     pagination.PerPage,
 			}
 
 			collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
