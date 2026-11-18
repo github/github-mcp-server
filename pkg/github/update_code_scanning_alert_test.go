@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,7 +65,7 @@ func TestUpdateCodeScanningAlert(t *testing.T) {
 					calls++
 					assert.Equal(t, "PATCH /repos/octo/widgets/code-scanning/alerts/42", r.Method+" "+r.URL.Path)
 					assert.Empty(t, r.URL.RawQuery)
-					assert.Equal(t, "2026-03-10", r.Header.Get("X-GitHub-Api-Version"))
+					assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					assert.JSONEq(t, tc.patch, string(body), "preserve omitted, null and empty PATCH fields")
@@ -89,6 +91,59 @@ func TestUpdateCodeScanningAlert(t *testing.T) {
 				assert.Equal(t, "2022-11-28", request.Header.Get("X-GitHub-Api-Version"), "do not mutate the shared client's API version")
 			})
 		}
+	}
+}
+
+func TestUpdateCodeScanningAlertConfiguredClient(t *testing.T) {
+	t.Parallel()
+	for _, enterprise := range []bool{false, true} {
+		t.Run(fmt.Sprint("enterprise=", enterprise), func(t *testing.T) {
+			t.Parallel()
+			prefix := ""
+			if enterprise {
+				prefix = "/api/v3"
+			}
+			var calls int
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				assert.Equal(t, "PATCH", r.Method)
+				assert.Equal(t, prefix+"/repos/octo/widgets/code-scanning/alerts/42", r.URL.Path)
+				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+				assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
+				assert.Equal(t, "application/vnd.github.v3+json", r.Header.Get("Accept"))
+				_, _ = io.WriteString(w, `{"number":42,"state":"open","html_url":"https://github.com/octo/widgets/security/code-scanning/42"}`)
+				if !enterprise {
+					assert.Equal(t, "api.github.com", r.URL.Host)
+				}
+			})
+			opts := []github.ClientOptionsFunc{
+				github.WithHTTPClient(MockHTTPClientWithHandler(handler)),
+				github.WithAuthToken("test-token"),
+			}
+			if enterprise {
+				api := httptest.NewServer(handler)
+				t.Cleanup(api.Close)
+				opts = append(opts, github.WithHTTPClient(api.Client()), github.WithEnterpriseURLs(api.URL+"/api/v3/", api.URL+"/api/uploads/"))
+			}
+			client, err := github.NewClient(opts...)
+			require.NoError(t, err)
+			baseURL := client.BaseURL()
+			deps := &BaseDeps{Client: client}
+			for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+				server := mcp.NewServer(&mcp.Implementation{Name: "configured-client-test", Version: "1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				tool := UpdateCodeScanningAlert(translations.NullTranslationHelper)
+				tool.RegisterFunc(server, deps)
+				session := connectCommentVisibilityClient(t, server, protocol)
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: map[string]any{
+					"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
+				}})
+				require.NoError(t, err)
+				require.False(t, result.IsError, "%+v", result.Content)
+			}
+			assert.Equal(t, 2, calls)
+			assert.Equal(t, baseURL, client.BaseURL())
+		})
 	}
 }
 
@@ -184,6 +239,36 @@ func TestUpdateCodeScanningAlertRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestUpdateCodeScanningAlertInvalidDismissalFieldTypes(t *testing.T) {
+	t.Parallel()
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		t.Run(protocol, func(t *testing.T) {
+			t.Parallel()
+			session, deps := codeScanningUpdateSession(t, func(_ http.ResponseWriter, _ *http.Request) {
+				t.Error("invalid input reached GitHub")
+			}, protocol, false)
+			tool := UpdateCodeScanningAlert(translations.NullTranslationHelper)
+			for _, field := range []string{"dismissed_reason", "dismissed_comment"} {
+				for _, value := range []string{`false`, `7`, `[]`, `{}`} {
+					t.Run(field+"/"+value, func(t *testing.T) {
+						raw := json.RawMessage(`{"owner":"octo","repo":"widgets","alertNumber":42,"state":"open","` + field + `":` + value + `}`)
+						result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: raw})
+						require.NoError(t, err)
+						require.True(t, result.IsError)
+						assert.Contains(t, getTextResult(t, result).Text, "invalid "+field+":")
+						result, err = tool.Handler(deps)(ContextWithDeps(t.Context(), deps), &mcp.CallToolRequest{
+							Params: &mcp.CallToolParamsRaw{Name: tool.Tool.Name, Arguments: raw},
+						})
+						require.NoError(t, err)
+						require.True(t, result.IsError)
+						assert.Contains(t, getTextResult(t, result).Text, "invalid "+field+":")
+					})
+				}
+			}
+		})
+	}
+}
+
 func TestUpdateCodeScanningAlertErrors(t *testing.T) {
 	t.Parallel()
 	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
@@ -208,14 +293,16 @@ func TestUpdateCodeScanningAlertErrors(t *testing.T) {
 			})
 		}
 		for _, response := range []string{
-			`{`, `{}`, `{"number":42,"state":"open"}`,
+			`{`, `{}`, ``, `{"number":"42"}`, `{"number":42,"state":"open"}`,
 			`{"number":42,"html_url":"https://github.com/octo/widgets/security/code-scanning/42"}`,
 			`{"number":42,"state":true,"html_url":"https://github.com/octo/widgets/security/code-scanning/42"}`,
 			`{"number":43,"state":"open","html_url":"https://github.com/octo/widgets/security/code-scanning/43"}`,
 		} {
 			t.Run(protocol+"/"+response, func(t *testing.T) {
 				t.Parallel()
+				var calls int
 				session, _ := codeScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
+					calls++
 					_, _ = io.WriteString(w, response)
 				}, protocol, true)
 				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_code_scanning_alert", Arguments: map[string]any{
@@ -225,19 +312,30 @@ func TestUpdateCodeScanningAlertErrors(t *testing.T) {
 				require.True(t, result.IsError)
 				assert.Nil(t, result.StructuredContent)
 				assert.NotContains(t, result.Meta, "ifc")
+				assert.Contains(t, getTextResult(t, result).Text, "may already have been applied")
+				assert.Contains(t, getTextResult(t, result).Text, "verify the alert with get_code_scanning_alert before retrying")
+				assert.Equal(t, 1, calls, "do not retry uncertain writes")
 			})
 		}
-		t.Run(protocol+"/no content", func(t *testing.T) {
-			t.Parallel()
-			session, _ := codeScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
-			}, protocol, false)
-			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_code_scanning_alert", Arguments: map[string]any{
-				"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
-			}})
-			require.NoError(t, err)
-			require.True(t, result.IsError)
-		})
+		for _, status := range []int{http.StatusAccepted, http.StatusNoContent} {
+			t.Run(protocol+"/"+fmt.Sprint(status), func(t *testing.T) {
+				t.Parallel()
+				var calls int
+				session, _ := codeScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
+					calls++
+					w.WriteHeader(status)
+				}, protocol, false)
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_code_scanning_alert", Arguments: map[string]any{
+					"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
+				}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Nil(t, result.StructuredContent)
+				assert.Contains(t, getTextResult(t, result).Text, "may already have been applied")
+				assert.Contains(t, getTextResult(t, result).Text, "verify the alert with get_code_scanning_alert before retrying")
+				assert.Equal(t, 1, calls, "do not retry uncertain writes")
+			})
+		}
 	}
 }
 

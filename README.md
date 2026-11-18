@@ -761,11 +761,11 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `alertNumber`: Code scanning alert number. (integer, required)
   - `assignees`: Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership. (string[], optional)
   - `create_request`: Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy. (boolean, optional)
-  - `dismissed_comment`:  (string | null, optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API. (string | null, optional)
   - `dismissed_reason`: Required and non-null when dismissing. (string | null, optional)
   - `owner`: Repository owner. (string, required)
   - `repo`: Repository name. (string, required)
-  - `state`:  (string, optional)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
 
 </details>
 

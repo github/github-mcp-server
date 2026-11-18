@@ -20,7 +20,6 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
-	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -79,9 +78,9 @@ func UpdateCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Ser
 					"owner":             {Type: "string", MinLength: new(1), Description: "Repository owner."},
 					"repo":              {Type: "string", MinLength: new(1), Description: "Repository name."},
 					"alertNumber":       {Type: "integer", Minimum: new(1.0), Description: "Code scanning alert number."},
-					"state":             {Type: "string", Enum: []any{"open", "dismissed"}},
+					"state":             {Type: "string", Enum: []any{"open", "dismissed"}, Description: "Reopen or dismiss the alert. Omission leaves state unchanged."},
 					"dismissed_reason":  {Types: []string{"string", "null"}, Enum: []any{"false positive", "won't fix", "used in tests", "mitigated", nil}, Description: "Required and non-null when dismissing."},
-					"dismissed_comment": {Types: []string{"string", "null"}, MaxLength: new(280)},
+					"dismissed_comment": {Types: []string{"string", "null"}, MaxLength: new(280), Description: "Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API."},
 					"create_request":    {Type: "boolean", Description: "Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy."},
 					"assignees":         {Type: "array", Items: &jsonschema.Schema{Type: "string"}, Description: "Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership."},
 				},
@@ -101,7 +100,8 @@ func UpdateCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Ser
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
 			}
 			path := fmt.Sprintf("repos/%s/%s/code-scanning/alerts/%d", url.PathEscape(args.Owner), url.PathEscape(args.Repo), args.AlertNumber)
-			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.CodeScanningAlertPatch, github.WithVersion("2026-03-10"))
+			// The SDK's update type requires state and lacks assignees and create_request.
+			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.CodeScanningAlertPatch)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create code scanning alert update request", err), nil, err
 			}
@@ -116,18 +116,22 @@ func UpdateCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Ser
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()
 			}
+			const uncertainUpdate = "The code scanning alert update may already have been applied; verify the alert with get_code_scanning_alert before retrying"
 			if err != nil {
+				if resp != nil && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+					return utils.NewToolResultErrorFromErr(uncertainUpdate, err), nil, nil
+				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update code scanning alert", resp, err), nil, nil
 			}
 			if resp.StatusCode != http.StatusOK || alert.Number != args.AlertNumber || alert.HTMLURL == "" || len(alert.State) == 0 {
-				return utils.NewToolResultError("invalid code scanning alert update response"), nil, nil
+				return utils.NewToolResultError("invalid code scanning alert update response. " + uncertainUpdate + "."), nil, nil
 			}
 			output := CodeScanningAlertUpdateOutput{
 				Number: strconv.FormatInt(alert.Number, 10), HTMLURL: alert.HTMLURL,
 				DismissedReason: alert.DismissedReason, Assignees: alert.Assignees,
 			}
 			if err := json.Unmarshal(alert.State, &output.State); err != nil {
-				return utils.NewToolResultErrorFromErr("invalid code scanning alert state", err), nil, nil
+				return utils.NewToolResultErrorFromErr("invalid code scanning alert state. "+uncertainUpdate, err), nil, nil
 			}
 			encoded, err := json.Marshal(output)
 			if err != nil {
@@ -188,7 +192,7 @@ func decodeCodeScanningAlertUpdate(raw json.RawMessage) (UpdateCodeScanningAlert
 	var reason *string
 	if len(args.DismissedReason) != 0 {
 		if err := json.Unmarshal(args.DismissedReason, &reason); err != nil {
-			return args, err
+			return args, fmt.Errorf("invalid dismissed_reason: %w", err)
 		}
 		if reason != nil && !slices.Contains([]string{"false positive", "won't fix", "used in tests", "mitigated"}, *reason) {
 			return args, errors.New("invalid dismissed_reason")
@@ -203,7 +207,7 @@ func decodeCodeScanningAlertUpdate(raw json.RawMessage) (UpdateCodeScanningAlert
 	if len(args.DismissedComment) != 0 {
 		var comment *string
 		if err := json.Unmarshal(args.DismissedComment, &comment); err != nil {
-			return args, err
+			return args, fmt.Errorf("invalid dismissed_comment: %w", err)
 		}
 		if comment != nil && utf8.RuneCountInString(*comment) > 280 {
 			return args, errors.New("dismissed_comment must not exceed 280 characters")

@@ -27,6 +27,7 @@
         "type": "boolean"
       },
       "dismissed_comment": {
+        "description": "Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API.",
         "maxLength": 280,
         "type": [
           "string",
@@ -58,6 +59,7 @@
         "type": "string"
       },
       "state": {
+        "description": "Reopen or dismiss the alert. Omission leaves state unchanged.",
         "enum": [
           "open",
           "dismissed"
