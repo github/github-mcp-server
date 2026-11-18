@@ -85,11 +85,12 @@ func TestParseScopeHeader(t *testing.T) {
 
 func TestFetcher_FetchTokenScopes(t *testing.T) {
 	tests := []struct {
-		name           string
-		handler        http.HandlerFunc
-		expectedScopes []string
-		expectError    bool
-		errorContains  string
+		name               string
+		handler            http.HandlerFunc
+		expectedScopes     []string
+		expectError        bool
+		errorContains      string
+		expectInvalidToken bool
 	}{
 		{
 			name: "successful fetch with multiple scopes",
@@ -123,8 +124,9 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 			},
-			expectError:   true,
-			errorContains: "invalid or expired token",
+			expectError:        true,
+			errorContains:      "invalid or expired token",
+			expectInvalidToken: true,
 		},
 		{
 			name: "server error",
@@ -176,6 +178,9 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 				require.Error(t, err)
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				if tt.expectInvalidToken {
+					assert.ErrorIs(t, err, ErrInvalidToken)
 				}
 			} else {
 				require.NoError(t, err)

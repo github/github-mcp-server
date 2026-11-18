@@ -2,6 +2,7 @@ package scopes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +15,11 @@ import (
 
 // OAuthScopesHeader is the HTTP response header containing the token's OAuth scopes.
 const OAuthScopesHeader = "X-OAuth-Scopes"
+
+// ErrInvalidToken is returned by FetchTokenScopes when GitHub rejects the token
+// with HTTP 401. Match it with errors.Is to tell a credential failure apart from
+// a network or server error.
+var ErrInvalidToken = errors.New("invalid or expired token")
 
 // DefaultFetchTimeout is the default timeout for scope fetching requests.
 const DefaultFetchTimeout = 10 * time.Second
@@ -90,7 +96,7 @@ func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid or expired token")
+		return nil, ErrInvalidToken
 	}
 
 	if resp.StatusCode != http.StatusOK {

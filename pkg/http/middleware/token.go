@@ -54,3 +54,17 @@ func sendAuthChallenge(w http.ResponseWriter, r *http.Request, oauthCfg *oauth.C
 	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer resource_metadata=%q`, resourceMetadataURL))
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
+
+// sendInvalidTokenChallenge sends a 401 for a token GitHub rejected as invalid
+// or expired. Unlike sendAuthChallenge, it sets error="invalid_token" (RFC 6750
+// §3.1) so clients refresh the stale token rather than re-authorizing.
+func sendInvalidTokenChallenge(w http.ResponseWriter, r *http.Request, oauthCfg *oauth.Config) {
+	resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
+	resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
+	w.Header().Set("WWW-Authenticate", fmt.Sprintf(
+		`Bearer error="invalid_token", error_description=%q, resource_metadata=%q`,
+		"The access token is invalid or expired",
+		resourceMetadataURL,
+	))
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+}

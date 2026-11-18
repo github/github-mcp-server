@@ -143,6 +143,8 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 		middleware.WithRequestConfig,
 		middleware.WithMCPParse(),
 		middleware.WithPATScopes(h.logger, h.scopeFetcher),
+		// After WithPATScopes so it reuses the classic-PAT probe.
+		middleware.WithInvalidTokenChallenge(h.oauthCfg, h.scopeFetcher),
 	)
 
 	if h.config.ScopeChallenge {
