@@ -46,9 +46,6 @@ const FeatureFlagAgentAutomations = "agent_automations"
 // opt-in.
 const FeatureFlagDuplicateDetection = "duplicate_detection"
 
-// FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
-const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
-
 // FeatureFlagSkillsExtension replaces server instructions with MCP-served skills.
 const FeatureFlagSkillsExtension = "skills"
 
@@ -69,7 +66,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestArtifacts,
 	FeatureFlagAgentAutomations,
 	FeatureFlagDuplicateDetection,
-	FeatureFlagThreadResolutionReason,
 	FeatureFlagSkillsExtension,
 }
 
