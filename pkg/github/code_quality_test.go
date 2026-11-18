@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 )
 
@@ -339,7 +340,7 @@ func Test_ListCodeQualityFindings(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, tc.mockedClient)
-			deps := BaseDeps{Client: client}
+			deps := BaseDeps{Client: client, featureChecker: featureCheckerFor(FeatureFlagIFCLabels)}
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
@@ -356,6 +357,7 @@ func Test_ListCodeQualityFindings(t *testing.T) {
 
 			require.NoError(t, err)
 			require.False(t, result.IsError)
+			assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelSecurityAlert()), mustMarshalJSON(t, result.Meta["ifc"]))
 
 			textContent := getTextResult(t, result)
 

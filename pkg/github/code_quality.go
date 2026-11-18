@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -222,7 +223,12 @@ func ListCodeQualityFindings(t translations.TranslationHelperFunc) inventory.Ser
 				return utils.NewToolResultErrorFromErr("failed to marshal findings", err), CodeQualityFindingsOutput{}, nil
 			}
 
-			return utils.NewToolResultText(string(r)), output, nil
+			result := utils.NewToolResultText(string(r))
+			// Like code scanning alerts, findings embed text derived from
+			// repository code (file paths and messages), so they share the
+			// private-untrusted security alert label.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, output, nil
 		},
 		normalizeTypedReadArguments(nil, false),
 	)

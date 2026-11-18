@@ -261,7 +261,7 @@ func TestTypedSecurityToolOutputs(t *testing.T) {
 
 				require.NotNil(t, result.StructuredContent, "%s must return structured content", call.Name)
 				assert.Equal(t, legacyIFC[call.Name], mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels must protect text and structured content identically")
-				if call.Name != "get_code_quality_finding" && call.Name != "list_code_quality_findings" {
+				if call.Name != "get_code_quality_finding" {
 					assert.NotNil(t, result.Meta["ifc"], "%s must retain its IFC label", call.Name)
 				}
 				schemaJSON, err := json.Marshal(toolsByName[call.Name].OutputSchema)
