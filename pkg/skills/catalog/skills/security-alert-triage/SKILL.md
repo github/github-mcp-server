@@ -131,6 +131,9 @@ deleted. A comment or resolution alone is not an update. Report the returned sta
 resolution, assignment and validity without reproducing secret values. Marking an
 alert `revoked` does not revoke credentials. GitHub enforces permissions and delegated
 dismissal policy; report API errors without bypass or fallback.
+If an update reports that it may already have been applied, inspect the alert with
+`get_secret_scanning_alert` and `hide_secret: true` before retrying; an unreadable
+success response does not prove that the write failed.
 
 ## Empty and failure cases
 

@@ -19,7 +19,6 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
-	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -99,7 +98,7 @@ func UpdateSecretScanningAlert(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
 			}
 			path := fmt.Sprintf("repos/%s/%s/secret-scanning/alerts/%d", url.PathEscape(args.Owner), url.PathEscape(args.Repo), args.AlertNumber)
-			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.SecretScanningAlertPatch, github.WithVersion("2026-03-10"))
+			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.SecretScanningAlertPatch)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create secret scanning alert update request", err), nil, err
 			}
@@ -114,11 +113,15 @@ func UpdateSecretScanningAlert(t translations.TranslationHelperFunc) inventory.S
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()
 			}
+			const uncertainOutcome = "The secret scanning alert update may already have been applied; verify the alert with get_secret_scanning_alert before retrying"
 			if err != nil {
+				if resp != nil && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+					return utils.NewToolResultErrorFromErr(uncertainOutcome, err), nil, nil
+				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update secret scanning alert", resp, err), nil, nil
 			}
 			if resp.StatusCode != http.StatusOK || alert.Number != args.AlertNumber || !slices.Contains([]string{"open", "resolved"}, alert.State) {
-				return utils.NewToolResultError("invalid secret scanning alert update response"), nil, nil
+				return utils.NewToolResultError("unexpected secret scanning alert update response. " + uncertainOutcome + "."), nil, nil
 			}
 			output := SecretScanningAlertUpdateOutput{
 				Number: strconv.FormatInt(alert.Number, 10), State: alert.State,

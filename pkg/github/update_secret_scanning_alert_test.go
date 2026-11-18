@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,7 @@ func TestUpdateSecretScanningAlert(t *testing.T) {
 					assert.Equal(t, "PATCH /repos/Octo/Widgets.name/secret-scanning/alerts/42", r.Method+" "+r.URL.Path)
 					assert.Empty(t, r.URL.RawQuery)
 					assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-					assert.Equal(t, "2026-03-10", r.Header.Get("X-GitHub-Api-Version"))
+					assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					assert.JSONEq(t, tc.patch, string(body), "preserve omitted and null PATCH fields")
@@ -109,6 +110,62 @@ func TestUpdateSecretScanningAlert(t *testing.T) {
 				assert.JSONEq(t, expected, mustMarshalJSON(t, result.StructuredContent))
 			}
 		})
+	}
+}
+
+func TestUpdateSecretScanningAlertConfiguredClient(t *testing.T) {
+	t.Parallel()
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		for _, tc := range []struct {
+			name, baseURL, uploadURL, host, prefix string
+		}{
+			{"cloud", "", "", "api.github.com", ""},
+			{"enterprise", "https://ghe.example/api/v3/", "https://ghe.example/api/uploads/", "ghe.example", "/api/v3"},
+		} {
+			t.Run(protocol+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				calls := 0
+				httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+					calls++
+					assert.Equal(t, "https", r.URL.Scheme)
+					assert.Equal(t, tc.host, r.URL.Host)
+					assert.Equal(t, tc.prefix+"/repos/octo/widgets/secret-scanning/alerts/42", r.URL.Path)
+					assert.Equal(t, http.MethodPatch, r.Method)
+					assert.Equal(t, "Bearer configured-token", r.Header.Get("Authorization"))
+					assert.Equal(t, "configured-agent", r.Header.Get("User-Agent"))
+					assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
+					assert.Equal(t, "application/vnd.github.v3+json", r.Header.Get("Accept"))
+					_, _ = io.WriteString(w, `{"number":42,"state":"open"}`)
+				})
+				httpClient.Transport = &transport.BearerAuthTransport{
+					Transport: httpClient.Transport, Token: "configured-token", AllowedHosts: []string{tc.host},
+				}
+				options := []github.ClientOptionsFunc{github.WithHTTPClient(httpClient), github.WithUserAgent("configured-agent")}
+				if tc.baseURL != "" {
+					options = append(options, github.WithEnterpriseURLs(tc.baseURL, tc.uploadURL))
+				}
+				client, err := github.NewClient(options...)
+				require.NoError(t, err)
+				baseline, err := client.NewRequest(t.Context(), http.MethodGet, "repos/octo/widgets", nil)
+				require.NoError(t, err)
+				deps := &BaseDeps{Client: client}
+				server := mcp.NewServer(&mcp.Implementation{Name: "configured-client-test", Version: "1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				tool := UpdateSecretScanningAlert(translations.NullTranslationHelper)
+				tool.RegisterFunc(server, deps)
+				session := connectCommentVisibilityClient(t, server, protocol)
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: tool.Tool.Name, Arguments: map[string]any{
+					"owner": "octo", "repo": "widgets", "alertNumber": 42, "assignee": nil,
+				}})
+				require.NoError(t, err)
+				require.False(t, result.IsError, "%+v", result.Content)
+				assert.Equal(t, 1, calls)
+				after, err := client.NewRequest(t.Context(), http.MethodGet, "repos/octo/widgets", nil)
+				require.NoError(t, err)
+				assert.Equal(t, baseline.URL, after.URL)
+				assert.Equal(t, baseline.Header, after.Header)
+			})
+		}
 	}
 }
 
@@ -196,19 +253,22 @@ func TestUpdateSecretScanningAlertErrors(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
 				assert.Contains(t, getTextResult(t, result).Text, "delegated dismissal or update denied")
+				assert.NotContains(t, getTextResult(t, result).Text, "may already have been applied")
 				assert.Equal(t, 1, calls, "no fallback writes")
 				assert.Nil(t, result.StructuredContent)
 				assert.NotContains(t, result.Meta, "ifc")
 			})
 		}
 		for _, response := range []string{
-			`{`, `null`, `{}`, `{"number":42}`, `{"number":42,"state":null}`,
+			``, `{`, `null`, `{}`, `{"number":42}`, `{"number":42,"state":null}`,
 			`{"number":42,"state":"invalid"}`, `{"number":42,"state":true}`,
 			`{"number":42,"state":"open","assigned_to":5}`, `{"number":43,"state":"open"}`,
 		} {
 			t.Run(protocol+"/"+response, func(t *testing.T) {
 				t.Parallel()
+				calls := 0
 				session, _ := secretScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
+					calls++
 					_, _ = io.WriteString(w, response)
 				}, protocol, true)
 				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_secret_scanning_alert", Arguments: map[string]any{
@@ -216,21 +276,33 @@ func TestUpdateSecretScanningAlertErrors(t *testing.T) {
 				}})
 				require.NoError(t, err)
 				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, "may already have been applied")
+				assert.Contains(t, getTextResult(t, result).Text, "verify the alert with get_secret_scanning_alert before retrying")
+				assert.Equal(t, 1, calls, "never retry an uncertain write")
 				assert.Nil(t, result.StructuredContent)
 				assert.NotContains(t, result.Meta, "ifc")
 			})
 		}
-		t.Run(protocol+"/no content", func(t *testing.T) {
-			t.Parallel()
-			session, _ := secretScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
-			}, protocol, false)
-			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_secret_scanning_alert", Arguments: map[string]any{
-				"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
-			}})
-			require.NoError(t, err)
-			require.True(t, result.IsError)
-		})
+		for _, status := range []int{http.StatusAccepted, http.StatusNoContent} {
+			t.Run(protocol+"/"+fmt.Sprint(status), func(t *testing.T) {
+				t.Parallel()
+				calls := 0
+				session, _ := secretScanningUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
+					calls++
+					w.WriteHeader(status)
+				}, protocol, true)
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_secret_scanning_alert", Arguments: map[string]any{
+					"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
+				}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, "may already have been applied")
+				assert.Contains(t, getTextResult(t, result).Text, "verify the alert with get_secret_scanning_alert before retrying")
+				assert.Equal(t, 1, calls, "never retry an uncertain write")
+				assert.Nil(t, result.StructuredContent)
+				assert.NotContains(t, result.Meta, "ifc")
+			})
+		}
 	}
 }
 
