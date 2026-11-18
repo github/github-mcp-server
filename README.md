@@ -1614,6 +1614,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `secret_type`: A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter. (string, optional)
   - `state`: Filter by state (string, optional)
 
+- **update_secret_scanning_alert** - Update secret scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Secret scanning alert number. (integer, required)
+  - `assignee`: Username with repository write access; null unassigns. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `resolution`: Reason for resolving. Non-null when state is resolved. (string | null, optional)
+  - `resolution_comment`: Optional comment when closing or reopening; cannot later be updated or deleted. (string | null, optional)
+  - `state`: Reopen or resolve the alert. (string, optional)
+  - `validity`: Manual validity override; null clears the override. (string | null, optional)
+
 </details>
 
 <details>
