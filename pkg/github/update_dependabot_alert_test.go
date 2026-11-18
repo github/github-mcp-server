@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -14,8 +15,10 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	gogithub "github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,7 +58,7 @@ func TestUpdateDependabotAlert(t *testing.T) {
 					calls++
 					assert.Equal(t, "PATCH /repos/octo/widgets/dependabot/alerts/42", r.Method+" "+r.URL.Path)
 					assert.Empty(t, r.URL.RawQuery)
-					assert.Equal(t, "2026-03-10", r.Header.Get("X-GitHub-Api-Version"))
+					assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					assert.JSONEq(t, tc.patch, string(body), "forward only provided PATCH fields")
@@ -90,6 +93,86 @@ func TestUpdateDependabotAlert(t *testing.T) {
 				request, err := deps.Client.NewRequest(t.Context(), http.MethodGet, "repos/octo/widgets", nil)
 				require.NoError(t, err)
 				assert.Equal(t, "2022-11-28", request.Header.Get("X-GitHub-Api-Version"), "do not mutate the shared client's API version")
+			})
+		}
+	}
+}
+
+func TestUpdateDependabotAlertAPIVersionByHost(t *testing.T) {
+	t.Parallel()
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		for _, tc := range []struct {
+			name             string
+			baseURL          string
+			wantPath         string
+			rejectAssignment bool
+		}{
+			{"dotcom", "", "/repos/octo/widgets/dependabot/alerts/42", false},
+			{"ghec", "https://api.example.ghe.com/", "/repos/octo/widgets/dependabot/alerts/42", false},
+			{"ghes", "https://github.example.com/api/v3/", "/api/v3/repos/octo/widgets/dependabot/alerts/42", false},
+			{"ghes unsupported assignment", "https://github.example.com/api/v3/", "/api/v3/repos/octo/widgets/dependabot/alerts/42", true},
+		} {
+			t.Run(protocol+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				var calls int
+				clientOptions := []gogithub.ClientOptionsFunc{
+					gogithub.WithAuthToken("test-token"),
+					gogithub.WithUserAgent("configured-dependabot-client"),
+					gogithub.WithHTTPClient(MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+						calls++
+						assert.Equal(t, http.MethodPatch, r.Method)
+						assert.Equal(t, tc.wantPath, r.URL.Path)
+						assert.Equal(t, "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
+						assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+						assert.Equal(t, "configured-dependabot-client", r.Header.Get("User-Agent"))
+						if tc.baseURL == "" {
+							assert.Equal(t, "api.github.com", r.URL.Host)
+						} else {
+							assert.True(t, strings.HasPrefix(r.URL.String(), tc.baseURL))
+						}
+						if tc.rejectAssignment {
+							body, err := io.ReadAll(r.Body)
+							require.NoError(t, err)
+							assert.JSONEq(t, `{"assignees":["copilot-swe-agent[bot]"]}`, string(body))
+							w.WriteHeader(http.StatusUnprocessableEntity)
+							_, _ = io.WriteString(w, `{"message":"assignment is not supported on this server"}`)
+							return
+						}
+						_, _ = io.WriteString(w, `{"number":42,"state":"open","html_url":"https://github.example.com/octo/widgets/security/dependabot/42"}`)
+					}))}
+				if tc.baseURL != "" {
+					clientOptions = append(clientOptions, gogithub.WithEnterpriseURLs(tc.baseURL, tc.baseURL))
+				}
+				client, err := gogithub.NewClient(clientOptions...)
+				require.NoError(t, err)
+				deps := &BaseDeps{Client: client}
+				inv, err := NewInventory(translations.NullTranslationHelper).
+					WithToolsets([]string{"dependabot"}).Build()
+				require.NoError(t, err)
+				server := mcp.NewServer(&mcp.Implementation{Name: "dependabot-host-test", Version: "1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				inv.RegisterTools(t.Context(), server, deps)
+				session := connectCommentVisibilityClient(t, server, protocol)
+				args := map[string]any{"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open"}
+				if tc.rejectAssignment {
+					delete(args, "state")
+					args["assignees"] = []string{"copilot-swe-agent[bot]"}
+				}
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+					Name:      "update_dependabot_alert",
+					Arguments: args,
+				})
+				require.NoError(t, err)
+				if tc.rejectAssignment {
+					require.True(t, result.IsError)
+					assert.Contains(t, getTextResult(t, result).Text, "assignment is not supported on this server")
+				} else {
+					require.False(t, result.IsError, "%+v", result.Content)
+				}
+				assert.Equal(t, 1, calls)
+				request, err := client.NewRequest(t.Context(), http.MethodGet, "repos/octo/widgets", nil)
+				require.NoError(t, err)
+				assert.Equal(t, "2022-11-28", request.Header.Get("X-GitHub-Api-Version"), "retain the shared client's default on every host")
 			})
 		}
 	}
@@ -177,25 +260,70 @@ func TestUpdateDependabotAlertErrors(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
 				assert.Contains(t, getTextResult(t, result).Text, "upstream policy denied this update")
+				assert.NotContains(t, getTextResult(t, result).Text, "may already have been applied")
 				assert.Equal(t, 1, calls, "no fallback writes")
 				assert.Nil(t, result.StructuredContent)
 				assert.NotContains(t, result.Meta, "ifc")
 			})
 		}
 	}
-	for _, response := range []string{`{`, `{}`, `{"number":42,"state":"open"}`, `{"number":43,"state":"open","html_url":"https://github.com/octo/widgets/security/dependabot/43"}`} {
-		t.Run(response, func(t *testing.T) {
-			t.Parallel()
-			session, _ := dependabotUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = io.WriteString(w, response)
-			}, inventory.ProtocolVersionMultiRoundTrip)
-			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_dependabot_alert", Arguments: map[string]any{
-				"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open",
-			}})
-			require.NoError(t, err)
-			require.True(t, result.IsError)
-		})
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		for _, tc := range []struct {
+			name, response, detail string
+			status                 int
+		}{
+			{"malformed JSON", `{`, "unexpected end of JSON input", 200},
+			{"wrong field type", `{"number":"42"}`, "cannot unmarshal", 200},
+			{"empty body", ``, "unexpected Dependabot alert update response", 200},
+			{"missing fields", `{}`, "unexpected Dependabot alert update response", 200},
+			{"missing URL", `{"number":42,"state":"open"}`, "unexpected Dependabot alert update response", 200},
+			{"mismatched ID", `{"number":43,"state":"open","html_url":"https://github.com/octo/widgets/security/dependabot/43"}`, "unexpected Dependabot alert update response", 200},
+			{"accepted", `{`, "job scheduled on GitHub side", 202},
+			{"no content", ``, "unexpected Dependabot alert update response", 204},
+		} {
+			t.Run(protocol+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				var calls int
+				session, _ := dependabotUpdateSession(t, func(w http.ResponseWriter, _ *http.Request) {
+					calls++
+					w.WriteHeader(tc.status)
+					_, _ = io.WriteString(w, tc.response)
+				}, protocol)
+				result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "update_dependabot_alert", Arguments: map[string]any{
+					"owner": "octo", "repo": "widgets", "alertNumber": 42, "assignees": []string{"copilot-swe-agent[bot]"},
+				}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				text := getTextResult(t, result).Text
+				assert.Contains(t, text, "may already have been applied")
+				assert.Contains(t, text, "get_dependabot_alert")
+				assert.Contains(t, text, "before retrying")
+				assert.Contains(t, text, tc.detail)
+				assert.Equal(t, 1, calls, "never retry an update with an unusable success response")
+				assert.Nil(t, result.StructuredContent)
+			})
+		}
 	}
+}
+
+func TestUpdateDependabotAlertTransportError(t *testing.T) {
+	t.Parallel()
+	session, deps := dependabotUpdateSession(t, func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("unexpected original transport call")
+	}, inventory.ProtocolVersionMultiRoundTrip)
+	httpClient, transport := NewMockHTTPClient()
+	transport.On("RoundTrip", mock.Anything).Return((*http.Response)(nil), errors.New("connection failed")).Once()
+	deps.Client = mustNewGHClient(t, httpClient)
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "update_dependabot_alert",
+		Arguments: map[string]any{"owner": "octo", "repo": "widgets", "alertNumber": 42, "state": "open"},
+	})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	text := getTextResult(t, result).Text
+	assert.Contains(t, text, "connection failed")
+	assert.NotContains(t, text, "may already have been applied")
+	transport.AssertExpectations(t)
 }
 
 func TestUpdateDependabotAlertExactNumbers(t *testing.T) {

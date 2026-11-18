@@ -93,6 +93,9 @@ remediation but does not guarantee a fix or a pull request. Agent configuration 
 not supported. GitHub enforces permissions, licensing and repository policies;
 report API errors rather than claiming the update succeeded. Report the returned
 state, including when a dismissal remains open pending review.
+If GitHub accepts the update but its response cannot be read or validated, the
+update may already have been applied. Check `get_dependabot_alert` before retrying;
+never automatically repeat a remediation assignment after an uncertain result.
 
 ## Empty and failure cases
 

@@ -20,7 +20,6 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
-	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -113,7 +112,7 @@ func UpdateDependabotAlert(t translations.TranslationHelperFunc) inventory.Serve
 			}
 			path := fmt.Sprintf("repos/%s/%s/dependabot/alerts/%d", url.PathEscape(args.Owner), url.PathEscape(args.Repo), args.AlertNumber)
 			// The SDK's state update method requires state and lacks assignees.
-			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.DependabotAlertPatch, github.WithVersion("2026-03-10"))
+			request, err := client.NewRequest(ctx, http.MethodPatch, path, args.DependabotAlertPatch)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create Dependabot alert update request", err), nil, err
 			}
@@ -125,11 +124,15 @@ func UpdateDependabotAlert(t translations.TranslationHelperFunc) inventory.Serve
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()
 			}
+			const uncertainUpdate = "The Dependabot alert update may already have been applied; verify the alert with get_dependabot_alert before retrying"
 			if err != nil {
+				if resp != nil && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+					return utils.NewToolResultErrorFromErr(uncertainUpdate, err), nil, nil
+				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update Dependabot alert", resp, err), nil, nil
 			}
 			if resp.StatusCode != http.StatusOK || alert.Number != args.AlertNumber || alert.State == "" || alert.HTMLURL == "" {
-				return utils.NewToolResultError("unexpected Dependabot alert update response"), nil, nil
+				return utils.NewToolResultError("unexpected Dependabot alert update response. " + uncertainUpdate + "."), nil, nil
 			}
 			output := alert.DependabotAlertUpdateOutput
 			output.Number = strconv.FormatInt(alert.Number, 10)
