@@ -89,6 +89,25 @@ func TestDependabotUpdateListScopes(t *testing.T) {
 	}
 }
 
+func TestCodeScanningUpdateListScopes(t *testing.T) {
+	for _, readOnly := range []bool{false, true} {
+		inv, err := github.NewInventory(translations.NullTranslationHelper).
+			WithToolsets([]string{"code_security"}).WithReadOnly(readOnly).Build()
+		require.NoError(t, err)
+		output := collectToolScopes(inv, readOnly)
+		if readOnly {
+			assert.NotContains(t, output.ScopesByTool, "update_code_scanning_alert")
+			continue
+		}
+		assert.Equal(t, []string{"security_events"}, output.ScopesByTool["update_code_scanning_alert"])
+		assert.Contains(t, output.ToolsByScope["security_events"], "update_code_scanning_alert")
+		assert.Contains(t, output.Tools, ToolScopeInfo{
+			Name: "update_code_scanning_alert", Toolset: "code_security",
+			ReadOnly: false, ChallengeScopes: []string{"security_events"},
+		})
+	}
+}
+
 func TestSchemaTypeString(t *testing.T) {
 	tests := []struct {
 		name   string

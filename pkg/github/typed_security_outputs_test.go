@@ -26,6 +26,8 @@ func securityOutputSchema(t *testing.T, name string) *jsonschema.Schema {
 		schema, err = jsonschema.For[*CodeQualityFindingOutput](nil)
 	case "get_code_scanning_alert":
 		schema, err = jsonschema.For[*CodeScanningAlertOutput](nil)
+	case "update_code_scanning_alert":
+		schema, err = jsonschema.For[*CodeScanningAlertUpdateOutput](nil)
 	case "list_code_scanning_alerts":
 		schema, err = jsonschema.For[[]*CodeScanningAlertOutput](nil)
 	case "get_secret_scanning_alert":
