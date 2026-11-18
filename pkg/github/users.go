@@ -54,7 +54,7 @@ func ListUserEvents(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "list_user_events",
-			Description: t("TOOL_LIST_USER_EVENTS_DESCRIPTION", "List recent GitHub activity performed by a user, such as pushes, pull requests, issues, and stars. GitHub returns public events for other users and may include private events when querying the authenticated user's own activity, subject to token permissions. Returns event metadata, visibility, and event-specific payloads. GitHub limits the feed to up to 300 events from the past 30 days; events may be delayed from 30 seconds to 6 hours. This is not a complete or real-time contribution history."),
+			Description: t("TOOL_LIST_USER_EVENTS_DESCRIPTION", "List recent GitHub activity performed by a user, such as pushes, pull requests, issues, and stars. GitHub returns public events for other users and may include private events when querying the authenticated user's own activity, subject to token permissions. Returns event metadata, visibility, and event-specific payloads. In lockdown mode, only event metadata and visibility are returned. GitHub limits the feed to up to 300 events from the past 30 days; events may be delayed from 30 seconds to 6 hours. This is not a complete or real-time contribution history."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_USER_EVENTS_USER_TITLE", "List user activity"),
 				ReadOnlyHint: true,
@@ -63,8 +63,11 @@ func ListUserEvents(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, input ListUserEventsInput) (*mcp.CallToolResult, []MinimalUserEvent, error) {
-			if input.Username == "" {
+			switch input.Username {
+			case "":
 				return utils.NewToolResultError("missing required parameter: username"), nil, nil
+			case ".", "..":
+				return utils.NewToolResultError("username cannot be a dot path segment"), nil, nil
 			}
 			page, perPage := 1, 30
 			if input.Page != nil {
@@ -94,6 +97,9 @@ func ListUserEvents(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			minimalEvents := make([]MinimalUserEvent, 0, len(events))
 			label := ifc.PublicUntrusted()
+			// Embedded payload data can come from other authors or repositories.
+			// The event actor and repository cannot establish trust for that data.
+			lockdownMode := deps.GetFlags(ctx).LockdownMode
 			for _, event := range events {
 				if event == nil {
 					continue
@@ -104,7 +110,7 @@ func ListUserEvents(t translations.TranslationHelperFunc) inventory.ServerTool {
 					label = ifc.PrivateUntrusted()
 				}
 				var payload any
-				if raw := event.GetRawPayload(); len(raw) > 0 {
+				if raw := event.GetRawPayload(); !lockdownMode && len(raw) > 0 {
 					decoder := json.NewDecoder(bytes.NewReader(raw))
 					// Event payloads can contain IDs larger than float64's exact integer range.
 					decoder.UseNumber()
@@ -136,6 +142,10 @@ func sanitizeUserEventPayload(value any) any {
 		return sanitize.Content(value)
 	case map[string]any:
 		for key, item := range value {
+			if text, ok := item.(string); ok && (key == "title" || key == "name") {
+				value[key] = sanitize.PlainText(text)
+				continue
+			}
 			value[key] = sanitizeUserEventPayload(item)
 		}
 		return value

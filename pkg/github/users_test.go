@@ -56,6 +56,12 @@ func Test_ListUserEvents(t *testing.T) {
 			want:     `[{"id":"4","type":"PushEvent","public":false,"actor":"octocat","repo":"octo-org/private","payload":{"ref":"refs/heads/main"}}]`,
 		},
 		{
+			name: "embedded titles and names are plain text while bodies retain formatting",
+			args: map[string]any{"username": "octocat"}, page: "1", perPage: "30", status: http.StatusOK,
+			response: `[{"id":"5","type":"IssuesEvent","public":true,"payload":{"issue":{"title":"<b>Issue title</b>","body":"Keep <b>formatting</b>"}}},{"id":"6","type":"ReleaseEvent","public":true,"payload":{"release":{"name":"<i>Release name</i>","tag_name":"v1.0.0"}}}]`,
+			want:     `[{"id":"5","type":"IssuesEvent","public":true,"payload":{"issue":{"title":"Issue title","body":"Keep <b>formatting</b>"}}},{"id":"6","type":"ReleaseEvent","public":true,"payload":{"release":{"name":"Release name","tag_name":"v1.0.0"}}}]`,
+		},
+		{
 			name: "explicit pagination reaches GitHub",
 			args: map[string]any{"username": "octocat", "page": 3, "perPage": 100}, page: "3", perPage: "100", status: http.StatusOK,
 			response: `[]`, want: `[]`,
@@ -123,6 +129,8 @@ func Test_ListUserEvents_InvalidArguments(t *testing.T) {
 		{"missing username", map[string]any{}, "username"},
 		{"empty username", map[string]any{"username": ""}, "username"},
 		{"wrong username type", map[string]any{"username": 42}, "username"},
+		{"current-directory username", map[string]any{"username": "."}, "username cannot be a dot path segment"},
+		{"parent-directory username", map[string]any{"username": ".."}, "username cannot be a dot path segment"},
 		{"page below minimum", map[string]any{"username": "octocat", "page": 0}, "page"},
 		{"perPage below minimum", map[string]any{"username": "octocat", "perPage": 0}, "perPage"},
 		{"perPage above maximum", map[string]any{"username": "octocat", "perPage": 101}, "perPage"},
@@ -130,15 +138,46 @@ func Test_ListUserEvents_InvalidArguments(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := MockHTTPClientWithHandler(func(_ http.ResponseWriter, _ *http.Request) {
-				t.Fatal("invalid arguments must not send an API request")
-			})
-			deps := BaseDeps{Client: mustNewGHClient(t, client), Obsv: stubExporters()}
+			deps := stubDeps{clientFn: stubClientFnErr("unexpected GitHub client acquisition"), obsv: stubExporters()}
 			request := createMCPRequest(tc.args)
 			result, err := tool.Handler(deps)(ContextWithDeps(t.Context(), deps), &request)
 			require.NoError(t, err)
 			require.True(t, result.IsError)
 			assert.Contains(t, getErrorResult(t, result).Text, tc.want)
+			assert.NotContains(t, getErrorResult(t, result).Text, "unexpected GitHub client acquisition")
+		})
+	}
+}
+
+func Test_ListUserEvents_LockdownMode(t *testing.T) {
+	t.Parallel()
+	const response = `[{"id":"1","type":"IssueCommentEvent","public":true,"actor":{"login":"octocat"},"repo":{"name":"octo-org/demo"},"created_at":"2026-10-01T12:00:00Z","payload":{"issue":{"title":"Issue title","body":"Issue body"},"comment":{"body":"Comment body"}}},{"id":"2","type":"FutureEvent","public":false,"payload":{"nested":{"summary":"Unknown payload"}}}]`
+	const want = `[{"id":"1","type":"IssueCommentEvent","public":true,"actor":"octocat","repo":"octo-org/demo","created_at":"2026-10-01T12:00:00Z"},{"id":"2","type":"FutureEvent","public":false}]`
+	for _, protocol := range []string{"2025-11-25", inventory.ProtocolVersionMultiRoundTrip} {
+		t.Run(protocol, func(t *testing.T) {
+			client := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /users/octocat/events": func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte(response))
+				},
+			})
+			deps := BaseDeps{
+				Client: mustNewGHClient(t, client),
+				Flags:  FeatureFlags{LockdownMode: true},
+				Obsv:   stubExporters(),
+			}
+			tool := userEventsTool(t)
+			session := connectTypedSearchClient(t, tool, deps, protocol)
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+				Name: tool.Tool.Name, Arguments: map[string]any{"username": "octocat"},
+			})
+			require.NoError(t, err)
+			require.False(t, result.IsError, result)
+			assert.JSONEq(t, want, getTextResult(t, result).Text)
+			if protocol == inventory.ProtocolVersionMultiRoundTrip {
+				assert.JSONEq(t, want, mustMarshalJSON(t, result.StructuredContent))
+			} else {
+				assert.Nil(t, result.StructuredContent)
+			}
 		})
 	}
 }

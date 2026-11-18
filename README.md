@@ -1778,6 +1778,10 @@ Following tools will filter out content from users lacking the push access:
 - `pull_request_read:get_review_comments`
 - `pull_request_read:get_reviews`
 
+`list_user_events` returns event metadata and visibility in lockdown mode. It
+omits event payloads because embedded content can come from multiple authors
+and repositories, and the activity feed cannot verify the origin of every field.
+
 ## i18n / Overriding Descriptions
 
 The descriptions of the tools can be overridden by creating a

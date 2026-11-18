@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "List user activity"
   },
-  "description": "List recent GitHub activity performed by a user, such as pushes, pull requests, issues, and stars. GitHub returns public events for other users and may include private events when querying the authenticated user's own activity, subject to token permissions. Returns event metadata, visibility, and event-specific payloads. GitHub limits the feed to up to 300 events from the past 30 days; events may be delayed from 30 seconds to 6 hours. This is not a complete or real-time contribution history.",
+  "description": "List recent GitHub activity performed by a user, such as pushes, pull requests, issues, and stars. GitHub returns public events for other users and may include private events when querying the authenticated user's own activity, subject to token permissions. Returns event metadata, visibility, and event-specific payloads. In lockdown mode, only event metadata and visibility are returned. GitHub limits the feed to up to 300 events from the past 30 days; events may be delayed from 30 seconds to 6 hours. This is not a complete or real-time contribution history.",
   "inputSchema": {
     "properties": {
       "page": {
