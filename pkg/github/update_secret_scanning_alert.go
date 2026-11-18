@@ -61,7 +61,8 @@ func UpdateSecretScanningAlert(t translations.TranslationHelperFunc) inventory.S
 					"Provide at least one of state, assignee, or validity. Resolving requires a non-null resolution. "+
 					"Omitted fields are unchanged; null unassigns the assignee or clears the validity override. "+
 					"Resolution comments accompany closing or reopening and cannot later be edited or deleted. "+
-					"Resolution revoked does not revoke credentials; validity is a manual override, not a validation request. "+
+					"Resolution revoked does not revoke credentials; validity is a manual override for custom-pattern alerts only, not a validation request. "+
+					"GitHub-supported patterns retain validator-managed validity and cannot be overridden through this endpoint. "+
 					"Requires repository secret scanning write access. Delegated dismissal may require Secret scanning alert dismissal requests write permission and an authorized reviewer; API policy failures are returned without bypass."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_SECRET_SCANNING_ALERT_USER_TITLE", "Update secret scanning alert"),
@@ -80,7 +81,7 @@ func UpdateSecretScanningAlert(t translations.TranslationHelperFunc) inventory.S
 					"resolution":         {Types: []string{"string", "null"}, Enum: []any{"false_positive", "wont_fix", "revoked", "used_in_tests", nil}, Description: "Reason for resolving. Non-null when state is resolved."},
 					"resolution_comment": {Types: []string{"string", "null"}, Description: "Optional comment when closing or reopening; cannot later be updated or deleted."},
 					"assignee":           {Types: []string{"string", "null"}, Description: "Username with repository write access; null unassigns."},
-					"validity":           {Types: []string{"string", "null"}, Enum: []any{"active", "inactive", nil}, Description: "Manual validity override; null clears the override."},
+					"validity":           {Types: []string{"string", "null"}, Enum: []any{"active", "inactive", nil}, Description: "Manual validity override for custom-pattern alerts only; null clears the override. GitHub-supported patterns retain validator-managed validity."},
 				},
 				Required: []string{"owner", "repo", "alertNumber"},
 			},

@@ -125,7 +125,10 @@ a non-null `resolution`: `false_positive`, `wont_fix`, `revoked`, or `used_in_te
 Omitted fields stay unchanged. `resolution`, `resolution_comment`, `assignee`, and
 `validity` accept null; null unassigns the assignee or clears the validity override.
 A non-null assignee is a username with repository write access. Validity accepts
-`active` or `inactive`; it is a manual override, not a request to validate a secret.
+`active` or `inactive` for custom-pattern alerts only; it is a manual override, not
+a request to validate a secret. GitHub-supported patterns retain validator-managed
+validity and cannot be overridden through this endpoint. GitHub enforces this
+restriction; report rejected updates rather than bypassing it.
 Resolution comments accompany closing or reopening and cannot later be edited or
 deleted. A comment or resolution alone is not an update. Report the returned state,
 resolution, assignment and validity without reproducing secret values. Marking an

@@ -1623,7 +1623,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `resolution`: Reason for resolving. Non-null when state is resolved. (string | null, optional)
   - `resolution_comment`: Optional comment when closing or reopening; cannot later be updated or deleted. (string | null, optional)
   - `state`: Reopen or resolve the alert. (string, optional)
-  - `validity`: Manual validity override; null clears the override. (string | null, optional)
+  - `validity`: Manual validity override for custom-pattern alerts only; null clears the override. GitHub-supported patterns retain validator-managed validity. (string | null, optional)
 
 </details>
 
