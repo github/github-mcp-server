@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -225,32 +226,53 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	addr := resolveListenAddress(cfg.ListenHost, cfg.Port)
 	httpSvr := http.Server{
-		Addr:              addr,
 		Handler:           r,
 		ReadHeaderTimeout: 60 * time.Second,
 	}
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		logger.Info("shutting down server")
-		if err := httpSvr.Shutdown(shutdownCtx); err != nil {
-			logger.Error("error during server shutdown", "error", err)
-		}
-	}()
 
 	if cfg.ExportTranslations {
 		// Once server is initialized, all translations are loaded
 		dumpTranslations()
 	}
 
-	logger.Info("HTTP server listening", "addr", addr)
-	if err := httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
 		return fmt.Errorf("HTTP server error: %w", err)
 	}
-
+	logger.Info("HTTP server listening", "addr", addr)
+	if err := serveHTTP(ctx, &httpSvr, listener, 5*time.Second, logger); err != nil {
+		return err
+	}
 	logger.Info("server stopped gracefully")
+	return nil
+}
+
+func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration, logger *slog.Logger) error {
+	serveResult := make(chan error, 1)
+	go func() {
+		serveResult <- server.Serve(listener)
+	}()
+
+	select {
+	case err := <-serveResult:
+		return fmt.Errorf("HTTP server error: %w", errors.Join(err, server.Close()))
+	case <-ctx.Done():
+	}
+
+	logger.Info("shutting down server")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	// Serve returns when Shutdown closes the listener, before active requests drain.
+	shutdownErr := server.Shutdown(shutdownCtx)
+	if shutdownErr != nil {
+		shutdownErr = errors.Join(shutdownErr, server.Close())
+	}
+	if err := <-serveResult; err != http.ErrServerClosed {
+		return fmt.Errorf("HTTP server error: %w", errors.Join(err, shutdownErr))
+	}
+	if shutdownErr != nil {
+		return fmt.Errorf("error during server shutdown: %w", shutdownErr)
+	}
 	return nil
 }
 
