@@ -1026,10 +1026,8 @@ func getIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 	flags := deps.GetFlags(ctx)
 
 	opts := &github.IssueListCommentsOptions{
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	}
 
 	comments, resp, err := client.Issues.ListComments(ctx, owner, repo, issueNumber, opts)
@@ -2117,11 +2115,11 @@ func parseRepositoryURL(repoURL string) (string, string, bool) {
 		return "", "", false
 	}
 	const marker = "/repos/"
-	idx := strings.LastIndex(repoURL, marker)
-	if idx < 0 {
+	_, after, ok := strings.CutLast(repoURL, marker)
+	if !ok {
 		return "", "", false
 	}
-	parts := strings.Split(strings.Trim(repoURL[idx+len(marker):], "/"), "/")
+	parts := strings.Split(strings.Trim(after, "/"), "/")
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false
 	}

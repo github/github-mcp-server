@@ -382,10 +382,8 @@ func GetRepositoryRuleset(ctx context.Context, client *github.Client, owner, rep
 // includesParents is nil GitHub's default behaviour (include parents) is used.
 func ListRepositoryRulesets(ctx context.Context, client *github.Client, owner, repo string, includesParents *bool, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	opts := &github.RepositoryListRulesetsOptions{
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+		Page:            pagination.Page,
+		PerPage:         pagination.PerPage,
 		IncludesParents: includesParents,
 	}
 

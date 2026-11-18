@@ -64,10 +64,8 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			opts := &github.GistListOptions{
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
-				},
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			// Parse since timestamp if provided

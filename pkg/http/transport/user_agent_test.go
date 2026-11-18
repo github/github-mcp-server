@@ -18,7 +18,7 @@ func TestUserAgentTransportRequestIsolation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	transport := &UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: newIsolatedTransport(t),
 		Agent:     "github-mcp-server/remote-abcdef",
 	}
 	client := &http.Client{Transport: transport}

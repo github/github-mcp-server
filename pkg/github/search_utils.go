@@ -121,12 +121,10 @@ func prepareSearchArgs(input SearchIssuesInput, targetType string, mode searchMo
 	}
 
 	opts := &github.SearchOptions{
-		Sort:  input.Sort,
-		Order: input.Order,
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+		Sort:    input.Sort,
+		Order:   input.Order,
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	}
 
 	// field.<name>:<value> qualifiers require the advanced search API.
