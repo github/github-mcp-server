@@ -11,6 +11,7 @@ import (
 
 	"github.com/github/github-mcp-server/v2/pkg/github"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/skills/catalog"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ import (
 var generateDocsCmd = &cobra.Command{
 	Use:   "generate-docs",
 	Short: "Generate documentation for tools and toolsets",
-	Long:  `Generate the automated sections of README.md and docs/remote-server.md with current tool and toolset information.`,
+	Long:  `Generate the automated sections of README.md and docs/remote-server.md with current tool, toolset, and bundled skill information.`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return generateAllDocs()
 	},
@@ -72,6 +73,11 @@ func generateReadmeDocs(readmePath string) error {
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
 
+	skillsDoc, err := generateSkillsDoc()
+	if err != nil {
+		return err
+	}
+
 	// Generate tools documentation
 	toolsDoc := generateToolsDoc(r)
 
@@ -84,6 +90,11 @@ func generateReadmeDocs(readmePath string) error {
 
 	// Replace toolsets section
 	updatedContent, err := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
+	if err != nil {
+		return err
+	}
+
+	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED SKILLS", "END AUTOMATED SKILLS", skillsDoc)
 	if err != nil {
 		return err
 	}
@@ -101,6 +112,27 @@ func generateReadmeDocs(readmePath string) error {
 	}
 
 	return nil
+}
+
+func generateSkillsDoc() (string, error) {
+	source, err := catalog.New()
+	if err != nil {
+		return "", fmt.Errorf("load bundled skills for README: %w", err)
+	}
+	entries, err := source.List(context.Background())
+	if err != nil {
+		return "", fmt.Errorf("list bundled skills for README: %w", err)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Frontmatter.Name() < entries[j].Frontmatter.Name()
+	})
+
+	var buf strings.Builder
+	for _, entry := range entries {
+		name := entry.Frontmatter.Name()
+		fmt.Fprintf(&buf, "- [`%s`](pkg/skills/catalog/skills/%s/SKILL.md) — %s\n", name, name, entry.Frontmatter.Description())
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
 func generateRemoteServerDocs(docsPath string) error {

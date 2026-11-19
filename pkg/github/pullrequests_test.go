@@ -11,9 +11,12 @@ import (
 
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -742,6 +745,80 @@ func Test_ListPullRequests(t *testing.T) {
 			assert.Equal(t, *tc.expectedPRs[1].Title, returnedPRs[1].Title)
 			assert.Equal(t, *tc.expectedPRs[1].State, returnedPRs[1].State)
 		})
+	}
+}
+
+func Test_ListPullRequests_MergedState(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		response   string
+		wantMerged bool
+	}{
+		{"merged list entry", `[{"number":42,"state":"closed","merged_at":"2026-10-08T11:25:51Z"}]`, true},
+		{"closed unmerged", `[{"number":42,"state":"closed","merged_at":null}]`, false},
+		{"open", `[{"number":42,"state":"open","merged_at":null}]`, false},
+		{"explicit true", `[{"number":42,"state":"closed","merged":true}]`, true},
+		{"explicit false", `[{"number":42,"state":"closed","merged":false,"merged_at":"2026-10-08T11:25:51Z"}]`, false},
+		{"zero timestamp", `[{"number":42,"state":"closed","merged_at":"0001-01-01T00:00:00Z"}]`, false},
+	} {
+		for _, fields := range [][]string{nil, {"number", "merged", "merged_at"}} {
+			name := "all fields"
+			if fields != nil {
+				name = "selected fields"
+			}
+			t.Run(tc.name+"/"+name, func(t *testing.T) {
+				mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					GetReposPullsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						_, err := w.Write([]byte(tc.response))
+						require.NoError(t, err)
+					},
+				})
+				deps := BaseDeps{Client: mustNewGHClient(t, mockedClient)}
+				serverTool := ListPullRequests(translations.NullTranslationHelper)
+				handler := serverTool.Handler(deps)
+				args := map[string]any{"owner": "owner", "repo": "repo", "state": "all"}
+				if fields != nil {
+					args["fields"] = fields
+				}
+				request := createMCPRequest(args)
+				result, err := handler(ContextWithDeps(t.Context(), deps), &request)
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				var textPRs []MinimalPullRequest
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &textPRs))
+				require.Len(t, textPRs, 1)
+				assert.Equal(t, tc.wantMerged, textPRs[0].Merged)
+
+				server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+				server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+				serverTool.RegisterFunc(server, deps)
+				serverTransport, clientTransport := mcp.NewInMemoryTransports()
+				serverSession, err := server.Connect(t.Context(), serverTransport, nil)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = serverSession.Close() })
+				client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+				clientSession, err := client.Connect(t.Context(), clientTransport, &mcp.ClientSessionOptions{
+					ProtocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+				})
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = clientSession.Close() })
+				result, err = clientSession.CallTool(t.Context(), &mcp.CallToolParams{
+					Name:      serverTool.Tool.Name,
+					Arguments: args,
+					Meta:      mcp.Meta{mcp.MetaKeyProtocolVersion: inventory.ProtocolVersionMultiRoundTrip},
+				})
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				structured, err := json.Marshal(result.StructuredContent)
+				require.NoError(t, err)
+				var typedPRs []ListPullRequestOutput
+				require.NoError(t, json.Unmarshal(structured, &typedPRs))
+				require.Len(t, typedPRs, 1)
+				require.NotNil(t, typedPRs[0].Merged)
+				assert.Equal(t, tc.wantMerged, *typedPRs[0].Merged)
+			})
+		}
 	}
 }
 
@@ -4682,13 +4759,13 @@ func TestResolveReviewThread(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
-		requestArgs          map[string]any
-		mockedClient         *http.Client
-		withResolutionReason bool
-		expectToolError      bool
-		expectedToolErrMsg   string
-		expectedResult       string
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		ghes               bool
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedResult     string
 	}{
 		{
 			name: "successful resolve thread",
@@ -4726,8 +4803,7 @@ func TestResolveReviewThread(t *testing.T) {
 			expectedResult: "review thread resolved successfully",
 		},
 		{
-			name:                 "successful resolve thread with resolution reason",
-			withResolutionReason: true,
+			name: "successful resolve thread with resolution reason",
 			requestArgs: map[string]any{
 				"method":           "resolve_thread",
 				"owner":            "owner",
@@ -4748,7 +4824,7 @@ func TestResolveReviewThread(t *testing.T) {
 					}{},
 					ResolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_kwDOTest123"),
-						ResolutionReason: newGQLStringlike[githubv4.String]("wont-fix"),
+						ResolutionReason: newGQLStringlike[githubv4.String]("WONT_FIX"),
 					},
 					nil,
 					githubv4mock.DataResponse(map[string]any{
@@ -4764,7 +4840,8 @@ func TestResolveReviewThread(t *testing.T) {
 			expectedResult: "review thread resolved successfully",
 		},
 		{
-			name: "default variant omits resolution reason",
+			name: "GHES omits resolution reason",
+			ghes: true,
 			requestArgs: map[string]any{
 				"method":           "resolve_thread",
 				"owner":            "owner",
@@ -4922,8 +4999,8 @@ func TestResolveReviewThread(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			if tc.withResolutionReason {
-				serverTool = PullRequestReviewWriteWithResolutionReason(translations.NullTranslationHelper)
+			if tc.ghes {
+				serverTool = PullRequestReviewWrite(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES))
 			}
 			deps := BaseDeps{
 				GQLClient: client,

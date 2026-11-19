@@ -377,6 +377,20 @@ func TestNormalizeTypedReadArgumentsPreservesLegacyValues(t *testing.T) {
 	assert.JSONEq(t, `{"state":"OPEN","orderBy":"UPDATED_AT","direction":"ASC","perPage":25,"page":null}`, string(normalized))
 }
 
+func TestNormalizeTypedReadArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
+	normalize := normalizeTypedReadArguments(nil, false)
+	for _, input := range []string{
+		`{"page":"9223372036854775808"}`,
+		`{"perPage":"9223372036854775807"}`,
+		`{"page":"-9223372036854777856"}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, err := normalize(json.RawMessage(input))
+			require.ErrorContains(t, err, "is not a valid number")
+		})
+	}
+}
+
 func mustMarshalJSON(t *testing.T, value any) string {
 	t.Helper()
 	encoded, err := json.Marshal(value)

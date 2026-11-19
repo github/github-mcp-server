@@ -24,6 +24,13 @@ type GetSecurityAlertInput struct {
 	AlertNumber int    `json:"alertNumber"`
 }
 
+type GetSecretScanningAlertInput struct {
+	Owner       string `json:"owner"`
+	Repo        string `json:"repo"`
+	AlertNumber int    `json:"alertNumber"`
+	HideSecret  *bool  `json:"hide_secret,omitempty"`
+}
+
 type ListCodeScanningAlertsInput struct {
 	Owner    string `json:"owner"`
 	Repo     string `json:"repo"`
@@ -41,6 +48,7 @@ type ListSecretScanningAlertsInput struct {
 	State      string `json:"state,omitempty"`
 	SecretType string `json:"secret_type,omitempty"`
 	Resolution string `json:"resolution,omitempty"`
+	HideSecret *bool  `json:"hide_secret,omitempty"`
 	Page       *int   `json:"page,omitempty"`
 	PerPage    *int   `json:"perPage,omitempty"`
 }
@@ -301,7 +309,7 @@ func normalizeSecurityIntegerArguments(fields ...string) inventory.InputNormaliz
 			}
 			parsed, err := strconv.ParseFloat(number, 64)
 			if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) ||
-				parsed != math.Trunc(parsed) || parsed > float64(math.MaxInt) || parsed < float64(math.MinInt) {
+				parsed != math.Trunc(parsed) || !inSignedIntRange(parsed, strconv.IntSize) {
 				return nil, fmt.Errorf("parameter %s is not a valid number", field)
 			}
 			arguments[field], err = json.Marshal(int(parsed))
