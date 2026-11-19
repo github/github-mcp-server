@@ -414,7 +414,7 @@ For a complete overview of all installation options, see our **[Installation Gui
 
 ### Install with Go / build from source
 
-If you prefer a native binary over Docker, install with Go (requires [Go](https://go.dev/dl/) 1.27+):
+If you prefer a native binary over Docker, install with Go (requires [Go](https://go.dev/dl/) 1.27.3 or later, matching `go.mod`):
 
 ```bash
 go install github.com/github/github-mcp-server/v2/cmd/github-mcp-server@latest
