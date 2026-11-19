@@ -7,6 +7,7 @@
   },
   "description": "Delete a Copilot automation from a repository after explicit user confirmation.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "automation_id": {
         "description": "The automation identifier.",

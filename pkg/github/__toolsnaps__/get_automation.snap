@@ -6,6 +6,7 @@
   },
   "description": "Get the configuration of a Copilot automation in a repository.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "automation_id": {
         "description": "The automation identifier.",
