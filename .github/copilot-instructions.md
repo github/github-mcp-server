@@ -281,11 +281,10 @@ server.json         - MCP server registry metadata
 1. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked). This repo is used as a library by the remote server, so keep functions exported (capitalized) if they could be called by other repos, even if not needed internally.
 2. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
 3. **NEVER** use `script/tag-release` or push tags
-4. **ALWAYS** update toolsnaps when changing MCP tool schemas
-5. **ALWAYS** run `script/generate-docs` after modifying tools
-6. For specific test files, use `go test ./path -run TestName` not full suite
-7. E2E tests require PAT token - you likely cannot run them
-8. Toolsnaps are API documentation - treat changes seriously
-9. Build/test/lint are very fast (~1s each) - run frequently
-10. CI failures for docs-check or license-check have simple fixes (run the script)
-11. mcpcurl is secondary - don't break it, but it's not the priority
+4. **ALWAYS** run `script/generate-docs` after modifying tools
+5. For specific test files, use `go test ./path -run TestName` not full suite
+6. E2E tests require PAT token - you likely cannot run them
+7. Toolsnaps are API documentation - treat changes seriously
+8. Build/test/lint are very fast (~1s each) - run frequently
+9. CI failures for docs-check or license-check have simple fixes (run the script)
+10. mcpcurl is secondary - don't break it, but it's not the priority
