@@ -1,11 +1,13 @@
 {
   "annotations": {
+    "destructiveHint": false,
     "idempotentHint": false,
     "readOnlyHint": false,
     "title": "Update a repository automation"
   },
-  "description": "Update a Copilot automation in a repository after explicit user confirmation. Only the provided fields are changed.",
+  "description": "Update a Copilot automation in a repository. Only the provided fields are changed.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "automation_id": {
         "description": "The automation identifier.",
