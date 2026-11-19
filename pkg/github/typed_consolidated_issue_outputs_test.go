@@ -353,10 +353,10 @@ func TestTypedIssueWriteAwaitingForm(t *testing.T) {
 				args := map[string]any{"method": method, "owner": "owner", "repo": "repo", "issue_number": "1", "title": "Subject"}
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "issue_write", Arguments: args})
 				require.NoError(t, err)
-				require.True(t, result.IsError)
+				require.False(t, result.IsError)
 				require.Len(t, result.Content, 1)
-				assert.Contains(t, getErrorResult(t, result).Text, "interactive form has been shown")
-				assert.Contains(t, getErrorResult(t, result).Text, "NOT been")
+				assert.Contains(t, getTextResult(t, result).Text, "interactive form has been shown")
+				assert.Contains(t, getTextResult(t, result).Text, "NOT been")
 				if protocol == inventory.ProtocolVersionMultiRoundTrip {
 					require.NotNil(t, result.StructuredContent)
 					assert.JSONEq(t, `{"status":"awaiting_user_submission","reason":"An interactive form is being shown to the user. The operation has not been performed."}`, mustMarshalJSON(t, result.StructuredContent))

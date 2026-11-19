@@ -2656,10 +2656,10 @@ var issueWriteFormParams = map[string]struct{}{
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
 // returned when issue_write hands off to the MCP App form. The body is shared
-// by IssueWrite and LegacyIssueWrite. The result is marked IsError=true so
-// agents that bail on error don't claim success or chain dependent tool calls
-// while the user is still interacting with the form; the host renders the UI
-// regardless because rendering is keyed off the tool's _meta.ui resourceUri.
+// by IssueWrite and LegacyIssueWrite. The result is not an error because hosts
+// exclude error results from MCP App rendering; the stop message and the
+// structured status keep the handoff pending so agents don't claim success or
+// chain dependent tool calls while the user is still interacting with the form.
 func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *mcp.CallToolResult {
 	var msg string
 	if method == "update" {
@@ -2876,6 +2876,9 @@ Options are:
 					Reason: "An interactive form is being shown to the user. The operation has not been performed.",
 				}
 				result.StructuredContent = output
+				// Keep the stop message in text; modern clients replace text
+				// with structured JSON unless the handler content is preserved.
+				inventory.PreserveToolHandlerContent(ctx)
 				return result, &IssueWriteOutput{Method: method, Awaiting: output}, nil
 			}
 
