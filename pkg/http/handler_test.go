@@ -813,8 +813,8 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 
 func TestStaticInventoryDisablesUnprotectedMutationTools(t *testing.T) {
 	cfg := &ServerConfig{
-		disableDeleteRepository:         true,
-		disableAgentAutomationMutations: true,
+		disableDeleteRepository: true,
+		disableDeleteAutomation: true,
 	}
 	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
 	require.NoError(t, err)
@@ -824,17 +824,17 @@ func TestStaticInventoryDisablesUnprotectedMutationTools(t *testing.T) {
 		names = append(names, tool.Tool.Name)
 	}
 	assert.NotContains(t, names, github.DeleteRepositoryToolName)
-	assert.NotContains(t, names, "create_automation")
-	assert.NotContains(t, names, "update_automation")
 	assert.NotContains(t, names, "delete_automation")
-	assert.NotContains(t, names, "run_automation")
+	assert.Contains(t, names, "create_automation")
+	assert.Contains(t, names, "update_automation")
+	assert.Contains(t, names, "run_automation")
 	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
 }
 
 func TestStaticInventoryKeepsExplicitUnprotectedMutationToolsDisabled(t *testing.T) {
 	cfg := &ServerConfig{
-		EnabledTools:                    []string{"create_automation"},
-		disableAgentAutomationMutations: true,
+		EnabledTools:            []string{"delete_automation"},
+		disableDeleteAutomation: true,
 	}
 	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
 	require.NoError(t, err)
