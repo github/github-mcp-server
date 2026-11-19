@@ -61,6 +61,7 @@ For UI dependency upgrades, compare all four views (`get-me`, `issue-write`, `pr
     - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](docs/tool-renaming.md))
     - For toolset and icon configuration, see [Toolsets and Icons Guide](docs/toolsets-and-icons.md)
     - For typed tool registration and compatibility schemas, see [Typed Tool Schemas](docs/typed-tool-schemas.md)
+    - When adding or changing tools or toolset instructions, update the relevant bundled skills or record why no skill applies. Run `go test ./pkg/skills/catalog -run TestCatalogToolRequirementsAreRegistered -count=1`; if the instruction snapshot fails, update the named skills and refresh it with `UPDATE_SKILLS_INSTRUCTIONS=true go test ./pkg/github -run TestToolsetInstructionsAreCoveredBySkills -count=1`. Run `script/generate-docs` to refresh the README catalog.
 6. Push to your fork and [submit a pull request][pr] targeting the `main` branch
 7. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 
