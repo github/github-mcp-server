@@ -86,8 +86,7 @@ quietly becomes an audit, or that reads far more than was asked for.
 ## Empty and failure cases
 
 - **The tree is truncated** — very large repositories exceed what one call returns.
-  Narrow with `path_filter` rather than treating the partial tree as complete, and say
-  it was partial.
+  Do not treat the partial tree as complete, and say it was partial.
 - **A search returns nothing** — the symbol may be constructed rather than written
   literally, spelled differently, or in a language the index does not cover. Try a
   distinctive fragment, then fall back to reading the directory the tree suggests.
