@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v92/github"
@@ -266,6 +269,83 @@ func TestCompletePath_RefSelection(t *testing.T) {
 	result, err = completePath(ctx, nil, resolved, "src/")
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func TestCompletePath_RequestsTreeForResolvedRef(t *testing.T) {
+	tests := []struct {
+		name         string
+		resolved     map[string]string
+		expectedTree string
+	}{
+		{
+			name:         "branch",
+			resolved:     map[string]string{"branch": "main"},
+			expectedTree: "main",
+		},
+		{
+			name:         "sha",
+			resolved:     map[string]string{"sha": "abc123"},
+			expectedTree: "abc123",
+		},
+		{
+			name:         "tag",
+			resolved:     map[string]string{"tag": "v1.0.0"},
+			expectedTree: "v1.0.0",
+		},
+		{
+			name:         "pull request head",
+			resolved:     map[string]string{"prNumber": "42"},
+			expectedTree: "refs/pull/42/head",
+		},
+		{
+			name:         "default branch",
+			resolved:     map[string]string{},
+			expectedTree: "HEAD",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requestedTrees []string
+			client := mustNewGHClient(t, NewMockedHTTPClient(func(handlers map[string]http.HandlerFunc) {
+				handlers[""] = func(w http.ResponseWriter, r *http.Request) {
+					tree, ok := strings.CutPrefix(r.URL.Path, "/repos/owner/repo/git/trees/")
+					if !ok {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					requestedTrees = append(requestedTrees, tree)
+					mockResponse(t, http.StatusOK, &github.Tree{
+						Entries: []*github.TreeEntry{{Path: new("README.md"), Type: new("blob")}},
+					})(w, r)
+				}
+			}))
+
+			resolved := map[string]string{"owner": "owner", "repo": "repo"}
+			maps.Copy(resolved, tt.resolved)
+
+			values, err := completePath(t.Context(), client, resolved, "")
+			require.NoError(t, err)
+			assert.Equal(t, []string{tt.expectedTree}, requestedTrees)
+			assert.Equal(t, []string{"README.md"}, values)
+		})
+	}
+}
+
+func TestCompletePath_InvalidPRNumber(t *testing.T) {
+	client := mustNewGHClient(t, NewMockedHTTPClient(func(handlers map[string]http.HandlerFunc) {
+		handlers[""] = func(_ http.ResponseWriter, r *http.Request) {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+
+	values, err := completePath(t.Context(), client, map[string]string{
+		"owner":    "owner",
+		"repo":     "repo",
+		"prNumber": "42/../../main",
+	}, "")
+	require.Error(t, err)
+	assert.Nil(t, values)
 }
 
 func TestRepositoryResourceArgumentResolvers_Existence(t *testing.T) {
