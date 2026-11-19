@@ -37,7 +37,8 @@ Keep them apart when reporting.
 
 ## Secret scanning
 
-- **Tools** — `list_secret_scanning_alerts`, `get_secret_scanning_alert`.
+- **Tools** — `list_secret_scanning_alerts`, `get_secret_scanning_alert`,
+  `update_secret_scanning_alert` (when enabled and not read-only).
 - **What it finds** — credentials committed to the repository.
 - **Identity** — alert number, plus `secret_type`.
 - **Severity** — none. Treat every open alert as urgent until a person confirms the
@@ -45,8 +46,10 @@ Keep them apart when reporting.
 - **The decisive fields** — `secret_type` says what to revoke and where; the alert's
   own state and resolution say whether anyone has already acted.
 - **Closed means** — `resolution` is one of `revoked`, `false_positive`, `wont_fix`,
-  `used_in_tests`, `pattern_edited`, `pattern_deleted`. Only `revoked` means the
-  credential can no longer be used.
+  `used_in_tests`, `pattern_edited`, `pattern_deleted`. The update tool accepts only
+  the first four reasons. `revoked` records a disposition, not proof of revocation;
+  credential revocation happens outside the alert update. A validity override also
+  does not validate or revoke the credential.
 
 ## Advisories
 

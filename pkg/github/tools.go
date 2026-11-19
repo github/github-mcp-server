@@ -328,6 +328,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Secret protection tools
 		GetSecretScanningAlert(t),
 		ListSecretScanningAlerts(t),
+		UpdateSecretScanningAlert(t),
 
 		// Dependabot tools
 		GetDependabotAlert(t),

@@ -13,6 +13,9 @@ When available, `update_dependabot_alert` can reopen or dismiss a Dependabot ale
 or replace its assignees. It does not merge a fix or revoke a credential.
 `update_code_scanning_alert` can reopen or dismiss a code scanning alert, request
 delegated dismissal, or replace its assignees when enabled and not read-only.
+`update_secret_scanning_alert` can reopen or resolve a secret scanning alert, change
+its assignee, or override its validity when enabled and not read-only. None of these
+actions revokes or rotates a credential.
 
 ## Sequence
 
@@ -78,8 +81,8 @@ outranks nothing; a moderate one on a public entry point may outrank everything.
   fields a dependency recommendation is built from.
 - `secret_type` — identifies what kind of credential leaked, which decides how it is
   revoked and who owns the revocation.
-- `resolution` on a closed secret alert — `revoked` is the only value that means the
-  credential is dead.
+- `resolution` on a closed secret alert — `revoked` records that someone marked it
+  revoked; it does not itself revoke the credential or prove that it is dead.
 
 ## Confirm before anything is acted on
 
@@ -113,6 +116,27 @@ dismissal when appropriate; GitHub may also require a comment under repository
 policy. Report the actual returned state and assignees, not presumed dismissal or
 approval. GitHub enforces permissions, policy and agentic Autofix eligibility;
 report errors without fallback or agent configuration.
+
+For a requested secret scanning update, use `update_secret_scanning_alert` with
+separate `owner`, `repo` and a positive integer `alertNumber`, plus at least one of
+`state`, `assignee`, or `validity`. `state` is `open` or `resolved`; resolving requires
+a non-null `resolution`: `false_positive`, `wont_fix`, `revoked`, or `used_in_tests`.
+`pattern_edited` and `pattern_deleted` are not accepted update reasons.
+Omitted fields stay unchanged. `resolution`, `resolution_comment`, `assignee`, and
+`validity` accept null; null unassigns the assignee or clears the validity override.
+A non-null assignee is a username with repository write access. Validity accepts
+`active` or `inactive` for custom-pattern alerts only; it is a manual override, not
+a request to validate a secret. GitHub-supported patterns retain validator-managed
+validity and cannot be overridden through this endpoint. GitHub enforces this
+restriction; report rejected updates rather than bypassing it.
+Resolution comments accompany closing or reopening and cannot later be edited or
+deleted. A comment or resolution alone is not an update. Report the returned state,
+resolution, assignment and validity without reproducing secret values. Marking an
+alert `revoked` does not revoke credentials. GitHub enforces permissions and delegated
+dismissal policy; report API errors without bypass or fallback.
+If an update reports that it may already have been applied, inspect the alert with
+`get_secret_scanning_alert` and `hide_secret: true` before retrying; an unreadable
+success response does not prove that the write failed.
 
 ## Empty and failure cases
 
