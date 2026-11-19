@@ -11,6 +11,8 @@ evidence a maintainer can check.
 The output is a recommendation with evidence unless a specific update is requested.
 When available, `update_dependabot_alert` can reopen or dismiss a Dependabot alert,
 or replace its assignees. It does not merge a fix or revoke a credential.
+`update_code_scanning_alert` can reopen or dismiss a code scanning alert, request
+delegated dismissal, or replace its assignees when enabled and not read-only.
 
 ## Sequence
 
@@ -96,6 +98,21 @@ state, including when a dismissal remains open pending review.
 If GitHub accepts the update but its response cannot be read or validated, the
 update may already have been applied. Check `get_dependabot_alert` before retrying;
 never automatically repeat a remediation assignment after an uncertain result.
+
+For a requested code scanning update, use `update_code_scanning_alert` with separate
+`owner`, `repo` and a positive integer `alertNumber`, plus state or assignees.
+`state` is `open` or `dismissed`; dismissal requires a non-null `dismissed_reason`:
+`false positive`, `won't fix`, `used in tests`, or `mitigated`. Omitted fields stay
+unchanged. `dismissed_reason` and `dismissed_comment` also accept explicit null;
+non-null comments are limited to 280 characters. Comments alone are not supported.
+`assignees` replaces the full set and `[]` clears it. Copilot assignment starts
+agentic remediation and may open a draft pull request, consuming Code Security AI
+Credits and Actions minutes; do not infer a session or pull request from assignment.
+Use `create_request: true` with `state: dismissed` and a reason to attempt delegated
+dismissal when appropriate; GitHub may also require a comment under repository
+policy. Report the actual returned state and assignees, not presumed dismissal or
+approval. GitHub enforces permissions, policy and agentic Autofix eligibility;
+report errors without fallback or agent configuration.
 
 ## Empty and failure cases
 

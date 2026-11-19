@@ -323,6 +323,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Code security tools
 		GetCodeScanningAlert(t),
 		ListCodeScanningAlerts(t),
+		UpdateCodeScanningAlert(t),
 
 		// Secret protection tools
 		GetSecretScanningAlert(t),

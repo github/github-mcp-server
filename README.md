@@ -756,6 +756,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `state`: Filter code scanning alerts by state. Defaults to open (string, optional)
   - `tool_name`: The name of the tool used for code scanning. (string, optional)
 
+- **update_code_scanning_alert** - Update code scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Code scanning alert number. (integer, required)
+  - `assignees`: Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership. (string[], optional)
+  - `create_request`: Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy. (boolean, optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API. (string | null, optional)
+  - `dismissed_reason`: Required and non-null when dismissing. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
+
 </details>
 
 <details>

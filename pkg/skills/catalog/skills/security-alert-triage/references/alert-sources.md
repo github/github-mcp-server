@@ -6,7 +6,8 @@ Keep them apart when reporting.
 
 ## Code scanning
 
-- **Tools** — `list_code_scanning_alerts`, `get_code_scanning_alert`.
+- **Tools** — `list_code_scanning_alerts`, `get_code_scanning_alert`,
+  `update_code_scanning_alert` (when enabled and not read-only).
 - **What it finds** — problems in this repository's own code, from analysis tools.
 - **Identity** — alert number, plus `rule.id`. The rule id is stable across
   repositories, so it is the right thing to group or compare on.
@@ -16,6 +17,7 @@ Keep them apart when reporting.
 - **Where to look** — `most_recent_instance.location` gives file, line and column.
 - **Closed means** — `fixed` when the code changed, `dismissed` when a person judged
   it inapplicable.
+  A delegated dismissal request can leave the alert open; use the returned state.
 
 ## Dependabot
 
