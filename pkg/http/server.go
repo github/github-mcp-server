@@ -119,8 +119,8 @@ type ServerConfig struct {
 	// the MCP endpoints. When zero, middleware.DefaultMaxRequestBodyBytes is used.
 	MaxRequestBodyBytes int64
 
-	disableDeleteRepository         bool
-	disableAgentAutomationMutations bool
+	disableDeleteRepository bool
+	disableDeleteAutomation bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -284,7 +284,7 @@ func resolveListenAddress(host string, port int) string {
 func configureRequestState(cfg *ServerConfig, logger *slog.Logger) (github.RequestStateSealer, error) {
 	if cfg.MRTRStateKey == "" {
 		cfg.disableDeleteRepository = true
-		cfg.disableAgentAutomationMutations = true
+		cfg.disableDeleteAutomation = true
 		logger.Warn("multi-round-trip mutation tools disabled: request-state encryption key is not configured", "environmentVariable", MRTRStateKeyEnv)
 		return nil, nil
 	}

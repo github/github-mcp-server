@@ -6,6 +6,7 @@
   },
   "description": "List the saved revisions of a Copilot automation.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "automation_id": {
         "description": "The automation identifier.",
