@@ -15,7 +15,7 @@ When generating the migration guide, consider the following aspects:
 
 * The initial tool file and its corresponding test file will have the `//go:build ignore` build tag, as the tests will fail if the code is not ignored. The `ignore` build tag should be removed before work begins.
 * The import for `github.com/mark3labs/mcp-go/mcp` should be changed to `github.com/modelcontextprotocol/go-sdk/mcp`
-* The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `(mcp.Tool, mcp.ToolHandlerFor[map[string]any, any])`.
+* The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `inventory.ServerTool`.
 * The tool handler function signature should be updated to use generics, changing from `func(ctx context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)` to `func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error)`.
 * The `RequiredParam`, `RequiredInt`, `RequiredBigInt`, `OptionalParamOK`, `OptionalParam`, `OptionalIntParam`, `OptionalIntParamWithDefault`, `OptionalBoolParamWithDefault`, `OptionalStringArrayParam`, `OptionalBigIntArrayParam` and `OptionalCursorPaginationParams` functions should be changed to use the tool arguments that are now passed as a map in the tool handler function, rather than extracting them from the `mcp.CallToolRequest`.
 * `mcp.NewToolResultText`, `mcp.NewToolResultError`, `mcp.NewToolResultErrorFromErr` and `mcp.NewToolResultResource` no longer available in `modelcontextprotocol/go-sdk`. There are a few helper functions available in `pkg/utils/result.go` that can be used to replace these, in the `utils` package.
@@ -64,7 +64,7 @@ The corresponding input schema in modelcontextprotocol/go-sdk would look like th
 
 ```go
 ...
-return mcp.Tool{
+tool := mcp.Tool{
   Name: "list_dependabot_alerts",
   Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),
   Annotations: &mcp.ToolAnnotations{
@@ -86,7 +86,7 @@ return mcp.Tool{
         Type: "string",
         Description: "Filter dependabot alerts by state. Defaults to open",
         Enum: []any{"open", "fixed", "dismissed", "auto_dismissed"},
-        Default: "open",
+        Default: json.RawMessage(`"open"`),
       },
       "severity": {
         Type: "string",
@@ -109,4 +109,4 @@ At the end of your changes, you will continue to have an issue with the `toolsna
 UPDATE_TOOLSNAPS=true go test ./...
 ```
 
-You should however, only update the toolsnaps after confirming that the schema changes are intentional and correct. Some schema changes are unavoidable, such as argument ordering, however the schemas themselves should remain logically equivalent.
+You should however, only update the toolsnaps after confirming that the schema changes are intentional and correct. Some schema changes are unavoidable, however the schemas themselves should remain logically equivalent.
