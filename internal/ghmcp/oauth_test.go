@@ -403,6 +403,21 @@ func TestCreateOAuthToolMiddleware(t *testing.T) {
 		assert.Zero(t, fake.authCalls, "authentication must be skipped when a token already exists")
 	})
 
+	t.Run("canceled token check skips authentication and handler", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		fake := &fakeAuthenticator{}
+		var called bool
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		res, err := mw(newNext(&called))(ctx, &mcp.CallToolRequest{})
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, res)
+		assert.Zero(t, fake.authCalls, "cancellation must not start authentication")
+		assert.False(t, called, "cancellation must not run the tool")
+	})
+
 	t.Run("successful authentication proceeds to handler", func(t *testing.T) {
 		t.Parallel()
 		fake := &fakeAuthenticator{hasToken: false, outcome: nil, err: nil}
