@@ -175,7 +175,6 @@ Located in `.github/workflows/`:
 - **Keep changes minimal and focused** on the specific issue being addressed
 - **Atomic commits** - each commit should be a complete, logical change
 - Use table-driven tests for behavioral testing
-- Comment sparingly - code should be self-documenting
 - Follow standard Go conventions (Effective Go, Go proverbs)
 - **Test changes thoroughly** before committing
 - Export functions (capitalize) if they could be used by other repos as a library
