@@ -5,8 +5,9 @@
     "readOnlyHint": false,
     "title": "Run a repository automation"
   },
-  "description": "Start a manual run of a Copilot automation in a repository after explicit user confirmation.",
+  "description": "Start a manual run of a Copilot automation in a repository.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "automation_id": {
         "description": "The automation identifier.",
