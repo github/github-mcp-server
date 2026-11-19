@@ -293,6 +293,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
+		PullRequestArtifactRead(t),
+		PullRequestArtifactWrite(t),
 		PullRequestReviewWrite(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
@@ -321,14 +323,17 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Code security tools
 		GetCodeScanningAlert(t),
 		ListCodeScanningAlerts(t),
+		UpdateCodeScanningAlert(t),
 
 		// Secret protection tools
 		GetSecretScanningAlert(t),
 		ListSecretScanningAlerts(t),
+		UpdateSecretScanningAlert(t),
 
 		// Dependabot tools
 		GetDependabotAlert(t),
 		ListDependabotAlerts(t),
+		UpdateDependabotAlert(t),
 
 		// Notification tools
 		ListNotifications(t),

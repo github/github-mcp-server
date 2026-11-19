@@ -1,11 +1,13 @@
 {
   "annotations": {
+    "destructiveHint": false,
     "idempotentHint": false,
     "readOnlyHint": false,
     "title": "Create a repository automation"
   },
-  "description": "Create a Copilot automation in a repository after explicit user confirmation.",
+  "description": "Create a Copilot automation in a repository.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "continuous_history": {
         "description": "Whether the automation keeps a continuous conversation history.",
