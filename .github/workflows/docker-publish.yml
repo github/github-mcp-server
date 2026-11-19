@@ -1,4 +1,4 @@
-name: Docker
+name: 
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -23,7 +23,7 @@ on:
           default: "Manual run"
 
 env:
-  # Use docker.io for Docker Hub if empty
+  # Use .io for  Hub if empty
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
@@ -50,27 +50,27 @@ jobs:
         with:
           cosign-release: "v3.1.3"
 
-      # Set up BuildKit Docker container builder to be able to build
+      # Set up BuildKit  container builder to be able to build
       # multi-platform images and export cache
-      # https://github.com/docker/setup-buildx-action
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # https://github.com//setup-buildx-action
+      - name: Set up  Buildx
+        uses: /setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
+      # Login against a  registry except on PR
+      # https://github.com//login-action
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: /login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
+      # Extract metadata (tags, labels) for 
+      # https://github.com//metadata-action
+      - name: Extract  metadata
         id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        uses: /metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -86,7 +86,7 @@ jobs:
             # Custom rule to prevent pre-releases from getting latest tag
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
-      - name: Go Build Cache for Docker
+      - name: Go Build Cache for 
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: go-build-cache
@@ -102,11 +102,11 @@ jobs:
               "go-build-cache/build": "/root/.cache/go-build"
             }
 
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push Docker image
+      # Build and push  image with Buildx (don't push on PR)
+      # https://github.com//build-push-action
+      - name: Build and push  image
         id: build-and-push
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        uses: /build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
@@ -121,11 +121,11 @@ jobs:
             oauth_client_id=${{ secrets.OAUTH_CLIENT_ID }}
             oauth_client_secret=${{ secrets.OAUTH_CLIENT_SECRET }}
 
-      # Sign the resulting Docker image digest except on PRs.
+      # Sign the resulting  image digest except on PRs.
       # Publish both v2-compatible .sig tags and native Sigstore bundles.
       # --yes also consents to publishing signing metadata to the public log.
       # https://github.com/sigstore/cosign
-      - name: Sign the published Docker image (legacy)
+      - name: Sign the published  image (legacy)
         if: ${{ github.event_name != 'pull_request' }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
@@ -134,7 +134,7 @@ jobs:
         # against the sigstore community Fulcio instance.
         run: cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
 
-      - name: Sign the published Docker image (native bundle)
+      - name: Sign the published  image (native bundle)
         if: ${{ github.event_name != 'pull_request' }}
         env:
           DIGEST: ${{ steps.build-and-push.outputs.digest }}

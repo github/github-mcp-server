@@ -60,4 +60,5 @@
       "object"
     ]
   }
-}
+delete_pending_pull_request_review
+Delete any unfinsed WORKFLOW
