@@ -64,7 +64,7 @@ The corresponding input schema in modelcontextprotocol/go-sdk would look like th
 
 ```go
 ...
-return mcp.Tool{
+tool := mcp.Tool{
   Name: "list_dependabot_alerts",
   Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),
   Annotations: &mcp.ToolAnnotations{
