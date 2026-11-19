@@ -183,7 +183,7 @@ Located in `.github/workflows/`:
 ### Adding a New MCP Tool
 
 1. Add tool implementation in `pkg/github/` (e.g., `foo_tools.go`)
-2. Register tool in appropriate toolset in `pkg/github/` or `pkg/toolsets/`
+2. Register tool in appropriate toolset in `pkg/github/`
 3. Update the relevant bundled skill, or add a reasoned exemption in `pkg/skills/catalog/availability_test.go`. Every tool must be covered or explicitly exempted.
 4. Write unit tests following the tool test pattern
 5. Run `UPDATE_TOOLSNAPS=true go test ./...` to create snapshot
