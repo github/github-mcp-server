@@ -65,7 +65,7 @@ guess at either from a file name.
   useful narrowing available.
 - `detail` on `get_commit` — `stats` names the changed files, `full_patch` includes the
   diff and can be enormous. Ask for `none` when you only want the message and author.
-- `fields` — on both the tree read and the searches, returning fewer fields is what
+- `fields` — on searches, returning fewer fields is what
   keeps a wide exploration affordable.
 
 ## Confirm before going wider
