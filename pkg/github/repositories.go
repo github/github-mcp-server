@@ -1822,6 +1822,10 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			commitSHA := string(commitMutation.CreateCommitOnBranch.Commit.OID)
 			ref.Object.SHA = &commitSHA
+			if oldURL := ref.Object.GetURL(); strings.HasSuffix(oldURL, "/"+string(headOID)) {
+				updatedURL := strings.TrimSuffix(oldURL, string(headOID)) + commitSHA
+				ref.Object.URL = &updatedURL
+			}
 
 			r, err := json.Marshal(ref)
 			if err != nil {

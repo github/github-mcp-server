@@ -3017,6 +3017,7 @@ func Test_PushFiles(t *testing.T) {
 		Ref: new("refs/heads/main"),
 		Object: &github.GitObject{
 			SHA: new("jkl012"),
+			URL: new("https://api.github.com/repos/owner/repo/git/trees/jkl012"),
 		},
 	}
 
@@ -3651,6 +3652,9 @@ func Test_PushFiles(t *testing.T) {
 
 			assert.Equal(t, *tc.expectedRef.Ref, *returnedRef.Ref)
 			assert.Equal(t, *tc.expectedRef.Object.SHA, *returnedRef.Object.SHA)
+			if tc.expectedRef.Object.URL != nil && returnedRef.Object.URL != nil {
+				assert.Equal(t, *tc.expectedRef.Object.URL, *returnedRef.Object.URL)
+			}
 		})
 	}
 }
