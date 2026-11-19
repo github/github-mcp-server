@@ -528,3 +528,58 @@ func TestCompletionsHandler_RejectsMissingRef(t *testing.T) {
 		})
 	}
 }
+
+func TestCompletionsHandler(t *testing.T) {
+	clientErr := errors.New("client error")
+	tests := []struct {
+		name       string
+		ref        *mcp.CompleteReference
+		wantErr    string
+		wantClient bool
+	}{
+		{
+			name: "prompt completion",
+			ref:  &mcp.CompleteReference{Type: "ref/prompt"},
+		},
+		{
+			name:       "repository resource completion",
+			ref:        &mcp.CompleteReference{Type: "ref/resource", URI: "repo://{owner}/{repo}/contents/{path}"},
+			wantErr:    clientErr.Error(),
+			wantClient: true,
+		},
+		{
+			name:    "unsupported resource URI",
+			ref:     &mcp.CompleteReference{Type: "ref/resource", URI: "unsupported://resource"},
+			wantErr: "unsupported resource URI: unsupported://resource",
+		},
+		{
+			name:    "unsupported ref type",
+			ref:     &mcp.CompleteReference{Type: "unsupported"},
+			wantErr: "unsupported ref type: unsupported",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientCalled := false
+			handler := CompletionsHandler(func(context.Context) (*gogithub.Client, error) {
+				clientCalled = true
+				return nil, clientErr
+			})
+			result, err := handler(t.Context(), &mcp.CompleteRequest{
+				Params: &mcp.CompleteParams{Ref: tt.ref},
+			})
+			assert.Equal(t, tt.wantClient, clientCalled)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				assert.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, []string{}, result.Completion.Values)
+			data, err := json.Marshal(result)
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"completion":{"values":[]}}`, string(data))
+		})
+	}
+}
