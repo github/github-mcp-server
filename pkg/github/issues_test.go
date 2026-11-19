@@ -5252,6 +5252,69 @@ func Test_UpdateIssueClearsLabelsAndAssignees(t *testing.T) {
 	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
+func Test_UpdateIssueClearsBodyWhenExplicitlyEmpty(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  new(8),
+		HTMLURL: new("https://github.com/owner/repo/issues/8"),
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"body": "",
+		}).andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+	}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"body":         "",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+	}
+	textContent := getTextResult(t, result)
+
+	var updateResp MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &updateResp))
+	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
+}
+
+func Test_UpdateIssueRejectsExplicitlyEmptyTitle(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"title":        "",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError, "an explicitly empty title must be rejected instead of silently ignored")
+	assert.Contains(t, getErrorResult(t, result).Text, "title cannot be empty")
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string
