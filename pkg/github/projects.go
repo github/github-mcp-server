@@ -1275,11 +1275,9 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 	var projectItems []*github.ProjectV2Item
 
 	opts := &github.ListProjectItemsOptions{
-		Fields: fields,
-		ListProjectsOptions: github.ListProjectsOptions{
-			ListProjectsPaginationOptions: pagination,
-			Query:                         queryStr,
-		},
+		Fields:                        fields,
+		ListProjectsPaginationOptions: pagination,
+		Query:                         queryStr,
 	}
 
 	if ownerType == "org" {

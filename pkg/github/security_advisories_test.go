@@ -31,12 +31,10 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
-		SecurityAdvisory: github.SecurityAdvisory{
-			GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
-			Summary:     new("Test advisory"),
-			Description: new("This is a test advisory."),
-			Severity:    new("high"),
-		},
+		GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
+		Summary:     new("Test advisory"),
+		Description: new("This is a test advisory."),
+		Severity:    new("high"),
 	}
 
 	tests := []struct {
@@ -144,12 +142,10 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
-		SecurityAdvisory: github.SecurityAdvisory{
-			GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
-			Summary:     new("Test advisory"),
-			Description: new("This is a test advisory."),
-			Severity:    new("high"),
-		},
+		GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
+		Summary:     new("Test advisory"),
+		Description: new("This is a test advisory."),
+		Severity:    new("high"),
 	}
 
 	tests := []struct {
