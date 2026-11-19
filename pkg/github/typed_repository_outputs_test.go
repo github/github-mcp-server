@@ -204,7 +204,15 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 			mockResponse(t, http.StatusOK, []*github.User{{Login: new("octo"), ID: new(int64(1)), RoleName: new("write")}})(w, r)
 		},
 	}
-	gql := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	gql := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query string `json:"query"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if strings.Contains(req.Query, "createCommitOnBranch") {
+			_, _ = w.Write([]byte(`{"data":{"createCommitOnBranch":{"commit":{"oid":"base"}}}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"data":{"repository":{"defaultBranchRef":{"name":"main"},"object":{"__typename":"Commit","blame":{"ranges":[{"startingLine":1,"endingLine":3,"age":0,"commit":{"oid":"abc","message":"Message","committedDate":"2026-01-02T00:00:00Z","author":{"name":"Author","email":"author@example.com","user":null}}}]}}}}}`))
 	})}}
 	return BaseDeps{

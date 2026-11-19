@@ -1710,7 +1710,9 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if input.Files == nil {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
-			entries := make([]*github.TreeEntry, 0, len(input.Files))
+
+			// Build GraphQL file additions with base64-encoded content.
+			additions := make([]githubv4.FileAddition, 0, len(input.Files))
 			for _, file := range input.Files {
 				if file.Path == "" {
 					return utils.NewToolResultError("each file must have a path"), nil, nil
@@ -1722,13 +1724,9 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if file.Content == nil {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
-				content := *file.Content
-
-				entries = append(entries, &github.TreeEntry{
-					Path:    new(filePath),
-					Mode:    new("100644"),
-					Type:    new("blob"),
-					Content: new(content),
+				additions = append(additions, githubv4.FileAddition{
+					Path:     githubv4.String(filePath),
+					Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte(*file.Content))),
 				})
 			}
 
@@ -1764,7 +1762,6 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				defer func() { _ = resp.Body.Close() }()
 			}
 
-			var baseCommit *github.Commit
 			if !repositoryIsEmpty {
 				if branchNotFound {
 					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
@@ -1772,27 +1769,15 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
 				}
-
-				// Get the commit object that the branch points to
-				baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to get base commit",
-						resp,
-						err,
-					), nil, nil
-				}
-				if resp != nil && resp.Body != nil {
-					defer func() { _ = resp.Body.Close() }()
-				}
 			} else {
-				var base *github.Commit
 				// Repository is empty, need to initialize it first
-				ref, base, err = initializeRepository(ctx, client, owner, repo)
+				var initRef *github.Reference
+				initRef, _, err = initializeRepository(ctx, client, owner, repo)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
 				}
 
+				ref = initRef
 				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
 				if branch != defaultBranch {
 					// Create the requested branch from the default branch
@@ -1801,62 +1786,49 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
 				}
-
-				baseCommit = base
 			}
 
-			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
-			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
+			// Create a signed commit using the GraphQL createCommitOnBranch mutation.
+			// This produces web-flow signed commits that satisfy enterprise "require signed commits"
+			// branch protection rules, unlike the REST Git Data API which creates unsigned commits.
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create tree",
-					resp,
-					err,
-				), nil, nil
-			}
-			if resp != nil && resp.Body != nil {
-				defer func() { _ = resp.Body.Close() }()
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			// Create a new commit (baseCommit always has a value now)
-			commit := github.Commit{
-				Message: new(message),
-				Tree:    newTree,
-				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
-			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create commit",
-					resp,
-					err,
-				), nil, nil
-			}
-			if resp != nil && resp.Body != nil {
-				defer func() { _ = resp.Body.Close() }()
+			nameWithOwner := githubv4.String(owner + "/" + repo)
+			branchName := githubv4.String(branch)
+			headOID := githubv4.GitObjectID(*ref.Object.SHA)
+
+			var commitMutation struct {
+				CreateCommitOnBranch struct {
+					Commit struct {
+						OID githubv4.GitObjectID
+					}
+				} `graphql:"createCommitOnBranch(input: $input)"`
 			}
 
-			// Update the reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: new(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil, nil
+			if err := gqlClient.Mutate(ctx, &commitMutation, githubv4.CreateCommitOnBranchInput{
+				Branch: githubv4.CommittableBranch{
+					RepositoryNameWithOwner: &nameWithOwner,
+					BranchName:              &branchName,
+				},
+				Message:         githubv4.CommitMessage{Headline: githubv4.String(message)},
+				ExpectedHeadOid: headOID,
+				FileChanges:     &githubv4.FileChanges{Additions: &additions},
+			}, nil); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create signed commit", err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(updatedRef)
+			commitSHA := string(commitMutation.CreateCommitOnBranch.Commit.OID)
+			ref.Object.SHA = &commitSHA
+
+			r, err := json.Marshal(ref)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(updatedRef), nil
+			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(ref), nil
 		},
 		normalizePushFilesArguments,
 	)

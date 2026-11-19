@@ -3013,39 +3013,38 @@ func Test_PushFiles(t *testing.T) {
 		},
 	}
 
-	mockCommit := &github.Commit{
-		SHA: new("abc123"),
-		Tree: &github.Tree{
-			SHA: new("def456"),
-		},
-	}
-
-	mockTree := &github.Tree{
-		SHA: new("ghi789"),
-	}
-
-	mockNewCommit := &github.Commit{
-		SHA:     new("jkl012"),
-		Message: new("Update multiple files"),
-		HTMLURL: new("https://github.com/owner/repo/commit/jkl012"),
-	}
-
 	mockUpdatedRef := &github.Reference{
 		Ref: new("refs/heads/main"),
 		Object: &github.GitObject{
 			SHA: new("jkl012"),
-			URL: new("https://api.github.com/repos/owner/repo/git/trees/jkl012"),
 		},
 	}
 
+	// createCommitOnBranch mutation shape used in matchers.
+	type createCommitMutation struct {
+		CreateCommitOnBranch struct {
+			Commit struct {
+				OID githubv4.GitObjectID
+			}
+		} `graphql:"createCommitOnBranch(input: $input)"`
+	}
+
+	// gqlSuccessResponse returns a standard createCommitOnBranch success response.
+	gqlSuccessResponse := githubv4mock.DataResponse(map[string]any{
+		"createCommitOnBranch": map[string]any{
+			"commit": map[string]any{"oid": "jkl012"},
+		},
+	})
+
 	// Define test cases
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedRef    *github.Reference
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		mockedGQLClient *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedRef     *github.Reference
+		expectedErrMsg  string
 	}{
 		{
 			name: "successful push of multiple files",
@@ -3055,54 +3054,32 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
-				// Get commit
-				WithRequestMatch(
-					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockCommit,
-				),
-				// Create tree
-				WithRequestMatchHandler(
-					PostReposGitTreesByOwnerByRepo,
-					expectRequestBody(t, map[string]any{
-						"base_tree": "def456",
-						"tree": []any{
-							map[string]any{
-								"path":    "README.md",
-								"mode":    "100644",
-								"type":    "blob",
-								"content": "# Updated README\n\nThis is an updated README file.",
-							},
-							map[string]any{
-								"path":    "docs/example.md",
-								"mode":    "100644",
-								"type":    "blob",
-								"content": "# Example\n\nThis is an example file.",
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					createCommitMutation{},
+					githubv4.CreateCommitOnBranchInput{
+						Branch: githubv4.CommittableBranch{
+							RepositoryNameWithOwner: githubv4.NewString("owner/repo"),
+							BranchName:              githubv4.NewString("main"),
+						},
+						Message:         githubv4.CommitMessage{Headline: githubv4.String("Update multiple files")},
+						ExpectedHeadOid: githubv4.GitObjectID("abc123"),
+						FileChanges: &githubv4.FileChanges{
+							Additions: &[]githubv4.FileAddition{
+								{
+									Path:     githubv4.String("README.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# Updated README\n\nThis is an updated README file."))),
+								},
+								{
+									Path:     githubv4.String("docs/example.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# Example\n\nThis is an example file."))),
+								},
 							},
 						},
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockTree),
-					),
-				),
-				// Create commit
-				WithRequestMatchHandler(
-					PostReposGitCommitsByOwnerByRepo,
-					expectRequestBody(t, map[string]any{
-						"message": "Update multiple files",
-						"tree":    "ghi789",
-						"parents": []any{"abc123"},
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockNewCommit),
-					),
-				),
-				// Update reference
-				WithRequestMatchHandler(
-					PatchReposGitRefsByOwnerByRepoByRef,
-					expectRequestBody(t, map[string]any{
-						"sha":   "jkl012",
-						"force": false,
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockUpdatedRef),
-					),
+					},
+					nil,
+					gqlSuccessResponse,
 				),
 			),
 			requestArgs: map[string]any{
@@ -3125,10 +3102,9 @@ func Test_PushFiles(t *testing.T) {
 			expectedRef: mockUpdatedRef,
 		},
 		{
-			name:         "fails when files parameter is invalid",
-			mockedClient: NewMockedHTTPClient(
-			// No requests expected
-			),
+			name:            "fails when files parameter is invalid",
+			mockedClient:    NewMockedHTTPClient(),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -3140,19 +3116,9 @@ func Test_PushFiles(t *testing.T) {
 			expectedErrMsg: "files parameter must be an array",
 		},
 		{
-			name: "fails when files contains object without path",
-			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
-				WithRequestMatch(
-					GetReposGitRefByOwnerByRepoByRef,
-					mockRef,
-				),
-				// Get commit
-				WithRequestMatch(
-					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockCommit,
-				),
-			),
+			name:            "fails when files contains object without path",
+			mockedClient:    NewMockedHTTPClient(),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3168,19 +3134,9 @@ func Test_PushFiles(t *testing.T) {
 			expectedErrMsg: "each file must have a path",
 		},
 		{
-			name: "fails when files contains object without content",
-			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
-				WithRequestMatch(
-					GetReposGitRefByOwnerByRepoByRef,
-					mockRef,
-				),
-				// Get commit
-				WithRequestMatch(
-					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockCommit,
-				),
-			),
+			name:            "fails when files contains object without content",
+			mockedClient:    NewMockedHTTPClient(),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3209,6 +3165,7 @@ func Test_PushFiles(t *testing.T) {
 					mockResponse(t, http.StatusNotFound, nil),
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3225,17 +3182,34 @@ func Test_PushFiles(t *testing.T) {
 			expectedErrMsg: "failed to create branch from default",
 		},
 		{
-			name: "fails to get base commit",
+			name: "fails to create signed commit",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
-				// Fail to get commit
-				WithRequestMatchHandler(
-					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockResponse(t, http.StatusNotFound, nil),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					createCommitMutation{},
+					githubv4.CreateCommitOnBranchInput{
+						Branch: githubv4.CommittableBranch{
+							RepositoryNameWithOwner: githubv4.NewString("owner/repo"),
+							BranchName:              githubv4.NewString("main"),
+						},
+						Message:         githubv4.CommitMessage{Headline: githubv4.String("Update file")},
+						ExpectedHeadOid: githubv4.GitObjectID("abc123"),
+						FileChanges: &githubv4.FileChanges{
+							Additions: &[]githubv4.FileAddition{
+								{
+									Path:     githubv4.String("README.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# README"))),
+								},
+							},
+						},
+					},
+					nil,
+					githubv4mock.ErrorResponse("push blocked: branch protection rule requires signed commits"),
 				),
 			),
 			requestArgs: map[string]any{
@@ -3250,42 +3224,8 @@ func Test_PushFiles(t *testing.T) {
 				},
 				"message": "Update file",
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get base commit",
-		},
-		{
-			name: "fails to create tree",
-			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
-				WithRequestMatch(
-					GetReposGitRefByOwnerByRepoByRef,
-					mockRef,
-				),
-				// Get commit
-				WithRequestMatch(
-					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockCommit,
-				),
-				// Fail to create tree
-				WithRequestMatchHandler(
-					PostReposGitTreesByOwnerByRepo,
-					mockResponse(t, http.StatusInternalServerError, nil),
-				),
-			),
-			requestArgs: map[string]any{
-				"owner":  "owner",
-				"repo":   "repo",
-				"branch": "main",
-				"files": []any{
-					map[string]any{
-						"path":    "README.md",
-						"content": "# README",
-					},
-				},
-				"message": "Update file",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to create tree",
+			expectError:    false,
+			expectedErrMsg: "failed to create signed commit",
 		},
 		{
 			name: "successful push to empty repository",
@@ -3337,25 +3277,36 @@ func Test_PushFiles(t *testing.T) {
 						_, _ = w.Write(b)
 					}),
 				),
-				// Get the commit after initialization
+				// initializeRepository calls GetCommit internally
 				WithRequestMatch(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
-					mockCommit,
+					&github.Commit{
+						SHA:  new("abc123"),
+						Tree: &github.Tree{SHA: new("tree123")},
+					},
 				),
-				// Create tree
-				WithRequestMatch(
-					PostReposGitTreesByOwnerByRepo,
-					mockTree,
-				),
-				// Create commit
-				WithRequestMatch(
-					PostReposGitCommitsByOwnerByRepo,
-					mockNewCommit,
-				),
-				// Update reference
-				WithRequestMatch(
-					PatchReposGitRefsByOwnerByRepoByRef,
-					mockUpdatedRef,
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					createCommitMutation{},
+					githubv4.CreateCommitOnBranchInput{
+						Branch: githubv4.CommittableBranch{
+							RepositoryNameWithOwner: githubv4.NewString("owner/repo"),
+							BranchName:              githubv4.NewString("main"),
+						},
+						Message:         githubv4.CommitMessage{Headline: githubv4.String("Initial commit")},
+						ExpectedHeadOid: githubv4.GitObjectID("abc123"),
+						FileChanges: &githubv4.FileChanges{
+							Additions: &[]githubv4.FileAddition{
+								{
+									Path:     githubv4.String("README.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# Initial README\n\nFirst commit to empty repository."))),
+								},
+							},
+						},
+					},
+					nil,
+					gqlSuccessResponse,
 				),
 			),
 			requestArgs: map[string]any{
@@ -3376,7 +3327,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "successful push multiple files to empty repository",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference - called twice: first for empty check, second after file creation
+				// Get branch reference - called twice: first for empty check, second inside initializeRepository
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					func() http.HandlerFunc {
@@ -3392,7 +3343,7 @@ func Test_PushFiles(t *testing.T) {
 								}
 								_ = json.NewEncoder(w).Encode(response)
 							} else {
-								// Second call: returns the updated reference after first file creation
+								// Second call: returns the reference after initialization
 								w.WriteHeader(http.StatusOK)
 								b, _ := json.Marshal(&github.Reference{
 									Ref:    new("refs/heads/main"),
@@ -3419,87 +3370,59 @@ func Test_PushFiles(t *testing.T) {
 						require.NoError(t, err)
 						require.Equal(t, "Initial commit", body["message"])
 						require.Equal(t, "main", body["branch"])
-						// Verify it's an empty file
 						expectedContent := base64.StdEncoding.EncodeToString([]byte(""))
 						require.Equal(t, expectedContent, body["content"])
 						w.WriteHeader(http.StatusCreated)
 						response := &github.RepositoryContentResponse{
-							Content: &github.RepositoryContent{
-								SHA: new("readme123"),
-							},
 							SHA: new("init456"),
-							Tree: &github.Tree{
-								SHA: new("tree456"),
-							},
 						}
 						b, _ := json.Marshal(response)
 						_, _ = w.Write(b)
 					}),
 				),
-				// Get the commit to retrieve parent SHA
+				// initializeRepository calls GetCommit internally
 				WithRequestMatchHandler(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
 						response := &github.Commit{
-							SHA: new("init456"),
-							Tree: &github.Tree{
-								SHA: new("tree456"),
-							},
+							SHA:  new("init456"),
+							Tree: &github.Tree{SHA: new("tree456")},
 						}
 						b, _ := json.Marshal(response)
 						_, _ = w.Write(b)
 					}),
 				),
-				// Create tree with all user files
-				WithRequestMatchHandler(
-					PostReposGitTreesByOwnerByRepo,
-					expectRequestBody(t, map[string]any{
-						"base_tree": "tree456",
-						"tree": []any{
-							map[string]any{
-								"path":    "README.md",
-								"mode":    "100644",
-								"type":    "blob",
-								"content": "# Project\n\nProject README",
-							},
-							map[string]any{
-								"path":    ".gitignore",
-								"mode":    "100644",
-								"type":    "blob",
-								"content": "node_modules/\n*.log\n",
-							},
-							map[string]any{
-								"path":    "src/main.js",
-								"mode":    "100644",
-								"type":    "blob",
-								"content": "console.log('Hello World');\n",
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					createCommitMutation{},
+					githubv4.CreateCommitOnBranchInput{
+						Branch: githubv4.CommittableBranch{
+							RepositoryNameWithOwner: githubv4.NewString("owner/repo"),
+							BranchName:              githubv4.NewString("main"),
+						},
+						Message:         githubv4.CommitMessage{Headline: githubv4.String("Initial project setup")},
+						ExpectedHeadOid: githubv4.GitObjectID("init456"),
+						FileChanges: &githubv4.FileChanges{
+							Additions: &[]githubv4.FileAddition{
+								{
+									Path:     githubv4.String("README.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# Project\n\nProject README"))),
+								},
+								{
+									Path:     githubv4.String(".gitignore"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("node_modules/\n*.log\n"))),
+								},
+								{
+									Path:     githubv4.String("src/main.js"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("console.log('Hello World');\n"))),
+								},
 							},
 						},
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockTree),
-					),
-				),
-				// Create commit with all user files
-				WithRequestMatchHandler(
-					PostReposGitCommitsByOwnerByRepo,
-					expectRequestBody(t, map[string]any{
-						"message": "Initial project setup",
-						"tree":    "ghi789",
-						"parents": []any{"init456"},
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockNewCommit),
-					),
-				),
-				// Update reference
-				WithRequestMatchHandler(
-					PatchReposGitRefsByOwnerByRepoByRef,
-					expectRequestBody(t, map[string]any{
-						"sha":   "jkl012",
-						"force": false,
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockUpdatedRef),
-					),
+					},
+					nil,
+					gqlSuccessResponse,
 				),
 			),
 			requestArgs: map[string]any{
@@ -3553,6 +3476,7 @@ func Test_PushFiles(t *testing.T) {
 					mockResponse(t, http.StatusInternalServerError, nil),
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3604,11 +3528,11 @@ func Test_PushFiles(t *testing.T) {
 				WithRequestMatch(
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
-						Content: &github.RepositoryContent{SHA: new("readme123")},
-						SHA:     new("init456"),
+						SHA: new("init456"),
 					},
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3650,16 +3574,16 @@ func Test_PushFiles(t *testing.T) {
 				WithRequestMatch(
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
-						Content: &github.RepositoryContent{SHA: new("readme123")},
-						SHA:     new("init456"),
+						SHA: new("init456"),
 					},
 				),
-				// Fail to get commit
+				// Fail to get commit (inside initializeRepository)
 				WithRequestMatchHandler(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockResponse(t, http.StatusInternalServerError, nil),
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3683,10 +3607,11 @@ func Test_PushFiles(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			restClient := mustNewGHClient(t, tc.mockedClient)
+			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
 			deps := BaseDeps{
-				Client: client,
+				Client:    restClient,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
