@@ -756,6 +756,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `state`: Filter code scanning alerts by state. Defaults to open (string, optional)
   - `tool_name`: The name of the tool used for code scanning. (string, optional)
 
+- **update_code_scanning_alert** - Update code scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Code scanning alert number. (integer, required)
+  - `assignees`: Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership. (string[], optional)
+  - `create_request`: Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy. (boolean, optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API. (string | null, optional)
+  - `dismissed_reason`: Required and non-null when dismissing. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
+
 </details>
 
 <details>
@@ -838,6 +849,16 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
   - `state`: Filter dependabot alerts by state. Defaults to open (string, optional)
+
+- **update_dependabot_alert** - Update Dependabot alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: The repository's Dependabot alert number. (integer, required)
+  - `assignees`: Usernames replacing the entire assignee set; [] clears all, omission leaves it unchanged. Including copilot-swe-agent[bot] requests remediation, not just ownership bookkeeping. (string[], optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters; not a standalone comment API. (string, optional)
+  - `dismissed_reason`: Required when state is dismissed. (string, optional)
+  - `owner`: Repository owner (username or organization). (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
 
 </details>
 
@@ -1592,6 +1613,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `resolution`: Filter by resolution (string, optional)
   - `secret_type`: A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter. (string, optional)
   - `state`: Filter by state (string, optional)
+
+- **update_secret_scanning_alert** - Update secret scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Secret scanning alert number. (integer, required)
+  - `assignee`: Username with repository write access; null unassigns. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `resolution`: Reason for resolving. Non-null when state is resolved. (string | null, optional)
+  - `resolution_comment`: Optional comment when closing or reopening; cannot later be updated or deleted. (string | null, optional)
+  - `state`: Reopen or resolve the alert. (string, optional)
+  - `validity`: Manual validity override for custom-pattern alerts only; null clears the override. GitHub-supported patterns retain validator-managed validity. (string | null, optional)
 
 </details>
 
