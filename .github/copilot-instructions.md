@@ -278,16 +278,15 @@ server.json         - MCP server registry metadata
 
 ## Important Reminders
 
-1. **PRIMARY FOCUS:** The local stdio MCP server (github-mcp-server) - this is what you should work on and test with
-2. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked). This repo is used as a library by the remote server, so keep functions exported (capitalized) if they could be called by other repos, even if not needed internally.
-3. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
-4. **NEVER** use `script/tag-release` or push tags
-5. **NEVER** skip `script/lint` before committing Go code changes
-6. **ALWAYS** update toolsnaps when changing MCP tool schemas
-7. **ALWAYS** run `script/generate-docs` after modifying tools
-8. For specific test files, use `go test ./path -run TestName` not full suite
-9. E2E tests require PAT token - you likely cannot run them
-10. Toolsnaps are API documentation - treat changes seriously
-11. Build/test/lint are very fast (~1s each) - run frequently
-12. CI failures for docs-check or license-check have simple fixes (run the script)
-13. mcpcurl is secondary - don't break it, but it's not the priority
+1. **REMOTE SERVER:** Ignore remote server instructions when making code changes (unless specifically asked). This repo is used as a library by the remote server, so keep functions exported (capitalized) if they could be called by other repos, even if not needed internally.
+2. **ALWAYS** trust these instructions first - only search if information is incomplete or incorrect
+3. **NEVER** use `script/tag-release` or push tags
+4. **NEVER** skip `script/lint` before committing Go code changes
+5. **ALWAYS** update toolsnaps when changing MCP tool schemas
+6. **ALWAYS** run `script/generate-docs` after modifying tools
+7. For specific test files, use `go test ./path -run TestName` not full suite
+8. E2E tests require PAT token - you likely cannot run them
+9. Toolsnaps are API documentation - treat changes seriously
+10. Build/test/lint are very fast (~1s each) - run frequently
+11. CI failures for docs-check or license-check have simple fixes (run the script)
+12. mcpcurl is secondary - don't break it, but it's not the priority
