@@ -63,7 +63,7 @@ func TestCreateGitHubClientsScopesRESTAndRawTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			apiHost := newStaticAPIHostResolver(t, source.URL)
-			clients, err := createGitHubClients(tt.cfg, apiHost)
+			clients, err := createGitHubClients(tt.cfg, apiHost, nil)
 			require.NoError(t, err)
 
 			sourceAuth = ""
@@ -356,7 +356,9 @@ type fakeAuthenticator struct {
 	lastCancelFlowID string
 }
 
-func (f *fakeAuthenticator) HasToken() bool { return f.hasToken }
+func (f *fakeAuthenticator) HasTokenContext(ctx context.Context) (bool, error) {
+	return f.hasToken, ctx.Err()
+}
 
 func (f *fakeAuthenticator) Authenticate(_ context.Context, prompter oauth.Prompter) (*oauth.Outcome, error) {
 	f.authCalls++
@@ -690,7 +692,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	clients, err := createGitHubClients(github.MCPServerConfig{
 		Version:       "test",
 		TokenProvider: func() string { return current },
-	}, apiHost)
+	}, apiHost, nil)
 	require.NoError(t, err)
 
 	do := func() {
