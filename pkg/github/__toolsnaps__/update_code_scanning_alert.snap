@@ -1,0 +1,131 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Update code scanning alert"
+  },
+  "description": "Reopen, dismiss, or replace assignees on a code scanning alert. Requires state or assignees. Dismissal requires a non-null dismissed_reason. Omitted fields are unchanged; [] clears all assignees. create_request:true requires state:dismissed and attempts a delegated dismissal request, not necessarily dismissal. The returned state and assignees are the actual API result; no request approval or agent session is inferred. Assigning copilot-swe-agent[bot] starts agentic remediation and may open a draft pull request, consuming Code Security AI Credits and Actions minutes. Repository permissions, delegated dismissal policy, and agentic Autofix eligibility are enforced by GitHub; errors are returned without fallback.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "alertNumber": {
+        "description": "Code scanning alert number.",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "assignees": {
+        "description": "Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "create_request": {
+        "description": "Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy.",
+        "type": "boolean"
+      },
+      "dismissed_comment": {
+        "description": "Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API.",
+        "maxLength": 280,
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "dismissed_reason": {
+        "description": "Required and non-null when dismissing.",
+        "enum": [
+          "false positive",
+          "won't fix",
+          "used in tests",
+          "mitigated",
+          null
+        ],
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "owner": {
+        "description": "Repository owner.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "state": {
+        "description": "Reopen or dismiss the alert. Omission leaves state unchanged.",
+        "enum": [
+          "open",
+          "dismissed"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "alertNumber"
+    ],
+    "type": "object"
+  },
+  "name": "update_code_scanning_alert",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "assignees": {
+        "description": "Actual API assignments, when returned. Empty means unassigned; omitted means the API did not report assignments.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "login": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "login"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "dismissed_reason": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "html_url": {
+        "type": "string"
+      },
+      "number": {
+        "description": "Exact alert number as a decimal string to preserve integer precision.",
+        "type": "string"
+      },
+      "state": {
+        "description": "Actual API state, not the requested state. An open alert is not dismissed even when a dismissal request was attempted.",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "required": [
+      "number",
+      "state",
+      "html_url"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
+}

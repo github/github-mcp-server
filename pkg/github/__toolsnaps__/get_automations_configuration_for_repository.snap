@@ -6,6 +6,7 @@
   },
   "description": "Get whether automations are enabled, whether you can manage them, and the repository's automation trigger and write-scope policies.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "owner": {
         "description": "Repository owner",
