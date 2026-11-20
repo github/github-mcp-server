@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get subject subscription"
+  },
+  "description": "Get the authenticated user's notification subscription state for a specific issue, pull request, or discussion by repository and number. Does not require an existing notification thread.",
+  "inputSchema": {
+    "properties": {
+      "number": {
+        "description": "Issue, pull request, or discussion number",
+        "maximum": 2147483647,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "subjectType": {
+        "description": "Type of the subject to subscribe to",
+        "enum": [
+          "issue",
+          "pull_request",
+          "discussion"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "subjectType",
+      "number"
+    ],
+    "type": "object"
+  },
+  "name": "get_subject_subscription"
+}

@@ -38,7 +38,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"notification-triage": {
 		required: [][]string{{"list_notifications"}, {"get_notification_details"}, {"dismiss_notification"}},
-		optional: []string{"mark_all_notifications_read", "manage_notification_subscription", "manage_repository_notification_subscription"},
+		optional: []string{"mark_all_notifications_read", "manage_notification_subscription", "manage_repository_notification_subscription", "get_subject_subscription", "manage_subject_subscription"},
 	},
 	"project-planning": {
 		required: [][]string{{"projects_list"}, {"projects_get"}, {"projects_write"}},
