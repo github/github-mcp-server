@@ -74,6 +74,11 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 					Name: new("lib"), Path: new("lib"), Type: new("file"), SHA: new("sha"),
 					SubmoduleGitURL: new("https://github.com/owner/lib.git"),
 				}})(w, r)
+			case strings.HasSuffix(r.URL.Path, "/cloud-submodule-directory"):
+				mockResponse(t, http.StatusOK, []*github.RepositoryContent{{
+					Name: new("lib"), Path: new("lib"), Type: new("submodule"), SHA: new("sha"),
+					SubmoduleGitURL: new("https://github.com/owner/lib.git"),
+				}})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/empty-directory"):
 				mockResponse(t, http.StatusOK, []*github.RepositoryContent{})(w, r)
 			case strings.HasSuffix(r.URL.Path, "/submodule"):
@@ -265,7 +270,7 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 		{"get_file_blame", coord(map[string]any{"path": "file", "start_line": "2", "end_line": "3", "perPage": "1"})},
 		{"get_file_blame", coord(map[string]any{"path": "file", "after": encodeBlameCursor(1)})},
 	}
-	for _, path := range []string{"text", "empty", "binary", "large", "submodule", "symlink", "directory", "submodule-directory", "empty-directory", "missing"} {
+	for _, path := range []string{"text", "empty", "binary", "large", "submodule", "symlink", "directory", "submodule-directory", "cloud-submodule-directory", "empty-directory", "missing"} {
 		calls = append(calls, struct {
 			name string
 			args map[string]any
@@ -384,6 +389,9 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 						assert.NotContains(t, mustMarshalJSON(t, result.StructuredContent), "api-git-url")
 						if call.args["path"] == "submodule-directory" {
 							assert.JSONEq(t, `[{"name":"lib","path":"lib","type":"file","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]`, mustMarshalJSON(t, result.StructuredContent))
+						}
+						if call.args["path"] == "cloud-submodule-directory" {
+							assert.JSONEq(t, `[{"name":"lib","path":"lib","type":"submodule","sha":"sha","submodule_git_url":"https://github.com/owner/lib.git"}]`, mustMarshalJSON(t, result.StructuredContent))
 						}
 						if call.args["path"] == "directory" && call.args["fields"] != nil && len(call.args["fields"].([]any)) == 3 {
 							assert.JSONEq(t, `[{"size":0,"html_url":"https://github.com/owner/repo/blob/main/file","url":"api-content-url"}]`, mustMarshalJSON(t, result.StructuredContent))
