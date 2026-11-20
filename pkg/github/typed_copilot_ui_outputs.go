@@ -359,7 +359,7 @@ func uiGetOutputSchema() *jsonschema.Schema {
 	schema.Properties["milestones"].Properties["milestones"].Items.Properties["open_issues"].Description = "Number of open issues assigned to the milestone."
 	schema.Properties["milestones"].Properties["milestones"].Items.Properties["due_on"].Description = "Due date in YYYY-MM-DD form, or empty when no due date is set."
 	schema.Properties["milestones"].Properties["milestones"].Items.Properties["state"].Enum = []any{"open", "closed"}
-	schema.Properties["issue_fields"].Properties["fields"].Items.Properties["data_type"].Enum = []any{"text", "number", "date", "single_select"}
+	schema.Properties["issue_fields"].Properties["fields"].Items.Properties["data_type"].Enum = []any{"text", "number", "date", "single_select", "multi_select"}
 	schema.Properties["issue_fields"].Properties["totalCount"].Description = "Number of supported issue fields returned."
 	schema.Properties["branches"].Properties["totalCount"].Description = "Number of branches returned."
 	schema.Properties["branches"].Properties["has_more"].Description = "True when results were truncated at the pagination limit."
