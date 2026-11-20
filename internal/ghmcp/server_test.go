@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/github/github-mcp-server/v2/pkg/github"
 	"github.com/github/github-mcp-server/v2/pkg/observability"
 	"github.com/github/github-mcp-server/v2/pkg/observability/metrics"
@@ -36,7 +37,7 @@ func TestCreateGitHubClientsGraphQLUserAgent(t *testing.T) {
 			var query struct {
 				Viewer struct{ Login string }
 			}
-			require.NoError(t, clients.gql.Query(t.Context(), &query, nil))
+			require.NoError(t, clients.gql.Query(ghcontext.WithGraphQLFeatures(t.Context(), "test_feature"), &query, nil))
 			want := "github-mcp-server/v1.2.3"
 			if insiders {
 				want += " (insiders)"
@@ -44,6 +45,7 @@ func TestCreateGitHubClientsGraphQLUserAgent(t *testing.T) {
 			header := <-headers
 			assert.Equal(t, want, header.Get("User-Agent"))
 			assert.Equal(t, "Bearer fixture-token", header.Get("Authorization"))
+			assert.Equal(t, "test_feature", header.Get("GraphQL-Features"))
 		})
 	}
 }
@@ -235,7 +237,6 @@ func TestStdioGraphQLUserAgent(t *testing.T) {
 			case header := <-headers:
 				assert.Equal(t, tt.want, header.Get("User-Agent"))
 				assert.Equal(t, "Bearer fixture-token", header.Get("Authorization"))
-				assert.Equal(t, "issue_fields, repo_issue_fields", header.Get("GraphQL-Features"))
 			case <-ctx.Done():
 				t.Fatal("GraphQL request did not reach the local HTTP server")
 			}
