@@ -540,3 +540,53 @@ func repositoryContentsOutputSchema() *jsonschema.Schema {
 	directory.Type, directory.Types = "array", nil
 	return repositoryUnionSchema(&jsonschema.Schema{Type: "null"}, directory, content)
 }
+
+type RepositoryTrafficBreakdownInput struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	Per   string `json:"per,omitempty"`
+}
+
+// TrafficDataOutput is a single day or week bucket of repository traffic.
+type TrafficDataOutput struct {
+	Timestamp string `json:"timestamp,omitempty"`
+	Count     int    `json:"count"`
+	Uniques   int    `json:"uniques"`
+}
+
+type TrafficViewsOutput struct {
+	Count   int                 `json:"count"`
+	Uniques int                 `json:"uniques"`
+	Views   []TrafficDataOutput `json:"views"`
+}
+
+type TrafficClonesOutput struct {
+	Count   int                 `json:"count"`
+	Uniques int                 `json:"uniques"`
+	Clones  []TrafficDataOutput `json:"clones"`
+}
+
+type TrafficReferrerOutput struct {
+	Referrer string `json:"referrer"`
+	Count    int    `json:"count"`
+	Uniques  int    `json:"uniques"`
+}
+
+type TrafficPathOutput struct {
+	Path    string `json:"path"`
+	Title   string `json:"title"`
+	Count   int    `json:"count"`
+	Uniques int    `json:"uniques"`
+}
+
+func convertToTrafficDataOutput(data []*github.TrafficData) []TrafficDataOutput {
+	result := make([]TrafficDataOutput, 0, len(data))
+	for _, d := range data {
+		result = append(result, TrafficDataOutput{
+			Timestamp: formatMinimalTimestamp(d.Timestamp),
+			Count:     d.GetCount(),
+			Uniques:   d.GetUniques(),
+		})
+	}
+	return result
+}

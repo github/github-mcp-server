@@ -1,0 +1,26 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get repository traffic referrers"
+  },
+  "description": "Get the top 10 referring sites (sources of traffic) for a GitHub repository over the last 14 days. Requires push access to the repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "get_traffic_referrers"
+}
