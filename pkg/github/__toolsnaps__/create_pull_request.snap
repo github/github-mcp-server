@@ -9,6 +9,7 @@
     }
   },
   "annotations": {
+    "destructiveHint": false,
     "idempotentHint": false,
     "readOnlyHint": false,
     "title": "Open new pull request"
