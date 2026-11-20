@@ -53,6 +53,13 @@ func TestConditionalToolScopeChecks(t *testing.T) {
 			disallowed: []string{"read:org"},
 		},
 		{
+			name:       "ui issue types repository method",
+			tool:       UIGet(translations.NullTranslationHelper),
+			arguments:  map[string]any{"method": "issue_types", "owner": "octo", "repo": "repo"},
+			allowed:    []string{"repo"},
+			disallowed: []string{"read:org"},
+		},
+		{
 			name:       "ui organization method",
 			tool:       UIGet(translations.NullTranslationHelper),
 			arguments:  map[string]any{"method": "issue_types", "owner": "octo"},

@@ -628,7 +628,7 @@ function CreateIssueApp() {
     const loadIssueTypes = async () => {
       setIssueTypesLoading(true);
       try {
-        const result = await callTool("ui_get", { method: "issue_types", owner });
+        const result = await callTool("ui_get", { method: "issue_types", owner, repo });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
