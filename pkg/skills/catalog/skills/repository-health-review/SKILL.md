@@ -35,6 +35,8 @@ report.
    the repository. One active committer is a risk worth naming plainly.
 6. **Outstanding risk.** `list_code_scanning_alerts` and `list_dependabot_alerts` with
    `state: open`, **counted by severity only**. Do not open individual alerts here.
+   `list_code_quality_findings` with `state: open` adds maintainability and
+   reliability findings; count them by `rule.severity` the same way.
 7. **Report per dimension**, each with the numbers behind it, and state which
    dimensions could not be assessed.
 
