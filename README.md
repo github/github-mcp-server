@@ -1533,6 +1533,25 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `since`: Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
   - `until`: Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
 
+- **list_deployment_statuses** - List deployment statuses
+  - **OAuth Challenge Scopes**: `repo`
+  - `deployment_id`: The deployment ID, as returned by list_deployments (number, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_deployments** - List deployments
+  - **OAuth Challenge Scopes**: `repo`
+  - `environment`: Only return deployments to this environment (e.g. 'production' or 'staging') (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Only return deployments of this ref (branch, tag or SHA name) (string, optional)
+  - `repo`: Repository name (string, required)
+  - `sha`: Only return deployments of this commit SHA (string, optional)
+  - `task`: Only return deployments with this task name (e.g. 'deploy' or 'deploy:migrations') (string, optional)
+
 - **list_releases** - List releases
   - **OAuth Challenge Scopes**: `repo`
   - `fields`: Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data. (string[], optional)
