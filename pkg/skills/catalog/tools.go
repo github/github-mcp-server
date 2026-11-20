@@ -73,7 +73,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"security-alert-triage": {
 		required: [][]string{{"list_code_scanning_alerts", "list_dependabot_alerts", "list_secret_scanning_alerts", "list_repository_security_advisories", "list_org_repository_security_advisories"}},
-		optional: []string{"get_code_scanning_alert", "get_dependabot_alert", "get_secret_scanning_alert", "list_global_security_advisories", "get_global_security_advisory", "get_file_contents", "search_code"},
+		optional: []string{"get_code_scanning_alert", "update_code_scanning_alert", "get_dependabot_alert", "update_dependabot_alert", "get_secret_scanning_alert", "update_secret_scanning_alert", "list_global_security_advisories", "get_global_security_advisory", "get_file_contents", "search_code"},
 	},
 	"workflow-failure-triage": {
 		required: [][]string{{"actions_list"}, {"actions_get"}, {"get_job_logs"}},

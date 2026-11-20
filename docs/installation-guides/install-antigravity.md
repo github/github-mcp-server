@@ -25,8 +25,10 @@ Uses GitHub's hosted server at `https://api.githubcopilot.com/mcp/`.
 5. Click "View raw config"
 
 This will open your `mcp_config.json` file at:
-- **Windows**: `C:\Users\<USERNAME>\.gemini\antigravity\mcp_config.json`
-- **macOS/Linux**: `~/.gemini/antigravity/mcp_config.json`
+- **Windows**: `C:\Users\<USERNAME>\.gemini\config\mcp_config.json`
+- **macOS/Linux**: `~/.gemini/config/mcp_config.json`
+
+This is Antigravity's global MCP configuration file. If it does not exist yet, create it with the content from the next step. See the [Antigravity MCP documentation](https://antigravity.google/docs/mcp/) for the full configuration schema.
 
 #### Step 2: Add Configuration
 
@@ -45,7 +47,7 @@ Add the following to your `mcp_config.json`:
 }
 ```
 
-**Important**: Note that Antigravity uses `serverUrl` instead of `url` for HTTP-based MCP servers.
+**Important**: Antigravity accepts `serverUrl` for remote servers, and also the standard `url` key from the MCP specification. Either one works, so `url` is not rejected.
 
 #### Step 3: Configure Your Token
 
@@ -131,9 +133,11 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 
 ## Troubleshooting
 
-### "Error: serverUrl or command must be specified"
+### Server not connecting
 
-Make sure you're using `serverUrl` (not `url`) for the remote server configuration. Antigravity requires `serverUrl` for HTTP-based MCP servers.
+Make sure the remote server entry has `serverUrl` (or `url`) pointing at the Streamable HTTP endpoint `https://api.githubcopilot.com/mcp/`. Antigravity does not support the legacy HTTP+SSE transport.
+
+Also confirm you edited the file Antigravity actually reads: the global configuration at `~/.gemini/config/mcp_config.json`.
 
 ### Server not appearing in MCP list
 
@@ -161,8 +165,8 @@ For a complete list of available tools and features, see the [main README](../..
 
 ## Differences from Other IDEs
 
-- **Configuration key**: Antigravity uses `serverUrl` instead of `url` for HTTP servers
-- **Config location**: `.gemini/antigravity/mcp_config.json` instead of `.cursor/mcp.json`
+- **Configuration key**: Antigravity accepts `serverUrl` and also the standard `url` key for remote HTTP servers
+- **Config location**: `~/.gemini/config/mcp_config.json` instead of `.cursor/mcp.json`
 - **Tool limits**: Antigravity recommends keeping total enabled tools under 50 for optimal performance
 
 ## Next Steps
