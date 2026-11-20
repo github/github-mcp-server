@@ -1635,6 +1635,104 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
+// DeleteBranchOutput is the structured response for the delete_branch tool.
+type DeleteBranchOutput struct {
+	Owner   string `json:"owner"`
+	Repo    string `json:"repo"`
+	Branch  string `json:"branch"`
+	Deleted bool   `json:"deleted"`
+	Message string `json:"message"`
+}
+
+// DeleteBranch creates a tool to delete a branch in a GitHub repository.
+func DeleteBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "delete_branch",
+			Description: t("TOOL_DELETE_BRANCH_DESCRIPTION", "Delete a branch from a GitHub repository. Protected branches cannot be deleted."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_DELETE_BRANCH_USER_TITLE", "Delete branch"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"branch": {
+						Type:        "string",
+						Description: "Name of the branch to delete",
+					},
+				},
+				Required: []string{"owner", "repo", "branch"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *DeleteBranchOutput, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			branch, err := RequiredParam[string](args, "branch")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Guardrail: refuse to delete protected branches.
+			branchInfo, resp, err := client.Repositories.GetBranch(ctx, owner, repo, branch, 1)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get branch",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if branchInfo.GetProtected() {
+				return utils.NewToolResultError(fmt.Sprintf("branch %q is protected and cannot be deleted", branch)), nil, nil
+			}
+
+			// Delete the branch reference.
+			resp, err = client.Git.DeleteRef(ctx, owner, repo, "refs/heads/"+branch)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to delete branch",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			message := fmt.Sprintf("Successfully deleted branch %q", branch)
+			output := &DeleteBranchOutput{
+				Owner:   owner,
+				Repo:    repo,
+				Branch:  branch,
+				Deleted: true,
+				Message: message,
+			}
+			return utils.NewToolResultText(message), output, nil
+		},
+	)
+}
+
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool[PushFilesInput, *RepositoryReferenceOutput](
