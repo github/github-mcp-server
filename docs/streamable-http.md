@@ -191,3 +191,11 @@ To provide PAT credentials, or to customize server behavior preferences, you can
 ```
 
 See [Remote Server](./remote-server.md) documentation for more details on client configuration options.
+
+## Direct GraphQL operations (opt-in)
+
+Set `GITHUB_MCP_ENABLE_GRAPHQL=true` on the server and select the `graphql` toolset, for example with `--toolsets default,graphql`. Restart the server and refresh the client's tool list. Without the environment variable the tools are unavailable, including through the `all` toolset.
+
+The read tool, `github_graphql_query`, and the write tool, `github_graphql_mutation`, use the current request's GitHub credentials. Enabling direct GraphQL gives callers access to the operations those credentials permit, including operations without a dedicated MCP tool. Operators relying on a narrow allowlist of named actions should leave the toolset disabled. Read-only mode filters out the mutation tool. Both tools refuse execution when lockdown mode or IFC labels are active.
+
+For example, call `github_graphql_query` with `{"operation":"{ viewer { login } }"}`. To pass variables, supply the variable definitions followed by the selection set in `operation`, and the values in `variables`. The server supplies the operation kind and name. GitHub's response can include partial data and errors together.
