@@ -1339,6 +1339,20 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
+- **dequeue_pull_request** - Remove pull request from merge queue
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **enqueue_pull_request** - Add pull request to merge queue
+  - **OAuth Challenge Scopes**: `repo`
+  - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref. The pull request is only queued if its head still matches. (string, optional)
+  - `jump`: Add the pull request to the front of the queue instead of the back (boolean, optional)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **list_pull_requests** - List pull requests
   - **OAuth Challenge Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
@@ -1376,6 +1390,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
      7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
      9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+     10. get_merge_queue_status - Get whether the base branch requires a merge queue and, if the pull request is queued, its position, state and estimated time to merge. Use it to choose between merge_pull_request and enqueue_pull_request.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)

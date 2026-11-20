@@ -117,6 +117,8 @@ type PullRequestReadOutput struct {
 	Reviews       *[]MinimalPullRequestReview
 	Comments      *[]IssueReadCommentOutput
 	CheckRuns     *MinimalCheckRunsResult
+	// MergeQueueStatus is returned by get_merge_queue_status.
+	MergeQueueStatus *MinimalMergeQueueStatus
 }
 
 // PullRequestDiffOutput wraps the raw diff, which the text content returns verbatim.
@@ -144,6 +146,8 @@ func (out PullRequestReadOutput) MarshalJSON() ([]byte, error) {
 		return json.Marshal(out.Comments)
 	case out.CheckRuns != nil:
 		return json.Marshal(out.CheckRuns)
+	case out.MergeQueueStatus != nil:
+		return json.Marshal(out.MergeQueueStatus)
 	default:
 		// The SDK validates this zero value even for error results before the
 		// protocol middleware removes it from the wire result.
@@ -177,6 +181,7 @@ func pullRequestReadOutputSchema() *jsonschema.Schema {
 		pullRequestOutputSchema[MinimalCombinedStatus](),
 		pullRequestOutputSchema[MinimalReviewThreadsResponse](),
 		pullRequestOutputSchema[MinimalCheckRunsResult](),
+		pullRequestOutputSchema[MinimalMergeQueueStatus](),
 		&jsonschema.Schema{Type: "array", AnyOf: arrays},
 	)
 }
@@ -330,7 +335,7 @@ func describePullRequestOutputSchema(schema *jsonschema.Schema) {
 			field.Description = "Browser URL."
 		case "sha", "commit_id":
 			field.Description = "Git commit SHA."
-		case "created_at", "updated_at", "closed_at", "merged_at", "submitted_at", "started_at", "completed_at":
+		case "created_at", "updated_at", "closed_at", "merged_at", "submitted_at", "started_at", "completed_at", "enqueued_at":
 			field.Description = "RFC 3339 timestamp."
 		case "line", "original_line", "start_line", "original_start_line":
 			field.Description = "One-based diff line number."
@@ -357,6 +362,9 @@ func describePullRequestOutputSchema(schema *jsonschema.Schema) {
 			case schema.Properties["commit_id"] != nil:
 				field.Description = "Review state; empty for a sparse response."
 				field.Enum = []any{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING", ""}
+			case schema.Properties["enqueued_at"] != nil:
+				field.Description = "Merge queue entry state."
+				field.Enum = []any{"QUEUED", "AWAITING_CHECKS", "MERGEABLE", "UNMERGEABLE", "LOCKED"}
 			}
 		case "status":
 			switch {
@@ -367,6 +375,18 @@ func describePullRequestOutputSchema(schema *jsonschema.Schema) {
 				field.Description = "Check execution status; empty for a sparse response."
 				field.Enum = []any{"queued", "in_progress", "completed", "waiting", "requested", "pending", ""}
 			}
+		case "position":
+			field.Description = "One-based position in the merge queue."
+		case "estimated_time_to_merge":
+			field.Description = "Estimated number of seconds until the pull request is merged."
+		case "jump":
+			field.Description = "Whether the entry was added to the front of the queue."
+		case "solo":
+			field.Description = "Whether the entry is merged on its own rather than grouped with other entries."
+		case "merge_queue_enabled":
+			field.Description = "Whether the base branch requires a merge queue; use enqueue_pull_request instead of merge_pull_request when true."
+		case "in_merge_queue":
+			field.Description = "Whether the pull request is in the merge queue."
 		case "conclusion":
 			field.Description = "Completed check outcome."
 			field.Enum = []any{"success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale", "startup_failure"}
@@ -415,7 +435,7 @@ var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 	"read": {
 		required: []string{"method", "owner", "repo"}, requiredInts: []string{"pullNumber"},
 		ints:    []string{"page", "perPage"},
-		methods: []string{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+		methods: []string{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs", "get_merge_queue_status"},
 	},
 	"create": {
 		required: []string{"owner", "repo"}, deferred: []string{"title", "head", "base"},
@@ -433,6 +453,13 @@ var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 	},
 	"branch": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"}, strings: []string{"expectedHeadSha"},
+	},
+	"enqueue": {
+		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
+		bools: []string{"jump"}, strings: []string{"expectedHeadSha"},
+	},
+	"dequeue": {
+		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
 	},
 	"pending_comment": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
