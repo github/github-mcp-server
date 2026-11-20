@@ -25,10 +25,12 @@ var actionsEnumSchemas = sync.OnceValue(func() map[reflect.Type]*jsonschema.Sche
 		reflect.TypeFor[ActionsListMethod](): {Type: "string", Enum: []any{
 			actionsMethodListWorkflows, actionsMethodListWorkflowRuns,
 			actionsMethodListWorkflowJobs, actionsMethodListWorkflowArtifacts,
+			actionsMethodListCheckRuns, actionsMethodListCheckRunAnnotations,
 		}},
 		reflect.TypeFor[ActionsGetMethod](): {Type: "string", Enum: []any{
 			actionsMethodGetWorkflow, actionsMethodGetWorkflowRun, actionsMethodGetWorkflowJob,
 			actionsMethodDownloadWorkflowArtifact, actionsMethodGetWorkflowRunUsage, actionsMethodGetWorkflowRunLogsURL,
+			actionsMethodGetCheckRun,
 		}},
 		reflect.TypeFor[ActionsRunTriggerMethod](): {Type: "string", Enum: []any{
 			actionsMethodRunWorkflow, actionsMethodRerunWorkflowRun, actionsMethodRerunFailedJobs,
@@ -46,8 +48,10 @@ type ActionsListInput struct {
 	Owner              string                    `json:"owner"`
 	Repo               string                    `json:"repo"`
 	ResourceID         string                    `json:"resource_id,omitempty"`
+	Ref                string                    `json:"ref,omitempty"`
 	Page               int                       `json:"page,omitempty"`
 	PerPage            int                       `json:"perPage,omitempty"`
+	CheckRunsFilter    ActionsCheckRunsFilter    `json:"check_runs_filter"`
 	WorkflowRunsFilter ActionsWorkflowRunsFilter `json:"workflow_runs_filter"`
 	WorkflowJobsFilter ActionsWorkflowJobsFilter `json:"workflow_jobs_filter"`
 }
@@ -63,6 +67,13 @@ type ActionsWorkflowRunsFilter struct {
 type ActionsWorkflowJobsFilter struct {
 	Filter          string `json:"filter,omitempty"`
 	validationError string
+}
+
+type ActionsCheckRunsFilter struct {
+	CheckName string `json:"check_name,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Filter    string `json:"filter,omitempty"`
+	AppID     *int64 `json:"app_id,omitempty"`
 }
 
 // The legacy handler validates filters only after client acquisition and
@@ -180,11 +191,13 @@ type ActionsGetJobLogsInput struct {
 // Method is omitted only on SDK-validated error zero values, which the shared
 // output middleware removes. Every successful handler sets its discriminant.
 type ActionsListOutput struct {
-	Method    ActionsListMethod          `json:"method,omitempty"`
-	Workflows *ActionsWorkflowsOutput    `json:"workflows,omitempty"`
-	Runs      *MinimalWorkflowRunsResult `json:"workflow_runs,omitempty"`
-	Jobs      *MinimalWorkflowJobsResult `json:"workflow_jobs,omitempty"`
-	Artifacts *ActionsArtifactsOutput    `json:"artifacts,omitempty"`
+	Method              ActionsListMethod                 `json:"method,omitempty"`
+	Workflows           *ActionsWorkflowsOutput           `json:"workflows,omitempty"`
+	Runs                *MinimalWorkflowRunsResult        `json:"workflow_runs,omitempty"`
+	Jobs                *MinimalWorkflowJobsResult        `json:"workflow_jobs,omitempty"`
+	Artifacts           *ActionsArtifactsOutput           `json:"artifacts,omitempty"`
+	CheckRuns           *ActionsCheckRunsOutput           `json:"check_runs,omitempty"`
+	CheckRunAnnotations *ActionsCheckRunAnnotationsOutput `json:"check_run_annotations,omitempty"`
 }
 
 type ActionsWorkflow struct {
@@ -234,6 +247,7 @@ var actionsListOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	constrainMethodOutput(schema, map[string]string{
 		actionsMethodListWorkflows: "workflows", actionsMethodListWorkflowRuns: "workflow_runs",
 		actionsMethodListWorkflowJobs: "workflow_jobs", actionsMethodListWorkflowArtifacts: "artifacts",
+		actionsMethodListCheckRuns: "check_runs", actionsMethodListCheckRunAnnotations: "check_run_annotations",
 	}, "workflows", "artifacts")
 	return schema
 })
@@ -246,6 +260,54 @@ type ActionsGetOutput struct {
 	Usage    *ActionsRunUsageOutput         `json:"usage,omitempty"`
 	Artifact *ActionsArtifactDownloadOutput `json:"artifact,omitempty"`
 	Logs     *ActionsRunLogsOutput          `json:"logs,omitempty"`
+	CheckRun *ActionsCheckRun               `json:"check_run,omitempty"`
+}
+
+type ActionsCheckApp struct {
+	ID   int64  `json:"id"`
+	Slug string `json:"slug,omitempty"`
+}
+
+type ActionsCheckRunSummary struct {
+	MinimalCheckRun
+	HeadSHA      string           `json:"head_sha,omitempty"`
+	CheckSuiteID int64            `json:"check_suite_id,omitempty"`
+	App          *ActionsCheckApp `json:"app,omitempty"`
+}
+
+type ActionsCheckRunsOutput struct {
+	TotalCount int                      `json:"total_count"`
+	CheckRuns  []ActionsCheckRunSummary `json:"check_runs"`
+	NextPage   int                      `json:"next_page,omitempty"`
+}
+
+type ActionsCheckRun struct {
+	ActionsCheckRunSummary
+	Output *ActionsCheckRunOutput `json:"output,omitempty"`
+}
+
+type ActionsCheckRunOutput struct {
+	Title            string `json:"title,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	Text             string `json:"text,omitempty"`
+	AnnotationsCount int    `json:"annotations_count"`
+}
+
+type ActionsCheckRunAnnotation struct {
+	Path            string `json:"path"`
+	StartLine       int    `json:"start_line"`
+	EndLine         int    `json:"end_line"`
+	StartColumn     *int   `json:"start_column,omitempty"`
+	EndColumn       *int   `json:"end_column,omitempty"`
+	AnnotationLevel string `json:"annotation_level,omitempty"`
+	Title           string `json:"title,omitempty"`
+	Message         string `json:"message,omitempty"`
+	RawDetails      string `json:"raw_details,omitempty"`
+}
+
+type ActionsCheckRunAnnotationsOutput struct {
+	Annotations []ActionsCheckRunAnnotation `json:"annotations"`
+	NextPage    int                         `json:"next_page,omitempty"`
 }
 
 type ActionsRunUsageOutput struct {
@@ -367,6 +429,7 @@ var actionsGetOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 		actionsMethodGetWorkflow: "workflow", actionsMethodGetWorkflowRun: "workflow_run",
 		actionsMethodGetWorkflowJob: "workflow_job", actionsMethodGetWorkflowRunUsage: "usage",
 		actionsMethodDownloadWorkflowArtifact: "artifact", actionsMethodGetWorkflowRunLogsURL: "logs",
+		actionsMethodGetCheckRun: "check_run",
 	}, "workflow", "workflow_job", "usage")
 	return schema
 })
@@ -601,6 +664,17 @@ func normalizeActionsFields(args map[string]any, kind string) error {
 		}
 		args["page"], args["perPage"] = pagination.Page, pagination.PerPage
 		method := args["method"]
+		if method == actionsMethodListCheckRuns {
+			if _, err := OptionalParam[string](args, "ref"); err != nil {
+				return err
+			}
+			if _, err := OptionalParam[map[string]any](args, "check_runs_filter"); err != nil {
+				return err
+			}
+		} else {
+			delete(args, "ref")
+			delete(args, "check_runs_filter")
+		}
 		for _, field := range []string{"workflow_runs_filter", "workflow_jobs_filter"} {
 			relevant := field == "workflow_runs_filter" && method == actionsMethodListWorkflowRuns ||
 				field == "workflow_jobs_filter" && method == actionsMethodListWorkflowJobs

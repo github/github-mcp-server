@@ -17,6 +17,7 @@ func TestConvertToMinimalWorkflowRun(t *testing.T) {
 
 	assert.Equal(t, workflowRun.GetID(), minimal.ID)
 	assert.Equal(t, workflowRun.GetWorkflowID(), minimal.WorkflowID)
+	assert.Equal(t, workflowRun.GetCheckSuiteID(), minimal.CheckSuiteID)
 	assert.Equal(t, workflowRun.GetDisplayTitle(), minimal.DisplayTitle)
 	assert.Equal(t, workflowRun.GetHeadSHA(), minimal.HeadSHA)
 	assert.Equal(t, []int{42}, minimal.PullRequests)
@@ -38,6 +39,9 @@ func TestConvertToMinimalWorkflowRun(t *testing.T) {
 	assert.NotContains(t, payload, "jobs_url")
 	assert.NotContains(t, payload, "logs_url")
 	assert.NotContains(t, payload, "artifacts_url")
+	assert.Equal(t, float64(42), payload["check_suite_id"])
+	assert.NotContains(t, payload, "check_suite_url")
+	assert.NotContains(t, payload, "check_suite_node_id")
 	assert.Equal(t, map[string]any{
 		"message": "Reduce GitHub Actions response payloads",
 	}, payload["head_commit"])
@@ -53,10 +57,12 @@ func TestConvertToMinimalWorkflowRun(t *testing.T) {
 func TestConvertToMinimalWorkflowJob(t *testing.T) {
 	workflowJob := actionsTestWorkflowJob()
 
-	minimal := convertToMinimalWorkflowJob(workflowJob)
+	minimal, err := convertToMinimalWorkflowJob(workflowJob)
+	require.NoError(t, err)
 
 	assert.Equal(t, workflowJob.GetID(), minimal.ID)
 	assert.Equal(t, workflowJob.GetRunID(), minimal.RunID)
+	assert.Equal(t, int64(399444496), minimal.CheckRunID)
 	assert.Equal(t, workflowJob.GetRunnerID(), minimal.RunnerID)
 	assert.Equal(t, workflowJob.GetRunnerName(), minimal.RunnerName)
 	assert.Equal(t, workflowJob.GetRunnerGroupID(), minimal.RunnerGroupID)
@@ -71,6 +77,7 @@ func TestConvertToMinimalWorkflowJob(t *testing.T) {
 	assert.NotContains(t, payload, "url")
 	assert.NotContains(t, payload, "run_url")
 	assert.NotContains(t, payload, "check_run_url")
+	assert.Equal(t, float64(399444496), payload["check_run_id"])
 	assert.Equal(t, float64(1), payload["runner_id"])
 	assert.Equal(t, float64(2), payload["runner_group_id"])
 	assert.Equal(t, "GitHub Actions", payload["runner_group_name"])
@@ -87,10 +94,11 @@ func TestConvertToMinimalActionsLists(t *testing.T) {
 	})
 
 	t.Run("workflow jobs", func(t *testing.T) {
-		result := convertToMinimalWorkflowJobs(&github.Jobs{
+		result, err := convertToMinimalWorkflowJobs(&github.Jobs{
 			TotalCount: new(2),
 			Jobs:       []*github.WorkflowJob{actionsTestWorkflowJob(), nil},
 		})
+		require.NoError(t, err)
 		assert.Equal(t, 2, result.TotalCount)
 		assert.Len(t, result.Jobs, 1)
 	})
@@ -102,10 +110,56 @@ func TestConvertToMinimalActionsLists(t *testing.T) {
 	})
 
 	t.Run("nil workflow jobs", func(t *testing.T) {
-		result := convertToMinimalWorkflowJobs(nil)
+		result, err := convertToMinimalWorkflowJobs(nil)
+		require.NoError(t, err)
 		assert.NotNil(t, result.Jobs)
 		assert.Empty(t, result.Jobs)
 	})
+}
+
+func TestWorkflowJobCheckRunID(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantID  int64
+		wantErr bool
+	}{
+		{name: "absent"},
+		{name: "dotcom", url: "https://api.github.com/repos/owner/repo/check-runs/101", wantID: 101},
+		{name: "enterprise", url: "https://github.example/api/v3/repos/owner/repo/check-runs/102", wantID: 102},
+		{name: "HTTP enterprise", url: "http://github.example/api/v3/repos/owner/repo/check-runs/103", wantID: 103},
+		{name: "trailing slash", url: "https://api.github.com/repos/owner/repo/check-runs/104/", wantID: 104},
+		{name: "relative", url: "/repos/owner/repo/check-runs/101", wantErr: true},
+		{name: "malformed", url: "https://api.github.com/%zz", wantErr: true},
+		{name: "wrong endpoint", url: "https://api.github.com/repos/owner/repo/check-suites/101", wantErr: true},
+		{name: "missing repository", url: "https://api.github.com/repos/owner//check-runs/101", wantErr: true},
+		{name: "invalid ID", url: "https://api.github.com/repos/owner/repo/check-runs/not-an-id", wantErr: true},
+		{name: "zero ID", url: "https://api.github.com/repos/owner/repo/check-runs/0", wantErr: true},
+		{name: "negative ID", url: "https://api.github.com/repos/owner/repo/check-runs/-1", wantErr: true},
+		{name: "overflow", url: "https://api.github.com/repos/owner/repo/check-runs/9223372036854775808", wantErr: true},
+		{name: "query", url: "https://api.github.com/repos/owner/repo/check-runs/101?unexpected=1", wantErr: true},
+		{name: "fragment", url: "https://api.github.com/repos/owner/repo/check-runs/101#unexpected", wantErr: true},
+		{name: "userinfo", url: "https://name@api.github.com/repos/owner/repo/check-runs/101", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			job := &github.WorkflowJob{ID: new(int64(7)), CheckRunURL: new(tc.url)}
+			output, err := convertToMinimalWorkflowJob(job)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "invalid check link for workflow job 7")
+				_, err = convertToMinimalWorkflowJobs(&github.Jobs{Jobs: []*github.WorkflowJob{job}})
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantID, output.CheckRunID)
+			if tc.wantID == 0 {
+				assert.NotContains(t, marshalActionsObject(t, output), "check_run_id")
+			} else {
+				assert.NotEqual(t, output.ID, output.CheckRunID)
+			}
+		})
+	}
 }
 
 func actionsTestWorkflowRun() *github.WorkflowRun {
