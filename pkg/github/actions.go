@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/github/github-mcp-server/v2/internal/profiler"
 	buffer "github.com/github/github-mcp-server/v2/pkg/buffer"
@@ -26,6 +27,7 @@ import (
 const (
 	DescriptionRepositoryOwner = "Repository owner"
 	DescriptionRepositoryName  = "Repository name"
+	logDownloadTimeout         = 30 * time.Second
 )
 
 // Method constants for consolidated actions tools
@@ -49,28 +51,33 @@ const (
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
-	// First, get all jobs for the workflow run
-	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
-		Filter: "latest",
-	})
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Filter for failed jobs
+	// Gather failures from every page before reporting that a run has none.
+	opts := &github.ListWorkflowJobsOptions{Filter: "latest"}
 	var failedJobs []*github.WorkflowJob
-	for _, job := range jobs.Jobs {
-		if job.GetConclusion() == "failure" {
-			failedJobs = append(failedJobs, job)
+	totalJobs := 0
+	for {
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
 		}
+		_ = resp.Body.Close()
+		totalJobs += len(jobs.Jobs)
+		for _, job := range jobs.Jobs {
+			if job.GetConclusion() == "failure" {
+				failedJobs = append(failedJobs, job)
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
 	if len(failedJobs) == 0 {
 		result := &ActionsFailedJobLogsOutput{
 			Message:   "No failed jobs found in this workflow run",
 			RunID:     runID,
-			TotalJobs: len(jobs.Jobs),
+			TotalJobs: totalJobs,
 		}
 		r, _ := json.Marshal(result)
 		return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Failed: result}, nil
@@ -78,7 +85,15 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 
 	// Collect logs for all failed jobs
 	var logResults []ActionsJobLog
+	remainingBytes := buffer.MaxLogBytes
 	for _, job := range failedJobs {
+		if returnContent && remainingBytes <= len("... [TRUNCATED]") {
+			logResults = append(logResults, ActionsJobLog{Error: &ActionsJobLogError{
+				JobID: job.GetID(), JobName: job.GetName(),
+				Error: "Log content limit reached; retrieve this job's logs individually.",
+			}})
+			continue
+		}
 		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
 		if err != nil {
 			// Continue with other jobs even if one fails
@@ -88,6 +103,17 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 			// Enable reporting of status codes and error causes
 			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore error for graceful handling
 		}
+		if jobResult.Content != nil {
+			content := jobResult.Content.LogsContent
+			if len(content) > remainingBytes {
+				// Preserve the tail while clearly indicating omitted content.
+				marker := "... [TRUNCATED]"
+				content = marker + strings.ToValidUTF8(content[len(content)-(remainingBytes-len(marker)):], "")
+				jobResult.Content.LogsContent = content
+				jobResult.Content.Message = "Job logs content truncated; retrieve this job's logs individually."
+			}
+			remainingBytes -= len(content)
+		}
 
 		logResults = append(logResults, *jobResult)
 	}
@@ -95,7 +121,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	result := &ActionsFailedJobLogsOutput{
 		Message:      fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
 		RunID:        runID,
-		TotalJobs:    len(jobs.Jobs),
+		TotalJobs:    totalJobs,
 		FailedJobs:   len(failedJobs),
 		Logs:         &logResults,
 		ReturnFormat: &ActionsLogsReturnFormat{Content: returnContent, URLs: !returnContent},
@@ -164,7 +190,14 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 	prof := profiler.New(nil, profiler.IsProfilingEnabled())
 	finish := prof.Start(ctx, "log_buffer_processing")
 
-	httpResp, err := http.Get(logURL) //nolint:gosec
+	ctx, cancel := context.WithTimeout(ctx, logDownloadTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, logURL, nil)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("failed to create log download request: %w", err)
+	}
+	client := &http.Client{Timeout: logDownloadTimeout}
+	httpResp, err := client.Do(req)
 	if err != nil {
 		return "", 0, httpResp, fmt.Errorf("failed to download logs: %w", err)
 	}
