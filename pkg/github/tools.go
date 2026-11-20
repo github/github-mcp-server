@@ -275,6 +275,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// User tools
 		SearchUsers(t),
+		ListUserEvents(t),
 
 		// Organization tools
 		SearchOrgs(t),

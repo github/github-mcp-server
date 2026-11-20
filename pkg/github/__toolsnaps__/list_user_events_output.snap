@@ -1,0 +1,45 @@
+{
+  "inputSchema": null,
+  "name": "list_user_events",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "payload": true,
+        "public": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "repo": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "type": "object"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
+}
