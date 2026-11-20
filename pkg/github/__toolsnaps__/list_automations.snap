@@ -6,6 +6,7 @@
   },
   "description": "List Copilot automations for a repository.",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "owner": {
         "description": "Repository owner",

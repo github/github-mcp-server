@@ -523,7 +523,7 @@ func TestConfigureRequestState(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, sealer)
 		assert.True(t, cfg.disableDeleteRepository)
-		assert.True(t, cfg.disableAgentAutomationMutations)
+		assert.True(t, cfg.disableDeleteAutomation)
 	})
 
 	t.Run("valid key configures sealer", func(t *testing.T) {
@@ -534,7 +534,7 @@ func TestConfigureRequestState(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, sealer)
 		assert.False(t, cfg.disableDeleteRepository)
-		assert.False(t, cfg.disableAgentAutomationMutations)
+		assert.False(t, cfg.disableDeleteAutomation)
 
 		token, err := sealer.Seal(context.Background(), []byte("state"))
 		require.NoError(t, err)

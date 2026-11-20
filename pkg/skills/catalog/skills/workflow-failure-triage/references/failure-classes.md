@@ -11,7 +11,7 @@ recommend. Every check below is available through `actions_list`, `actions_get` 
 
 A run that has already been rerun has more than one attempt. Pull the job for the
 current attempt with `actions_get` and `method: get_workflow_job`, and compare which
-step holds the first non-successful `conclusion`.
+step holds the first failed `conclusion`.
 
 - **Same step, same place** — the code or the configuration. Reruns will keep failing.
 - **Different step each attempt, or no consistent place** — infrastructure. The work
