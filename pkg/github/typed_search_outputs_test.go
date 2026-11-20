@@ -382,7 +382,6 @@ func TestNormalizeTypedReadArgumentsRejectsOutOfRangeIntegers(t *testing.T) {
 	normalize := normalizeTypedReadArguments(nil, false)
 	for _, input := range []string{
 		`{"page":"9223372036854775808"}`,
-		`{"perPage":"9223372036854775807"}`,
 		`{"page":"-9223372036854777856"}`,
 		`{"page": 9223372036854775808}`,
 		`{"page": -9223372036854777856}`,
@@ -426,4 +425,25 @@ func mustMarshalJSON(t *testing.T, value any) string {
 	encoded, err := json.Marshal(value)
 	require.NoError(t, err)
 	return string(encoded)
+}
+
+func TestNormalizeTypedReadArgumentsStringNumbersAreExact(t *testing.T) {
+	normalize := normalizeTypedReadArguments(nil, false)
+	if strconv.IntSize == 64 {
+		// Above 2^53 a float64 cannot hold every integer, so a string must
+		// not round through one.
+		for _, value := range []string{"9007199254740993", "9223372036854775807", "-9223372036854775808"} {
+			t.Run(value, func(t *testing.T) {
+				normalized, err := normalize(json.RawMessage(`{"perPage":"` + value + `"}`))
+				require.NoError(t, err)
+				assert.Equal(t, `{"perPage":`+value+`}`, string(normalized))
+			})
+		}
+	}
+	for _, value := range []string{"9223372036854775808", "1.00000000000000001", "3/1", "0x10", " 5", "5 ", ""} {
+		t.Run("rejects "+value, func(t *testing.T) {
+			_, err := normalize(json.RawMessage(`{"page":"` + value + `"}`))
+			require.Error(t, err)
+		})
+	}
 }

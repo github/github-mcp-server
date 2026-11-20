@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -38,6 +38,34 @@ func exactIntegerToken(token string) (int64, bool) {
 		return 0, false
 	}
 	return exact.Num().Int64(), true
+}
+
+// jsonNumberPattern matches the JSON number grammar (RFC 8259, section 6).
+var jsonNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$`)
+
+// exactIntToken reports the int value of a JSON number token, but only when
+// the token is exactly an integer that fits in int. The token is checked
+// before any lossy float64 conversion: plain integer tokens are parsed
+// exactly, and decimal or exponent forms are checked as exact rationals, with
+// the token length and exponent bounded first so a hostile exponent cannot
+// make the exact check expensive.
+func exactIntToken(token string) (int, bool) {
+	integer, err := strconv.ParseInt(token, 10, strconv.IntSize)
+	if err != nil {
+		var numErr *strconv.NumError
+		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
+			return 0, false
+		}
+		exact, ok := exactIntegerToken(token)
+		if !ok {
+			return 0, false
+		}
+		integer = exact
+	}
+	if int64(int(integer)) != integer {
+		return 0, false
+	}
+	return int(integer), true
 }
 
 func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool) inventory.InputNormalizer {
@@ -72,41 +100,23 @@ func normalizeTypedReadArguments(uppercaseFields []string, preserveZeroPage bool
 			if err := decoder.Decode(&number); err != nil {
 				return nil, err
 			}
-			var intVal int
+			var token string
 			switch v := number.(type) {
 			case string:
-				parsed, err := strconv.ParseFloat(v, 64)
-				if err != nil {
+				// A string goes through the same exact check as a JSON number,
+				// so it must be spelled as one.
+				if !jsonNumberPattern.MatchString(v) {
 					return nil, fmt.Errorf("parameter %s is not a valid number", field)
 				}
-				if math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) || !inSignedIntRange(parsed, strconv.IntSize) {
-					return nil, fmt.Errorf("parameter %s is not a valid number", field)
-				}
-				intVal = int(parsed)
+				token = v
 			case json.Number:
-				// Validate the original token before any lossy float64 conversion.
-				// Plain integer tokens are parsed exactly. Decimal or exponent
-				// forms are checked as exact rationals; the token length and
-				// exponent are bounded first so a hostile exponent cannot make
-				// the exact check expensive.
-				integer, err := strconv.ParseInt(v.String(), 10, strconv.IntSize)
-				if err != nil {
-					var numErr *strconv.NumError
-					if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
-						return nil, fmt.Errorf("parameter %s is not a valid number", field)
-					}
-					exact, ok := exactIntegerToken(v.String())
-					if !ok {
-						return nil, fmt.Errorf("parameter %s is not a valid number", field)
-					}
-					integer = exact
-				}
-				if int64(int(integer)) != integer {
-					return nil, fmt.Errorf("parameter %s is not a valid number", field)
-				}
-				intVal = int(integer)
+				token = v.String()
 			default:
 				continue
+			}
+			intVal, ok := exactIntToken(token)
+			if !ok {
+				return nil, fmt.Errorf("parameter %s is not a valid number", field)
 			}
 			if field == "page" && !preserveZeroPage && intVal == 0 {
 				delete(args, field)
