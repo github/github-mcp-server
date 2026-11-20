@@ -58,6 +58,8 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
+	// unrecognizedExcludeTools holds names passed to WithExcludeTools that match no registered tool
+	unrecognizedExcludeTools []string
 	// server instructions hold high-level instructions for agents to use the server effectively
 	instructions string
 	// configuration preserves tool availability before per-method registration narrowing.
@@ -68,6 +70,13 @@ type Inventory struct {
 // match any registered toolsets. This is useful for warning users about typos.
 func (r *Inventory) UnrecognizedToolsets() []string {
 	return r.unrecognizedToolsets
+}
+
+// UnrecognizedExcludeTools returns tool names that were passed to WithExcludeTools but
+// match no registered tool by exact name (deprecated aliases are not resolved by the
+// exclude filter). Such an entry excludes nothing, so this is useful for warning users about typos.
+func (r *Inventory) UnrecognizedExcludeTools() []string {
+	return r.unrecognizedExcludeTools
 }
 
 // MCP method constants for use with ForMCPRequest.

@@ -182,6 +182,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
+	if unrecognized := github.UnrecognizedFeatureFlags(cfg.EnabledFeatures); len(unrecognized) > 0 {
+		cfg.Logger.Warn("Warning: unrecognized features ignored", "features", strings.Join(unrecognized, ", "))
+	}
+
 	// Create feature checker — resolves explicit features + insiders expansion
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
@@ -227,6 +231,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	inventory, err := inventoryBuilder.Build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	}
+
+	if unrecognized := inventory.UnrecognizedExcludeTools(); len(unrecognized) > 0 {
+		cfg.Logger.Warn("Warning: unrecognized excluded tools ignored; these tools are not disabled", "tools", strings.Join(unrecognized, ", "))
 	}
 
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
