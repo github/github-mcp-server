@@ -30,7 +30,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"issue-backlog-triage": {
 		required: [][]string{{"list_issues"}, {"issue_write", "update_issue_state"}},
-		optional: []string{"search_issues", "issue_read", "sub_issue_write", "add_issue_comment", "list_label", "list_issue_types", "find_duplicate", "add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue", "set_issue_fields", "update_issue_assignees", "update_issue_body", "update_issue_labels", "update_issue_milestone", "update_issue_title", "update_issue_type"},
+		optional: []string{"search_issues", "issue_read", "sub_issue_write", "add_issue_comment", "list_label", "list_issue_types", "find_duplicate", "add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue", "set_issue_fields", "update_issue_assignees", "update_issue_body", "update_issue_labels", "batch_update_issue_labels", "update_issue_milestone", "update_issue_title", "update_issue_type"},
 	},
 	"label-scheme-management": {
 		required: [][]string{{"list_label"}, {"label_write"}},

@@ -111,6 +111,35 @@ type GranularIssueLabelsInput struct {
 	Labels []GranularIssueLabel `json:"labels"`
 }
 
+// GranularBatchUpdateIssueLabelsInput contains one label mutation per issue.
+// Add and Remove are both optional, but at least one must contain a label for
+// every operation.
+type GranularBatchUpdateIssueLabelsInput struct {
+	Owner      string                                    `json:"owner"`
+	Repo       string                                    `json:"repo"`
+	Operations []GranularBatchUpdateIssueLabelsOperation `json:"operations"`
+}
+
+type GranularBatchUpdateIssueLabelsOperation struct {
+	IssueNumber int      `json:"issue_number"`
+	Add         []string `json:"add,omitempty"`
+	Remove      []string `json:"remove,omitempty"`
+}
+
+// GranularBatchUpdateIssueLabelsResult reports the outcome for one issue.
+type GranularBatchUpdateIssueLabelsResult struct {
+	IssueNumber int      `json:"issue_number"`
+	Applied     bool     `json:"applied"`
+	Error       string   `json:"error,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+}
+
+// GranularBatchUpdateIssueLabelsOutput is the structured result of a batch
+// label update.
+type GranularBatchUpdateIssueLabelsOutput struct {
+	Results []GranularBatchUpdateIssueLabelsResult `json:"results"`
+}
+
 type GranularIssueTypeInput struct {
 	GranularIssueCoordinate
 	IssueType    *string `json:"issue_type"`
