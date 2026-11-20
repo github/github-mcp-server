@@ -94,6 +94,10 @@ The rules that hold everywhere:
 
 ## Empty and failure cases
 
+- **An intentionally empty file** — pass `content: ""` to create it or clear its
+  contents. The `content` field is still required; supply the current `sha` when
+  clearing an existing file.
+
 - **The branch already exists** — stop. Do not write into someone else's branch on the
   assumption that the name was meant to be reused; ask.
 - **A write is rejected for a missing or stale `sha`** — the file changed underneath
