@@ -40,8 +40,41 @@ type githubClients struct {
 	repoAccess *lockdown.RepoAccessCache
 }
 
+type oauthTokenProvider func(context.Context) (string, error)
+
+type oauthBearerTransport struct {
+	bearer transport.BearerAuthTransport
+	token  oauthTokenProvider
+}
+
+func (t *oauthBearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := t.token(req.Context())
+	if err != nil {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, err
+	}
+	bearer := t.bearer
+	bearer.Token = token
+	return bearer.RoundTrip(req)
+}
+
+func stdioBearerTransport(cfg github.MCPServerConfig, base http.RoundTripper, allowedHosts []string, oauthToken oauthTokenProvider) http.RoundTripper {
+	bearer := transport.BearerAuthTransport{
+		Transport:     base,
+		Token:         cfg.Token,
+		TokenProvider: cfg.TokenProvider,
+		AllowedHosts:  allowedHosts,
+	}
+	if oauthToken == nil {
+		return &bearer
+	}
+	return &oauthBearerTransport{bearer: bearer, token: oauthToken}
+}
+
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver, oauthToken oauthTokenProvider) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
@@ -91,7 +124,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
 		Agent:     stdioUserAgent(cfg, nil),
 	}
-	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts)
+	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts, oauthToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -99,17 +132,12 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	gqlHTTPClient := &http.Client{
-		Transport: &transport.BearerAuthTransport{
-			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: &transport.UserAgentTransport{
-					Transport: http.DefaultTransport,
-					Agent:     stdioUserAgent(cfg, nil),
-				},
+		Transport: stdioBearerTransport(cfg, &transport.GraphQLFeaturesTransport{
+			Transport: &transport.UserAgentTransport{
+				Transport: http.DefaultTransport,
+				Agent:     stdioUserAgent(cfg, nil),
 			},
-			Token:         cfg.Token,
-			TokenProvider: cfg.TokenProvider,
-			AllowedHosts:  allowedHosts,
-		},
+		}, allowedHosts, oauthToken),
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
@@ -121,7 +149,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		Transport: http.DefaultTransport,
 		Agent:     stdioUserAgent(cfg, nil),
 	}
-	rawRESTClient, err := newRESTClient(cfg, rawUATransport, restURL.String(), uploadURL.String(), allowedHosts)
+	rawRESTClient, err := newRESTClient(cfg, rawUATransport, restURL.String(), uploadURL.String(), allowedHosts, oauthToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw REST client: %w", err)
 	}
@@ -154,19 +182,18 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 // supplied user-agent transport. Authentication uses BearerAuthTransport for
 // both static and provider-backed tokens, and allowedHosts scopes the token to
 // the configured GitHub hosts so it is never leaked to off-host redirects.
-func newRESTClient(cfg github.MCPServerConfig, uaTransport *transport.UserAgentTransport, restURL, uploadURL string, allowedHosts []string) (*gogithub.Client, error) {
+func newRESTClient(cfg github.MCPServerConfig, uaTransport *transport.UserAgentTransport, restURL, uploadURL string, allowedHosts []string, oauthToken oauthTokenProvider) (*gogithub.Client, error) {
 	return gogithub.NewClient(
-		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-			Transport:     uaTransport,
-			Token:         cfg.Token,
-			TokenProvider: cfg.TokenProvider,
-			AllowedHosts:  allowedHosts,
-		}}),
+		gogithub.WithHTTPClient(&http.Client{Transport: stdioBearerTransport(cfg, uaTransport, allowedHosts, oauthToken)}),
 		gogithub.WithEnterpriseURLs(restURL, uploadURL),
 	)
 }
 
 func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
+	return newStdioMCPServer(ctx, cfg, nil)
+}
+
+func newStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig, oauthToken oauthTokenProvider) (*mcp.Server, error) {
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -177,7 +204,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to classify API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	clients, err := createGitHubClients(cfg, apiHost, oauthToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -362,14 +389,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	tokenProvider := cfg.TokenProvider
+	var oauthToken oauthTokenProvider
 	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
-		tokenProvider = cfg.OAuthManager.AccessToken
+		oauthToken = cfg.OAuthManager.AccessTokenContext
 		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
 	}
 
-	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
+	ghServer, err := newStdioMCPServer(ctx, github.MCPServerConfig{
 		Version:               cfg.Version,
 		Host:                  cfg.Host,
 		Token:                 cfg.Token,
@@ -385,9 +412,9 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:                logger,
 		RepoAccessTTL:         cfg.RepoAccessCacheTTL,
 		TokenScopes:           tokenScopes,
-		TokenProvider:         tokenProvider,
+		TokenProvider:         cfg.TokenProvider,
 		ToolHandlerMiddleware: toolHandlerMiddleware,
-	})
+	}, oauthToken)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}

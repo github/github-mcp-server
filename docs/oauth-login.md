@@ -57,7 +57,9 @@ published callback port — the server falls back to the
 [device-code flow](#headless-and-device-code-fallback).
 
 GitHub App tokens that expire are refreshed transparently using the refresh
-token, so long-running sessions keep working without re-authorizing.
+token, so long-running sessions keep working without re-authorizing. Concurrent
+requests share a refresh. Canceling a request stops its wait while the refresh
+can finish and save the rotated token for the session.
 
 ## Quick start
 

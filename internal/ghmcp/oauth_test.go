@@ -63,7 +63,7 @@ func TestCreateGitHubClientsScopesRESTAndRawTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			apiHost := newStaticAPIHostResolver(t, source.URL)
-			clients, err := createGitHubClients(tt.cfg, apiHost)
+			clients, err := createGitHubClients(tt.cfg, apiHost, nil)
 			require.NoError(t, err)
 
 			sourceAuth = ""
@@ -356,7 +356,9 @@ type fakeAuthenticator struct {
 	lastCancelFlowID string
 }
 
-func (f *fakeAuthenticator) HasToken() bool { return f.hasToken }
+func (f *fakeAuthenticator) HasTokenContext(ctx context.Context) (bool, error) {
+	return f.hasToken, ctx.Err()
+}
 
 func (f *fakeAuthenticator) Authenticate(_ context.Context, prompter oauth.Prompter) (*oauth.Outcome, error) {
 	f.authCalls++
@@ -399,6 +401,21 @@ func TestCreateOAuthToolMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called, "next should run")
 		assert.Zero(t, fake.authCalls, "authentication must be skipped when a token already exists")
+	})
+
+	t.Run("canceled token check skips authentication and handler", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		fake := &fakeAuthenticator{}
+		var called bool
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		res, err := mw(newNext(&called))(ctx, &mcp.CallToolRequest{})
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, res)
+		assert.Zero(t, fake.authCalls, "cancellation must not start authentication")
+		assert.False(t, called, "cancellation must not run the tool")
 	})
 
 	t.Run("successful authentication proceeds to handler", func(t *testing.T) {
@@ -690,7 +707,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	clients, err := createGitHubClients(github.MCPServerConfig{
 		Version:       "test",
 		TokenProvider: func() string { return current },
-	}, apiHost)
+	}, apiHost, nil)
 	require.NoError(t, err)
 
 	do := func() {
