@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -151,4 +153,96 @@ func TestSchemaTypeString(t *testing.T) {
 			assert.Equal(t, tc.want, schemaTypeString(tc.schema))
 		})
 	}
+}
+
+func TestParseBoolSetting(t *testing.T) {
+	initConfig()
+	tests := []struct {
+		envVal   string
+		expected bool
+	}{
+		{"1", true},
+		{"t", true},
+		{"T", true},
+		{"true", true},
+		{"TRUE", true},
+		{"True", true},
+		{"yes", true},
+		{"YES", true},
+		{"y", true},
+		{"Y", true},
+		{"on", true},
+		{"ON", true},
+		{"enabled", true},
+		{"ENABLED", true},
+		{" yes ", true},
+		{"0", false},
+		{"f", false},
+		{"F", false},
+		{"false", false},
+		{"FALSE", false},
+		{"False", false},
+		{"no", false},
+		{"NO", false},
+		{"n", false},
+		{"N", false},
+		{"off", false},
+		{"OFF", false},
+		{"disabled", false},
+		{"DISABLED", false},
+		{" no ", false},
+	}
+
+	for _, tc := range tests {
+		t.Run("read-only="+tc.envVal, func(t *testing.T) {
+			t.Setenv("GITHUB_READ_ONLY", tc.envVal)
+			flag := rootCmd.PersistentFlags().Lookup("read-only")
+			got, err := parseBoolSetting("read-only", flag)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+
+		t.Run("lockdown-mode="+tc.envVal, func(t *testing.T) {
+			t.Setenv("GITHUB_LOCKDOWN_MODE", tc.envVal)
+			flag := rootCmd.PersistentFlags().Lookup("lockdown-mode")
+			got, err := parseBoolSetting("lockdown-mode", flag)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+
+	t.Run("invalid boolean fails closed with descriptive error", func(t *testing.T) {
+		invalidValues := []string{"tru", "flase", "invalid", "2", "none", "   ", "\t\n"}
+		for _, key := range []string{"read-only", "lockdown-mode"} {
+			envVar := "GITHUB_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
+			for _, v := range invalidValues {
+				t.Setenv(envVar, v)
+				flag := rootCmd.PersistentFlags().Lookup(key)
+				_, err := parseBoolSetting(key, flag)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), fmt.Sprintf("invalid boolean value %q for %s", v, envVar))
+			}
+		}
+	})
+
+	t.Run("empty or unset defaults to flag default value", func(t *testing.T) {
+		t.Setenv("GITHUB_READ_ONLY", "")
+		flag := rootCmd.PersistentFlags().Lookup("read-only")
+		got, err := parseBoolSetting("read-only", flag)
+		require.NoError(t, err)
+		assert.False(t, got)
+	})
+
+	t.Run("explicit CLI flag takes precedence over env var", func(t *testing.T) {
+		t.Setenv("GITHUB_READ_ONLY", "false")
+		flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		flagSet.Bool("read-only", false, "read only")
+		err := flagSet.Parse([]string{"--read-only"})
+		require.NoError(t, err)
+
+		flag := flagSet.Lookup("read-only")
+		got, err := parseBoolSetting("read-only", flag)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
 }
