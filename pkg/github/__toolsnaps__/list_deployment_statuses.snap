@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "List deployment statuses"
   },
-  "description": "List the statuses of a deployment in a GitHub repository, newest first. The first status is the deployment's current state (e.g. success, failure, error, in_progress, queued, pending or inactive).",
+  "description": "List the statuses of a deployment in a GitHub repository, newest first. The first status on page 1 is the deployment's current state (e.g. success, failure, error, in_progress, queued, pending or inactive); later pages hold older history.",
   "inputSchema": {
     "properties": {
       "deployment_id": {

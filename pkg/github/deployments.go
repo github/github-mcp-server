@@ -224,7 +224,7 @@ func ListDeploymentStatuses(t translations.TranslationHelperFunc) inventory.Serv
 		mcp.Tool{
 			Name: "list_deployment_statuses",
 			Description: t("TOOL_LIST_DEPLOYMENT_STATUSES_DESCRIPTION",
-				"List the statuses of a deployment in a GitHub repository, newest first. The first status is the deployment's current state (e.g. success, failure, error, in_progress, queued, pending or inactive)."),
+				"List the statuses of a deployment in a GitHub repository, newest first. The first status on page 1 is the deployment's current state (e.g. success, failure, error, in_progress, queued, pending or inactive); later pages hold older history."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DEPLOYMENT_STATUSES_USER_TITLE", "List deployment statuses"),
 				ReadOnlyHint: true,
