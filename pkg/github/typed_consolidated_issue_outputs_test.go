@@ -245,13 +245,13 @@ func consolidatedIssueDeps(t *testing.T) BaseDeps {
 func TestTypedConsolidatedIssueOutputs(t *testing.T) {
 	const mutationText = `{"id":"123","url":"https://github.com/owner/repo/issues/1"}`
 	const subText = `{"id":7,"number":7,"title":"Child","body":"body","created_at":"2026-01-01T00:00:00Z","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0}]}`
-	const subStructured = `{"id":7,"number":7,"title":"Child","body":"body","created_at":"2026-01-01T00:00:00Z","assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0}]}`
+	const subStructured = `{"id":7,"number":7,"title":"Child","body":"body","created_at":"2026-01-01T00:00:00Z","labels":[],"assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0}]}`
 	cases := []struct {
 		tool string
 		args map[string]any
 		text string
 	}{
-		{"issue_read", map[string]any{"method": "get", "issue_number": "1.0"}, `{"number":1,"title":"Subject","state":"open","html_url":"https://github.com/owner/repo/issues/1","assignees":[]}`},
+		{"issue_read", map[string]any{"method": "get", "issue_number": "1.0"}, `{"number":1,"title":"Subject","state":"open","html_url":"https://github.com/owner/repo/issues/1","labels":[],"assignees":[],"comments":0}`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": "1", "page": "0", "perPage": "0"}, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/issues/1#issuecomment-42"}]`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": 2}, `[]`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": 3}, `[]`},
@@ -422,7 +422,7 @@ func TestTypedConsolidatedNullMutationResponses(t *testing.T) {
 						"method": method, "owner": "owner", "repo": "repo", "issue_number": 1, "sub_issue_id": 7, "after_id": 8,
 					}, payload)
 					if protocol == inventory.ProtocolVersionMultiRoundTrip {
-						data := `{"assignees":[]}`
+						data := `{"assignees":[],"labels":[]}`
 						if payload == "null" {
 							data = "null"
 						}
@@ -444,7 +444,7 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 	}{
 		{
 			issueReadOutputSchema(),
-			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[]}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
+			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","comments":0,"labels":[],"assignees":[]}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
 			[]string{`null`, `[]`, `{}`, `{"method":"get"}`, `{"method":"get","comments":[]}`, `{"method":"get","issue":{"number":1}}`, `{"method":"get_parent","parent":{"number":1}}`, `{"method":"get_labels","labels":[]}`, `{"method":"get","issue":null,"comments":[]}`},
 		},
 		{
@@ -456,17 +456,17 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 			subIssueWriteOutputSchema(),
 			[]string{
 				`{"method":"add","issue":null}`,
-				`{"method":"remove","issue":{"assignees":[]}}`,
-				`{"method":"reprioritize","issue":{"state":"closed","state_reason":"duplicate","assignees":[]}}`,
-				`{"method":"add","issue":{"assignees":[],"field_values":[null,{"issue_field_id":1,"data_type":"date","value":"2026-01-01"}]}}`,
+				`{"method":"remove","issue":{"assignees":[],"labels":[]}}`,
+				`{"method":"reprioritize","issue":{"state":"closed","state_reason":"duplicate","assignees":[],"labels":[]}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"field_values":[null,{"issue_field_id":1,"data_type":"date","value":"2026-01-01"}]}}`,
 			},
 			[]string{
 				`null`, `{}`, `{"method":"add"}`, `{"method":"get","issue":null}`,
-				`{"method":"add","issue":{"assignees":[],"state":"OPEN"}}`,
-				`{"method":"add","issue":{"assignees":[],"state_reason":"unknown"}}`,
-				`{"method":"add","issue":{"assignees":[],"url":"api"}}`,
-				`{"method":"add","issue":{"assignees":[],"field_values":[{"issue_field_id":1,"data_type":"unknown","value":1}]}}`,
-				`{"method":"add","issue":{"assignees":[],"field_values":[{"issue_field_id":1,"data_type":"number","value":{}}]}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"state":"OPEN"}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"state_reason":"unknown"}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"url":"api"}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"field_values":[{"issue_field_id":1,"data_type":"unknown","value":1}]}}`,
+				`{"method":"add","issue":{"assignees":[],"labels":[],"field_values":[{"issue_field_id":1,"data_type":"number","value":{}}]}}`,
 			},
 		},
 		{

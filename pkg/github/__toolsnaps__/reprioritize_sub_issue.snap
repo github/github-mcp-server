@@ -248,6 +248,7 @@
           }
         },
         "required": [
+          "labels",
           "assignees"
         ],
         "type": [

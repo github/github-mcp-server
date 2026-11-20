@@ -79,7 +79,7 @@ func TestTypedIssueReadEnrichmentAndLockdown(t *testing.T) {
 					Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": lockdown}),
 				}
 				session, schemas := consolidatedIssueSession(t, deps, protocol, false)
-				text := `{"number":1,"title":"Child","state":"open","user":{"login":"author"},"assignees":[],"has_parent":true,"has_children":true,`
+				text := `{"number":1,"title":"Child","state":"open","user":{"login":"author"},"labels":[],"assignees":[],"comments":0,"has_parent":true,"has_children":true,`
 				if !lockdown {
 					text += `"parent":{"number":7,"title":"Parent","state":"OPEN","url":"parent","repository":"owner/repo"},`
 				}
