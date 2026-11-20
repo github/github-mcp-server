@@ -968,7 +968,7 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
 		// comments and sub-issues are filtered out. has_parent still routes an agent to
 		// get_parent if it needs to follow up.
-		if !lockdownMode || isSafeRefContent(ctx, cache, parent.Ref.Repository, parent.AuthorLogin) {
+		if !lockdownMode || isSafeRefContent(ctx, cache, parent.Ref.Repository, parent.AuthorLogin, parent.AuthorTypeName) {
 			ref := parent.Ref
 			minimalIssue.Parent = &ref
 		}
@@ -982,7 +982,7 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 		References: make([]MinimalPullRequestRef, 0, len(enrichment.ClosedByPullRequests)),
 	}
 	for _, pr := range enrichment.ClosedByPullRequests {
-		if lockdownMode && !isSafeRefContent(ctx, cache, pr.Ref.Repository, pr.AuthorLogin) {
+		if lockdownMode && !isSafeRefContent(ctx, cache, pr.Ref.Repository, pr.AuthorLogin, pr.AuthorTypeName) {
 			continue
 		}
 		closing.References = append(closing.References, pr.Ref)
@@ -998,7 +998,7 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 // isSafeRefContent reports whether a related issue or pull request reference can be exposed under
 // lockdown mode. It fails closed: any inability to positively verify safe content (missing cache,
 // missing author, unparseable repository, or a lookup error) results in the reference being omitted.
-func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repository, authorLogin string) bool {
+func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repository, authorLogin, authorTypeName string) bool {
 	if cache == nil || authorLogin == "" {
 		return false
 	}
@@ -1006,7 +1006,7 @@ func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repo
 	if !ok || owner == "" || repo == "" {
 		return false
 	}
-	safe, err := cache.IsSafeContent(ctx, authorLogin, owner, repo)
+	safe, err := cache.IsSafeActorContent(ctx, authorLogin, authorTypeName, owner, repo)
 	if err != nil {
 		return false
 	}
@@ -1188,7 +1188,8 @@ func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 					State  githubv4.String
 					URL    githubv4.String
 					Author struct {
-						Login githubv4.String
+						Login    githubv4.String
+						TypeName githubv4.String `graphql:"__typename"`
 					}
 					Repository struct {
 						NameWithOwner githubv4.String
@@ -1226,7 +1227,7 @@ func getIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 			output := &IssueParentOutput{}
 			return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
 		}
-		isSafeContent, err := cache.IsSafeContent(ctx, parentAuthorLogin, parentOwner, parentRepo)
+		isSafeContent, err := cache.IsSafeActorContent(ctx, parentAuthorLogin, string(parent.Author.TypeName), parentOwner, parentRepo)
 		if err != nil || !isSafeContent {
 			output := &IssueParentOutput{}
 			return MarshalledTextResult(output), &IssueReadOutput{Method: "get_parent", Parent: output.Parent}, nil
@@ -2412,7 +2413,8 @@ type issueReadEnrichmentQuery struct {
 				State  githubv4.String
 				URL    githubv4.String
 				Author struct {
-					Login githubv4.String
+					Login    githubv4.String
+					TypeName githubv4.String `graphql:"__typename"`
 				}
 				Repository struct {
 					NameWithOwner githubv4.String
@@ -2426,7 +2428,8 @@ type issueReadEnrichmentQuery struct {
 					State  githubv4.String
 					URL    githubv4.String
 					Author struct {
-						Login githubv4.String
+						Login    githubv4.String
+						TypeName githubv4.String `graphql:"__typename"`
 					}
 					Repository struct {
 						NameWithOwner githubv4.String
@@ -2445,15 +2448,17 @@ type issueReadEnrichmentQuery struct {
 // issueReadParent is the parent reference plus the metadata needed to make a lockdown
 // safe-content decision about whether the (possibly cross-repo) parent title may be exposed.
 type issueReadParent struct {
-	Ref         MinimalIssueRef
-	AuthorLogin string
+	Ref            MinimalIssueRef
+	AuthorLogin    string
+	AuthorTypeName string
 }
 
 // issueReadClosingPullRequest is a closing pull request reference plus the metadata needed to make
 // a lockdown safe-content decision about it.
 type issueReadClosingPullRequest struct {
-	Ref         MinimalPullRequestRef
-	AuthorLogin string
+	Ref            MinimalPullRequestRef
+	AuthorLogin    string
+	AuthorTypeName string
 }
 
 // issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
@@ -2498,7 +2503,8 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 					string(p.URL),
 					string(p.Repository.NameWithOwner),
 				),
-				AuthorLogin: string(p.Author.Login),
+				AuthorLogin:    string(p.Author.Login),
+				AuthorTypeName: string(p.Author.TypeName),
 			}
 		}
 
@@ -2512,7 +2518,8 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 					string(pr.URL),
 					string(pr.Repository.NameWithOwner),
 				),
-				AuthorLogin: string(pr.Author.Login),
+				AuthorLogin:    string(pr.Author.Login),
+				AuthorTypeName: string(pr.Author.TypeName),
 			})
 		}
 		enrichment.ClosedByPullRequests = closing
