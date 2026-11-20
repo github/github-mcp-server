@@ -2510,8 +2510,9 @@ func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) [
 }
 
 // TestShouldStripMCPAppsMetadata verifies the spec-conformant strip decision:
-// strip only when the client explicitly does not advertise the
-// io.modelcontextprotocol/ui extension.
+// strip when the client explicitly does not advertise the
+// io.modelcontextprotocol/ui extension, via HasUISupport or parsed
+// ClientCapabilities.
 func TestShouldStripMCPAppsMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -2534,6 +2535,30 @@ func TestShouldStripMCPAppsMetadata(t *testing.T) {
 			name:     "capability explicitly absent -> strip",
 			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), false) },
 			want:     true,
+		},
+		{
+			name: "parsed capabilities omit MCP Apps extension -> strip",
+			setupCtx: func() context.Context {
+				return ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+					Method:             "tools/list",
+					ClientCapabilities: &mcp.ClientCapabilities{},
+				})
+			},
+			want: true,
+		},
+		{
+			name: "parsed capabilities advertise MCP Apps extension -> keep",
+			setupCtx: func() context.Context {
+				caps := &mcp.ClientCapabilities{}
+				caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+					"mimeTypes": []string{"text/html;profile=mcp-app"},
+				})
+				return ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+					Method:             "tools/list",
+					ClientCapabilities: caps,
+				})
+			},
+			want: false,
 		},
 	}
 
