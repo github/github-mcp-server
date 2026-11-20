@@ -180,8 +180,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
 					},
@@ -289,8 +287,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
 					},
@@ -409,8 +405,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
 					},
@@ -555,8 +549,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
 					},
@@ -708,8 +700,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            ptrGitHubv4String("feature-branch"),
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
 					},
@@ -818,7 +808,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
 						AgentAssignment: &AgentAssignmentInput{
 							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
 							CustomInstructions: ptrGitHubv4String("Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings"),
 							TargetRepositoryID: githubv4.ID("test-repo-id"),
 						},
@@ -878,7 +867,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			assert.Equal(t, "https://github.com/owner/repo/issues/123", response["issue_url"])
 			assert.Equal(t, "owner", response["owner"])
 			assert.Equal(t, "repo", response["repo"])
-			assert.Contains(t, response["message"], "successfully assigned copilot to issue")
+			assert.Equal(t, false, response["agent_session_detected"])
+			assert.Equal(t, "copilot assigned to issue, but no agent pull request was detected", response["message"])
 		})
 	}
 }
@@ -1221,6 +1211,44 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		)
 	}
 
+	noPRTimelineMatcher := githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Issue struct {
+					TimelineItems struct {
+						Nodes []struct {
+							TypeName             string `graphql:"__typename"`
+							CrossReferencedEvent struct {
+								Source struct {
+									PullRequest struct {
+										Number    int
+										URL       string
+										Title     string
+										State     string
+										CreatedAt githubv4.DateTime
+										Author    struct{ Login string }
+									} `graphql:"... on PullRequest"`
+								}
+							} `graphql:"... on CrossReferencedEvent"`
+						}
+					} `graphql:"timelineItems(first: 20, itemTypes: [CROSS_REFERENCED_EVENT])"`
+				} `graphql:"issue(number: $number)"`
+			} `graphql:"repository(owner: $owner, name: $name)"`
+		}{},
+		map[string]any{
+			"owner":  githubv4.String("owner"),
+			"name":   githubv4.String("repo"),
+			"number": githubv4.Int(123),
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"timelineItems": map[string]any{"nodes": []any{}},
+				},
+			},
+		}),
+	)
+
 	mutationMatcher := func(input UpdateIssueInput) githubv4mock.Matcher {
 		return githubv4mock.NewMutationMatcher(
 			struct {
@@ -1254,6 +1282,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		name               string
 		requestArgs        map[string]any
 		mockedClient       *http.Client
+		pollConfig         PollConfig
 		expectToolError    bool
 		expectedToolErrMsg string
 		expectSuggestion   bool
@@ -1298,12 +1327,41 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 						},
 					},
 					AgentAssignment: &AgentAssignmentInput{
-						CustomAgent:        ptrStr(""),
-						CustomInstructions: ptrStr(""),
 						TargetRepositoryID: githubv4.ID("test-repo-id"),
 					},
 				}),
 			),
+		},
+		{
+			name: "direct assignment reports no detected session after polling",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "Well-scoped task.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				suggestedActorsMatcher(),
+				getIssueMatcher([]any{}),
+				mutationMatcher(UpdateIssueInput{
+					ID: githubv4.ID("test-issue-id"),
+					Assignees: []AssigneeUpdateInput{
+						{
+							ActorID:    githubv4.ID("copilot-swe-agent-id"),
+							Rationale:  ptrStr("Well-scoped task."),
+							Confidence: ptrConfidence(AssignmentConfidenceLevelHigh),
+							Suggest:    ptrBool(false),
+						},
+					},
+					AgentAssignment: &AgentAssignmentInput{
+						TargetRepositoryID: githubv4.ID("test-repo-id"),
+					},
+				}),
+				noPRTimelineMatcher,
+			),
+			pollConfig: PollConfig{MaxAttempts: 1},
 		},
 		{
 			name: "direct assignment with base_ref and custom_instructions",
@@ -1332,7 +1390,6 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 					},
 					AgentAssignment: &AgentAssignmentInput{
 						BaseRef:            ptrStr("feature-branch"),
-						CustomAgent:        ptrStr(""),
 						CustomInstructions: ptrStr("Follow PEP 8."),
 						TargetRepositoryID: githubv4.ID("test-repo-id"),
 					},
@@ -1398,8 +1455,6 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 						},
 					},
 					AgentAssignment: &AgentAssignmentInput{
-						CustomAgent:        ptrStr(""),
-						CustomInstructions: ptrStr(""),
 						TargetRepositoryID: githubv4.ID("test-repo-id"),
 					},
 				}),
@@ -1530,8 +1585,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Disable polling for direct-assignment paths.
-			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
+			ctx := ContextWithPollConfig(context.Background(), tc.pollConfig)
 			ctx = ContextWithDeps(ctx, deps)
 
 			result, err := handler(ctx, &request)
@@ -1563,7 +1617,8 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 					"suggestion path must not include the PR-pending note")
 			} else {
 				assert.Equal(t, false, response["is_suggestion"])
-				assert.Contains(t, response["message"], "successfully assigned copilot to issue")
+				assert.Equal(t, false, response["agent_session_detected"])
+				assert.Equal(t, "copilot assigned to issue, but no agent pull request was detected", response["message"])
 			}
 		})
 	}
