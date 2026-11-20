@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -225,12 +226,19 @@ func newAgentAutomationTool[Input any](
 				}
 				return utils.NewToolResultError("GitHub agent automations returned an empty response"), nil, nil
 			}
+			if httpResponse.Cursor != "" {
+				response, err = withAutomationNextCursor(response, httpResponse.Cursor)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to add the next page cursor", err), nil, nil
+				}
+			}
 			sanitizedResponse, err := sanitizeAutomationNames(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to sanitize GitHub agent automation response", err), nil, nil
 			}
 			return utils.NewToolResultText(string(sanitizedResponse)), sanitizedResponse, nil
 		},
+		rejectUnknownAutomationArguments(inputSchema),
 	)
 	tool.FeatureRule = featureEnabledRule(FeatureFlagAgentAutomations)
 	return tool
@@ -349,20 +357,6 @@ func agentAutomationConfirmationRequired(tool inventory.ServerTool) inventory.Se
 	return tool
 }
 
-func agentAutomationMutationConfirmation(action, target string, body map[string]any) *agentAutomationConfirmation {
-	fields := make([]string, 0, len(body))
-	for field := range body {
-		fields = append(fields, field)
-	}
-	sort.Strings(fields)
-	value := strings.ToUpper(action) + " " + target
-	return &agentAutomationConfirmation{
-		id:      agentAutomationConfirmationIDPrefix + action,
-		value:   value,
-		message: fmt.Sprintf("Review the proposed automation %s for %s. The request changes these fields: %s. Values are not shown here. Type %q to confirm.", action, target, strings.Join(fields, ", "), value),
-	}
-}
-
 func agentAutomationTarget(owner, repo, automationID string) string {
 	target := url.PathEscape(owner) + "/" + url.PathEscape(repo)
 	if automationID != "" {
@@ -399,7 +393,27 @@ func agentAutomationConfigurationOutputSchema() json.RawMessage {
 }
 
 func agentAutomationInputSchema(properties map[string]*jsonschema.Schema, required ...string) *jsonschema.Schema {
-	return &jsonschema.Schema{Type: "object", Properties: properties, Required: required}
+	return &jsonschema.Schema{
+		Type:                 "object",
+		Properties:           properties,
+		Required:             required,
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+}
+
+func rejectUnknownAutomationArguments(schema *jsonschema.Schema) inventory.InputNormalizer {
+	return func(raw json.RawMessage) (json.RawMessage, error) {
+		var args map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, &inventory.ToolInputError{Message: "invalid arguments: " + err.Error()}
+		}
+		for _, name := range slices.Sorted(maps.Keys(args)) {
+			if _, ok := schema.Properties[name]; !ok {
+				return nil, &inventory.ToolInputError{Message: fmt.Sprintf("invalid arguments: unexpected argument %q", name)}
+			}
+		}
+		return raw, nil
+	}
 }
 
 func automationStringProperty(description string) *jsonschema.Schema {
@@ -489,6 +503,15 @@ func sanitizeAutomationNames(response json.RawMessage) (json.RawMessage, error) 
 		return nil, fmt.Errorf("failed to encode sanitized response: %w", err)
 	}
 	return sanitizedResponse, nil
+}
+
+func withAutomationNextCursor(response json.RawMessage, cursor string) (json.RawMessage, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(response, &payload); err != nil || payload == nil {
+		return response, err
+	}
+	payload["next_cursor"] = cursor
+	return json.Marshal(payload)
 }
 
 func sanitizeAutomationNamesValue(value any) {
@@ -743,14 +766,14 @@ func CreateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 	properties := automationConfigurationProperties()
 	properties["owner"] = automationStringProperty(DescriptionRepositoryOwner)
 	properties["repo"] = automationStringProperty(DescriptionRepositoryName)
-	return agentAutomationConfirmationRequired(newAgentAutomationTool[CreateAutomationInput](
+	return newAgentAutomationTool[CreateAutomationInput](
 		t,
 		"create_automation",
 		"Create a repository automation",
-		"Create a Copilot automation in a repository after explicit user confirmation.",
+		"Create a Copilot automation in a repository.",
 		agentAutomationInputSchema(properties, "owner", "repo", "name", "prompt"),
 		agentAutomationObjectOutputSchema(),
-		mcp.ToolAnnotations{},
+		mcp.ToolAnnotations{DestructiveHint: new(false)},
 		func(args CreateAutomationInput) (agentAutomationRequest, error) {
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
@@ -789,16 +812,14 @@ func CreateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if args.ContinuousHistory != nil {
 				body["continuous_history"] = *args.ContinuousHistory
 			}
-			target := agentAutomationTarget(args.Owner, args.Repo, "")
 			return agentAutomationRequest{
 				method:        http.MethodPost,
 				path:          automationPath(args.Owner, args.Repo, ""),
 				body:          body,
 				successStatus: http.StatusCreated,
-				confirmation:  agentAutomationMutationConfirmation("create", target, body),
 			}, nil
 		},
-	))
+	)
 }
 
 func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -807,14 +828,14 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 	properties["repo"] = automationStringProperty(DescriptionRepositoryName)
 	properties["automation_id"] = automationStringProperty("The automation identifier.")
 	delete(properties, "type")
-	return agentAutomationConfirmationRequired(newAgentAutomationTool[UpdateAutomationInput](
+	return newAgentAutomationTool[UpdateAutomationInput](
 		t,
 		"update_automation",
 		"Update a repository automation",
-		"Update a Copilot automation in a repository after explicit user confirmation. Only the provided fields are changed.",
+		"Update a Copilot automation in a repository. Only the provided fields are changed.",
 		agentAutomationInputSchema(properties, "owner", "repo", "automation_id"),
 		agentAutomationObjectOutputSchema(),
-		mcp.ToolAnnotations{},
+		mcp.ToolAnnotations{DestructiveHint: new(false)},
 		func(args UpdateAutomationInput) (agentAutomationRequest, error) {
 			if err := requireAutomationRepository(args.Owner, args.Repo); err != nil {
 				return agentAutomationRequest{}, err
@@ -853,15 +874,13 @@ func UpdateAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 			if len(body) == 0 {
 				return agentAutomationRequest{}, errors.New("at least one automation field must be provided")
 			}
-			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
 			return agentAutomationRequest{
-				method:       http.MethodPatch,
-				path:         automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
-				body:         body,
-				confirmation: agentAutomationMutationConfirmation("update", target, body),
+				method: http.MethodPatch,
+				path:   automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)),
+				body:   body,
 			}, nil
 		},
-	))
+	)
 }
 
 func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -902,11 +921,11 @@ func DeleteAutomation(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return agentAutomationConfirmationRequired(newAgentAutomationTool[RunAutomationInput](
+	return newAgentAutomationTool[RunAutomationInput](
 		t,
 		"run_automation",
 		"Run a repository automation",
-		"Start a manual run of a Copilot automation in a repository after explicit user confirmation.",
+		"Start a manual run of a Copilot automation in a repository.",
 		agentAutomationInputSchema(map[string]*jsonschema.Schema{
 			"owner":         automationStringProperty(DescriptionRepositoryOwner),
 			"repo":          automationStringProperty(DescriptionRepositoryName),
@@ -941,24 +960,12 @@ func RunAutomation(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if args.Context != nil {
 				body["context"] = *args.Context
 			}
-			target := agentAutomationTarget(args.Owner, args.Repo, args.AutomationID)
-			message := fmt.Sprintf("Review the automation run request for %s.", target)
-			if args.Context != nil {
-				message += fmt.Sprintf("\nA run context is included (%d characters).", utf8.RuneCountInString(*args.Context))
-			}
-			confirmationValue := "RUN " + target
-			message += fmt.Sprintf("\nType %q to start this run.", confirmationValue)
 			return agentAutomationRequest{
 				method:        http.MethodPost,
 				path:          automationPath(args.Owner, args.Repo, url.PathEscape(args.AutomationID)+"/tasks"),
 				body:          body,
 				successStatus: http.StatusAccepted,
-				confirmation: &agentAutomationConfirmation{
-					id:      agentAutomationConfirmationIDPrefix + "run",
-					value:   confirmationValue,
-					message: message,
-				},
 			}, nil
 		},
-	))
+	)
 }
