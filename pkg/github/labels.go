@@ -177,9 +177,13 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			perPage, err := OptionalIntParamWithDefault(args, "perPage", listLabelsDefaultPerPage)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			// Distinguish omitted perPage (default 100) from an explicit 0, which is out of range.
+			perPage := listLabelsDefaultPerPage
+			if _, present := args["perPage"]; present {
+				perPage, err = OptionalIntParam(args, "perPage")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 			after, err := OptionalParam[string](args, "after")
 			if err != nil {
