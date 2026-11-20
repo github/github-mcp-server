@@ -168,21 +168,10 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   InsidersFeatureFlags,
 		},
 		{
-			name:            "insiders mode does not auto-enable ifc labels",
-			enabledFeatures: nil,
-			insidersMode:    true,
-			unexpectedFlags: []string{FeatureFlagIFCLabels},
-		},
-		{
 			name:            "insiders mode does not disable MCP Apps form deferral",
 			enabledFeatures: nil,
 			insidersMode:    true,
 			unexpectedFlags: []string{MCPAppsDisableFormDeferralFeatureFlag},
-		},
-		{
-			name:            "ifc_labels can be directly enabled",
-			enabledFeatures: []string{FeatureFlagIFCLabels},
-			expectedFlags:   []string{FeatureFlagIFCLabels},
 		},
 		{
 			name:            "unknown flags are filtered out",

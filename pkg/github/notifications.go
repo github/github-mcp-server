@@ -9,7 +9,6 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -413,13 +412,7 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// A notification subject points at an issue, PR, comment, or
-			// discussion whose content is user-authored (untrusted). It is
-			// delivered to a specific recipient and may reference private
-			// repositories, so confidentiality is private.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelNotificationDetails())
-			return result, notificationOutput(thread), nil
+			return utils.NewToolResultText(string(r)), notificationOutput(thread), nil
 		},
 	)
 }

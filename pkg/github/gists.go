@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -101,9 +100,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(r))
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGistList())
-			return result, projectGists(gists), nil
+			return utils.NewToolResultText(string(r)), projectGists(gists), nil
 		},
 		gitGistNormalizer(validateListGistsArguments),
 	)
@@ -163,9 +160,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			result := utils.NewToolResultText(string(r))
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGist())
-			return result, &GistReadOutput{Gist: projectGist(gist)}, nil
+			return utils.NewToolResultText(string(r)), &GistReadOutput{Gist: projectGist(gist)}, nil
 		},
 		gitGistNormalizer(validateGetGistArguments),
 	)
