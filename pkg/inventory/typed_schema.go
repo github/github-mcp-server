@@ -102,9 +102,14 @@ type inferredSchemaKey struct {
 }
 
 type inferredSchemaEntry struct {
-	once   sync.Once
+	once sync.Once
+	// schema is the annotated form for model-visible tools. For output
+	// schemas, which are never annotated, it is the only form.
 	schema *jsonschema.Schema
-	err    error
+	// plain is the inferred schema before header annotation. It serves
+	// app-only tools, whose callers cannot send request headers.
+	plain *jsonschema.Schema
+	err   error
 }
 
 var inferredSchemaCache sync.Map
@@ -431,16 +436,27 @@ func CachedSchema(schema *jsonschema.Schema) (*jsonschema.Schema, error) {
 // immutable inference options. The returned schema is shared and must not be
 // mutated. Enum overrides are applied while constructing the cached value.
 func CachedSchemaFor[T any](options *jsonschema.ForOptions, enums ...SchemaEnum) (*jsonschema.Schema, error) {
-	return cachedSchemaFor(reflect.TypeFor[T](), options, enums, false)
+	return cachedSchemaFor(reflect.TypeFor[T](), options, enums, false, false)
 }
 
 // CachedInputSchemaFor is like CachedSchemaFor and adds the standard owner/repo
 // routing annotations before caching the immutable schema.
 func CachedInputSchemaFor[T any](options *jsonschema.ForOptions, enums ...SchemaEnum) (*jsonschema.Schema, error) {
-	return cachedSchemaFor(reflect.TypeFor[T](), options, enums, true)
+	return cachedSchemaFor(reflect.TypeFor[T](), options, enums, true, true)
 }
 
-func cachedSchemaFor(goType reflect.Type, options *jsonschema.ForOptions, enums []SchemaEnum, inputSchema bool) (*jsonschema.Schema, error) {
+// CachedInputSchemaForTool is CachedInputSchemaFor for a specific tool. An
+// app-only tool (ui.visibility without "model") gets the unannotated schema:
+// its only callers are MCP App views, which reach the server through the host's
+// tools/call proxy and cannot set request headers, so a projected parameter
+// would make every call fail with -32020 (issue #3834). Both variants come from
+// one cache entry, so an app-only tool and a model-visible tool that share an
+// input type do not leak annotations into each other.
+func CachedInputSchemaForTool[T any](appOnly bool, options *jsonschema.ForOptions, enums ...SchemaEnum) (*jsonschema.Schema, error) {
+	return cachedSchemaFor(reflect.TypeFor[T](), options, enums, true, !appOnly)
+}
+
+func cachedSchemaFor(goType reflect.Type, options *jsonschema.ForOptions, enums []SchemaEnum, inputSchema bool, annotateHeaders bool) (*jsonschema.Schema, error) {
 	// Match SDK input inference without removing nullable output semantics.
 	if inputSchema && goType.Kind() == reflect.Pointer {
 		goType = goType.Elem()
@@ -472,12 +488,16 @@ func cachedSchemaFor(goType reflect.Type, options *jsonschema.ForOptions, enums 
 				return
 			}
 		}
+		entry.plain = entry.schema
 		if inputSchema {
 			tool := mcp.Tool{InputSchema: entry.schema}
 			AnnotateHeaderParams(&tool)
 			entry.schema = tool.InputSchema.(*jsonschema.Schema)
 		}
 	})
+	if inputSchema && !annotateHeaders {
+		return entry.plain, entry.err
+	}
 	return entry.schema, entry.err
 }
 
