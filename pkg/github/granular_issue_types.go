@@ -106,9 +106,22 @@ type GranularIssueAssigneesInput struct {
 	Assignees []GranularIssueAssignee `json:"assignees"`
 }
 
+const (
+	issueLabelsMethodReplace = "replace"
+	issueLabelsMethodAdd     = "add"
+	issueLabelsMethodRemove  = "remove"
+)
+
 type GranularIssueLabelsInput struct {
 	GranularIssueCoordinate
+	Method string               `json:"method,omitempty"`
 	Labels []GranularIssueLabel `json:"labels"`
+}
+
+type GranularIssueLabelsResponse struct {
+	ID     string   `json:"id"`
+	URL    string   `json:"url"`
+	Labels []string `json:"labels"`
 }
 
 type GranularIssueTypeInput struct {
@@ -574,15 +587,35 @@ func normalizeGranularUpdateIssueLabelsArguments(raw json.RawMessage) (json.RawM
 		}
 	}
 
+	method, err := OptionalParam[string](args, "method")
+	if err != nil {
+		return nil, err
+	}
+	method = strings.ToLower(strings.TrimSpace(method))
+	if method == "" {
+		method = issueLabelsMethodReplace
+	}
+	if method != issueLabelsMethodReplace && method != issueLabelsMethodAdd && method != issueLabelsMethodRemove {
+		return nil, fmt.Errorf("method must be one of: replace, add, remove")
+	}
+
 	payload := make([]GranularIssueLabel, 0, len(labelsSlice))
 	for _, item := range labelsSlice {
 		switch v := item.(type) {
 		case string:
-			payload = append(payload, GranularIssueLabel{Name: v, StringForm: true})
+			name := strings.TrimSpace(v)
+			if name == "" {
+				return nil, fmt.Errorf("label name cannot be empty")
+			}
+			payload = append(payload, GranularIssueLabel{Name: name, StringForm: true})
 		case map[string]any:
 			name, err := RequiredParam[string](v, "name")
 			if err != nil {
 				return nil, fmt.Errorf("each label object must have a 'name' string")
+			}
+			name = strings.TrimSpace(name)
+			if name == "" {
+				return nil, fmt.Errorf("label name cannot be empty")
 			}
 			rationale, err := OptionalParam[string](v, "rationale")
 			if err != nil {
@@ -615,7 +648,29 @@ func normalizeGranularUpdateIssueLabelsArguments(raw json.RawMessage) (json.RawM
 		}
 	}
 
-	return marshalGranularIssueArguments(args, GranularIssueLabelsInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Labels: payload})
+	if method != issueLabelsMethodReplace {
+		payload = uniqueLabelNames(payload)
+		if len(payload) == 0 {
+			return nil, fmt.Errorf("at least one label is required")
+		}
+	}
+
+	return marshalGranularIssueArguments(args, GranularIssueLabelsInput{Owner: owner, Repo: repo, IssueNumber: issueNumber, Method: method, Labels: payload})
+}
+
+// uniqueLabelNames drops intent fields and duplicate names, since the add and
+// remove endpoints accept only names.
+func uniqueLabelNames(labels []GranularIssueLabel) []GranularIssueLabel {
+	seen := make(map[string]struct{}, len(labels))
+	unique := make([]GranularIssueLabel, 0, len(labels))
+	for _, label := range labels {
+		if _, ok := seen[label.Name]; ok {
+			continue
+		}
+		seen[label.Name] = struct{}{}
+		unique = append(unique, GranularIssueLabel{Name: label.Name, StringForm: true})
+	}
+	return unique
 }
 
 func normalizeGranularUpdateIssueTypeArguments(raw json.RawMessage) (json.RawMessage, error) {
