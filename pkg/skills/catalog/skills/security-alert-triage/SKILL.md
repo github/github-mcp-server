@@ -8,9 +8,14 @@ description: "USE FOR: investigating GitHub security alerts — code scanning, D
 Turn four separate alert streams into one ordered list of decisions, each backed by
 evidence a maintainer can check.
 
-**This server reads alerts; it does not resolve them.** No tool here dismisses an
-alert, merges a fix, or revokes a credential. The output is a recommendation with
-evidence.
+The output is a recommendation with evidence unless a specific update is requested.
+When available, `update_dependabot_alert` can reopen or dismiss a Dependabot alert,
+or replace its assignees. It does not merge a fix or revoke a credential.
+`update_code_scanning_alert` can reopen or dismiss a code scanning alert, request
+delegated dismissal, or replace its assignees when enabled and not read-only.
+`update_secret_scanning_alert` can reopen or resolve a secret scanning alert, change
+its assignee, or override its validity when enabled and not read-only. None of these
+actions revokes or rotates a credential.
 
 ## Sequence
 
@@ -76,15 +81,62 @@ outranks nothing; a moderate one on a public entry point may outrank everything.
   fields a dependency recommendation is built from.
 - `secret_type` — identifies what kind of credential leaked, which decides how it is
   revoked and who owns the revocation.
-- `resolution` on a closed secret alert — `revoked` is the only value that means the
-  credential is dead.
+- `resolution` on a closed secret alert — `revoked` records that someone marked it
+  revoked; it does not itself revoke the credential or prove that it is dead.
 
 ## Confirm before anything is acted on
 
-Every action this workflow leads to happens elsewhere: dismissing, upgrading,
-revoking. Present the ordered recommendations with their evidence and get explicit
-agreement before anyone acts. Never describe an alert as resolved on the strength of
-a recommendation.
+Present the ordered recommendations with their evidence and get explicit agreement
+before acting. Never describe an alert as resolved on the strength of a recommendation.
+For a requested Dependabot update, use `update_dependabot_alert` with separate
+`owner`, `repo` and a positive integer `alertNumber`. Send only fields to change:
+`state` is `open` or `dismissed`; dismissal also requires `dismissed_reason`.
+`dismissed_comment` is a non-null string of at most 280 characters.
+`assignees` replaces the entire set; `[]` clears it. Provide state or assignees;
+comments alone are not supported. Assigning `copilot-swe-agent[bot]` requests
+remediation but does not guarantee a fix or a pull request. Agent configuration is
+not supported. GitHub enforces permissions, licensing and repository policies;
+report API errors rather than claiming the update succeeded. Report the returned
+state, including when a dismissal remains open pending review.
+If GitHub accepts the update but its response cannot be read or validated, the
+update may already have been applied. Check `get_dependabot_alert` before retrying;
+never automatically repeat a remediation assignment after an uncertain result.
+
+For a requested code scanning update, use `update_code_scanning_alert` with separate
+`owner`, `repo` and a positive integer `alertNumber`, plus state or assignees.
+`state` is `open` or `dismissed`; dismissal requires a non-null `dismissed_reason`:
+`false positive`, `won't fix`, `used in tests`, or `mitigated`. Omitted fields stay
+unchanged. `dismissed_reason` and `dismissed_comment` also accept explicit null;
+non-null comments are limited to 280 characters. Comments alone are not supported.
+`assignees` replaces the full set and `[]` clears it. Copilot assignment starts
+agentic remediation and may open a draft pull request, consuming Code Security AI
+Credits and Actions minutes; do not infer a session or pull request from assignment.
+Use `create_request: true` with `state: dismissed` and a reason to attempt delegated
+dismissal when appropriate; GitHub may also require a comment under repository
+policy. Report the actual returned state and assignees, not presumed dismissal or
+approval. GitHub enforces permissions, policy and agentic Autofix eligibility;
+report errors without fallback or agent configuration.
+
+For a requested secret scanning update, use `update_secret_scanning_alert` with
+separate `owner`, `repo` and a positive integer `alertNumber`, plus at least one of
+`state`, `assignee`, or `validity`. `state` is `open` or `resolved`; resolving requires
+a non-null `resolution`: `false_positive`, `wont_fix`, `revoked`, or `used_in_tests`.
+`pattern_edited` and `pattern_deleted` are not accepted update reasons.
+Omitted fields stay unchanged. `resolution`, `resolution_comment`, `assignee`, and
+`validity` accept null; null unassigns the assignee or clears the validity override.
+A non-null assignee is a username with repository write access. Validity accepts
+`active` or `inactive` for custom-pattern alerts only; it is a manual override, not
+a request to validate a secret. GitHub-supported patterns retain validator-managed
+validity and cannot be overridden through this endpoint. GitHub enforces this
+restriction; report rejected updates rather than bypassing it.
+Resolution comments accompany closing or reopening and cannot later be edited or
+deleted. A comment or resolution alone is not an update. Report the returned state,
+resolution, assignment and validity without reproducing secret values. Marking an
+alert `revoked` does not revoke credentials. GitHub enforces permissions and delegated
+dismissal policy; report API errors without bypass or fallback.
+If an update reports that it may already have been applied, inspect the alert with
+`get_secret_scanning_alert` and `hide_secret: true` before retrying; an unreadable
+success response does not prove that the write failed.
 
 ## Empty and failure cases
 

@@ -232,6 +232,23 @@ func TestAgentAutomationReadTools(t *testing.T) {
 	}
 }
 
+func TestListAutomationRevisionsReturnsNextCursor(t *testing.T) {
+	t.Parallel()
+
+	httpClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</agents/repos/octo-org/octo-repo/automations/automation-id/revisions?per_page=1&cursor=rev_3>; rel="next", </agents/repos/octo-org/octo-repo/automations/automation-id/revisions?per_page=1>; rel="first"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"revisions":[]}`))
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id"})
+	tool := ListAutomationRevisions(translations.NullTranslationHelper)
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.JSONEq(t, `{"revisions":[],"next_cursor":"rev_3"}`, getTextResult(t, result).Text)
+}
+
 func TestAgentAutomationReadToolsSanitizeNames(t *testing.T) {
 	t.Parallel()
 
@@ -261,6 +278,24 @@ func TestAgentAutomationReadToolsSanitizeNames(t *testing.T) {
 	structuredContent, err := json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	assert.JSONEq(t, expected, string(structuredContent))
+}
+
+func TestAgentAutomationToolsRejectUnknownArguments(t *testing.T) {
+	t.Parallel()
+
+	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("unknown arguments must not make a request")
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	request := createMCPRequest(map[string]any{
+		"owner": "octo-org", "repo": "octo-repo", "name": "Issue triage", "prompt": "Triage new issues.",
+		"ownership": "repository",
+	})
+	tool := CreateAutomation(translations.NullTranslationHelper)
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Equal(t, `invalid arguments: unexpected argument "ownership"`, getErrorResult(t, result).Text)
 }
 
 func TestAgentAutomationReadToolsRejectUnsafeIDsAndPathSegments(t *testing.T) {
@@ -413,19 +448,17 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		tool             func(translations.TranslationHelperFunc) inventory.ServerTool
-		args             map[string]any
-		method           string
-		endpoint         string
-		status           int
-		body             string
-		response         string
-		confirm          bool
-		confirmID        string
-		confirmValue     string
-		messageContents  []string
-		messageOmissions []string
+		name         string
+		tool         func(translations.TranslationHelperFunc) inventory.ServerTool
+		args         map[string]any
+		method       string
+		endpoint     string
+		status       int
+		body         string
+		response     string
+		confirm      bool
+		confirmID    string
+		confirmValue string
 	}{
 		{
 			name: "create automation",
@@ -435,16 +468,11 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				"type": "shared", "enabled": false, "tools": []string{"github/issue_read"},
 				"triggers": map[string]any{"issue_opened": map[string]any{"query": "is:open"}},
 			},
-			method:           http.MethodPost,
-			endpoint:         "/agents/repos/octo-org/octo-repo/automations",
-			status:           http.StatusCreated,
-			body:             `{"name":"Issue triage","prompt":"Triage new issues.","type":"shared","enabled":false,"tools":["github/issue_read"],"triggers":{"issue_opened":{"query":"is:open"}}}`,
-			response:         `{"id":"automation-id","name":"Issue triage"}`,
-			confirm:          true,
-			confirmID:        agentAutomationConfirmationIDPrefix + "create",
-			confirmValue:     "CREATE octo-org/octo-repo",
-			messageContents:  []string{"enabled, name, prompt, tools, triggers, type"},
-			messageOmissions: []string{"Issue triage", "Triage new issues."},
+			method:   http.MethodPost,
+			endpoint: "/agents/repos/octo-org/octo-repo/automations",
+			status:   http.StatusCreated,
+			body:     `{"name":"Issue triage","prompt":"Triage new issues.","type":"shared","enabled":false,"tools":["github/issue_read"],"triggers":{"issue_opened":{"query":"is:open"}}}`,
+			response: `{"id":"automation-id","name":"Issue triage"}`,
 		},
 		{
 			name: "update automation",
@@ -453,16 +481,11 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
 				"enabled": false, "prompt": "Review new issues.", "tools": []string{},
 			},
-			method:           http.MethodPatch,
-			endpoint:         "/agents/repos/octo-org/octo-repo/automations/automation-id",
-			status:           http.StatusOK,
-			body:             `{"enabled":false,"prompt":"Review new issues.","tools":[]}`,
-			response:         `{"id":"automation-id","prompt":"Review new issues."}`,
-			confirm:          true,
-			confirmID:        agentAutomationConfirmationIDPrefix + "update",
-			confirmValue:     "UPDATE octo-org/octo-repo/automation-id",
-			messageContents:  []string{"enabled, prompt, tools"},
-			messageOmissions: []string{"Review new issues."},
+			method:   http.MethodPatch,
+			endpoint: "/agents/repos/octo-org/octo-repo/automations/automation-id",
+			status:   http.StatusOK,
+			body:     `{"enabled":false,"prompt":"Review new issues.","tools":[]}`,
+			response: `{"id":"automation-id","prompt":"Review new issues."}`,
 		},
 		{
 			name:         "delete automation",
@@ -504,7 +527,7 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 				sealer, err := requeststate.NewRandom()
 				require.NoError(t, err)
 				deps.StateSealer = sealer
-				result = invokeConfirmedAutomation(t, tool, deps, tt.args, tt.confirmID, tt.confirmValue, tt.messageContents, tt.messageOmissions)
+				result = invokeConfirmedAutomation(t, tool, deps, tt.args, tt.confirmID, tt.confirmValue)
 			} else {
 				request := createMCPRequest(tt.args)
 				var err error
@@ -513,43 +536,6 @@ func TestAgentAutomationWriteTools(t *testing.T) {
 			}
 			require.False(t, result.IsError)
 			assert.JSONEq(t, tt.response, getTextResult(t, result).Text)
-		})
-	}
-}
-
-func TestAutomationCreateAndUpdateRequireRequestStateProtection(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name string
-		tool inventory.ServerTool
-		args map[string]any
-	}{
-		{
-			name: "create",
-			tool: CreateAutomation(translations.NullTranslationHelper),
-			args: map[string]any{
-				"owner": "octo-org", "repo": "octo-repo", "name": "Issue triage", "prompt": "Triage new issues.",
-			},
-		},
-		{
-			name: "update",
-			tool: UpdateAutomation(translations.NullTranslationHelper),
-			args: map[string]any{
-				"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "enabled": false,
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
-				t.Fatal("mutation should not be sent without request-state protection")
-			})
-			deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-			request := createMCPRequest(tc.args)
-			result, err := tc.tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
-			require.True(t, result.IsError)
-			assert.Contains(t, getErrorResult(t, result).Text, "request-state protection is not configured")
 		})
 	}
 }
@@ -607,13 +593,12 @@ func TestRunAutomation(t *testing.T) {
 		_, _ = w.Write([]byte(`{"task_id":"task-id","automation_id":"automation-id","event":"manual"}`))
 	})
 	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	sealer, err := requeststate.NewRandom()
-	require.NoError(t, err)
-	deps.StateSealer = sealer
-	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
+	request := createMCPRequest(map[string]any{
 		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
 		"event": "manual", "context": "Please focus on recently opened issues.",
-	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", []string{"39 characters"}, []string{"Please focus on recently opened issues."})
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
 	if result.IsError {
 		t.Fatal(getErrorResult(t, result).Text)
 	}
@@ -645,12 +630,11 @@ func TestRunAutomationRejectsEmptyAcceptedResponse(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	sealer, err := requeststate.NewRandom()
-	require.NoError(t, err)
-	deps.StateSealer = sealer
-	result := invokeConfirmedAutomation(t, tool, deps, map[string]any{
+	request := createMCPRequest(map[string]any{
 		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
-	}, agentAutomationConfirmationIDPrefix+"run", "RUN octo-org/octo-repo/automation-id", nil, nil)
+	})
+	result, err := tool.Handler(nil)(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
 	require.True(t, result.IsError)
 	assert.Contains(t, getErrorResult(t, result).Text, "empty response after HTTP 202")
 	assert.Contains(t, getErrorResult(t, result).Text, "may have succeeded")
@@ -712,65 +696,6 @@ func TestRunAutomationRejectsOversizedContext(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.IsError)
 	assert.Contains(t, getErrorResult(t, result).Text, "no more than 10000 characters")
-}
-
-func TestRunAutomationConfirmationBindsRequest(t *testing.T) {
-	t.Parallel()
-
-	tool := RunAutomation(translations.NullTranslationHelper)
-	requestCount := 0
-	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
-		requestCount++
-	})
-	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	sealer, err := requeststate.NewRandom()
-	require.NoError(t, err)
-	deps.StateSealer = sealer
-
-	args := map[string]any{
-		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id",
-		"event": "manual", "context": "Please focus on recently opened issues.",
-	}
-	handler := tool.Handler(deps)
-	request := createMCPRequest(args)
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Contains(t, result.InputRequests, agentAutomationConfirmationIDPrefix+"run")
-
-	args["context"] = "Run against a different set of issues."
-	retry := createMCPRequest(args)
-	retry.Params.RequestState = result.RequestState
-	retry.Params.InputResponses = mcp.InputResponseMap{
-		agentAutomationConfirmationIDPrefix + "run": &mcp.ElicitResult{
-			Action: "accept",
-			Content: map[string]any{
-				agentAutomationConfirmationField: "RUN octo-org/octo-repo/automation-id",
-			},
-		},
-	}
-	result, err = handler(ContextWithDeps(context.Background(), deps), &retry)
-	require.NoError(t, err)
-	require.True(t, result.IsError)
-	assert.Contains(t, getErrorResult(t, result).Text, "changed after confirmation")
-	assert.Zero(t, requestCount)
-}
-
-func TestRunAutomationRequiresRequestStateProtection(t *testing.T) {
-	t.Parallel()
-
-	tool := RunAutomation(translations.NullTranslationHelper)
-	httpClient := MockHTTPClientWithHandler(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("run should not be sent without request-state protection")
-	})
-	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
-	request := createMCPRequest(map[string]any{
-		"owner": "octo-org", "repo": "octo-repo", "automation_id": "automation-id", "event": "manual",
-	})
-	result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.True(t, result.IsError)
-	assert.Contains(t, getErrorResult(t, result).Text, "request-state protection is not configured")
 }
 
 func TestDeleteAutomationRequiresRequestStateProtection(t *testing.T) {
@@ -862,17 +787,19 @@ func TestDeleteAutomationRequiresMatchingConfirmation(t *testing.T) {
 	}
 }
 
-func TestAutomationMutationsRequireFormElicitation(t *testing.T) {
+func TestOnlyDeleteAutomationRequiresFormElicitation(t *testing.T) {
 	t.Parallel()
 
+	deleteTool := DeleteAutomation(translations.NullTranslationHelper)
+	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, deleteTool.MinimumProtocolVersion)
+	assert.Equal(t, inventory.ElicitationModeForm, deleteTool.RequiredElicitationMode)
 	for _, tool := range []inventory.ServerTool{
 		CreateAutomation(translations.NullTranslationHelper),
 		UpdateAutomation(translations.NullTranslationHelper),
-		DeleteAutomation(translations.NullTranslationHelper),
 		RunAutomation(translations.NullTranslationHelper),
 	} {
-		assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, tool.MinimumProtocolVersion)
-		assert.Equal(t, inventory.ElicitationModeForm, tool.RequiredElicitationMode)
+		assert.Empty(t, tool.MinimumProtocolVersion, tool.Tool.Name)
+		assert.Empty(t, tool.RequiredElicitationMode, tool.Tool.Name)
 	}
 }
 
@@ -882,7 +809,6 @@ func invokeConfirmedAutomation(
 	deps BaseDeps,
 	args map[string]any,
 	confirmationID, confirmationValue string,
-	messageContents, messageOmissions []string,
 ) *mcp.CallToolResult {
 	t.Helper()
 
@@ -895,12 +821,6 @@ func invokeConfirmedAutomation(
 	require.True(t, ok)
 	assert.Equal(t, "form", params.Mode)
 	assert.Contains(t, params.Message, confirmationValue)
-	for _, content := range messageContents {
-		assert.Contains(t, params.Message, content)
-	}
-	for _, omission := range messageOmissions {
-		assert.NotContains(t, params.Message, omission)
-	}
 
 	retry := createMCPRequest(args)
 	retry.Params.RequestState = result.RequestState

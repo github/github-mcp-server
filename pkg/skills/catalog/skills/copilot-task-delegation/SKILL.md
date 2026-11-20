@@ -109,8 +109,8 @@ review comments, or repeatedly on the same proposal.
   the proposal it produced and look at that.
 - **Nothing appears afterwards** — the work is asynchronous. It arrives as a proposal in
   its own time; say so rather than reporting failure.
-- **An automated review returns nothing** — that is not an approval. Report it as a pass
-  that found nothing, and say that a human review is still outstanding.
+- **An automated review returns nothing** — that is not an approval. Report it as a request,
+  not a completed review, and say that a human review is still outstanding.
 
 ## Report coverage
 

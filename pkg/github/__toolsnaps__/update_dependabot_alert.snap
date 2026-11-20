@@ -1,0 +1,124 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Update Dependabot alert"
+  },
+  "description": "Update a Dependabot alert's state or assignees. Provide state or assignees; dismissal requires dismissed_reason. Assigning copilot-swe-agent[bot] requests remediation that attempts a fix; a pull request is not guaranteed. Requires Dependabot alerts write permission or the security_events OAuth scope. GitHub enforces authorization, licensing, repository policies and delegated-dismissal review requirements. Agent configuration (agent_assignment) is not supported.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "alertNumber": {
+        "description": "The repository's Dependabot alert number.",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "assignees": {
+        "description": "Usernames replacing the entire assignee set; [] clears all, omission leaves it unchanged. Including copilot-swe-agent[bot] requests remediation, not just ownership bookkeeping.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "dismissed_comment": {
+        "description": "Optional dismissal comment, up to 280 characters; not a standalone comment API.",
+        "maxLength": 280,
+        "type": "string"
+      },
+      "dismissed_reason": {
+        "description": "Required when state is dismissed.",
+        "enum": [
+          "fix_started",
+          "inaccurate",
+          "no_bandwidth",
+          "not_used",
+          "tolerable_risk"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization).",
+        "minLength": 1,
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "state": {
+        "description": "Reopen or dismiss the alert. Omission leaves state unchanged.",
+        "enum": [
+          "open",
+          "dismissed"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "alertNumber"
+    ],
+    "type": "object"
+  },
+  "name": "update_dependabot_alert",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "assignees": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "login": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "login"
+          ],
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "dismissed_comment": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "dismissed_reason": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "html_url": {
+        "type": "string"
+      },
+      "number": {
+        "description": "Exact alert number as a decimal string to preserve integer precision.",
+        "type": "string"
+      },
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "number",
+      "state",
+      "html_url",
+      "dismissed_reason",
+      "dismissed_comment"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
+}
