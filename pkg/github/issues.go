@@ -741,15 +741,16 @@ func isUnsupportedIssueFieldValuesSchemaError(err error) bool {
 	}
 
 	message := strings.ToLower(err.Error())
+	isMissingFieldError := strings.Contains(message, "doesn't exist on type") ||
+		strings.Contains(message, "does not exist on type") ||
+		strings.Contains(message, "cannot query field") ||
+		strings.Contains(message, "is not defined on type")
 	mentionsIssueType := strings.Contains(message, "on type 'issue'") ||
 		strings.Contains(message, `on type "issue"`) ||
 		strings.Contains(message, "on type issue")
 	if strings.Contains(message, "issuefieldvalues") &&
 		mentionsIssueType &&
-		(strings.Contains(message, "doesn't exist on type") ||
-			strings.Contains(message, "does not exist on type") ||
-			strings.Contains(message, "cannot query field") ||
-			strings.Contains(message, "is not defined on type")) {
+		isMissingFieldError {
 		return true
 	}
 
@@ -762,6 +763,9 @@ func isUnsupportedIssueFieldValuesSchemaError(err error) bool {
 	for _, issueFieldType := range issueFieldTypes {
 		if !strings.Contains(message, issueFieldType) {
 			continue
+		}
+		if strings.Contains(message, "fulldatabaseid") && isMissingFieldError {
+			return true
 		}
 		return strings.Contains(message, "unknown type") ||
 			strings.Contains(message, "isn't a defined type") ||

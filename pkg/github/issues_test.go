@@ -1663,6 +1663,17 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 			wantObservedGQLError: true,
 		},
 		{
+			name:                 "GHES 3.21 missing fullDatabaseId on IssueFieldDate",
+			gqlResponse:          githubv4mock.ErrorResponse("Field 'fullDatabaseId' doesn't exist on type 'IssueFieldDate'"),
+			wantObservedGQLError: true,
+		},
+		{
+			name:                 "GHES 3.21 missing fullDatabaseId on IssueFieldText with double quotes",
+			gqlResponse:          githubv4mock.ErrorResponse(`Cannot query field "fullDatabaseId" on type "IssueFieldText".`),
+			wantObservedGQLError: true,
+			useFieldsFilter:      true,
+		},
+		{
 			name:                 "unrelated GraphQL validation error",
 			gqlResponse:          githubv4mock.ErrorResponse("Field 'viewer' doesn't exist on type 'Query'"),
 			wantErrorText:        "Field 'viewer' doesn't exist on type 'Query'",
