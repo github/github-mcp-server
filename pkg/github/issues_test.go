@@ -1184,7 +1184,7 @@ func Test_SearchIssues(t *testing.T) {
 			expectedResult: mockSearchResult,
 		},
 		{
-			name: "issues search with only owner parameter (should ignore it)",
+			name: "issues search with only owner parameter is rejected",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
@@ -1202,11 +1202,11 @@ func Test_SearchIssues(t *testing.T) {
 				"query": "bug",
 				"owner": "test-owner",
 			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
 		},
 		{
-			name: "issues search with only repo parameter (should ignore it)",
+			name: "issues search with only repo parameter is rejected",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
@@ -1224,8 +1224,8 @@ func Test_SearchIssues(t *testing.T) {
 				"query": "feature",
 				"repo":  "test-repo",
 			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
 		},
 		{
 			name: "issues search with minimal parameters",
@@ -1278,6 +1278,28 @@ func Test_SearchIssues(t *testing.T) {
 				"query": "repo:github/github-mcp-server critical",
 				"owner": "different-owner",
 				"repo":  "different-repo",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "query with existing repo: filter and only owner param - uses query filter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":           "is:issue repo:github/github-mcp-server critical",
+						"page":        "1",
+						"per_page":    "30",
+						"search_type": "semantic",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
+				),
+			}),
+			requestArgs: map[string]any{
+				"query": "repo:github/github-mcp-server critical",
+				"owner": "github",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,

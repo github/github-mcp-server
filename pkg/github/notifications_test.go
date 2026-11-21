@@ -96,6 +96,24 @@ func Test_ListNotifications(t *testing.T) {
 			expectedResult: []*github.Notification{mockNotification},
 		},
 		{
+			name: "owner without repo",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetNotifications: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
+			}),
+			requestArgs:    map[string]any{"owner": "octocat"},
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
+		},
+		{
+			name: "repo without owner",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetNotifications: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
+			}),
+			requestArgs:    map[string]any{"repo": "hello-world"},
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
+		},
+		{
 			name: "error",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotifications: mockResponse(t, http.StatusInternalServerError, `{"message": "error"}`),
@@ -623,6 +641,24 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			},
 			expectError:  false,
 			expectMarked: true,
+		},
+		{
+			name: "owner without repo",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutNotifications: mockResponse(t, http.StatusOK, nil),
+			}),
+			requestArgs:    map[string]any{"owner": "octocat"},
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
+		},
+		{
+			name: "repo without owner",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutNotifications: mockResponse(t, http.StatusOK, nil),
+			}),
+			requestArgs:    map[string]any{"repo": "hello-world"},
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
 		},
 		{
 			name: "API error",
