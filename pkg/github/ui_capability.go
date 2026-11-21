@@ -19,6 +19,10 @@ const MCPAppMIMEType = "text/html;profile=mcp-app"
 // It checks the context first (set by HTTP/stateless servers from stored
 // session capabilities), then falls back to the go-sdk Session (for stdio).
 func clientSupportsUI(ctx context.Context, req *mcp.CallToolRequest) bool {
+	// A server-wide opt-out wins over both the request context and the session.
+	if ghcontext.MCPAppsDisabled(ctx) {
+		return false
+	}
 	// Check context first (works for HTTP/stateless servers)
 	if supported, ok := ghcontext.HasUISupport(ctx); ok {
 		return supported
@@ -70,6 +74,9 @@ func hasNonFormParams(args map[string]any, formParams map[string]struct{}) bool 
 // still render the tool's view, which renders the result rather than an input
 // form.
 func shouldDeferToForm(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any, formParams map[string]struct{}) bool {
+	if ghcontext.MCPAppsDisabled(ctx) {
+		return false
+	}
 	return !deps.IsFeatureEnabled(ctx, MCPAppsDisableFormDeferralFeatureFlag) &&
 		clientSupportsUI(ctx, req) &&
 		!uiSubmitted(args) &&

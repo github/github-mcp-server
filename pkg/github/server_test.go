@@ -257,6 +257,84 @@ func TestNewMCPServerTypedLegacyPreflightAndHandlerReceiveDependencies(t *testin
 	assert.Equal(t, "legacy text", result.Content[0].(*mcp.TextContent).Text)
 }
 
+func TestNewMCPServer_DisableMCPAppsOmitsUISurface(t *testing.T) {
+	t.Parallel()
+
+	toolset := inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test"}
+	withUI := NewToolWithSchemaOptions[struct{}, struct{}](
+		toolset,
+		mcp.Tool{
+			Name: "with_ui",
+			Meta: mcp.Meta{
+				"ui":          map[string]any{"resourceUri": IssueWriteUIResourceURI},
+				"description": "kept",
+			},
+		},
+		inventory.ScopeAccess{},
+		inventory.TypedSchemaOptions{},
+		func(context.Context, ToolDependencies, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, struct{}, error) {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "inline"}}}, struct{}{}, nil
+		},
+	)
+	appOnly := NewToolWithSchemaOptions[struct{}, struct{}](
+		toolset,
+		mcp.Tool{
+			Name: "ui_get",
+			Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		},
+		inventory.ScopeAccess{},
+		inventory.TypedSchemaOptions{},
+		func(context.Context, ToolDependencies, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, struct{}, error) {
+			return nil, struct{}{}, nil
+		},
+	)
+	inv, err := inventory.NewBuilder().
+		SetTools([]inventory.ServerTool{withUI, appOnly}).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	server, err := NewMCPServer(context.Background(), &MCPServerConfig{
+		Version:        "test",
+		Translator:     translations.NullTranslationHelper,
+		Logger:         slog.New(slog.DiscardHandler),
+		DisableMCPApps: true,
+	}, stubDeps{obsv: stubExporters()}, inv)
+	require.NoError(t, err)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "ui-client", Version: "1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, &mcp.ClientSessionOptions{
+		ProtocolVersion: "2025-11-25",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	list, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, 1)
+	assert.Equal(t, "with_ui", list.Tools[0].Name)
+	if list.Tools[0].Meta != nil {
+		assert.Nil(t, list.Tools[0].Meta["ui"])
+		assert.Equal(t, "kept", list.Tools[0].Meta["description"])
+	}
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "with_ui"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	assert.Equal(t, "inline", result.Content[0].(*mcp.TextContent).Text)
+
+	if UIAssetsAvailable() {
+		_, err = clientSession.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: IssueWriteUIResourceURI})
+		require.Error(t, err)
+	}
+}
+
 func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
 	var calls int
 	checker := func(_ context.Context, flag string) (bool, error) {

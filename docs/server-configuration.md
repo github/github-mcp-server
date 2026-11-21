@@ -13,6 +13,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
+| MCP Apps | Enabled on the hosted remote server | `--mcp-apps` flag (default `true`) or `GITHUB_MCP_APPS` env var |
 | Feature Flags | `X-MCP-Features` header or `?features=` URL query parameter | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
@@ -403,6 +404,8 @@ See [Insiders Features](./insiders-features.md) for a full list of what's availa
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat.
 
 MCP Apps is enabled by default. Tools with MCP Apps UIs advertise them via `_meta.ui` to clients that support the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps); the metadata is omitted for clients that do not advertise the `io.modelcontextprotocol/ui` capability.
+
+To turn MCP Apps off for the whole server, pass `--mcp-apps=false` or set `GITHUB_MCP_APPS=false`. The server then omits `_meta.ui`, does not register MCP App UI resources or app-only tools, skips form deferral, and returns inline tool results. The default stays enabled, and a request cannot turn MCP Apps back on. The hosted remote server does not offer this switch; it applies to the local server and to a self-hosted HTTP server.
 
 To keep MCP App result views enabled while making write tools execute directly
 instead of first opening an interactive form, enable the

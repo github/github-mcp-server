@@ -85,6 +85,14 @@ func Test_clientSupportsUI_fromContext(t *testing.T) {
 	t.Run("no context or session", func(t *testing.T) {
 		assert.False(t, clientSupportsUI(context.Background(), nil))
 	})
+
+	t.Run("server disable overrides session and context", func(t *testing.T) {
+		ctx := ghcontext.WithMCPAppsDisabled(ghcontext.WithUISupport(context.Background(), true))
+		caps := &mcp.ClientCapabilities{}
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{})
+		req := createMCPRequestWithCapabilities(t, caps)
+		assert.False(t, clientSupportsUI(ctx, &req))
+	})
 }
 
 func Test_shouldDeferToForm_featureFlags(t *testing.T) {
@@ -109,6 +117,13 @@ func Test_shouldDeferToForm_featureFlags(t *testing.T) {
 			want:         false,
 		},
 	}
+
+	t.Run("server-level MCP Apps disable executes directly", func(t *testing.T) {
+		t.Parallel()
+		disabled := ghcontext.WithMCPAppsDisabled(ctx)
+		deps := BaseDeps{featureChecker: featureCheckerFor()}
+		assert.False(t, shouldDeferToForm(disabled, deps, nil, args, formParams))
+	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

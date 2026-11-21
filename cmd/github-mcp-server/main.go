@@ -130,6 +130,7 @@ var (
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				InsidersMode:         viper.GetBool("insiders"),
+				DisableMCPApps:       !mcpAppsEnabled(),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
 			}
@@ -224,6 +225,7 @@ var (
 				ExcludeTools:         excludeTools,
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
+				DisableMCPApps:       !mcpAppsEnabled(),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
 				MRTRStateKey:         os.Getenv(ghhttp.MRTRStateKeyEnv),
 			}
@@ -252,6 +254,7 @@ func init() {
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
+	rootCmd.PersistentFlags().Bool("mcp-apps", true, "Expose MCP Apps UI metadata, resources, and form deferral. Set to false to execute tools inline with no MCP Apps surface")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
 	// stdio-specific OAuth flags. Provide --oauth-client-id (instead of a token)
@@ -289,6 +292,7 @@ func init() {
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
+	_ = viper.BindPFlag("mcp-apps", rootCmd.PersistentFlags().Lookup("mcp-apps"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
 	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
@@ -314,6 +318,13 @@ func initConfig() {
 	viper.SetEnvPrefix("github")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+	viper.SetDefault("mcp-apps", true)
+}
+
+// mcpAppsEnabled reports whether MCP Apps stay on. The flag defaults to true.
+// GITHUB_MCP_APPS=false and --mcp-apps=false both turn the surface off.
+func mcpAppsEnabled() bool {
+	return viper.GetBool("mcp-apps")
 }
 
 func main() {
