@@ -973,6 +973,7 @@ func TestCloneDirectoryEntriesWithoutDownloadURLs(t *testing.T) {
 }
 
 func Test_GetFileContents_DirectoryFieldsTelemetry(t *testing.T) {
+	const tokenizedURL = "https://raw.githubusercontent.com/owner/repo/main/README.md?token=GHSAT0AAAAA_SECRET_TOKEN" //nolint:gosec // G101: Synthetic tokenized download URL fixture sizes the telemetry baseline; it cannot authenticate.
 	mockDirContent := []*github.RepositoryContent{
 		{
 			Type:        new("file"),
@@ -982,45 +983,64 @@ func Test_GetFileContents_DirectoryFieldsTelemetry(t *testing.T) {
 			Size:        new(42),
 			URL:         new("https://api.github.com/repos/owner/repo/contents/README.md"),
 			HTMLURL:     new("https://github.com/owner/repo/blob/main/README.md"),
-			DownloadURL: new("https://raw.githubusercontent.com/owner/repo/main/README.md"),
+			DownloadURL: new(tokenizedURL),
 		},
 	}
+	// The baseline is the default listing, which omits download_url.
+	defaultPayload, err := json.Marshal(cloneDirectoryEntriesWithoutDownloadURLs(mockDirContent))
+	require.NoError(t, err)
+	require.NotContains(t, string(defaultPayload), "download_url")
 
 	serverTool := GetFileContents(translations.NullTranslationHelper)
-	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
-		GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
-		GetReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{}).andThen(
-			mockResponse(t, http.StatusOK, mockDirContent),
-		),
-		GetRawReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{"branch": "main"}).andThen(
-			mockResponse(t, http.StatusNotFound, nil),
-		),
-	}))
-	deps, rec := depsWithRecordingMetrics(t, BaseDeps{Client: client})
-	handler := serverTool.Handler(deps)
+	record := func(t *testing.T, fields ...any) (full, sent int64) {
+		t.Helper()
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+			GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+			GetReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{}).andThen(
+				mockResponse(t, http.StatusOK, mockDirContent),
+			),
+			GetRawReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{"branch": "main"}).andThen(
+				mockResponse(t, http.StatusNotFound, nil),
+			),
+		}))
+		deps, rec := depsWithRecordingMetrics(t, BaseDeps{Client: client})
+		handler := serverTool.Handler(deps)
 
-	request := createMCPRequest(map[string]any{
-		"owner":  "owner",
-		"repo":   "repo",
-		"path":   "src/",
-		"fields": []any{"name", "type"},
+		request := createMCPRequest(map[string]any{
+			"owner":  "owner",
+			"repo":   "repo",
+			"path":   "src/",
+			"fields": fields,
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		call, ok := rec.increment(metricFieldsToolCall)
+		require.True(t, ok)
+		assert.Equal(t, "get_file_contents", call.tags["tool"])
+		assert.Equal(t, "true", call.tags["filtered"])
+
+		fullCounter, ok := rec.counter(metricFieldsBytesFull)
+		require.True(t, ok)
+		sentCounter, ok := rec.counter(metricFieldsBytesSent)
+		require.True(t, ok)
+		return fullCounter.value, sentCounter.value
+	}
+
+	t.Run("filtering removes bytes from the default listing", func(t *testing.T) {
+		full, sent := record(t, "name", "type")
+		assert.Equal(t, int64(len(defaultPayload)), full)
+		assert.Greater(t, full, sent, "filtering should remove bytes")
 	})
 
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.False(t, result.IsError)
-
-	call, ok := rec.increment(metricFieldsToolCall)
-	require.True(t, ok)
-	assert.Equal(t, "get_file_contents", call.tags["tool"])
-	assert.Equal(t, "true", call.tags["filtered"])
-
-	full, ok := rec.counter(metricFieldsBytesFull)
-	require.True(t, ok)
-	sent, ok := rec.counter(metricFieldsBytesSent)
-	require.True(t, ok)
-	assert.Greater(t, full.value, sent.value, "filtering should remove bytes")
+	t.Run("opting in to download_url keeps the default baseline", func(t *testing.T) {
+		full, sent := record(t, "name", "download_url")
+		assert.Equal(t, int64(len(defaultPayload)), full)
+		assert.Greater(t, sent, int64(len(tokenizedURL)))
+	})
 }
 
 func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {

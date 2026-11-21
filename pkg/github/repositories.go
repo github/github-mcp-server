@@ -1192,7 +1192,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false
-				var payload any
+				defaultEntries := cloneDirectoryEntriesWithoutDownloadURLs(dirContent)
+				var payload any = defaultEntries
 				if len(fields) > 0 {
 					filteredEntries, err := filterEachField(dirContent, fields)
 					if err != nil {
@@ -1200,14 +1201,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					payload = filteredEntries
 					filtered = true
-				} else {
-					payload = cloneDirectoryEntriesWithoutDownloadURLs(dirContent)
 				}
 				r, err := json.Marshal(payload)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
-				recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
+				recordDirContentsFieldsUsage(ctx, deps, defaultEntries, filtered, len(r))
 				var output []*RepositoryDirectoryEntryOutput
 				if err := json.Unmarshal(r, &output); err != nil {
 					return nil, nil, fmt.Errorf("failed to decode typed directory contents: %w", err)
@@ -1245,6 +1244,8 @@ func cloneDirectoryEntriesWithoutDownloadURLs(entries []*github.RepositoryConten
 
 // recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
 // directory listing. sentBytes is the size of the payload actually returned.
+// full is the default listing, which omits download URLs, so a request that
+// opts in to download_url can send more bytes than the baseline.
 func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
 	recordFieldsUsageFor(ctx, deps, "get_file_contents", full, filtered, sentBytes)
 }
