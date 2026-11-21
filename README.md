@@ -1768,7 +1768,7 @@ docker run -i --rm \
 MCP Apps is on by default. To run the server with no MCP App UI metadata, resources, or form handoff, pass `--mcp-apps=false` or set `GITHUB_MCP_APPS=false`. Tools then execute immediately and return their results inline. This is separate from `--features=mcp_apps_disable_form_deferral`, which keeps result views and only skips the input form.
 
 ```bash
-./github-mcp-server --mcp-apps=false
+./github-mcp-server stdio --mcp-apps=false
 ```
 
 ```bash

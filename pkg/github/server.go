@@ -122,6 +122,12 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
+	// Set the opt-out before skill publishing. skillsPublisher filters on
+	// ConfiguredTools, which omits app-only tools only when this flag is set.
+	if cfg.DisableMCPApps {
+		ctx = ghcontext.WithMCPAppsDisabled(ctx)
+	}
+
 	publisher, err := skillsPublisher(ctx, cfg, deps, inv)
 	if err != nil {
 		return nil, err
@@ -153,10 +159,6 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
-	}
-
-	if cfg.DisableMCPApps {
-		ctx = ghcontext.WithMCPAppsDisabled(ctx)
 	}
 
 	// Register GitHub tools/resources/prompts from the inventory.

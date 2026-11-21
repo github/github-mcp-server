@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/skills"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -239,6 +241,66 @@ func TestSkillsModernDiscoveryAndCacheEnvelopes(t *testing.T) {
 			}
 			assert.Equal(t, "private", reply.Result["cacheScope"])
 		}
+	}
+}
+
+func TestDisableMCPAppsWithholdsSkillsThatNeedAppOnlyTools(t *testing.T) {
+	t.Parallel()
+
+	skill, err := skills.NewSkill("example.com/app-view", []skills.File{
+		{Path: "SKILL.md", Content: []byte("---\nname: app-view\ndescription: Open the app view.\n---\n\nUse the app tool.\n")},
+	})
+	require.NoError(t, err)
+	skill.RequiredTools = [][]string{{"ui_get"}}
+	source, err := skills.NewRegistry(skill)
+	require.NoError(t, err)
+
+	toolset := inventory.ToolsetMetadata{ID: inventory.ToolsetID("test"), Description: "Test"}
+	appOnly := NewToolWithSchemaOptions[struct{}, struct{}](
+		toolset,
+		mcp.Tool{
+			Name: "ui_get",
+			Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		},
+		inventory.ScopeAccess{},
+		inventory.TypedSchemaOptions{},
+		func(context.Context, ToolDependencies, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, struct{}, error) {
+			return nil, struct{}{}, nil
+		},
+	)
+	checker := featureCheckerFor(FeatureFlagSkillsExtension)
+
+	for _, disabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "apps-enabled", true: "apps-disabled"}[disabled], func(t *testing.T) {
+			t.Parallel()
+			cfg := MCPServerConfig{
+				Version:        "test",
+				Translator:     translations.NullTranslationHelper,
+				Logger:         slog.New(slog.DiscardHandler),
+				SkillsSource:   source,
+				DisableMCPApps: disabled,
+			}
+			deps := NewBaseDeps(nil, nil, nil, nil, cfg.Translator, FeatureFlags{}, 0, checker, stubExporters())
+			inv, err := inventory.NewBuilder().
+				SetTools([]inventory.ServerTool{appOnly}).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(checker).
+				Build()
+			require.NoError(t, err)
+
+			server, err := NewMCPServer(context.Background(), &cfg, deps, inv)
+			require.NoError(t, err)
+			session := connectSkillsClient(t, server)
+			listed, err := mcp.CallCustomMethod[*skills.ListSkillsParams, *skills.ListSkillsResult](
+				context.Background(), session, skills.MethodListSkills, &skills.ListSkillsParams{})
+			require.NoError(t, err)
+			if disabled {
+				assert.Empty(t, listed.Skills)
+				return
+			}
+			require.Len(t, listed.Skills, 1)
+			assert.Equal(t, "app-view", listed.Skills[0].Frontmatter.Name())
+		})
 	}
 }
 
