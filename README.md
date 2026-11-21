@@ -1763,6 +1763,21 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+## Disabling MCP Apps
+
+MCP Apps is on by default. To run the server with no MCP App UI metadata, resources, or form handoff, pass `--mcp-apps=false` or set `GITHUB_MCP_APPS=false`. Tools then execute immediately and return their results inline. This is separate from `--features=mcp_apps_disable_form_deferral`, which keeps result views and only skips the input form.
+
+```bash
+./github-mcp-server stdio --mcp-apps=false
+```
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_MCP_APPS=false \
+  ghcr.io/github/github-mcp-server
+```
+
 ## Lockdown Mode
 
 Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.

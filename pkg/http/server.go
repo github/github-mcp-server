@@ -112,6 +112,10 @@ type ServerConfig struct {
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 
+	// DisableMCPApps turns off MCP Apps for every request. Per-request headers
+	// cannot turn it back on.
+	DisableMCPApps bool
+
 	// MRTRStateKey is a Base64-encoded 32-byte key used to protect multi-round-trip request state.
 	MRTRStateKey string
 
@@ -144,7 +148,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode, "mcpApps", !cfg.DisableMCPApps)
 
 	stateSealer, err := configureRequestState(&cfg, logger)
 	if err != nil {
