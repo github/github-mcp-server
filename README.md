@@ -1,4 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server/v2)](https://goreportcard.com/report/github.com/github/github-mcp-server/v2)
+<img width="2752" height="1536" alt="image" src="https://github.com/user-attachments/assets/b402f577-430e-4054-964f-d8fa215feb2d" />
 
 # GitHub MCP Server
 
