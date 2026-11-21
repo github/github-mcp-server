@@ -70,6 +70,7 @@ jobs:
       - name: Check if already commented
         if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure'
         id: check_comment
+        continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -87,7 +88,8 @@ jobs:
             core.setOutput('already_commented', alreadyCommented ? 'true' : 'false');
 
       - name: Comment with instructions if cannot push
-        if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure' && steps.check_comment.outputs.already_commented == 'false'
+        if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure' && steps.check_comment.outputs.already_commented != 'true'
+        continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
