@@ -154,7 +154,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 </tr>
 </table>
 
-See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, and [Insiders Features](docs/insiders-features.md) for a full list of what's available.
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, [Insiders Features](docs/insiders-features.md) for a full list of what's available, and [Feature Flags](docs/feature-flags.md) for user-opt-in tools such as repository automations.
 
 #### GitHub Enterprise
 
@@ -599,6 +599,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> | `code_quality` | GitHub Code Quality related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `copilot_automations` | Manage Copilot Automations, their revisions, and the tools and triggers they can use |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot_issue_intents` | Opt-in Copilot issue assignment tools that carry intent metadata (rationale, confidence, suggestion) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
@@ -755,6 +756,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `state`: Filter code scanning alerts by state. Defaults to open (string, optional)
   - `tool_name`: The name of the tool used for code scanning. (string, optional)
 
+- **update_code_scanning_alert** - Update code scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Code scanning alert number. (integer, required)
+  - `assignees`: Replace assignees with human usernames or copilot-swe-agent[bot]. [] unassigns everyone. Copilot assignment starts remediation, not just ownership. (string[], optional)
+  - `create_request`: Attempt a delegated dismissal request with state:dismissed and a reason. Does not bypass policy. (boolean, optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters, or null. Requires a state or assignee update; not a standalone comment API. (string | null, optional)
+  - `dismissed_reason`: Required and non-null when dismissing. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
+
 </details>
 
 <details>
@@ -837,6 +849,16 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
   - `state`: Filter dependabot alerts by state. Defaults to open (string, optional)
+
+- **update_dependabot_alert** - Update Dependabot alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: The repository's Dependabot alert number. (integer, required)
+  - `assignees`: Usernames replacing the entire assignee set; [] clears all, omission leaves it unchanged. Including copilot-swe-agent[bot] requests remediation, not just ownership bookkeeping. (string[], optional)
+  - `dismissed_comment`: Optional dismissal comment, up to 280 characters; not a standalone comment API. (string, optional)
+  - `dismissed_reason`: Required when state is dismissed. (string, optional)
+  - `owner`: Repository owner (username or organization). (string, required)
+  - `repo`: Repository name. (string, required)
+  - `state`: Reopen or dismiss the alert. Omission leaves state unchanged. (string, optional)
 
 </details>
 
@@ -1370,6 +1392,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
+  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 - **search_pull_requests** - Search pull requests
@@ -1590,6 +1613,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `resolution`: Filter by resolution (string, optional)
   - `secret_type`: A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter. (string, optional)
   - `state`: Filter by state (string, optional)
+
+- **update_secret_scanning_alert** - Update secret scanning alert
+  - **OAuth Challenge Scopes**: `security_events`
+  - `alertNumber`: Secret scanning alert number. (integer, required)
+  - `assignee`: Username with repository write access; null unassigns. (string | null, optional)
+  - `owner`: Repository owner. (string, required)
+  - `repo`: Repository name. (string, required)
+  - `resolution`: Reason for resolving. Non-null when state is resolved. (string | null, optional)
+  - `resolution_comment`: Optional comment when closing or reopening; cannot later be updated or deleted. (string | null, optional)
+  - `state`: Reopen or resolve the alert. (string, optional)
+  - `validity`: Manual validity override for custom-pattern alerts only; null clears the override. GitHub-supported patterns retain validator-managed validity. (string | null, optional)
 
 </details>
 

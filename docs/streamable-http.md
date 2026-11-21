@@ -48,6 +48,28 @@ github-mcp-server http --scope-challenge
 
 When `--scope-challenge` is enabled, requests with insufficient scopes receive a `403 Forbidden` response with a `WWW-Authenticate` header indicating the required scopes.
 
+### Multi-round-trip mutations and request-state encryption
+
+The `delete_repository` and repository automation mutation tools use
+multi-round-trip elicitation and carry the confirmed request through
+client-held request state. To expose these tools in HTTP mode, configure a
+stable 32-byte encryption key encoded with standard Base64:
+
+```bash
+export GITHUB_MCP_SERVER_MRTR_STATE_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+github-mcp-server http
+```
+
+Use the same key on every replica that may handle a retry. Keep it secret and
+stable during deployments; changing it invalidates confirmations already in
+flight. If the variable is absent, these mutation tools are not exposed by the
+HTTP server. If it is present but malformed, the server refuses to start.
+
+This self-hosted key is independent of keys used by the hosted remote server.
+Integrators can provide their own request-state sealer through the exported
+`github.RequestStateSealer` interface and expose it from their tool dependencies
+through `github.RequestStateSealerProvider` without changing their key format.
+
 ### With OAuth Metadata Discovery
 
 For use behind reverse proxies or with custom domains, expose OAuth metadata endpoints:
@@ -110,21 +132,23 @@ github-mcp-server http --trust-proxy-headers
 
 Equivalent environment variable: `GITHUB_TRUST_PROXY_HEADERS=1`. Only enable this when the upstream proxy is trusted to set or strip these headers; otherwise prefer `--base-url`. When `--base-url` is set, it always takes precedence and `--trust-proxy-headers` has no effect.
 
-### With an OAuth Proxy (GHES / RFC 7591 DCR clients)
+### With an OAuth Proxy (GHES / clients that require Dynamic Client Registration)
 
-When deploying against GitHub Enterprise Server, GHES does not natively support the OAuth extensions required by MCP (RFC 8414 metadata discovery, RFC 7591 Dynamic Client Registration, PKCE). Similarly, on `github.com`, `https://github.com/login/oauth` does not support RFC 7591 Dynamic Client Registration (`/register`) and returns `application/x-www-form-urlencoded` token responses unless `Accept: application/json` is sent—which prevents MCP clients that rely on DCR or standard OIDC refresh tokens (such as Google Gemini Web/Mobile custom apps or OpenCode) from completing automated OAuth onboarding.
+When deploying against GitHub Enterprise Server, GHES does not natively support the OAuth extensions required by MCP (RFC 8414 metadata discovery, RFC 7591 Dynamic Client Registration, PKCE). In this case you can run a separate OAuth proxy that implements the MCP OAuth spec and forwards authentication to GHES.
 
-In either case, you can run a separate OAuth 2.1 proxy that implements RFC 8414, RFC 7591 DCR, and JSON token exchange in front of GitHub's OAuth endpoints, and use `--authorization-server` to advertise the proxy's URL in the protected resource metadata instead of the default derived from `--gh-host`:
+The same approach works on `github.com` for MCP clients that can only register through RFC 7591 Dynamic Client Registration: the authorization server metadata for `https://github.com/login/oauth` does not advertise a `registration_endpoint`.
+
+Use `--authorization-server` to advertise the proxy's URL in the protected resource metadata instead of the one derived from `--gh-host`:
 
 ```bash
-# Self-hosted github.com behind an OAuth 2.1 + DCR proxy
+# GitHub Enterprise Server
 github-mcp-server http \
+  --gh-host https://github.example.com \
   --base-url https://mcp.example.com \
   --authorization-server https://mcp.example.com/oauth-proxy
 
-# GitHub Enterprise Server behind an OAuth proxy
+# github.com, for clients that require Dynamic Client Registration
 github-mcp-server http \
-  --gh-host https://github.example.com \
   --base-url https://mcp.example.com \
   --authorization-server https://mcp.example.com/oauth-proxy
 ```
@@ -143,7 +167,12 @@ The `authorization_servers` field in the protected resource metadata will then p
 
 Equivalent environment variable: `GITHUB_AUTHORIZATION_SERVER=https://mcp.example.com/oauth-proxy`.
 
-> **Note:** GitHub's hosted remote MCP endpoint (`https://api.githubcopilot.com/mcp/`) advertises `https://github.com/login/oauth` as its authorization server. Clients that require RFC 7591 Dynamic Client Registration against the hosted endpoint must connect through an external OAuth 2.1 + DCR proxy rather than directly to `api.githubcopilot.com`.
+When neither the flag nor environment variable is set, the server preserves the existing behavior and derives the authorization server from `--gh-host`. The override only changes the URL advertised in OAuth protected resource metadata; it does not change token validation or the GitHub API host.
+
+The server still expects a GitHub token in the `Authorization` header and uses it to call the GitHub API, so the proxy must hand clients a GitHub access token (for example by brokering GitHub's OAuth flow). A proxy that issues its own tokens must also sit in front of the MCP endpoint and replace them with a GitHub token before forwarding requests.
+
+> [!NOTE]
+> This flag only configures a self-hosted server. GitHub's hosted remote server (`https://api.githubcopilot.com/mcp/`) advertises `https://github.com/login/oauth` and does not support Dynamic Client Registration, so clients that require it need a self-hosted server or a proxy in front of the MCP endpoint.
 
 ## Client Configuration
 
