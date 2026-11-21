@@ -1210,6 +1210,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if err := json.Unmarshal(r, &output); err != nil {
 					return nil, nil, fmt.Errorf("failed to decode typed directory contents: %w", err)
 				}
+				if output == nil {
+					output = []*RepositoryDirectoryEntryOutput{}
+				}
 				if len(fields) == 0 {
 					for _, entry := range output {
 						if entry != nil {
@@ -1217,7 +1220,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 					}
 				}
-				return attachIFC(utils.NewToolResultText(string(r))), &RepositoryContentsOutput{Directory: output}, nil
+				return attachIFC(utils.NewToolResultText(string(r))), &RepositoryContentsOutput{Directory: &RepositoryDirectoryOutput{Entries: output}}, nil
 			}
 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil

@@ -215,8 +215,15 @@ func (out ForkRepositoryOutput) MarshalJSON() ([]byte, error) {
 // MCP content response. The latter is represented losslessly as typed content
 // blocks, including the human-readable status and embedded text/blob or link.
 type RepositoryContentsOutput struct {
-	Directory []*RepositoryDirectoryEntryOutput
+	Directory *RepositoryDirectoryOutput
 	Content   *RepositoryContentOutput
+}
+
+// RepositoryDirectoryOutput wraps a directory listing in an object so that
+// structured content is always object-valued. Some MCP clients reject a
+// top-level array in structuredContent.
+type RepositoryDirectoryOutput struct {
+	Entries []*RepositoryDirectoryEntryOutput `json:"entries" jsonschema:"Entries in the directory."`
 }
 
 // Optional pointer fields retain projected zero values without reinstating
@@ -536,7 +543,7 @@ func repositoryContentsOutputSchema() *jsonschema.Schema {
 		Required:             []string{"content"},
 		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 	}
-	directory := repositoryOutputSchema[[]*RepositoryDirectoryEntryOutput]()
-	directory.Type, directory.Types = "array", nil
+	directory := repositoryOutputSchema[RepositoryDirectoryOutput]()
+	directory.Properties["entries"].Type, directory.Properties["entries"].Types = "array", nil
 	return repositoryUnionSchema(&jsonschema.Schema{Type: "null"}, directory, content)
 }
