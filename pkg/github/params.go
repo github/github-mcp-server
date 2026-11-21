@@ -54,6 +54,16 @@ func OptionalNullableStringParam(args map[string]any, p string) (*string, bool, 
 	return &stringValue, true, nil
 }
 
+// checkOwnerRepoPair rejects an optional owner without repo, or repo without
+// owner. Tools that scope to a repository only when both are set would
+// otherwise drop the lone value and act on every repository.
+func checkOwnerRepoPair(owner, repo string) error {
+	if (owner == "") != (repo == "") {
+		return errors.New("owner and repo must be provided together")
+	}
+	return nil
+}
+
 // isAcceptedError checks if the error is an accepted error.
 func isAcceptedError(err error) bool {
 	var acceptedError *github.AcceptedError
