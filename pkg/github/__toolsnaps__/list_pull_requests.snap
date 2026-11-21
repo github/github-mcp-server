@@ -29,6 +29,7 @@
             "state",
             "draft",
             "merged",
+            "merge_commit_sha",
             "mergeable_state",
             "html_url",
             "user",
