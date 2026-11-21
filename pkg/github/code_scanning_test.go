@@ -163,6 +163,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 		expectError    bool
 		expectedAlerts []*github.Alert
 		expectedErrMsg string
+		expectNextPage bool
 	}{
 		{
 			name: "successful alerts listing",
@@ -207,6 +208,24 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			},
 			expectError:    false,
 			expectedAlerts: mockAlerts,
+		},
+		{
+			name: "successful alerts listing advertises next page",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/code-scanning/alerts?page=2>; rel="next"`)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(mockAlerts)
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false,
+			expectedAlerts: mockAlerts,
+			expectNextPage: true,
 		},
 		{
 			name: "alerts listing fails",
@@ -256,16 +275,24 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedAlerts []*github.Alert
-			err = json.Unmarshal([]byte(textContent.Text), &returnedAlerts)
+			var returnedResult struct {
+				Alerts   []*github.Alert `json:"alerts"`
+				PageInfo struct {
+					HasNextPage     bool `json:"hasNextPage"`
+					HasPreviousPage bool `json:"hasPreviousPage"`
+				} `json:"pageInfo"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			assert.NoError(t, err)
-			assert.Len(t, returnedAlerts, len(tc.expectedAlerts))
-			for i, alert := range returnedAlerts {
+			assert.Len(t, returnedResult.Alerts, len(tc.expectedAlerts))
+			for i, alert := range returnedResult.Alerts {
 				assert.Equal(t, *tc.expectedAlerts[i].Number, *alert.Number)
 				assert.Equal(t, *tc.expectedAlerts[i].State, *alert.State)
 				assert.Equal(t, *tc.expectedAlerts[i].Rule.ID, *alert.Rule.ID)
 				assert.Equal(t, *tc.expectedAlerts[i].HTMLURL, *alert.HTMLURL)
 			}
+			assert.Equal(t, tc.expectNextPage, returnedResult.PageInfo.HasNextPage)
+			assert.False(t, returnedResult.PageInfo.HasPreviousPage)
 		})
 	}
 }
