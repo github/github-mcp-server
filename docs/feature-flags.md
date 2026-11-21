@@ -99,6 +99,16 @@ catalog per request and removes instructions when its feature checker enables
 
 ## Declaring tool availability
 
+### Agent automations
+
+Enable `--features=agent_automations` (or `GITHUB_FEATURES=agent_automations`)
+to expose the repository automation tools in the opt-in `copilot_automations`
+toolset (enable it with `--toolsets=copilot_automations` or `all`). This flag
+is **off by default**, including in Insiders mode. The MCP flag only exposes
+the tools; GitHub API access still depends on the authenticated client's
+permissions and access to the explicitly named repository. Read-only mode
+exposes only the read tools.
+
 ### Issue artifacts
 
 Enable `--features=issue_artifacts` (or `GITHUB_FEATURES=issue_artifacts`) to
@@ -135,6 +145,64 @@ compatibility.
 Get, create, and update return an `artifact` object. List returns a `list` object
 containing `artifacts`, `page`, and `perPage`; delete returns a `deleted` object
 containing `issue_number`, `artifact_number`, and a confirmation message.
+
+### Pull request artifacts
+
+Enable `--features=pull_request_artifacts` (or
+`GITHUB_FEATURES=pull_request_artifacts`) to expose
+`pull_request_artifact_read` (`method: list`) and
+`pull_request_artifact_write` (`method: upsert | delete`) in the
+`pull_requests` toolset. This flag is **off by default**, including in Insiders
+mode. Read-only mode exposes only the read tool. Both tools reject calls in
+lockdown mode.
+
+All operations require `owner`, `repo`, and `pull_number`. The tools resolve
+the repository's numeric ID and use the configured authenticated GitHub
+client and API base URL. They declare `repo` in OAuth challenge metadata;
+the API separately enforces pull request read access for list and artifact
+write access for upsert/delete, including repository writeability and storage
+availability. No endpoint-specific preview header is added.
+
+Upsert and delete address artifacts by **name**, not artifact number or global
+ID. Supply exactly one of `name` (the exact original name) or `name_key` (the
+lossless key returned by reads and writes). Returned `name` values are sanitized
+for display and must not be used as mutation keys: distinct original names can
+have the same display name. Pass `name_key` verbatim to update or delete an
+artifact discovered through a read. Keys use unpadded URL-safe Base64 encoding
+of the original name and are not authorization tokens.
+Upsert requires `body` and optionally accepts `commit_oid`.
+The body is sent unchanged, including an empty string; the API validates its
+content and constraints. Upsert accepts both creation (201) and replacement
+(200) responses. Delete rejects `body` and `commit_oid`.
+Before deletion, the client must obtain explicit user confirmation of the exact
+repository, PR number, and artifact name through form elicitation. Confirmation
+requires MCP protocol `2026-07-28` or later and configured request-state protection.
+The protected state binds approval to the target repository ID, PR, and artifact
+name and expires after ten minutes. Missing, invalid, expired, declined, or
+canceled confirmation prevents deletion, as does a changed repository identity.
+Clients without the required protocol or form-elicitation support cannot delete;
+list and upsert remain available. This relies on the client to present the
+confirmation to the user rather than answer on the model's behalf.
+Writes are not automatically retried; API errors, including conflicts,
+validation failures, throttling, and storage failures, are returned explicitly.
+
+List includes artifact bodies and accepts `commit_oid`: omit it or use
+`current` for the PR's current head, use `all` for every commit, or supply an
+explicit commit OID. For a stable commit selection across pages, use an
+explicit OID instead of a moving PR head. List returns one requested page
+(`page` defaults to 1, `perPage` defaults to 30 and is limited to 100).
+Request `next_page` when present; its value comes from the API's REST Link
+header, not the number of returned artifacts.
+
+Upsert returns an `artifact` object. List returns a `list` object containing
+`artifacts`, `page`, `perPage`, and optional `next_page`. Delete returns a
+`deleted` object containing `pull_number`, display `name`, lossless `name_key`,
+and a confirmation message.
+Artifact IDs are opaque JSON strings or integers and are never mutation
+identifiers. Results preserve nullable commit, creator, and timestamp
+metadata; list metadata describes the returned artifact version. Names and
+creator logins receive plain-text sanitization, and bodies use the existing
+content sanitizer, preserving HTML source while filtering invisible characters.
 
 Tools, resources, and prompts use `inventory.NewFeatureRule` when feature flags
 change whether they are available. Each rule declares the flags it references
@@ -394,6 +462,7 @@ as output formatting) won't appear here.
 
 - **resolve_review_thread** - Resolve Review Thread
   - **OAuth Challenge Scopes**: `repo`
+  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
   - `threadID`: The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx) (string, required)
 
 - **submit_pending_pull_request_review** - Submit Pending Pull Request Review
@@ -518,6 +587,119 @@ as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `type`:  (string, optional)
 
+### `pull_request_artifacts`
+
+- **pull_request_artifact_read** - Read pull request artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `commit_oid`: Commit selection: omitted or current for the current PR head, all for every commit, or an explicit commit OID (string, optional)
+  - `method`:  (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1 (default 1) (integer, optional)
+  - `perPage`: Results per page, from 1 to 100 (default 30) (integer, optional)
+  - `pull_number`: Positive pull request number (integer, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_artifact_write** - Write pull request artifacts
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: Required for upsert: artifact content; an empty string is sent unchanged. Not supported for delete (string, optional)
+  - `commit_oid`: Optional commit OID for upsert only; omission preserves the API default (string, optional)
+  - `method`:  (string, required)
+  - `name`: Exact artifact name for creation or addressing; mutually exclusive with name_key. Do not copy sanitized display names from read results (string, optional)
+  - `name_key`: Lossless addressing key returned by artifact reads or writes; mutually exclusive with name. Pass verbatim without decoding (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `pull_number`: Positive pull request number (integer, required)
+  - `repo`: Repository name (string, required)
+
+### `agent_automations`
+
+- **create_automation** - Create a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, required)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
+  - `type`: The automation type. (string, optional)
+
+- **delete_automation** - Delete a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation** - Get a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_automation_revision** - Get an automation revision
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `revision_id`: The revision identifier. (string, required)
+
+- **get_automations_configuration_for_repository** - Get repository automation configuration
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_automation_revisions** - List automation revisions
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `cursor`: Opaque pagination cursor. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_automations** - List repository automations
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number, starting at 1. (integer, optional)
+  - `perPage`: Results per page, from 1 to 100. (integer, optional)
+  - `repo`: Repository name (string, required)
+  - `type`: Filter automations by type. (string, optional)
+
+- **list_available_automation_tools** - List available automation tools
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_available_automation_triggers** - List available automation triggers
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **run_automation** - Run a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `context`: Optional context for the automation run, up to 10,000 characters. (string, optional)
+  - `event`: The event to trigger. Only manual runs are supported. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **update_automation** - Update a repository automation
+  - **OAuth Challenge Scopes**: `repo`
+  - `automation_id`: The automation identifier. (string, required)
+  - `continuous_history`: Whether the automation keeps a continuous conversation history. (boolean, optional)
+  - `enabled`: Whether the automation is enabled. (boolean, optional)
+  - `model`: The model used by the automation. (string, optional)
+  - `name`: The name of the automation. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `prompt`: The prompt used when the automation runs. (string, optional)
+  - `reasoning_effort`: The reasoning effort used by the automation. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `require_actor_write_permission`: Whether the triggering actor must have write permission. (boolean, optional)
+  - `tools`: The tools enabled for the automation. (string[], optional)
+  - `triggers`: Trigger configuration for the automation. (object, optional)
+
 ### `duplicate_detection`
 
 - **find_duplicate** - Find duplicate issues
@@ -528,19 +710,5 @@ as output formatting) won't appear here.
   - `page`: Page number for pagination (min 0). Zero is forwarded for the GitHub API default. (number, optional)
   - `perPage`: Results per page for pagination (min 0, max 100). Zero is forwarded for the GitHub API default. (number, optional)
   - `repo`: The name of the repository (string, required)
-
-### `thread_resolution_reason`
-
-- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
-  - **OAuth Challenge Scopes**: `repo`
-  - `body`: Review comment text (string, optional)
-  - `commitID`: SHA of commit to review (string, optional)
-  - `event`: Review action to perform. (string, optional)
-  - `method`: The write operation to perform on pull request review. (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
-  - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
