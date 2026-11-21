@@ -83,7 +83,7 @@ CSV output applies only to tools in default toolsets whose names start with `lis
 
 ### Format
 
-- Nested objects are flattened into dot-notation columns, for example `user.login`, `category.name`, or `head.ref`.
+- Nested objects are flattened into dot-notation columns, for example `user.login`, `category.name`, or `head.ref`. A `.` or `\` inside a field name is escaped as `\.` or `\\`, so a literal `user.login` field becomes the column `user\.login` and never shares a column with a nested `user` → `login` field.
 - Arrays are represented as compact single-cell values joined with `;`.
 - `body` fields are whitespace-normalized so multiline Markdown does not expand a list response into many output lines.
 - Response metadata present in wrapped responses, such as `pageInfo.*` and `totalCount`, is emitted as `#`-prefixed lines before the CSV rows, followed by a blank line. Tools that return a root JSON array do not include metadata preamble lines.

@@ -545,3 +545,58 @@ func csvRow(t *testing.T, headers []string, record []string) map[string]string {
 	}
 	return row
 }
+
+func TestJSONTextToCSVKeepsCollidingFlattenedKeysDistinct(t *testing.T) {
+	// Run several times: before the fix, Go map iteration order decided which
+	// value survived in a single shared column.
+	for range 20 {
+		csvText, err := jsonTextToCSV(`[{"user.login":"literal","user":{"login":"nested"}}]`)
+		require.NoError(t, err)
+
+		records := readCSVText(t, csvText)
+		require.Len(t, records, 2)
+		assert.Equal(t, []string{"user.login", `user\.login`}, records[0])
+
+		row := csvRow(t, records[0], records[1])
+		assert.Equal(t, "nested", row["user.login"])
+		assert.Equal(t, "literal", row[`user\.login`])
+	}
+}
+
+func TestJSONTextToCSVEscapesBackslashesInKeys(t *testing.T) {
+	// Without escaping "\" itself, a literal `a\.b` key would collide with the
+	// escaped form of a literal "a.b" key.
+	csvText, err := jsonTextToCSV(`[{"a.b":"dot","a\\.b":"backslash-dot","a\\":{"b":"backslash-nested"},"a":{"b":"nested"}}]`)
+	require.NoError(t, err)
+
+	records := readCSVText(t, csvText)
+	require.Len(t, records, 2)
+	require.Len(t, records[0], 4, "every source field gets its own column")
+
+	row := csvRow(t, records[0], records[1])
+	assert.Equal(t, "nested", row["a.b"])
+	assert.Equal(t, "dot", row[`a\.b`])
+	assert.Equal(t, "backslash-dot", row[`a\\\.b`])
+	assert.Equal(t, "backslash-nested", row[`a\\.b`])
+}
+
+func TestJSONTextToCSVKeepsCollidingMetadataKeysDistinct(t *testing.T) {
+	csvText, err := jsonTextToCSV(`{"pageInfo.endCursor":"literal","pageInfo":{"endCursor":"nested"},"items":[{"id":1}]}`)
+	require.NoError(t, err)
+
+	assert.Contains(t, csvText, "# pageInfo.endCursor: nested\n")
+	assert.Contains(t, csvText, "# pageInfo\\.endCursor: literal\n")
+}
+
+func TestJSONTextToCSVNormalizesOnlyBodyLeafKeys(t *testing.T) {
+	csvText, err := jsonTextToCSV(`[{"body":"a\n\nb","comment":{"body":"c\n d"},"x.body":"e\nf"}]`)
+	require.NoError(t, err)
+
+	records := readCSVText(t, csvText)
+	require.Len(t, records, 2)
+
+	row := csvRow(t, records[0], records[1])
+	assert.Equal(t, "a b", row["body"])
+	assert.Equal(t, "c d", row["comment.body"])
+	assert.Equal(t, "e\nf", row[`x\.body`], "a literal dotted key is not a nested body field")
+}
