@@ -393,12 +393,12 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(
 					http.MethodGet,
-					"/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+					"/mcp?features=issue_dependencies%2Ccsv_output&client=web%20ide",
 					nil,
 				)
 			},
 			resourcePath: "/mcp",
-			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp?features=issue_dependencies%2Ccsv_output&client=web%20ide",
 		},
 	}
 

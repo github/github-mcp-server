@@ -39,9 +39,9 @@ func TestCSVOutputAppliedToDefaultListTools(t *testing.T) {
 
 func TestCSVOutputAppliesToFlagGatedListTools(t *testing.T) {
 	enabledOnly := testCSVOutputTool("list_things", `[{"number":1}]`)
-	enabledOnly.FeatureRule = featureEnabledRule(FeatureFlagFileBlame)
+	enabledOnly.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	disabledOnly := testCSVOutputTool("list_legacy_things", `[{"number":2}]`)
-	disabledOnly.FeatureRule = featureDisabledRule(FeatureFlagFileBlame)
+	disabledOnly.FeatureRule = featureDisabledRule(FeatureFlagIssueDependencies)
 
 	tools := withCSVOutput([]inventory.ServerTool{enabledOnly, disabledOnly})
 	require.Len(t, tools, 2)
