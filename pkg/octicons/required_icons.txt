@@ -33,6 +33,7 @@ law
 logo-gist
 mark-github
 organization
+package
 people
 person
 project
