@@ -1487,6 +1487,17 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
+- **get_file_blame** - Get file blame information
+  - **OAuth Challenge Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file in the repository, relative to the repository root (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
+  - `repo`: Repository name (string, required)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+
 - **get_file_contents** - Get file or directory contents
   - **OAuth Challenge Scopes**: `repo`
   - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)

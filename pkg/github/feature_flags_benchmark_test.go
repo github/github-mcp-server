@@ -87,7 +87,7 @@ func BenchmarkFeatureInventory(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {
-					_ = inv.ForMCPRequest(inventory.MCPMethodToolsCall, "get_file_blame").ToolsForRegistration(context.Background())
+					_ = inv.ForMCPRequest(inventory.MCPMethodToolsCall, "issue_dependency_read").ToolsForRegistration(context.Background())
 				}
 				b.ReportMetric(float64(calls.Load())/float64(b.N), "checks/op")
 			})
@@ -147,7 +147,6 @@ func featureBenchmarkDistributions() []featureBenchmarkDistribution {
 			name: "mixed",
 			enabled: map[string]bool{
 				FeatureFlagCSVOutput:         true,
-				FeatureFlagFileBlame:         true,
 				FeatureFlagIssuesGranular:    true,
 				FeatureFlagIssueDependencies: true,
 			},
