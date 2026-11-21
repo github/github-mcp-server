@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
-	ghhttp "github.com/github/github-mcp-server/pkg/http"
+	http "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
