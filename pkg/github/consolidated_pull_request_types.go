@@ -431,6 +431,10 @@ var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
 		strings: []string{"commit_title", "commit_message", "merge_method", "expectedHeadSha"},
 	},
+	"auto_merge": {
+		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
+		strings: []string{"commit_title", "commit_message", "merge_method"},
+	},
 	"branch": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"}, strings: []string{"expectedHeadSha"},
 	},
