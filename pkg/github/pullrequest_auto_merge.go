@@ -75,7 +75,7 @@ func pullRequestAutoMergeTool(t translations.TranslationHelperFunc, enable bool)
 	if enable {
 		properties["merge_method"] = &jsonschema.Schema{
 			Type:        "string",
-			Description: "Merge method to use when the pull request becomes mergeable. If omitted, defaults to merge. Ignored when the pull request enters a merge queue.",
+			Description: "Merge method to use when the pull request becomes mergeable. If omitted, GitHub applies MERGE, which fails on repositories that do not allow merge commits — pass the method the repository permits. Ignored when the pull request enters a merge queue.",
 			Enum:        []any{"merge", "squash", "rebase"},
 		}
 		properties["commit_title"] = &jsonschema.Schema{

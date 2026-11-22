@@ -30,7 +30,7 @@
         "type": "string"
       },
       "merge_method": {
-        "description": "Merge method to use when the pull request becomes mergeable. If omitted, defaults to merge. Ignored when the pull request enters a merge queue.",
+        "description": "Merge method to use when the pull request becomes mergeable. If omitted, GitHub applies MERGE, which fails on repositories that do not allow merge commits — pass the method the repository permits. Ignored when the pull request enters a merge queue.",
         "enum": [
           "merge",
           "squash",
