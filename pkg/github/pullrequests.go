@@ -2063,22 +2063,10 @@ type PullRequestReviewWriteParams struct {
 	ResolutionReason *string
 }
 
-func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return pullRequestReviewWrite(t, false, toolConfig{})
-}
-
-// PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
-func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	cfg := newToolConfig(opts)
-	st := pullRequestReviewWrite(t, true, cfg)
-	if cfg.hostType == utils.HostTypeGHES {
-		st.Enabled = func(context.Context) (bool, error) { return false, nil }
-	}
-	return st
-}
-
-func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
-	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
+// PullRequestReviewWrite creates the consolidated review write tool. Resolution
+// reasons are omitted on GHES, which does not support them.
+func PullRequestReviewWrite(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	withResolutionReason := newToolConfig(opts).hostType != utils.HostTypeGHES
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2127,6 +2115,7 @@ func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolution
 		schema.Properties["resolutionReason"] = &jsonschema.Schema{
 			Type:        "string",
 			Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+			Enum:        []any{"addressed", "wont-fix", "invalid"},
 		}
 	}
 
@@ -2193,27 +2182,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		}, normalizePullRequestReviewWriteArguments)
-	if withResolutionReason {
-		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
-			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(FeatureFlagThreadResolutionReason) &&
-					!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
-			},
-		)
-	} else {
-		if cfg.hostType == utils.HostTypeGHES {
-			st.FeatureRule = pullRequestsConsolidatedRule
-		} else {
-			st.FeatureRule = inventory.NewFeatureRule(
-				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
-				func(featureAsBool inventory.FeatureResolver) bool {
-					return !featureAsBool(FeatureFlagThreadResolutionReason) &&
-						!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
-				},
-			)
-		}
-	}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 
@@ -2371,9 +2340,10 @@ func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client,
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := ResolveReviewThreadInput{
-			ThreadID:         githubv4.ID(threadID),
-			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
+		input := ResolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}
+		if resolutionReason != nil && *resolutionReason != "" {
+			// GraphQL expects enum names, e.g. "wont-fix" becomes WONT_FIX.
+			input.ResolutionReason = githubv4.NewString(githubv4.String(strings.ToUpper(strings.ReplaceAll(*resolutionReason, "-", "_"))))
 		}
 
 		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {

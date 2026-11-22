@@ -13,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -4772,13 +4773,13 @@ func TestResolveReviewThread(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
-		requestArgs          map[string]any
-		mockedClient         *http.Client
-		withResolutionReason bool
-		expectToolError      bool
-		expectedToolErrMsg   string
-		expectedResult       string
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		ghes               bool
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedResult     string
 	}{
 		{
 			name: "successful resolve thread",
@@ -4816,8 +4817,7 @@ func TestResolveReviewThread(t *testing.T) {
 			expectedResult: "review thread resolved successfully",
 		},
 		{
-			name:                 "successful resolve thread with resolution reason",
-			withResolutionReason: true,
+			name: "successful resolve thread with resolution reason",
 			requestArgs: map[string]any{
 				"method":           "resolve_thread",
 				"owner":            "owner",
@@ -4838,7 +4838,7 @@ func TestResolveReviewThread(t *testing.T) {
 					}{},
 					ResolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_kwDOTest123"),
-						ResolutionReason: newGQLStringlike[githubv4.String]("wont-fix"),
+						ResolutionReason: newGQLStringlike[githubv4.String]("WONT_FIX"),
 					},
 					nil,
 					githubv4mock.DataResponse(map[string]any{
@@ -4854,7 +4854,8 @@ func TestResolveReviewThread(t *testing.T) {
 			expectedResult: "review thread resolved successfully",
 		},
 		{
-			name: "default variant omits resolution reason",
+			name: "GHES omits resolution reason",
+			ghes: true,
 			requestArgs: map[string]any{
 				"method":           "resolve_thread",
 				"owner":            "owner",
@@ -5012,8 +5013,8 @@ func TestResolveReviewThread(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			if tc.withResolutionReason {
-				serverTool = PullRequestReviewWriteWithResolutionReason(translations.NullTranslationHelper)
+			if tc.ghes {
+				serverTool = PullRequestReviewWrite(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES))
 			}
 			deps := BaseDeps{
 				GQLClient: client,

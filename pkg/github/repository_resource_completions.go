@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v92/github"
@@ -248,6 +249,12 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 	}
 	if refVal == "" {
 		refVal = resolved["tag"]
+	}
+	if refVal == "" && resolved["prNumber"] != "" {
+		if _, err := strconv.Atoi(resolved["prNumber"]); err != nil {
+			return nil, fmt.Errorf("invalid pull request number: %w", err)
+		}
+		refVal = "refs/pull/" + resolved["prNumber"] + "/head"
 	}
 	if refVal == "" {
 		refVal = "HEAD"
