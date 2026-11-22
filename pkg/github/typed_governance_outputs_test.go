@@ -70,9 +70,9 @@ func assertGovernanceProjection(t *testing.T, tc governanceWireCase, output any)
 	}
 	switch tc.tool.Tool.Name {
 	case "get_label":
-		assert.JSONEq(t, `{"name":"bug","color":"ff0000","description":"desc"}`, mustMarshalJSON(t, output))
+		assert.JSONEq(t, `{"id":"L1","name":"bug","color":"ff0000","description":"desc"}`, mustMarshalJSON(t, output))
 	case "list_label":
-		assert.JSONEq(t, `{"labels":[{"name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, mustMarshalJSON(t, output))
+		assert.JSONEq(t, `{"labels":[{"id":"L1","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, mustMarshalJSON(t, output))
 	case "label_write":
 		assert.Equal(t, tc.args["method"], object["method"])
 		assert.Equal(t, tc.text, object["message"])
@@ -596,6 +596,26 @@ func TestTypedGovernanceLabelRetainsIFCMetadata(t *testing.T) {
 			assertGovernanceWireText(t, true, getTextResult(t, before).Text, result)
 		})
 	}
+}
+
+func TestListLabelsOutputPreservesLabelID(t *testing.T) {
+	t.Parallel()
+
+	legacy := []byte(`{"labels":[{"id":"MDExOlB1bGxSZXBvc2l0b3J5TGFiZWwx","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`)
+	output, err := decodeGovernanceJSON[ListLabelsOutput](legacy, nil)
+	require.NoError(t, err)
+	require.Len(t, output.Labels, 1)
+
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(legacy), string(encoded))
+
+	// A payload without an id still decodes.
+	withoutID := []byte(`{"labels":[{"name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`)
+	output, err = decodeGovernanceJSON[ListLabelsOutput](withoutID, nil)
+	require.NoError(t, err)
+	require.Len(t, output.Labels, 1)
+	assert.Equal(t, "bug", output.Labels[0].Name)
 }
 
 func TestTypedGetLabelToolsetVariant(t *testing.T) {
