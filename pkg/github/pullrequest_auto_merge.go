@@ -102,7 +102,7 @@ func pullRequestAutoMergeTool(t translations.TranslationHelperFunc, enable bool)
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", titleAction+" pull request auto-merge"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(false),
+				DestructiveHint: new(enable),
 				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
@@ -141,13 +141,13 @@ func setPullRequestAutoMerge(ctx context.Context, deps ToolDependencies, input P
 	if enable {
 		method, err := enablePullRequestAutoMerge(ctx, gqlClient, nodeID, input)
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to enable auto-merge for pull request", nil, err), PullRequestAutoMergeResult{}
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to enable auto-merge for pull request", err), PullRequestAutoMergeResult{}
 		}
 		output.AutoMergeEnabled = true
 		output.MergeMethod = method
 	} else {
 		if err := disablePullRequestAutoMerge(ctx, gqlClient, nodeID); err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to disable auto-merge for pull request", nil, err), PullRequestAutoMergeResult{}
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to disable auto-merge for pull request", err), PullRequestAutoMergeResult{}
 		}
 	}
 
