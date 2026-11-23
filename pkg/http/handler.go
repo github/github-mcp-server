@@ -490,7 +490,8 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 
 		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 		if err != nil {
-			return b
+			// Fail closed: with no verified scopes, withhold every scope-gated tool.
+			scopesList = nil
 		}
 
 		return b.WithFilter(github.CreateToolScopeFilter(scopesList))

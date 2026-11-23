@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -1679,4 +1680,33 @@ func TestMaxRequestBodySizeEnforcement(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
 		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
 	})
+}
+
+type errScopeFetcher struct{}
+
+func (errScopeFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
+	return nil, errors.New("scope endpoint unavailable")
+}
+
+func TestPATScopeFilterWithholdsScopeGatedToolsWhenScopeFetchErrors(t *testing.T) {
+	gated := mockTool("scoped_tool", "repos", true)
+	gated.ScopeAccess = scopes.RequireAll(scopes.Repo)
+	ungated := mockTool("unscoped_tool", "repos", true)
+	ungated.ScopeAccess = scopes.NoScopes()
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req = req.WithContext(ghcontext.WithTokenInfo(req.Context(), &ghcontext.TokenInfo{ //nolint:gosec // G101: synthetic fixture, not a credential.
+		Token:     "ghp_test",
+		TokenType: utils.TokenTypePersonalAccessToken,
+	}))
+
+	builder := inventory.NewBuilder().SetTools([]inventory.ServerTool{gated, ungated}).WithToolsets([]string{"all"})
+	inv, err := PATScopeFilter(builder, req, errScopeFetcher{}).Build()
+	require.NoError(t, err)
+
+	var names []string
+	for _, tool := range inv.AvailableTools(req.Context()) {
+		names = append(names, tool.Tool.Name)
+	}
+	assert.Equal(t, []string{"unscoped_tool"}, names)
 }

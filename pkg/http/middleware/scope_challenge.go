@@ -86,7 +86,8 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			if !ok || (len(activeScopes) == 0 && tokenInfo.Token != "") {
 				fetchedScopes, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
-					next.ServeHTTP(w, r)
+					// Fail closed: an unverifiable token must not reach the tool handler.
+					http.Error(w, "scope verification unavailable", http.StatusServiceUnavailable)
 					return
 				}
 				activeScopes = fetchedScopes
