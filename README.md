@@ -701,7 +701,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
   - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
 
-- **actions_run_trigger** - Trigger GitHub Actions workflow actions
+- **actions_run_trigger** - Run or manage workflows
   - **OAuth Challenge Scopes**: `repo`
   - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
   - `method`: The method to execute (string, required)
