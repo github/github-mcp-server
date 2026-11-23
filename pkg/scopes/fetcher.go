@@ -2,6 +2,7 @@ package scopes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,6 +18,10 @@ const OAuthScopesHeader = "X-OAuth-Scopes"
 
 // DefaultFetchTimeout is the default timeout for scope fetching requests.
 const DefaultFetchTimeout = 10 * time.Second
+
+// ErrInvalidToken reports that GitHub rejected the token as expired or revoked.
+// Callers must treat it as an authentication failure, not an outage.
+var ErrInvalidToken = errors.New("invalid or expired token")
 
 // FetcherOptions configures the scope fetcher.
 type FetcherOptions struct {
@@ -90,7 +95,7 @@ func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid or expired token")
+		return nil, ErrInvalidToken
 	}
 
 	if resp.StatusCode != http.StatusOK {

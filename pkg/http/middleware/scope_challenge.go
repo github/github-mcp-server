@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -82,10 +83,17 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 
 			// Get OAuth scopes for Token. First check if scopes are already in context,  then fetch from GitHub if not present.
 			// This allows Remote Server to pass scope info to avoid redundant GitHub API calls.
+			// A non-nil empty slice is an explicit "no scopes"; only a missing or nil
+			// value falls back to the GitHub lookup.
 			activeScopes, ok := ghcontext.GetTokenScopes(ctx)
-			if !ok || (len(activeScopes) == 0 && tokenInfo.Token != "") {
+			if !ok || (activeScopes == nil && tokenInfo.Token != "") {
 				fetchedScopes, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
+					if errors.Is(err, scopes.ErrInvalidToken) {
+						// An expired or revoked token needs a new credential, not a retry.
+						sendAuthChallenge(w, r, oauthCfg)
+						return
+					}
 					// Fail closed: an unverifiable token must not reach the tool handler.
 					http.Error(w, "scope verification unavailable", http.StatusServiceUnavailable)
 					return
