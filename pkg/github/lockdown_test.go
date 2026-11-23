@@ -36,3 +36,26 @@ func Test_authorLockdownResult(t *testing.T) {
 		assert.Contains(t, getErrorResult(t, result).Text, "failed to check lockdown mode")
 	})
 }
+
+func Test_actorLoginWithBotSuffix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, login, typename, want string
+	}{
+		{name: "bot without suffix", login: "my-bot", typename: "Bot", want: "my-bot[bot]"},
+		{name: "bot already suffixed", login: "my-bot[bot]", typename: "Bot", want: "my-bot[bot]"},
+		{name: "user is unchanged", login: "human", typename: "User", want: "human"},
+		{name: "github actions already suffixed", login: "github-actions[bot]", typename: "Bot", want: "github-actions[bot]"},
+		{name: "github actions bare bot login", login: "github-actions", typename: "Bot", want: "github-actions[bot]"},
+		{name: "copilot is preserved", login: "copilot", typename: "Bot", want: "copilot"},
+		{name: "copilot is preserved case-insensitively", login: "Copilot", typename: "Bot", want: "Copilot"},
+		{name: "empty login", login: "", typename: "Bot", want: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, actorLoginWithBotSuffix(tc.login, tc.typename))
+		})
+	}
+}
