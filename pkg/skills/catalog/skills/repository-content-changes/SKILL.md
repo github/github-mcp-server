@@ -71,26 +71,24 @@ everything; both are covered under confirmation below.
   repository created without `autoInit` has no default branch, and nothing can be
   branched from it until the first commit lands.
 
-## Recording the why with git notes
+## Recording the why with commit notes
 
 A commit message says what changed; a fix often also carries a debugging story — root
-cause, evidence such as workflow run ids, and why this fix and not another. Git notes
-hold that context on the commit without rewriting its message, so `git log --notes`
-tells the whole story.
+cause, evidence such as workflow run ids, and why this fix and not another. Commit
+notes hold that context on the commit without rewriting its message: they live on the
+`refs/notes/commits` ref, and a history view that includes notes tells the whole
+story.
 
-No tool in this workflow can write notes: they live on `refs/notes/commits`, which the
-API commits here never touch, and which a plain `git push` does not send either. When a
-fix commit lands through `push_files` or `create_or_update_file`, hand the user the
-commands to run locally rather than letting the context drop:
+No tool in this workflow writes that ref — commits made through this server never
+touch it, and the notes ref is neither sent nor received by default. When a fix
+commit lands through `push_files` or `create_or_update_file`, hand the user the
+context — root cause, evidence, the why — so they can record it on the commit with
+their own client rather than letting it drop. Mention that the notes ref needs an
+explicit send, and an explicit receive on a fresh clone (`+refs/notes/*:refs/notes/*`
+is the mapping to configure once so routine transfers include it).
 
-- add: `git notes add -m "<context>" <sha>`
-- push: `git push origin refs/notes/commits`
-- fetch on a fresh clone: `git fetch origin refs/notes/commits:refs/notes/commits`,
-  or set `git config --add remote.origin.fetch '+refs/notes/*:refs/notes/*'` once so
-  plain fetches pull them too
-
-Notes are a shared ref. Never rewrite or force-push `refs/notes/commits` casually —
-treat it like force-pushing the default branch, and confirm first.
+The notes ref is shared history. Never rewrite it casually — treat force-updating
+`refs/notes/commits` like force-updating the default branch, and confirm first.
 
 ## Confirm before every write
 
