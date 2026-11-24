@@ -567,8 +567,19 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 		}
 	}
 
-	sha = reference.GetObject().GetSHA()
-	return &raw.ContentOpts{Ref: ref, SHA: sha}, fallbackUsed, nil
+	// An annotated tag ref points at a tag object, not a commit. Peel it so the
+	// returned SHA names the tagged commit, like a branch or lightweight tag.
+	object := reference.GetObject()
+	for object.GetType() == "tag" {
+		tag, resp, err := githubClient.Git.GetTag(ctx, owner, repo, object.GetSHA())
+		if err != nil {
+			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get annotated tag", resp, err)
+			return nil, false, fmt.Errorf("failed to get annotated tag %q: %w", originalRef, err)
+		}
+		object = tag.GetObject()
+	}
+
+	return &raw.ContentOpts{Ref: ref, SHA: object.GetSHA()}, fallbackUsed, nil
 }
 
 func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {

@@ -5556,6 +5556,41 @@ func Test_resolveGitReference(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "annotated tag resolves to the tagged commit",
+			ref:  "v1.0.0",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							if strings.Contains(r.URL.Path, "/git/ref/heads/v1.0.0") {
+								w.WriteHeader(http.StatusNotFound)
+								_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+								return
+							}
+							assert.Contains(t, r.URL.Path, "/git/ref/tags/v1.0.0")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/tags/v1.0.0", "object": {"sha": "tag-object-sha", "type": "tag"}}`))
+						}),
+					),
+					WithRequestMatchHandler(
+						GetReposGitTagsByOwnerByRepoByTagSHA,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/tags/tag-object-sha")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"sha": "tag-object-sha", "object": {"sha": "commit-sha", "type": "commit"}}`))
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/tags/v1.0.0",
+				SHA: "commit-sha",
+			},
+			expectError: false,
+		},
+		{
 			name: "heads/ prefix gets refs/ prepended",
 			ref:  "heads/feature-branch",
 			sha:  "",
