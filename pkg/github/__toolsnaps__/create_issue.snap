@@ -48,6 +48,16 @@
         "type": "string",
         "x-mcp-header": "repo"
       },
+      "status": {
+        "description": "Initial planning status (create only). Only open statuses are supported. Backlog is backlog; Todo is planned; In progress and In review are started. Omit to use the repository default.",
+        "enum": [
+          "Backlog",
+          "Todo",
+          "In progress",
+          "In review"
+        ],
+        "type": "string"
+      },
       "title": {
         "description": "Issue title",
         "type": "string"

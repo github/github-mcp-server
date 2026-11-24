@@ -74,8 +74,8 @@ func Test_searchIssuesTool_descriptionMatchesEngine(t *testing.T) {
 	require.Equal(t, "search_issues", semantic.Tool.Name)
 	require.Equal(t, "search_issues", lexical.Tool.Name)
 
-	assert.Equal(t, searchIssuesSemanticDescription, semantic.Tool.Description)
-	assert.Equal(t, searchIssuesLexicalDescription, lexical.Tool.Description)
+	assert.Equal(t, searchIssuesSemanticDescription+" "+searchIssuesStatusDescription(), semantic.Tool.Description)
+	assert.Equal(t, searchIssuesLexicalDescription+" "+searchIssuesStatusDescription(), lexical.Tool.Description)
 
 	semanticSchema, ok := semantic.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)

@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 	gogithub "github.com/google/go-github/v92/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,7 +116,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagIssuesGranular)}, tool.FeatureRule.Features(), "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureRule.Features(), inventory.FeatureFlag(FeatureFlagIssuesGranular), "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -1171,6 +1173,148 @@ func TestGranularUpdateIssueState(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestUpdateIssueStatus(t *testing.T) {
+	cases := []struct {
+		status        string
+		category      string
+		duplicateCode int
+		updateCode    int
+		wantError     string
+	}{
+		{"Backlog", "backlog", 0, http.StatusOK, ""},
+		{"Todo", "planned", 0, http.StatusOK, ""},
+		{"In progress", "started", 0, http.StatusOK, ""},
+		{"In review", "started", 0, http.StatusOK, ""},
+		{"Done", "completed", 0, http.StatusOK, ""},
+		{"Not planned", "not_planned", 0, http.StatusOK, ""},
+		{"Duplicate", "duplicate", http.StatusOK, http.StatusOK, ""},
+		{"Duplicate", "duplicate", http.StatusNotFound, 0, "failed to get duplicate issue"},
+		{"Todo", "planned", 0, http.StatusForbidden, "failed to update issue"},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s/%d/%d", tc.status, tc.duplicateCode, tc.updateCode), func(t *testing.T) {
+			gets, patches := 0, 0
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet {
+					gets++
+					assert.Equal(t, "/repos/owner/repo/issues/7", r.URL.Path)
+					w.WriteHeader(tc.duplicateCode)
+					_, _ = w.Write([]byte(`{"id":987,"message":"Not Found"}`))
+					return
+				}
+				patches++
+				assert.Equal(t, http.MethodPatch, r.Method)
+				assert.Equal(t, "/repos/owner/repo/issues/42", r.URL.Path)
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				expected := map[string]any{"status": tc.status}
+				if tc.status == "Duplicate" {
+					expected["duplicate_issue_id"] = float64(987)
+				}
+				assert.Equal(t, expected, body, "only the status and resolved duplicate ID should be sent")
+				w.WriteHeader(tc.updateCode)
+				_, _ = fmt.Fprintf(w, `{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":%q,"category":%q},"message":"Forbidden"}`, tc.status, tc.category)
+			})}}
+			session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, inventory.ProtocolVersionMultiRoundTrip)
+			args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": "42", "status": strings.ToLower(tc.status)}
+			if tc.status == "Duplicate" {
+				args["duplicate_of"] = "7"
+			}
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: args})
+			require.NoError(t, err)
+			if tc.wantError != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, tc.wantError)
+			} else {
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				assert.JSONEq(t, fmt.Sprintf(`{"id":"123","url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":%q,"category":%q}}`, tc.status, tc.category), getTextResult(t, result).Text)
+				assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+			}
+			if tc.status == "Duplicate" {
+				assert.Equal(t, 1, gets)
+			} else {
+				assert.Zero(t, gets)
+			}
+			if tc.updateCode == 0 {
+				assert.Zero(t, patches, "failed duplicate lookup must prevent the mutation")
+			} else {
+				assert.Equal(t, 1, patches)
+			}
+		})
+	}
+}
+
+func TestIssuePlanningStatusInvalidInput(t *testing.T) {
+	translate := translations.NullTranslationHelper
+	cases := []struct {
+		tool inventory.ServerTool
+		args map[string]any
+		want string
+	}{
+		{UpdateIssueStatus(translate), map[string]any{"status": "Duplicate"}, "duplicate_of is required"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Duplicate", "duplicate_of": 0}, "duplicate_of must be positive"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "duplicate_of": 7}, "duplicate_of can only be used"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "unknown"}, "status must be one of"},
+		{UpdateIssueStatus(translate), map[string]any{"status": nil}, "status"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "issue_number": -1}, "issue_number must be positive"},
+		{GranularCreateIssue(translate), map[string]any{"status": "Done"}, "status must be one of: Backlog, Todo, In progress, In review"},
+		{IssueWrite(translate), map[string]any{"method": "update", "status": "Todo"}, "status is only supported with the create method"},
+		{IssueWrite(translate), map[string]any{"status": "Todo", "state": "closed"}, "status cannot be combined with state"},
+	}
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("%s/%d", tc.tool.Tool.Name, i), func(t *testing.T) {
+			args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": 42, "title": "Subject", "method": "create"}
+			maps.Copy(args, tc.args)
+			req := createMCPRequest(args)
+			result, err := tc.tool.Handler(BaseDeps{})(context.Background(), &req)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, tc.want)
+		})
+	}
+}
+
+func TestIssuePlanningStatusCreationNotApplied(t *testing.T) {
+	for _, tool := range []inventory.ServerTool{
+		IssueWrite(translations.NullTranslationHelper), GranularCreateIssue(translations.NullTranslationHelper),
+	} {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			client := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, map[string]any{
+					"id": 123, "number": 42, "html_url": "https://github.com/owner/repo/issues/42",
+					"status": map[string]any{"id": 1, "name": "Backlog", "category": "backlog"},
+				}),
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, client), GQLClient: defaultGQLClient}
+			req := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "method": "create", "status": "Todo"})
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &req)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Equal(t, `issue https://github.com/owner/repo/issues/42 was created, but requested status "Todo" was not applied`, getTextResult(t, result).Text,
+				"a created issue must not be reported as a failed creation")
+		})
+	}
+}
+
+func TestUpdateIssueStatusUnrecognizedResponse(t *testing.T) {
+	for _, status := range []string{`{"id":9,"name":"Blocked","category":"started"}`, `{"id":9,"name":"Todo","category":"custom"}`, `"Todo"`} {
+		t.Run(status, func(t *testing.T) {
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = fmt.Fprintf(w, `{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":%s}`, status)
+			})}}
+			session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, inventory.ProtocolVersionMultiRoundTrip)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
+				"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
+			}})
+			require.NoError(t, err)
+			require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+			assert.JSONEq(t, `{"id":"123","url":"https://github.com/owner/repo/issues/42","status":null}`, getTextResult(t, result).Text)
 		})
 	}
 }

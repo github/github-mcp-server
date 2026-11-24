@@ -586,6 +586,48 @@
             ],
             "type": "string"
           },
+          "status": {
+            "additionalProperties": false,
+            "description": "The issue's planning status, or null when it has none or it is not recognized. Backlog is backlog; Todo is planned; In progress and In review are started; Done is completed; Not planned is not_planned; Duplicate is duplicate.",
+            "properties": {
+              "category": {
+                "enum": [
+                  "backlog",
+                  "planned",
+                  "started",
+                  "completed",
+                  "not_planned",
+                  "duplicate"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "description": "The status ID.",
+                "type": "integer"
+              },
+              "name": {
+                "enum": [
+                  "Backlog",
+                  "Todo",
+                  "In progress",
+                  "In review",
+                  "Done",
+                  "Not planned",
+                  "Duplicate"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "category"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "sub_issues_summary": {
             "additionalProperties": false,
             "properties": {
@@ -642,7 +684,8 @@
           "number",
           "title",
           "state",
-          "assignees"
+          "assignees",
+          "status"
         ],
         "type": [
           "null",

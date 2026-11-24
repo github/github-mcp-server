@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
+	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
@@ -21,6 +23,237 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func issueStatusSession(t *testing.T, deps BaseDeps, protocol string, flags ...inventory.FeatureFlag) (*mcp.ClientSession, []*mcp.Tool) {
+	t.Helper()
+	translate := translations.NullTranslationHelper
+	tools := []inventory.ServerTool{
+		IssueRead(translate), IssueWrite(translate), GranularCreateIssue(translate),
+		SearchIssues(translate), UpdateIssueStatus(translate),
+	}
+	checker := featureCheckerFor(flags...)
+	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker).Build()
+	require.NoError(t, err)
+	server := mcp.NewServer(&mcp.Implementation{Name: "issue-statuses", Version: "v1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	inv.RegisterTools(context.Background(), server, deps)
+	session := connectCommentVisibilityClient(t, server, protocol)
+	list, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	return session, list.Tools
+}
+
+func TestIssuePlanningStatusToolAvailability(t *testing.T) {
+	for _, granular := range []bool{false, true} {
+		t.Run(fmt.Sprintf("granular=%t", granular), func(t *testing.T) {
+			var flags []inventory.FeatureFlag
+			if granular {
+				flags = append(flags, inventory.FeatureFlag(FeatureFlagIssuesGranular))
+			}
+			_, tools := issueStatusSession(t, BaseDeps{}, inventory.ProtocolVersionMultiRoundTrip, flags...)
+			names := make(map[string]bool)
+			for _, tool := range tools {
+				require.False(t, names[tool.Name], "duplicate registration: %s", tool.Name)
+				names[tool.Name] = true
+				var input, output jsonschema.Schema
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.InputSchema)), &input))
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &output))
+				if tool.Name == "issue_write" || tool.Name == "create_issue" {
+					assert.Contains(t, input.Properties, "status")
+				}
+				if tool.Name == "issue_read" {
+					assert.Contains(t, output.Properties["issue"].Properties, "status")
+				}
+				if tool.Name == "search_issues" {
+					assert.Contains(t, tool.Description, "status:")
+				}
+			}
+			assert.Equal(t, granular, names["create_issue"])
+			assert.Equal(t, !granular, names["issue_write"])
+			assert.True(t, names["update_issue_status"])
+		})
+	}
+}
+
+func TestUpdateIssueStatusWireContract(t *testing.T) {
+	const expected = `{"id":"123","url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":"Todo","category":"planned"}}`
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPatch, r.Method)
+				assert.Equal(t, "/repos/owner/repo/issues/42", r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":"Todo","category":"planned"}}`))
+			})}}
+			session, tools := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, protocol)
+
+			var outputSchema *jsonschema.Resolved
+			found := false
+			for _, tool := range tools {
+				if tool.Name != "update_issue_status" {
+					continue
+				}
+				found = true
+				if protocol == inventory.ProtocolVersionMultiRoundTrip {
+					require.NoError(t, toolsnaps.Test(tool.Name, *tool))
+					var schema jsonschema.Schema
+					require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
+					var err error
+					outputSchema, err = schema.Resolve(nil)
+					require.NoError(t, err)
+				} else {
+					assert.Nil(t, tool.OutputSchema)
+				}
+			}
+			require.True(t, found)
+
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
+				"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
+			}})
+			require.NoError(t, err)
+			require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+			assert.JSONEq(t, expected, getTextResult(t, result).Text)
+			if protocol == inventory.ProtocolVersionMultiRoundTrip {
+				require.NotNil(t, outputSchema)
+				assert.JSONEq(t, expected, mustMarshalJSON(t, result.StructuredContent))
+				var output any
+				require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, result.StructuredContent)), &output))
+				require.NoError(t, outputSchema.Validate(output))
+			} else {
+				assert.Nil(t, result.StructuredContent)
+			}
+		})
+	}
+}
+
+func TestIssuePlanningStatusRead(t *testing.T) {
+	const inProgress = `{"id":4,"name":"In progress","category":"started"}`
+	unrecognized := []string{`{"id":9,"name":"Blocked","category":"started"}`, `{"id":9,"name":"Todo","category":"custom"}`, `"Todo"`}
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		for _, status := range append([]string{inProgress, "null", ""}, unrecognized...) {
+			t.Run(fmt.Sprintf("%s/status=%s", protocol, status), func(t *testing.T) {
+				calls := 0
+				rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls++
+					assert.Equal(t, http.MethodGet, r.Method)
+					assert.Equal(t, "/repos/owner/repo/issues/42", r.URL.Path)
+					payload := `{"id":123,"number":42,"title":"Subject","state":"open"}`
+					if status != "" {
+						payload = strings.TrimSuffix(payload, "}") + `,"status":` + status + "}"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(payload))
+				})}}
+				deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: defaultGQLClient, RepoAccessCache: stubRepoAccessCache(nil, time.Minute)}
+				session, tools := issueStatusSession(t, deps, protocol)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "issue_read", Arguments: map[string]any{
+					"method": "get", "owner": "owner", "repo": "repo", "issue_number": 42,
+				}})
+				require.NoError(t, err)
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				assert.Equal(t, 1, calls, "status must use the original issue GET")
+				var output map[string]any
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &output))
+				if protocol == inventory.ProtocolVersionMultiRoundTrip {
+					assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+					for _, tool := range tools {
+						if tool.Name == "issue_read" {
+							var schema jsonschema.Schema
+							require.NoError(t, json.Unmarshal([]byte(mustMarshalJSON(t, tool.OutputSchema)), &schema))
+							resolved, err := schema.Resolve(nil)
+							require.NoError(t, err)
+							require.NoError(t, resolved.Validate(output))
+						}
+					}
+					output = output["issue"].(map[string]any)
+				}
+				value, present := output["status"]
+				assert.True(t, present)
+				if status == inProgress {
+					assert.JSONEq(t, status, mustMarshalJSON(t, value))
+				} else {
+					assert.Nil(t, value, "missing and unrecognized statuses must be null")
+				}
+			})
+		}
+	}
+}
+
+func TestIssuePlanningStatusCreation(t *testing.T) {
+	for _, tc := range []struct{ granular, parent, ignored bool }{
+		{false, false, false}, {false, true, false},
+		{true, false, false}, {true, true, false},
+		{false, true, true},
+	} {
+		granular, parent := tc.granular, tc.parent
+		t.Run(fmt.Sprintf("granular=%t/parent=%t/ignored=%t", granular, parent, tc.ignored), func(t *testing.T) {
+			calls := 0
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/repos/owner/repo/issues", r.URL.Path)
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				assert.Equal(t, "In review", body["status"])
+				assert.Equal(t, "Subject", body["title"])
+				assert.Equal(t, "Body", body["body"])
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{"id":123,"number":42,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":5,"name":"In review","category":"started"}}`))
+			})}}
+			gql := defaultGQLClient
+			if parent {
+				parentID, statusID := githubv4.ID("I_parent"), githubv4.ID("IS_review")
+				statusName := "In review"
+				if tc.ignored {
+					statusName = "Backlog"
+				}
+				gql = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+					createIssueParentMatcher(3, "owner", "repo", "R_repo", "I_parent"),
+					githubv4mock.NewQueryMatcher(
+						"query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){planningStatuses(first: 7){nodes{id,name}}}}",
+						map[string]any{"owner": "owner", "repo": "repo"},
+						githubv4mock.DataResponse(map[string]any{"repository": map[string]any{"planningStatuses": map[string]any{"nodes": []any{map[string]any{"id": "IS_review", "name": "In review"}}}}}),
+					),
+					githubv4mock.NewMutationMatcher(createIssueWithStatusMutation{}, CreateIssueInput{
+						RepositoryID: githubv4.ID("R_repo"), Title: githubv4.String("Subject"), Body: githubv4.NewString("Body"),
+						ParentIssueID: &parentID, StatusID: &statusID,
+					}, nil, githubv4mock.DataResponse(map[string]any{"createIssue": map[string]any{"issue": map[string]any{
+						"fullDatabaseId": "123", "url": "https://github.com/owner/repo/issues/42", "status": map[string]any{"name": statusName},
+					}}})),
+				))
+			}
+			deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: gql}
+			var flags []inventory.FeatureFlag
+			name := "issue_write"
+			args := map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "body": "Body", "status": "in review"}
+			if granular {
+				flags = append(flags, inventory.FeatureFlag(FeatureFlagIssuesGranular))
+				name = "create_issue"
+			} else {
+				args["method"] = "create"
+			}
+			if parent {
+				args["parent_issue_number"] = 3
+			}
+			session, _ := issueStatusSession(t, deps, inventory.ProtocolVersionMultiRoundTrip, flags...)
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+			require.NoError(t, err)
+			if tc.ignored {
+				require.True(t, result.IsError)
+				assert.Equal(t, `issue https://github.com/owner/repo/issues/42 was created, but requested status "In review" was not applied`, getTextResult(t, result).Text)
+			} else {
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				assert.Contains(t, getTextResult(t, result).Text, `"id":"123"`)
+			}
+			if parent {
+				assert.Zero(t, calls, "parent and status must be created atomically, without a REST write")
+			} else {
+				assert.Equal(t, 1, calls)
+			}
+		})
+	}
+}
 
 func consolidatedIssueSession(t *testing.T, deps BaseDeps, protocol string, ui bool) (*mcp.ClientSession, map[string]*jsonschema.Resolved) {
 	t.Helper()
@@ -251,7 +484,7 @@ func TestTypedConsolidatedIssueOutputs(t *testing.T) {
 		args map[string]any
 		text string
 	}{
-		{"issue_read", map[string]any{"method": "get", "issue_number": "1.0"}, `{"number":1,"title":"Subject","state":"open","html_url":"https://github.com/owner/repo/issues/1","assignees":[]}`},
+		{"issue_read", map[string]any{"method": "get", "issue_number": "1.0"}, `{"number":1,"title":"Subject","state":"open","html_url":"https://github.com/owner/repo/issues/1","assignees":[],"status":null}`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": "1", "page": "0", "perPage": "0"}, `[{"id":42,"body":"hello","html_url":"https://github.com/owner/repo/issues/1#issuecomment-42"}]`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": 2}, `[]`},
 		{"issue_read", map[string]any{"method": "get_comments", "issue_number": 3}, `[]`},
@@ -444,7 +677,7 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 	}{
 		{
 			issueReadOutputSchema(),
-			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[]}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
+			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[],"status":null}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
 			[]string{`null`, `[]`, `{}`, `{"method":"get"}`, `{"method":"get","comments":[]}`, `{"method":"get","issue":{"number":1}}`, `{"method":"get_parent","parent":{"number":1}}`, `{"method":"get_labels","labels":[]}`, `{"method":"get","issue":null,"comments":[]}`},
 		},
 		{

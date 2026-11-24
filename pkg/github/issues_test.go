@@ -1847,6 +1847,7 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "status")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
@@ -3181,33 +3182,22 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 		"parent_issue_number": {},
 		"parent_owner":        {},
 		"parent_repo":         {},
+		"status":              {},
 	}
 
-	cases := []struct {
-		name string
-		tool inventory.ServerTool
-	}{
-		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
-	}
+	schema, ok := IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			schema, ok := tc.tool.Tool.InputSchema.(*jsonschema.Schema)
-			require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	for prop := range schema.Properties {
+		_, isForm := issueWriteFormParams[prop]
+		_, isNonForm := knownNonForm[prop]
 
-			for prop := range schema.Properties {
-				_, isForm := issueWriteFormParams[prop]
-				_, isNonForm := knownNonForm[prop]
-
-				assert.Falsef(t, isForm && isNonForm,
-					"property %q is classified as both form-resendable and non-form — pick one", prop)
-				assert.Truef(t, isForm || isNonForm,
-					"property %q in %s schema is unclassified — add it to issueWriteFormParams (pkg/github/issues.go) "+
-						"if the MCP App form can carry it on submit, otherwise add it to the knownNonForm allowlist in this test",
-					prop, tc.name)
-			}
-		})
+		assert.Falsef(t, isForm && isNonForm,
+			"property %q is classified as both form-resendable and non-form — pick one", prop)
+		assert.Truef(t, isForm || isNonForm,
+			"property %q in IssueWrite schema is unclassified — add it to issueWriteFormParams (pkg/github/issues.go) "+
+				"if the MCP App form can carry it on submit, otherwise add it to the knownNonForm allowlist in this test",
+			prop)
 	}
 }
 

@@ -619,6 +619,13 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
+The `issues` toolset supports planning statuses. `issue_read` returns the
+current status, `search_issues` documents the `status:` qualifier, and issue
+creation accepts Backlog, Todo, In progress, or In review. The
+`update_issue_status` tool also accepts Done, Not planned, and Duplicate;
+Duplicate requires the canonical issue number in `duplicate_of`. Calls that set
+an initial status bypass the MCP App form, which cannot represent it.
+
 ### Additional Toolsets in Remote GitHub MCP Server
 
 | Toolset                 | Description                                                   |
@@ -1090,6 +1097,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `status`: Initial planning status (create only). Only open statuses are supported. Backlog is backlog; Todo is planned; In progress and In review are started. Omit to use the repository default. (string, optional)
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
@@ -1151,6 +1159,14 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `comment_id`: The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID. (integer, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **update_issue_status** - Update Issue Status
+  - **OAuth Challenge Scopes**: `repo`
+  - `duplicate_of`: The canonical issue number. Required only for Duplicate. (number, optional)
+  - `issue_number`: The issue number to update (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+  - `status`: The planning status to assign. (string, required)
 
 </details>
 

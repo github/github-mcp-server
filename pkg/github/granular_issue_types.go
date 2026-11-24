@@ -30,6 +30,7 @@ type GranularCreateIssueInput struct {
 	ParentIssueNumber *int   `json:"parent_issue_number,omitempty"`
 	ParentOwner       string `json:"parent_owner,omitempty"`
 	ParentRepo        string `json:"parent_repo,omitempty"`
+	Status            string `json:"status,omitempty"`
 }
 
 type GranularIssueTitleInput struct {
@@ -455,7 +456,11 @@ func normalizeGranularCreateIssueArguments(raw json.RawMessage) (json.RawMessage
 		parentNumber = &parentIssueNumber
 	}
 
-	return marshalGranularIssueArguments(args, GranularCreateIssueInput{Owner: owner, Repo: repo, Title: title, Body: body, ParentIssueNumber: parentNumber, ParentOwner: parentOwner, ParentRepo: parentRepo})
+	status, err := OptionalParam[string](args, "status")
+	if err != nil {
+		return nil, err
+	}
+	return marshalGranularIssueArguments(args, GranularCreateIssueInput{Owner: owner, Repo: repo, Title: title, Body: body, ParentIssueNumber: parentNumber, ParentOwner: parentOwner, ParentRepo: parentRepo, Status: status})
 }
 
 func normalizeGranularUpdateIssueAssigneesArguments(raw json.RawMessage) (json.RawMessage, error) {

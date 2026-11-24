@@ -87,7 +87,7 @@ func TestTypedIssueReadEnrichmentAndLockdown(t *testing.T) {
 				if !lockdown {
 					text += `{"number":8,"title":"Closing","state":"OPEN","url":"closing","repository":"owner/repo"}`
 				}
-				text += `]}}`
+				text += `]},"status":null}`
 				result := assertConsolidatedResult(t, session, schemas, "issue_read", map[string]any{
 					"method": "get", "owner": "owner", "repo": "repo", "issue_number": 1,
 				}, text)

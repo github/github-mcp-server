@@ -62,6 +62,9 @@ do it.
 - `labels` — must already exist on the repository. This tool applies labels; it does not
   create them.
 - `assignees` — assigning someone is a claim on their time. Only from an instruction.
+- `status` — when advertised by `issue_write` or `create_issue`, creation accepts
+  Backlog, Todo, In progress or In review. The parent and initial status can be set
+  atomically. Closed statuses cannot be assigned at creation.
 - `sub_issue_id` on `sub_issue_write` — the internal identifier, which is not the issue
   number. Read it from the issue rather than assuming the number will work.
 

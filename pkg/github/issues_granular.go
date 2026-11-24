@@ -170,23 +170,27 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 				}
-				result, output, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
-				return result, output, err
+				return createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo, args.Status)
 			}
 
-			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueReq)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
+			issue, resp, err := createRESTIssue(ctx, client, owner, repo, issueReq, args.Status)
+			if resp != nil {
+				defer func() { _ = resp.Body.Close() }()
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if err != nil {
+				return createIssueErrorResult(ctx, resp, err), nil, nil
+			}
 
 			return granularIssueMinimalResult(&MinimalResponse{
 				ID:  fmt.Sprintf("%d", issue.GetID()),
 				URL: issue.GetHTMLURL(),
 			})
 		},
-		granularIssueInputNormalizer(normalizeGranularCreateIssueArguments),
+		granularIssueInputNormalizer(normalizeIssueCreationStatus(normalizeGranularCreateIssueArguments, false)),
 	)
+	schema := inventory.CloneSchema(st.Tool.InputSchema.(*jsonschema.Schema))
+	schema.Properties["status"] = issueCreationStatusProperty()
+	st.Tool.InputSchema = schema
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
