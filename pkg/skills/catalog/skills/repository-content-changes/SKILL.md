@@ -71,6 +71,27 @@ everything; both are covered under confirmation below.
   repository created without `autoInit` has no default branch, and nothing can be
   branched from it until the first commit lands.
 
+## Recording the why with git notes
+
+A commit message says what changed; a fix often also carries a debugging story — root
+cause, evidence such as workflow run ids, and why this fix and not another. Git notes
+hold that context on the commit without rewriting its message, so `git log --notes`
+tells the whole story.
+
+No tool in this workflow can write notes: they live on `refs/notes/commits`, which the
+API commits here never touch, and which a plain `git push` does not send either. When a
+fix commit lands through `push_files` or `create_or_update_file`, hand the user the
+commands to run locally rather than letting the context drop:
+
+- add: `git notes add -m "<context>" <sha>`
+- push: `git push origin refs/notes/commits`
+- fetch on a fresh clone: `git fetch origin refs/notes/commits:refs/notes/commits`,
+  or set `git config --add remote.origin.fetch '+refs/notes/*:refs/notes/*'` once so
+  plain fetches pull them too
+
+Notes are a shared ref. Never rewrite or force-push `refs/notes/commits` casually —
+treat it like force-pushing the default branch, and confirm first.
+
 ## Confirm before every write
 
 These are the only tools in this workflow that are not reversible by another call, and
