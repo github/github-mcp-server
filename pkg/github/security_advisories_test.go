@@ -127,6 +127,41 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	}
 }
 
+func Test_ListGlobalSecurityAdvisories_SwiftEcosystem(t *testing.T) {
+	// The server validates arguments against the tool schema, so an ecosystem
+	// missing from the enum is rejected before the API is ever called.
+	var gotEcosystem string
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetAdvisories: func(w http.ResponseWriter, r *http.Request) {
+			gotEcosystem = r.URL.Query().Get("ecosystem")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[{"ghsa_id": "GHSA-xxxx-xxxx-xxxx"}]`))
+		},
+	}))
+	deps := BaseDeps{Client: client}
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	tool := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
+	tool.RegisterFunc(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := mcpClient.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_global_security_advisories",
+		Arguments: map[string]any{"ecosystem": "swift"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, "unexpected error result: %v", result.Content)
+	assert.Equal(t, "swift", gotEcosystem)
+}
+
 func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	toolDef := GetGlobalSecurityAdvisory(translations.NullTranslationHelper)
 	tool := toolDef.Tool
