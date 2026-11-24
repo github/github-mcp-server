@@ -5591,6 +5591,37 @@ func Test_resolveGitReference(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "annotated tag nested too deep returns an error",
+			ref:  "v1.0.0",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							if strings.Contains(r.URL.Path, "/git/ref/heads/v1.0.0") {
+								w.WriteHeader(http.StatusNotFound)
+								_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+								return
+							}
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/tags/v1.0.0", "object": {"sha": "tag-object-sha", "type": "tag"}}`))
+						}),
+					),
+					WithRequestMatchHandler(
+						GetReposGitTagsByOwnerByRepoByTagSHA,
+						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							// Every tag points at another tag.
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"sha": "tag-object-sha", "object": {"sha": "tag-object-sha", "type": "tag"}}`))
+						}),
+					),
+				)
+			},
+			expectError:   true,
+			errorContains: "nested more than 10 levels deep",
+		},
+		{
 			name: "heads/ prefix gets refs/ prepended",
 			ref:  "heads/feature-branch",
 			sha:  "",
