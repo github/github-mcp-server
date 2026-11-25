@@ -3,13 +3,13 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -51,24 +51,6 @@ func (issue *issueWithStatus) planningStatus() *IssuePlanningStatus {
 		return nil
 	}
 	return status
-}
-
-// issueStatusNotAppliedError reports an issue that was created without its requested
-// status. It is kept distinct from a failed creation so agents don't retry and duplicate the issue.
-type issueStatusNotAppliedError struct {
-	URL    string
-	Status string
-}
-
-func (e issueStatusNotAppliedError) Error() string {
-	return fmt.Sprintf("issue %s was created, but requested status %q was not applied", e.URL, e.Status)
-}
-
-func createIssueErrorResult(ctx context.Context, resp *github.Response, err error) *mcp.CallToolResult {
-	if notApplied, ok := errors.AsType[issueStatusNotAppliedError](err); ok {
-		return utils.NewToolResultError(notApplied.Error())
-	}
-	return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err)
 }
 
 func enumValues(values []string) []any {
@@ -255,8 +237,13 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
 			}
-			output := &IssueStatusUpdateOutput{ID: fmt.Sprintf("%d", issue.GetID()), URL: issue.GetHTMLURL(), Status: issue.planningStatus()}
-			return MarshalledTextResult(output), output, nil
+			status := issue.planningStatus()
+			if status == nil || status.Name != args.Status {
+				return utils.NewToolResultError(fmt.Sprintf("requested status %q was not applied; issue statuses may be unavailable in this repository", args.Status)), nil, nil
+			}
+			output := &IssueStatusUpdateOutput{ID: fmt.Sprintf("%d", issue.GetID()), URL: issue.GetHTMLURL(), Status: status}
+			result := attachRepoVisibilityIFCLabel(ctx, deps, client, args.Owner, args.Repo, MarshalledTextResult(output), ifc.LabelRepoMetadata)
+			return result, output, nil
 		},
 		granularIssueInputNormalizer(normalizeIssueStatusArguments),
 	)
@@ -285,15 +272,9 @@ func createRESTIssue(ctx context.Context, client *github.Client, owner, repo str
 	if err != nil {
 		return nil, nil, err
 	}
-	var issue issueWithStatus
+	var issue github.Issue
 	resp, err := client.Do(req, &issue)
-	if err != nil {
-		return nil, resp, err
-	}
-	if applied := issue.planningStatus(); applied == nil || applied.Name != status {
-		return nil, resp, issueStatusNotAppliedError{URL: issue.GetHTMLURL(), Status: status}
-	}
-	return &issue.Issue, resp, nil
+	return &issue, resp, err
 }
 
 func resolveIssueStatusID(ctx context.Context, client *githubv4.Client, owner, repo, status string) (githubv4.ID, error) {

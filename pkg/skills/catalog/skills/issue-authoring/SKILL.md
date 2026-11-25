@@ -95,6 +95,8 @@ do it.
   labels is a separate decision that affects the whole repository.
 - **The account cannot write** — the issue cannot be filed from here. Give the complete
   text so it can be filed by hand rather than losing it.
+- **A write only partially succeeds** — report what was saved and what failed.
+  Make any corrections on the existing issue rather than repeating creation.
 - **The report is not reproducible and not specific** — say what is missing rather than
   filing something that will be closed for lack of detail. An unfiled question is
   recoverable; a vague issue occupies someone's attention and then dies.

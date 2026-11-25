@@ -13,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/v2/internal/githubv4mock"
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/sanitize"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -126,6 +127,46 @@ func TestUpdateIssueStatusWireContract(t *testing.T) {
 	}
 }
 
+func TestUpdateIssueStatusIFCLabel(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		for _, private := range []bool{false, true} {
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/private=%t/enabled=%t", protocol, private, enabled), func(t *testing.T) {
+					lookups := 0
+					rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						if r.Method == http.MethodGet {
+							lookups++
+							assert.Equal(t, "/repos/owner/repo", r.URL.Path)
+							_, _ = fmt.Fprintf(w, `{"private":%t}`, private)
+							return
+						}
+						assert.Equal(t, http.MethodPatch, r.Method)
+						_, _ = w.Write([]byte(`{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":"Todo","category":"planned"}}`))
+					})}}
+					deps := BaseDeps{Client: mustNewGHClient(t, rest)}
+					if enabled {
+						deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
+					}
+					session, _ := issueStatusSession(t, deps, protocol)
+					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
+						"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
+					}})
+					require.NoError(t, err)
+					require.False(t, result.IsError)
+					if enabled {
+						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(private)), mustMarshalJSON(t, result.Meta["ifc"]))
+						assert.Equal(t, 1, lookups)
+					} else {
+						assert.NotContains(t, result.Meta, "ifc")
+						assert.Zero(t, lookups)
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestIssuePlanningStatusRead(t *testing.T) {
 	const inProgress = `{"id":4,"name":"In progress","category":"started"}`
 	unrecognized := []string{`{"id":9,"name":"Blocked","category":"started"}`, `{"id":9,"name":"Todo","category":"custom"}`, `"Todo"`}
@@ -180,78 +221,79 @@ func TestIssuePlanningStatusRead(t *testing.T) {
 }
 
 func TestIssuePlanningStatusCreation(t *testing.T) {
-	for _, tc := range []struct{ granular, parent, ignored bool }{
-		{false, false, false}, {false, true, false},
-		{true, false, false}, {true, true, false},
-		{false, true, true},
-	} {
-		granular, parent := tc.granular, tc.parent
-		t.Run(fmt.Sprintf("granular=%t/parent=%t/ignored=%t", granular, parent, tc.ignored), func(t *testing.T) {
-			calls := 0
-			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				assert.Equal(t, http.MethodPost, r.Method)
-				assert.Equal(t, "/repos/owner/repo/issues", r.URL.Path)
-				var body map[string]any
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-				assert.Equal(t, "In review", body["status"])
-				assert.Equal(t, "Subject", body["title"])
-				assert.Equal(t, "Body", body["body"])
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusCreated)
-				_, _ = w.Write([]byte(`{"id":123,"number":42,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":5,"name":"In review","category":"started"}}`))
-			})}}
-			gql := defaultGQLClient
-			if parent {
-				parentID, statusID := githubv4.ID("I_parent"), githubv4.ID("IS_review")
-				statusName := "In review"
-				if tc.ignored {
-					statusName = "Backlog"
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		for _, tc := range []struct{ granular, parent, ignored bool }{
+			{false, false, false}, {false, true, false},
+			{true, false, false}, {true, true, false},
+			{false, false, true}, {true, false, true},
+		} {
+			granular, parent := tc.granular, tc.parent
+			t.Run(fmt.Sprintf("%s/granular=%t/parent=%t/ignored=%t", protocol, granular, parent, tc.ignored), func(t *testing.T) {
+				calls := 0
+				rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls++
+					assert.Equal(t, http.MethodPost, r.Method)
+					assert.Equal(t, "/repos/owner/repo/issues", r.URL.Path)
+					var body map[string]any
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					assert.Equal(t, "In review", body["status"])
+					assert.Equal(t, "Subject", body["title"])
+					assert.Equal(t, "Body", body["body"])
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					statusName, category := "In review", "started"
+					if tc.ignored {
+						statusName, category = "Backlog", "backlog"
+					}
+					_, _ = fmt.Fprintf(w, `{"id":123,"number":42,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":5,"name":%q,"category":%q}}`, statusName, category)
+				})}}
+				gql := defaultGQLClient
+				if parent {
+					parentID, statusID := githubv4.ID("I_parent"), githubv4.ID("IS_review")
+					gql = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+						createIssueParentMatcher(3, "owner", "repo", "R_repo", "I_parent"),
+						githubv4mock.NewQueryMatcher(
+							"query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){planningStatuses(first: 7){nodes{id,name}}}}",
+							map[string]any{"owner": "owner", "repo": "repo"},
+							githubv4mock.DataResponse(map[string]any{"repository": map[string]any{"planningStatuses": map[string]any{"nodes": []any{map[string]any{"id": "IS_review", "name": "In review"}}}}}),
+						),
+						githubv4mock.NewMutationMatcher(createIssueMutation{}, CreateIssueInput{
+							RepositoryID: githubv4.ID("R_repo"), Title: githubv4.String("Subject"), Body: githubv4.NewString("Body"),
+							ParentIssueID: &parentID, StatusID: &statusID,
+						}, nil, githubv4mock.DataResponse(map[string]any{"createIssue": map[string]any{"issue": map[string]any{
+							"fullDatabaseId": "123", "url": "https://github.com/owner/repo/issues/42",
+						}}})),
+					))
 				}
-				gql = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-					createIssueParentMatcher(3, "owner", "repo", "R_repo", "I_parent"),
-					githubv4mock.NewQueryMatcher(
-						"query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){planningStatuses(first: 7){nodes{id,name}}}}",
-						map[string]any{"owner": "owner", "repo": "repo"},
-						githubv4mock.DataResponse(map[string]any{"repository": map[string]any{"planningStatuses": map[string]any{"nodes": []any{map[string]any{"id": "IS_review", "name": "In review"}}}}}),
-					),
-					githubv4mock.NewMutationMatcher(createIssueWithStatusMutation{}, CreateIssueInput{
-						RepositoryID: githubv4.ID("R_repo"), Title: githubv4.String("Subject"), Body: githubv4.NewString("Body"),
-						ParentIssueID: &parentID, StatusID: &statusID,
-					}, nil, githubv4mock.DataResponse(map[string]any{"createIssue": map[string]any{"issue": map[string]any{
-						"fullDatabaseId": "123", "url": "https://github.com/owner/repo/issues/42", "status": map[string]any{"name": statusName},
-					}}})),
-				))
-			}
-			deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: gql}
-			var flags []inventory.FeatureFlag
-			name := "issue_write"
-			args := map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "body": "Body", "status": "in review"}
-			if granular {
-				flags = append(flags, inventory.FeatureFlag(FeatureFlagIssuesGranular))
-				name = "create_issue"
-			} else {
-				args["method"] = "create"
-			}
-			if parent {
-				args["parent_issue_number"] = 3
-			}
-			session, _ := issueStatusSession(t, deps, inventory.ProtocolVersionMultiRoundTrip, flags...)
-			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
-			require.NoError(t, err)
-			if tc.ignored {
-				require.True(t, result.IsError)
-				assert.Equal(t, `issue https://github.com/owner/repo/issues/42 was created, but requested status "In review" was not applied`, getTextResult(t, result).Text)
-			} else {
+				deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: gql}
+				var flags []inventory.FeatureFlag
+				name := "issue_write"
+				args := map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "body": "Body", "status": "in review"}
+				if granular {
+					flags = append(flags, inventory.FeatureFlag(FeatureFlagIssuesGranular))
+					name = "create_issue"
+				} else {
+					args["method"] = "create"
+				}
+				if parent {
+					args["parent_issue_number"] = 3
+				}
+				session, _ := issueStatusSession(t, deps, protocol, flags...)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+				require.NoError(t, err)
 				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
-				assert.Contains(t, getTextResult(t, result).Text, `"id":"123"`)
-			}
-			if parent {
-				assert.Zero(t, calls, "parent and status must be created atomically, without a REST write")
-			} else {
-				assert.Equal(t, 1, calls)
-			}
-		})
+				if protocol == inventory.ProtocolVersionMultiRoundTrip && !granular {
+					assert.JSONEq(t, `{"method":"create","issue":{"id":"123","url":"https://github.com/owner/repo/issues/42"}}`, getTextResult(t, result).Text)
+				} else {
+					assert.JSONEq(t, `{"id":"123","url":"https://github.com/owner/repo/issues/42"}`, getTextResult(t, result).Text)
+				}
+				if parent {
+					assert.Zero(t, calls, "parent and status must be created atomically, without a REST write")
+				} else {
+					assert.Equal(t, 1, calls)
+				}
+			})
+		}
 	}
 }
 

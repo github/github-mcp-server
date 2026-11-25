@@ -178,7 +178,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				defer func() { _ = resp.Body.Close() }()
 			}
 			if err != nil {
-				return createIssueErrorResult(ctx, resp, err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
 			}
 
 			return granularIssueMinimalResult(&MinimalResponse{

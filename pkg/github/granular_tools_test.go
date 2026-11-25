@@ -1279,7 +1279,7 @@ func TestIssuePlanningStatusInvalidInput(t *testing.T) {
 	}
 }
 
-func TestIssuePlanningStatusCreationNotApplied(t *testing.T) {
+func TestIssuePlanningStatusCreationIgnored(t *testing.T) {
 	for _, tool := range []inventory.ServerTool{
 		IssueWrite(translations.NullTranslationHelper), GranularCreateIssue(translations.NullTranslationHelper),
 	} {
@@ -1294,28 +1294,43 @@ func TestIssuePlanningStatusCreationNotApplied(t *testing.T) {
 			req := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "method": "create", "status": "Todo"})
 			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &req)
 			require.NoError(t, err)
-			require.True(t, result.IsError)
-			assert.Equal(t, `issue https://github.com/owner/repo/issues/42 was created, but requested status "Todo" was not applied`, getTextResult(t, result).Text,
-				"a created issue must not be reported as a failed creation")
+			require.False(t, result.IsError, "creation succeeds even when optional metadata is not applied")
+			assert.JSONEq(t, `{"id":"123","url":"https://github.com/owner/repo/issues/42"}`, getTextResult(t, result).Text)
 		})
 	}
 }
 
-func TestUpdateIssueStatusUnrecognizedResponse(t *testing.T) {
-	for _, status := range []string{`{"id":9,"name":"Blocked","category":"started"}`, `{"id":9,"name":"Todo","category":"custom"}`, `"Todo"`} {
-		t.Run(status, func(t *testing.T) {
-			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = fmt.Fprintf(w, `{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":%s}`, status)
-			})}}
-			session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, inventory.ProtocolVersionMultiRoundTrip)
-			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
-				"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
-			}})
-			require.NoError(t, err)
-			require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
-			assert.JSONEq(t, `{"id":"123","url":"https://github.com/owner/repo/issues/42","status":null}`, getTextResult(t, result).Text)
-		})
+func TestUpdateIssueStatusNotApplied(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		for _, status := range []string{
+			`{"id":9,"name":"Blocked","category":"started"}`,
+			`{"id":9,"name":"Todo","category":"custom"}`,
+			`{"id":1,"name":"Backlog","category":"backlog"}`,
+			`"Todo"`, `null`, "",
+		} {
+			t.Run(protocol+"/"+status, func(t *testing.T) {
+				patches := 0
+				rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					patches++
+					assert.Equal(t, http.MethodPatch, r.Method)
+					payload := `{"id":123,"html_url":"https://github.com/owner/repo/issues/42"}`
+					if status != "" {
+						payload = strings.TrimSuffix(payload, "}") + `,"status":` + status + "}"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(payload))
+				})}}
+				session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, protocol)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
+					"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
+				}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, `requested status "Todo" was not applied`)
+				assert.Nil(t, result.StructuredContent)
+				assert.Equal(t, 1, patches, "unapplied status updates must not be retried")
+			})
+		}
 	}
 }
 

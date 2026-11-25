@@ -3072,18 +3072,6 @@ type createIssueMutation struct {
 	} `graphql:"createIssue(input: $input)"`
 }
 
-type createIssueWithStatusMutation struct {
-	CreateIssue struct {
-		Issue struct {
-			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
-			URL            githubv4.URI
-			Status         *struct {
-				Name string
-			}
-		}
-	} `graphql:"createIssue(input: $input)"`
-}
-
 type createIssueParentMetadataQuery struct {
 	ChildRepository struct {
 		ID            githubv4.ID
@@ -3182,31 +3170,20 @@ func createIssueWithParent(ctx context.Context, client *github.Client, gqlClient
 		input.IssueTypeID = &issueTypeID
 	}
 
-	var mutation createIssueMutation
-	appliedStatus := ""
 	if status != "" {
 		statusID, err := resolveIssueStatusID(ctx, gqlClient, owner, repo, status)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve planning status", err), nil, nil
 		}
 		input.StatusID = &statusID
-		var statusMutation createIssueWithStatusMutation
-		if err := gqlClient.Mutate(ctx, &statusMutation, input, nil); err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil, nil
-		}
-		created := statusMutation.CreateIssue.Issue
-		mutation.CreateIssue.Issue.FullDatabaseID, mutation.CreateIssue.Issue.URL = created.FullDatabaseID, created.URL
-		if created.Status != nil {
-			appliedStatus = created.Status.Name
-		}
-	} else if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+	}
+
+	var mutation createIssueMutation
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil, nil
 	}
 	if mutation.CreateIssue.Issue.FullDatabaseID == "" || mutation.CreateIssue.Issue.URL.URL == nil {
 		return utils.NewToolResultError("failed to create issue: response did not include the created issue"), nil, nil
-	}
-	if appliedStatus != status {
-		return utils.NewToolResultError(issueStatusNotAppliedError{URL: mutation.CreateIssue.Issue.URL.String(), Status: status}.Error()), nil, nil
 	}
 
 	response := MinimalResponse{
@@ -3402,7 +3379,7 @@ func createIssue(ctx context.Context, client *github.Client, owner string, repo 
 		defer func() { _ = resp.Body.Close() }()
 	}
 	if err != nil {
-		return createIssueErrorResult(ctx, resp, err), nil, nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
 	}
 
 	if resp.StatusCode != http.StatusCreated {
