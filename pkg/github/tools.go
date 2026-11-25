@@ -153,6 +153,13 @@ var (
 		Icon:        "copilot",
 	}
 
+	// ToolsetMetadataCopilotAutomations is a non-default toolset for the opt-in Copilot Automations tools.
+	ToolsetMetadataCopilotAutomations = inventory.ToolsetMetadata{
+		ID:          "copilot_automations",
+		Description: "Manage Copilot Automations, their revisions, and the tools and triggers they can use",
+		Icon:        "workflow",
+	}
+
 	// ToolsetMetadataCopilotIssueIntents is a non-default toolset that gates the
 	// opt-in intent-aware Copilot issue assignment tool. Kept out of the default
 	// configuration so its inputs (rationale, confidence, is_suggestion) do not
@@ -220,7 +227,6 @@ func newToolConfig(opts []ToolOption) toolConfig {
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
-	cfg := newToolConfig(opts)
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
@@ -292,14 +298,26 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		pullRequestReviewWrite(t, false, cfg),
-		PullRequestReviewWriteWithResolutionReason(t, opts...),
+		PullRequestArtifactRead(t),
+		PullRequestArtifactWrite(t),
+		PullRequestReviewWrite(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
 		RequestCopilotReview(t),
+		ListAutomations(t),
+		GetAutomation(t),
+		ListAutomationRevisions(t),
+		GetAutomationRevision(t),
+		ListAvailableAutomationTools(t),
+		ListAvailableAutomationTriggers(t),
+		GetAutomationsConfigurationForRepository(t),
+		CreateAutomation(t),
+		UpdateAutomation(t),
+		DeleteAutomation(t),
+		RunAutomation(t),
 
 		// Copilot issue intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),
@@ -310,14 +328,17 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		// Code security tools
 		GetCodeScanningAlert(t),
 		ListCodeScanningAlerts(t),
+		UpdateCodeScanningAlert(t),
 
 		// Secret protection tools
 		GetSecretScanningAlert(t),
 		ListSecretScanningAlerts(t),
+		UpdateSecretScanningAlert(t),
 
 		// Dependabot tools
 		GetDependabotAlert(t),
 		ListDependabotAlerts(t),
+		UpdateDependabotAlert(t),
 
 		// Notification tools
 		ListNotifications(t),
@@ -400,8 +421,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
-		granularResolveReviewThread(t, false, cfg),
-		GranularResolveReviewThreadWithResolutionReason(t, opts...),
+		GranularResolveReviewThread(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
 		GranularRemovePullRequestReviewCommentReaction(t),
