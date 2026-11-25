@@ -65,7 +65,7 @@ guess at either from a file name.
   useful narrowing available.
 - `detail` on `get_commit` — `stats` names the changed files, `full_patch` includes the
   diff and can be enormous. Ask for `none` when you only want the message and author.
-- `fields` — on both the tree read and the searches, returning fewer fields is what
+- `fields` — on searches, returning fewer fields is what
   keeps a wide exploration affordable.
 
 ## Confirm before going wider
@@ -86,8 +86,7 @@ quietly becomes an audit, or that reads far more than was asked for.
 ## Empty and failure cases
 
 - **The tree is truncated** — very large repositories exceed what one call returns.
-  Narrow with `path_filter` rather than treating the partial tree as complete, and say
-  it was partial.
+  Do not treat the partial tree as complete, and say it was partial.
 - **A search returns nothing** — the symbol may be constructed rather than written
   literally, spelled differently, or in a language the index does not cover. Try a
   distinctive fragment, then fall back to reading the directory the tree suggests.
