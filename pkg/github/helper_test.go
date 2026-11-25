@@ -46,6 +46,7 @@ const (
 
 	// Git endpoints
 	GetReposGitBlobsByOwnerByRepoByFileSHA     = "GET /repos/{owner}/{repo}/git/blobs/{file_sha}"
+	PostReposGitBlobsByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/blobs"
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
 	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
