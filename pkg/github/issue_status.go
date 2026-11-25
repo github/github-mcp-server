@@ -267,7 +267,7 @@ func issueCreationStatusProperty() *jsonschema.Schema {
 		Type: "string", Enum: enumValues(issueCreationStatusNames),
 		Description: "Initial planning status (create only). Only open statuses are supported. " +
 			"Backlog is backlog; Todo is planned; In progress and In review are started. " +
-			"Omit to use the repository default.",
+			"Omit to use the default status, Backlog.",
 	}
 }
 

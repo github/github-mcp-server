@@ -116,6 +116,8 @@ const stateReasonOptions: Array<{ value: StateReason; label: string; description
   { value: "duplicate", label: "Duplicate", description: "Another issue tracks this" },
 ];
 
+const issueCreationStatuses = ["Backlog", "Todo", "In progress", "In review"];
+
 function normalizeSwatchColor(color: string): string {
   const trimmed = color.trim();
   if (!trimmed) return "var(--borderColor-default, var(--color-border-default))";
@@ -454,6 +456,8 @@ function CreateIssueApp() {
   const [issueTypeCleared, setIssueTypeCleared] = useState(false);
   const [issueTypesLoading, setIssueTypesLoading] = useState(false);
 
+  const [selectedStatus, setSelectedStatus] = useState("");
+
   // State transition state
   const [currentState, setCurrentState] = useState<IssueState>("open");
   const [stateReason, setStateReason] = useState<StateReason>("completed");
@@ -758,6 +762,12 @@ function CreateIssueApp() {
       typeof inputIssueType === "string" ? { id: inputIssueType, text: inputIssueType } : null
     );
     setIssueTypeCleared(inputIssueType === null);
+    const inputStatus = toolInput?.status;
+    setSelectedStatus(
+      typeof inputStatus === "string"
+        ? issueCreationStatuses.find((status) => status.toLowerCase() === inputStatus.toLowerCase()) ?? inputStatus
+        : ""
+    );
     setCurrentState("open");
     setStateReason("completed");
     setDuplicateOf("");
@@ -1053,11 +1063,15 @@ function CreateIssueApp() {
       delete params.duplicate_of;
       delete params.issue_fields;
       delete params.type;
+      delete params.status;
 
       if (isUpdateMode && issueNumber) {
         params.issue_number = issueNumber;
       }
 
+      if (!isUpdateMode && selectedStatus) {
+        params.status = selectedStatus;
+      }
       if (selectedLabels.length > 0) {
         params.labels = selectedLabels.map((l) => l.text);
       }
@@ -1155,6 +1169,7 @@ function CreateIssueApp() {
     selectedMilestone,
     selectedIssueType,
     issueTypeCleared,
+    selectedStatus,
     isUpdateMode,
     issueNumber,
     stateReason,
@@ -1665,6 +1680,31 @@ function CreateIssueApp() {
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>
+
+        {!isUpdateMode && (
+          <ActionMenu>
+            <ActionMenu.Button size="small">
+              {`Status: ${selectedStatus || "Default (Backlog)"}`}
+            </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <ActionList selectionVariant="single">
+                <ActionList.Item selected={!selectedStatus} onSelect={() => setSelectedStatus("")}>
+                  Default (Backlog)
+                </ActionList.Item>
+                <ActionList.Divider />
+                {issueCreationStatuses.map((status) => (
+                  <ActionList.Item
+                    key={status}
+                    selected={selectedStatus === status}
+                    onSelect={() => setSelectedStatus(status)}
+                  >
+                    {status}
+                  </ActionList.Item>
+                ))}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+        )}
       </div>
 
       {/* Fields section */}

@@ -2267,6 +2267,67 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"non-UI client should execute directly")
 	})
 
+	t.Run("UI client with initial status routes through UI form", func(t *testing.T) {
+		for _, status := range []string{"Backlog", "Todo", "In progress", "In review", "in progress"} {
+			t.Run(status, func(t *testing.T) {
+				request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+					"method": "create",
+					"owner":  "owner",
+					"repo":   "repo",
+					"title":  "Test",
+					"status": status,
+				})
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+				assert.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, "interactive form has been shown to the user for creating a new issue")
+			})
+		}
+	})
+
+	t.Run("UI client submits selected status", func(t *testing.T) {
+		calls := 0
+		statusClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesByOwnerByRepo: func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				assert.Equal(t, "In review", body["status"])
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = io.WriteString(w, `{"number":1,"title":"Test","html_url":"https://github.com/owner/repo/issues/1","status":{"id":1,"name":"In review","category":"started"}}`)
+			},
+		}))
+		statusDeps := BaseDeps{Client: statusClient, GQLClient: githubv4.NewClient(nil), featureChecker: featureCheckerFor()}
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":        "create",
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test",
+			"status":        "in review",
+			"_ui_submitted": true,
+		})
+		result, err := serverTool.Handler(statusDeps)(ContextWithDeps(context.Background(), statusDeps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		assert.Equal(t, 1, calls)
+		assert.Contains(t, getTextResult(t, result).Text, "https://github.com/owner/repo/issues/1")
+	})
+
+	t.Run("UI client cannot set initial status on update", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":       "update",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"status":       "Todo",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "status is only supported with the create method")
+	})
+
 	t.Run("UI client with state change routes through UI form", func(t *testing.T) {
 		// state/state_reason/duplicate_of are form params (the issue-write view
 		// renders close/reopen controls), so a call carrying them must go to
@@ -3073,6 +3134,7 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "status present", args: map[string]any{"status": "Todo"}, want: false},
 		{name: "parent issue present", args: map[string]any{"parent_issue_number": float64(7)}, want: true},
 		{name: "parent owner present", args: map[string]any{"parent_owner": "octo-org"}, want: true},
 		{name: "parent repo present", args: map[string]any{"parent_repo": "parent-repo"}, want: true},
@@ -3182,7 +3244,6 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 		"parent_issue_number": {},
 		"parent_owner":        {},
 		"parent_repo":         {},
-		"status":              {},
 	}
 
 	schema, ok := IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)

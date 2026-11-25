@@ -2669,6 +2669,7 @@ var issueWriteFormParams = map[string]struct{}{
 	"assignees":     {},
 	"milestone":     {},
 	"type":          {},
+	"status":        {},
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
