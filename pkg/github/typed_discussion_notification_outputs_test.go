@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/v2/internal/toolsnaps"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/go-github/v92/github"
@@ -114,10 +113,8 @@ func typedDiscussionNotificationDeps(t *testing.T) BaseDeps {
 		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"data": data}))
 	})}}
 	return BaseDeps{
-		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
-		GQLClient:      githubv4.NewClient(gql),
+		GQLClient: githubv4.NewClient(gql),
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposByOwnerByRepo:                            mockResponse(t, http.StatusOK, &github.Repository{Private: new(true)}),
 			GetNotifications:                                 mockResponse(t, http.StatusOK, []*github.Notification{notification}),
 			GetReposNotificationsByOwnerByRepo:               mockResponse(t, http.StatusOK, []*github.Notification{notification}),
 			GetNotificationsThreadsByThreadID:                mockResponse(t, http.StatusOK, notification),
@@ -225,14 +222,6 @@ func TestTypedDiscussionNotificationOutputs(t *testing.T) {
 					require.NoError(t, err)
 					require.False(t, result.IsError, "%s", result)
 					require.Len(t, result.Content, 1, "text must not duplicate structured content")
-					switch tc.name {
-					case "get_notification_details":
-						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelNotificationDetails()), mustMarshalJSON(t, result.Meta["ifc"]))
-					case "list_discussions", "get_discussion", "get_discussion_comments":
-						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoUserContent(true)), mustMarshalJSON(t, result.Meta["ifc"]))
-					case "list_discussion_categories":
-						assert.JSONEq(t, mustMarshalJSON(t, ifc.LabelRepoMetadata(true)), mustMarshalJSON(t, result.Meta["ifc"]))
-					}
 					if protocol == "2025-11-25" {
 						assert.Equal(t, tc.text, getTextResult(t, result).Text, "legacy text must remain byte-equivalent")
 						assert.Nil(t, result.StructuredContent)

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -87,12 +86,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Dependabot alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable advisory text, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, dependabotAlertOutput(alert), nil
+			return utils.NewToolResultText(string(r)), dependabotAlertOutput(alert), nil
 		},
 		normalizeSecurityIntegerArguments("alertNumber"),
 	)
@@ -198,12 +192,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), DependabotAlertsOutput{}, err
 			}
 
-			result := utils.NewToolResultText(string(r))
-			// Dependabot alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable advisory text, so the
-			// label is always private-untrusted.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, output, nil
+			return utils.NewToolResultText(string(r)), output, nil
 		},
 		normalizeTypedReadArguments(nil, false),
 	)

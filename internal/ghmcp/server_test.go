@@ -135,7 +135,7 @@ func TestStdioGraphQLUserAgent(t *testing.T) {
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				headers <- r.Header.Clone()
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"data":{"repository":{"isPrivate":false,"issues":{"nodes":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`))
+				_, _ = w.Write([]byte(`{"data":{"repository":{"issues":{"nodes":[],"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`))
 			}))
 			defer api.Close()
 

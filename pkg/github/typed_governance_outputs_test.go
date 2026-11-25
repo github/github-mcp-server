@@ -173,10 +173,6 @@ func governanceWireDeps(t *testing.T, tc governanceWireCase) BaseDeps {
 			_, _ = io.WriteString(w, body)
 			return
 		}
-		if r.URL.Path == "/repos/o/r" {
-			_, _ = io.WriteString(w, `{"private":false}`)
-			return
-		}
 		if r.URL.Path == "/graphql" {
 			graphqlCalls++
 			var body string
@@ -573,27 +569,6 @@ func TestTypedGovernanceLevelRoutingNormalization(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, legacyResult.IsError, mustMarshalJSON(t, legacyResult))
 			assert.JSONEq(t, getTextResult(t, legacyResult).Text, tc.tc.text)
-		})
-	}
-}
-
-func TestTypedGovernanceLabelRetainsIFCMetadata(t *testing.T) {
-	for _, tc := range governanceWireCases(t)[:2] {
-		t.Run(tc.tool.Tool.Name, func(t *testing.T) {
-			deps := governanceWireDeps(t, tc)
-			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-			session, _ := governanceTypedSession(t, tc.tool, deps, inventory.ProtocolVersionMultiRoundTrip)
-			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool.Tool.Name, Arguments: tc.args})
-			require.NoError(t, err)
-			require.False(t, result.IsError)
-			legacyDeps := governanceWireDeps(t, tc)
-			legacyDeps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-			legacy := governanceLegacyTool(tc.tool.Tool.Name)
-			before, err := legacy.Handler(legacyDeps)(ContextWithDeps(context.Background(), legacyDeps), new(createMCPRequest(tc.args)))
-			require.NoError(t, err)
-			require.NotNil(t, result.Meta["ifc"])
-			assert.JSONEq(t, mustMarshalJSON(t, before.Meta["ifc"]), mustMarshalJSON(t, result.Meta["ifc"]))
-			assertGovernanceWireText(t, true, getTextResult(t, before).Text, result)
 		})
 	}
 }

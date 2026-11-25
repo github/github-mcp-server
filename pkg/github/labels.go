@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
-	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -115,11 +114,7 @@ func getLabelLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal label: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(out))
-			// Labels are structural repo metadata defined by collaborators
-			// (trusted); confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		},
 	)
 }
@@ -260,11 +255,7 @@ func listLabelsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal labels: %w", err)
 			}
 
-			result := utils.NewToolResultText(string(out))
-			// Labels are structural repo metadata defined by collaborators
-			// (trusted); confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		},
 	)
 }

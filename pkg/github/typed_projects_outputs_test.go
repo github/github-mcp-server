@@ -118,18 +118,18 @@ func projectWireCases() []projectWireCase {
 		{tool: "projects_list", method: projectsMethodListProjectItems, args: map[string]any{"fields": []any{"3", "5"}, "before": "prev"},
 			steps: []projectWireStep{rest("GET", "/orgs/o/projectsV2/2/items", "before=prev&fields=3%2C5&per_page=50", "["+projectWireItem+"]")},
 			text:  `{"items":[` + projectWireItemText + `],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`},
-		{tool: "projects_list", method: projectsMethodListProjectStatusUpdates, steps: []projectWireStep{gql(`{"data":{"organization":{"projectV2":{"public":true,"statusUpdates":{"nodes":[` + projectWireStatus + `],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"next","startCursor":""}}}}}}`)},
+		{tool: "projects_list", method: projectsMethodListProjectStatusUpdates, steps: []projectWireStep{gql(`{"data":{"organization":{"projectV2":{"statusUpdates":{"nodes":[` + projectWireStatus + `],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"next","startCursor":""}}}}}}`)},
 			text: `{"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"nextCursor":"next","prevCursor":""},"statusUpdates":[` + projectWireStatusText + `]}`},
-		{tool: "projects_list", method: projectsMethodListProjectViews, steps: []projectWireStep{gql(`{"data":{"organization":{"projectV2":{"id":"P","public":true,"views":{"nodes":[` + projectWireView + `],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`)},
+		{tool: "projects_list", method: projectsMethodListProjectViews, steps: []projectWireStep{gql(`{"data":{"organization":{"projectV2":{"id":"P","views":{"nodes":[` + projectWireView + `],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`)},
 			text: `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"nextCursor":"","prevCursor":""},"views":[` + projectWireViewText + `]}`},
 		{tool: "projects_get", method: projectsMethodGetProject, steps: []projectWireStep{rest("GET", "/orgs/o/projectsV2/2", "", projectWireProject)}, text: projectWireProjectText},
 		{tool: "projects_get", method: projectsMethodGetProjectField, args: map[string]any{"field_id": "3e0"}, steps: []projectWireStep{rest("GET", "/orgs/o/projectsV2/2/fields/3", "", projectWireField)}, text: projectWireFieldText},
 		{tool: "projects_get", method: projectsMethodGetProjectItem, args: map[string]any{"item_id": "4", "fields": []any{"3"}},
 			steps: []projectWireStep{rest("GET", "/orgs/o/projectsV2/2/items/4", "fields=3", projectWireItem)}, text: projectWireItemText},
 		{tool: "projects_get", method: projectsMethodGetProjectStatusUpdate, args: map[string]any{"status_update_id": "S", "owner": false, "project_number": nil},
-			steps: []projectWireStep{gql(`{"data":{"node":` + projectWireStatus[:len(projectWireStatus)-1] + `,"project":{"public":true}}}}`)}, text: projectWireStatusText},
+			steps: []projectWireStep{gql(`{"data":{"node":` + projectWireStatus + `}}`)}, text: projectWireStatusText},
 		{tool: "projects_get", method: projectsMethodGetProjectView, args: map[string]any{"view_id": "V"},
-			steps: []projectWireStep{gql(`{"data":{"node":` + projectWireView[:len(projectWireView)-1] + `,"project":{"public":true}}}}`)}, text: projectWireViewText},
+			steps: []projectWireStep{gql(`{"data":{"node":` + projectWireView + `}}`)}, text: projectWireViewText},
 		{tool: "projects_write", method: projectsMethodAddProjectItem, args: map[string]any{"item_type": "issue", "item_owner": "o", "item_repo": "r", "issue_number": "7"},
 			steps: []projectWireStep{gql(`{"data":{"repository":{"issue":{"id":"ISSUE"}}}}`), gql(projectWireResolve), gql(`{"data":{"addProjectV2ItemById":{"item":{"id":"I","fullDatabaseId":"4"}}}}`)},
 			text:  `{"full_database_id":"4","id":"I","item_id":4,"message":"Successfully added issue o/r#7 to project o/2"}`},
@@ -420,7 +420,7 @@ func TestTypedProjectsRESTListPageShapes(t *testing.T) {
 			name: "status_updates_empty_final_page",
 			tc: projectWireCase{
 				tool: "projects_list", method: projectsMethodListProjectStatusUpdates,
-				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"public":true,"statusUpdates":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
+				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"statusUpdates":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
 				text:  `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"nextCursor":"","prevCursor":""},"statusUpdates":[]}`,
 			},
 		},
@@ -428,7 +428,7 @@ func TestTypedProjectsRESTListPageShapes(t *testing.T) {
 			name: "views_empty_final_page",
 			tc: projectWireCase{
 				tool: "projects_list", method: projectsMethodListProjectViews,
-				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"id":"P","public":true,"views":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
+				steps: []projectWireStep{{method: "POST", path: "/graphql", body: `{"data":{"organization":{"projectV2":{"id":"P","views":{"nodes":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"endCursor":"","startCursor":""}}}}}}`}},
 				text:  `{"pageInfo":{"hasNextPage":false,"hasPreviousPage":false,"nextCursor":"","prevCursor":""},"views":[]}`,
 			},
 		},
@@ -584,32 +584,6 @@ func TestTypedProjectsWriteBackendErrors(t *testing.T) {
 					assert.Contains(t, getTextResult(t, result).Text, fixture.message)
 					assert.Nil(t, result.StructuredContent)
 				})
-			}
-		})
-	}
-}
-
-func TestTypedProjectsWireIFC(t *testing.T) {
-	for _, protocol := range typedGitGistProtocols {
-		t.Run("protocol="+protocol, func(t *testing.T) {
-			tc := projectWireCases()[5]
-			tc.steps[0].body = `{"id":1,"node_id":"P","title":"Roadmap","public":false,"number":2}`
-			tc.text = `{"id":1,"node_id":"P","title":"Roadmap","description":"","public":false,"closed_at":"0001-01-01T00:00:00Z","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z","deleted_at":"0001-01-01T00:00:00Z","number":2,"short_description":""}`
-			deps := projectWireDeps(t, tc)
-			deps.featureChecker = featureCheckerFor(FeatureFlagIFCLabels)
-			session, schemas := projectsTypedSession(t, deps, protocol)
-			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool, Arguments: projectWireArgs(tc)})
-			require.NoError(t, err)
-			require.False(t, result.IsError)
-			label := unmarshalIFC(t, result.Meta["ifc"])
-			assert.Equal(t, "trusted", label["integrity"])
-			assert.Equal(t, "private", label["confidentiality"])
-			if schemas[tc.tool] != nil {
-				assert.JSONEq(t, projectWireStructured(t, tc), mustMarshalJSON(t, result.StructuredContent))
-				assert.Equal(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
-			} else {
-				assert.Equal(t, tc.text, getTextResult(t, result).Text)
-				assert.Nil(t, result.StructuredContent)
 			}
 		})
 	}

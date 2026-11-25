@@ -209,7 +209,6 @@ func typedRepositoryDeps(t *testing.T) BaseDeps {
 	})}}
 	return BaseDeps{
 		Client: mustNewGHClient(t, MockHTTPClientWithHandlers(handlers)), GQLClient: githubv4.NewClient(gql),
-		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 	}
 }
 
@@ -352,7 +351,6 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 					result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: call.name, Arguments: call.args})
 					require.NoError(t, err)
 					require.False(t, result.IsError, result)
-					assert.JSONEq(t, mustMarshalJSON(t, legacy.Meta["ifc"]), mustMarshalJSON(t, result.Meta["ifc"]), "IFC labels remain protocol-independent")
 					if protocol != inventory.ProtocolVersionMultiRoundTrip {
 						assert.Equal(t, mustMarshalJSON(t, legacy.Content), mustMarshalJSON(t, result.Content), "legacy content blocks remain byte-exact")
 						assertLegacyRepositoryText(t, call.name, call.args, result)
@@ -424,7 +422,6 @@ func TestTypedRepositoryOutputs(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, result.IsError, result)
 				assert.Nil(t, result.StructuredContent, "errors never return success-shaped output")
-				assert.NotContains(t, result.Meta, "ifc", "errors never receive success IFC labels")
 			}
 		})
 	}
