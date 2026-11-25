@@ -2764,3 +2764,19 @@ func TestGranularRemovePullRequestReviewCommentReaction(t *testing.T) {
 		})
 	}
 }
+
+func TestGranularUpdateIssueToolsAreDestructive(t *testing.T) {
+	t.Parallel()
+
+	tools := map[string]inventory.ServerTool{
+		"update_issue_assignees": GranularUpdateIssueAssignees(translations.NullTranslationHelper),
+		"update_issue_labels":    GranularUpdateIssueLabels(translations.NullTranslationHelper),
+	}
+	for name, serverTool := range tools {
+		t.Run(name, func(t *testing.T) {
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint,
+				"%s replaces the current values and removes any not in the list", name)
+		})
+	}
+}
