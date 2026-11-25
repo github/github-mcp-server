@@ -69,6 +69,9 @@ const (
 	// WritePackages grants write access to packages
 	WritePackages Scope = "write:packages"
 
+	// DeletePackages grants permission to delete packages
+	DeletePackages Scope = "delete:packages"
+
 	// Workflow grants permission to update GitHub Actions workflow files
 	Workflow Scope = "workflow"
 
@@ -92,6 +95,7 @@ var oauthScopeDefinitions = []oauthScopeDefinition{
 	{scope: UserEmail, byDefault: true},
 	{scope: ReadPackages, byDefault: true},
 	{scope: WritePackages, byDefault: true},
+	{scope: DeletePackages},
 	{scope: ReadProject, byDefault: true},
 	{scope: Project, byDefault: true},
 	{scope: Gist, byDefault: true},
