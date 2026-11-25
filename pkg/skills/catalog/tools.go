@@ -69,7 +69,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"repository-health-review": {
 		required: [][]string{{"list_commits"}, {"list_issues"}, {"list_pull_requests"}},
-		optional: []string{"list_branches", "list_releases", "list_repository_collaborators", "actions_list", "list_code_scanning_alerts", "list_dependabot_alerts"},
+		optional: []string{"list_branches", "list_releases", "list_repository_collaborators", "actions_list", "list_code_scanning_alerts", "list_dependabot_alerts", "list_code_quality_findings"},
 	},
 	"security-alert-triage": {
 		required: [][]string{{"list_code_scanning_alerts", "list_dependabot_alerts", "list_secret_scanning_alerts", "list_repository_security_advisories", "list_org_repository_security_advisories"}},
