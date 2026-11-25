@@ -152,3 +152,47 @@ func TestSchemaTypeString(t *testing.T) {
 		})
 	}
 }
+
+func TestParseBoolFlag(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    bool
+		wantErr bool
+	}{
+		{name: "empty", value: "", want: false},
+		{name: "true", value: "true", want: true},
+		{name: "TRUE", value: "TRUE", want: true},
+		{name: "one", value: "1", want: true},
+		{name: "t", value: "t", want: true},
+		{name: "yes", value: "yes", want: true},
+		{name: "y", value: "y", want: true},
+		{name: "on", value: "on", want: true},
+		{name: "enabled", value: "enabled", want: true},
+		{name: "false", value: "false", want: false},
+		{name: "zero", value: "0", want: false},
+		{name: "no", value: "no", want: false},
+		{name: "off", value: "off", want: false},
+		{name: "disabled", value: "disabled", want: false},
+		{name: "typo", value: "tru", wantErr: true},
+		{name: "garbage", value: "maybe", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Set("read-only", tc.value)
+			got, err := parseBoolFlag("read-only")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseBoolFlag(%q) = %v, want error", tc.value, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseBoolFlag(%q) error: %v", tc.value, err)
+			}
+			if got != tc.want {
+				t.Errorf("parseBoolFlag(%q) = %v, want %v", tc.value, got, tc.want)
+			}
+		})
+	}
+}
