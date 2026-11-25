@@ -1994,8 +1994,7 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 		toolDescription = searchIssuesLexicalDescription
 		queryDescription = searchIssuesLexicalQueryDescription
 	}
-	toolDescription = t("TOOL_SEARCH_ISSUES_DESCRIPTION", toolDescription)
-	toolDescription += " " + t("TOOL_SEARCH_ISSUES_STATUS_DESCRIPTION", searchIssuesStatusDescription())
+	toolDescription += " " + searchIssuesStatusDescription()
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2047,7 +2046,7 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
-			Description: toolDescription,
+			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", toolDescription),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
 				ReadOnlyHint: true,

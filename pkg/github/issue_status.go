@@ -199,7 +199,8 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_STATUS_USER_TITLE", "Update Issue Status"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(true), OpenWorldHint: new(true),
+				DestructiveHint: new(false),
+				OpenWorldHint:   new(true),
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
@@ -285,7 +286,7 @@ func resolveIssueStatusID(ctx context.Context, client *githubv4.Client, owner, r
 					ID   githubv4.ID
 					Name string
 				}
-			} `graphql:"planningStatuses(first: 7)"`
+			} `graphql:"planningStatuses(first: 10)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 	if err := client.Query(ctx, &query, map[string]any{"owner": githubv4.String(owner), "repo": githubv4.String(repo)}); err != nil {

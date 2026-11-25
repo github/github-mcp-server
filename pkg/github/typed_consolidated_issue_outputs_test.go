@@ -253,7 +253,7 @@ func TestIssuePlanningStatusCreation(t *testing.T) {
 					gql = githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
 						createIssueParentMatcher(3, "owner", "repo", "R_repo", "I_parent"),
 						githubv4mock.NewQueryMatcher(
-							"query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){planningStatuses(first: 7){nodes{id,name}}}}",
+							"query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){planningStatuses(first: 10){nodes{id,name}}}}",
 							map[string]any{"owner": "owner", "repo": "repo"},
 							githubv4mock.DataResponse(map[string]any{"repository": map[string]any{"planningStatuses": map[string]any{"nodes": []any{map[string]any{"id": "IS_review", "name": "In review"}}}}}),
 						),
