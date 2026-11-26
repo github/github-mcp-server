@@ -645,7 +645,7 @@ For single job logs, provide job_id. For failures in the returned jobs page, pro
 			}
 
 			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
+				// Handle failed-only mode for the returned latest-attempt jobs page.
 				result, payload, err := handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
 				return attachIFC(result), payload, err
 			} else if jobID > 0 {
