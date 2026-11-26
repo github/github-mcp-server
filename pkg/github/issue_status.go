@@ -199,7 +199,7 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_STATUS_USER_TITLE", "Update Issue Status"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(false),
+				DestructiveHint: new(true),
 				OpenWorldHint:   new(true),
 			},
 		},
