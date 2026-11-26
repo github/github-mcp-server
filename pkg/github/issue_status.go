@@ -138,6 +138,11 @@ func normalizeIssueStatusArguments(raw json.RawMessage) (json.RawMessage, error)
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, err
 	}
+	confirmed, ok := args["confirm"].(bool)
+	if !ok || !confirmed {
+		return nil, fmt.Errorf("confirm must be true to update an issue's status")
+	}
+	delete(args, "confirm")
 	for _, field := range []string{"owner", "repo", "status"} {
 		if _, err := RequiredParam[string](args, field); err != nil {
 			return nil, err
@@ -192,8 +197,9 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 					"issue_number": {Type: "number", Minimum: new(1.0), Description: "The issue number to update"},
 					"status":       {Type: "string", Enum: enumValues(issueStatusNames), Description: "The planning status to assign."},
 					"duplicate_of": {Type: "number", Minimum: new(1.0), Description: "The canonical issue number. Required only for Duplicate."},
+					"confirm":      {Type: "boolean", Description: "Set to true to confirm this issue status change."},
 				},
-				Required: []string{"owner", "repo", "issue_number", "status"},
+				Required: []string{"owner", "repo", "issue_number", "status", "confirm"},
 			},
 			OutputSchema: issueStatusUpdateOutputSchema(),
 			Annotations: &mcp.ToolAnnotations{
