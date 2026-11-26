@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "Get GitHub Actions workflow job logs"
   },
-  "description": "Get logs for GitHub Actions workflow jobs.\nUse this tool to retrieve logs for a specific job or all failed jobs in a workflow run.\nFor single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.\n",
+  "description": "Get logs for GitHub Actions workflow jobs.\nUse this tool to retrieve logs for a specific job or failed jobs returned by the latest-attempt job listing.\nFor single job logs, provide job_id. For failures in the returned jobs page, provide run_id with failed_only=true; use actions_list pagination and job_id for other failures.\n",
   "inputSchema": {
     "properties": {
       "failed_only": {
