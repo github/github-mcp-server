@@ -1063,6 +1063,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **issue_read** - Get issue details
   - **OAuth Challenge Scopes**: `repo`
+  - `fields`: Top-level issue fields to return with method get. Omit or leave empty for the full response. For metadata-only reads, select fields such as 'number', 'title', 'state', and 'html_url' to leave out the issue body. (string[], optional)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:

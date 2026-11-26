@@ -160,6 +160,20 @@ type IssueDetailsOutput struct {
 	Parent               *MinimalIssueRef            `json:"parent,omitempty"`
 	SubIssuesSummary     *MinimalSubIssuesSummary    `json:"sub_issues_summary,omitempty"`
 	ClosedByPullRequests *MinimalClosingPullRequests `json:"closed_by_pull_requests,omitempty"`
+
+	fields []string
+}
+
+func (issue IssueDetailsOutput) MarshalJSON() ([]byte, error) {
+	type plain IssueDetailsOutput
+	if len(issue.fields) == 0 {
+		return json.Marshal(plain(issue))
+	}
+	filtered, err := filterFields(plain(issue), issue.fields)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(filtered)
 }
 
 func issueDetailsOutput(issue MinimalIssue) *IssueDetailsOutput {
@@ -381,6 +395,8 @@ func subIssueOutput(issue *github.SubIssue) (*SubIssueOutput, error) {
 var issueReadOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	schema := issueDTOschema[IssueReadOutput]()
 	issue := schema.Properties["issue"]
+	// A get response may contain only the issue fields requested by the caller.
+	issue.Required = nil
 	issue.Properties["state"].Enum = []any{"", "open", "closed"}
 	issue.Properties["state_reason"].Enum = []any{"completed", "not_planned", "reopened", "duplicate"}
 	describeIssueSummarySchema(issue.Properties["sub_issues_summary"])

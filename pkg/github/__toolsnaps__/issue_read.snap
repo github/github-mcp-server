@@ -7,6 +7,41 @@
   "description": "Get information about a specific issue in a GitHub repository.",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Top-level issue fields to return with method get. Omit or leave empty for the full response. For metadata-only reads, select fields such as 'number', 'title', 'state', and 'html_url' to leave out the issue body.",
+        "items": {
+          "enum": [
+            "assignees",
+            "author_association",
+            "body",
+            "closed_at",
+            "closed_by",
+            "closed_by_pull_requests",
+            "comments",
+            "created_at",
+            "draft",
+            "field_values",
+            "has_children",
+            "has_parent",
+            "html_url",
+            "issue_type",
+            "labels",
+            "locked",
+            "milestone",
+            "number",
+            "parent",
+            "reactions",
+            "state",
+            "state_reason",
+            "sub_issues_summary",
+            "title",
+            "updated_at",
+            "user"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "issue_number": {
         "description": "The number of the issue",
         "type": "number"
@@ -638,12 +673,6 @@
             ]
           }
         },
-        "required": [
-          "number",
-          "title",
-          "state",
-          "assignees"
-        ],
         "type": [
           "null",
           "object"
