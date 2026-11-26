@@ -513,6 +513,7 @@ type IssueFragment struct {
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
+	URL              githubv4.String `graphql:"url"`
 	IssueFieldValues struct {
 		Nodes []IssueFieldValueFragment
 	} `graphql:"issueFieldValues(first: 25)"`
@@ -545,6 +546,7 @@ type issueFragmentWithoutFieldValues struct {
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
+	URL githubv4.String `graphql:"url"`
 }
 
 // Common interface for all issue query types

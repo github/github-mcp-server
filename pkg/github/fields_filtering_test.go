@@ -274,7 +274,7 @@ func Test_SearchIssues_FieldsTelemetry(t *testing.T) {
 // getIssueQueryType; see Test_ListIssues for the canonical copies.
 const listIssuesFieldsFieldValuesSelection = "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}"
 
-const listIssuesFieldsQuery = "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},assignees(first: 100){nodes{login}},comments{totalCount}," + listIssuesFieldsFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+const listIssuesFieldsQuery = "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},assignees(first: 100){nodes{login}},comments{totalCount},url," + listIssuesFieldsFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 func listIssuesFieldsMockClient() *http.Client {
 	vars := map[string]any{
@@ -303,6 +303,7 @@ func listIssuesFieldsMockClient() *http.Client {
 						"labels":           map[string]any{"nodes": []map[string]any{}},
 						"assignees":        map[string]any{"nodes": []map[string]any{{"login": "octocat"}}},
 						"comments":         map[string]any{"totalCount": 1},
+						"url":              "https://github.com/owner/repo/issues/123",
 						"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
 					},
 				},
@@ -352,6 +353,33 @@ func Test_ListIssues_FieldFiltering(t *testing.T) {
 	assert.Contains(t, returned.Issues[0], "number")
 	assert.Contains(t, returned.Issues[0], "title")
 	assert.NotContains(t, textContent.Text, "\"body\"")
+}
+
+// Test_ListIssues_HTMLURLField checks that list_issues accepts and returns
+// html_url, as search_issues does, so both tools can share a fields list.
+func Test_ListIssues_HTMLURLField(t *testing.T) {
+	serverTool := ListIssues(translations.NullTranslationHelper)
+	deps := BaseDeps{GQLClient: githubv4.NewClient(listIssuesFieldsMockClient())}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "owner",
+		"repo":   "repo",
+		"fields": []any{"number", "html_url"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var returned struct {
+		Issues []map[string]any `json:"issues"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+	require.Len(t, returned.Issues, 1)
+	assert.Equal(t, map[string]any{
+		"number":   float64(123),
+		"html_url": "https://github.com/owner/repo/issues/123",
+	}, returned.Issues[0])
 }
 
 // Test_ListIssues_AssigneesField covers the assignees field end to end: it is
