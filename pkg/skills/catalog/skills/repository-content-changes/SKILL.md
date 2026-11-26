@@ -79,7 +79,7 @@ what each one destroys and what confirmation it needs.
 
 The rules that hold everywhere:
 
-- **State the target before the first write** — repository, branch, and the full list
+- **State the target before the first file write** — repository, branch, and the full list
   of paths, marked as added, replaced or removed. Get explicit agreement on that list.
   Confirm again for anything added later.
 - **Never write to a default branch on an implied instruction.** If that is genuinely
