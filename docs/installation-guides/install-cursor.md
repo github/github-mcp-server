@@ -15,7 +15,7 @@ Uses GitHub's hosted server at https://api.githubcopilot.com/mcp/. Requires Curs
 ### Install steps
 
 1. Click the install button above and follow the flow, or go directly to your global MCP configuration file at `~/.cursor/mcp.json` and enter the code block below
-2. In Tools & Integrations > MCP tools, click the pencil icon next to "github"
+2. In Preferences → Cursor Settings → Customize → MCPs, click the "github" item, then the path to the config file below "User"
 3. Replace `YOUR_GITHUB_PAT` with your actual [GitHub Personal Access Token](https://github.com/settings/tokens)
 4. Save the file
 5. Restart Cursor
@@ -44,7 +44,7 @@ The local GitHub MCP server runs via Docker and requires Docker Desktop to be in
 ### Install steps
 
 1. Click the install button above and follow the flow, or go directly to your global MCP configuration file at `~/.cursor/mcp.json` and enter the code block below
-2. In Tools & Integrations > MCP tools, click the pencil icon next to "github"
+2. In Preferences → Cursor Settings → Customize → MCPs, click the "github" item, then the path to the config file below "User"
 3. Replace `YOUR_GITHUB_PAT` with your actual [GitHub Personal Access Token](https://github.com/settings/tokens)
 4. Save the file
 5. Restart Cursor
@@ -111,7 +111,7 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 ## Verify Installation
 
 1. Restart Cursor completely
-2. Check for green dot in Settings → Tools & Integrations → MCP Tools
+2. Check for green dot for the "github" item in Preferences → Cursor Settings → Customize → MCPs
 3. In chat/composer, check "Available Tools"
 4. Test with: "List my GitHub repositories"
 
