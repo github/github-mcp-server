@@ -47,9 +47,9 @@ everything; both are covered under confirmation below.
 - **One commit or several?** Group by intent. Files that only make sense together
   belong in one `push_files` call; unrelated changes belong in separate commits with
   separate messages.
-- **A missing `sha` is not a small mistake.** Updating an existing file without it
-  fails, and re-reading to obtain it is one call. Never carry a `sha` over from an
-  earlier read after another write has landed.
+- **A missing `sha` is not a small mistake.** Updating an existing file with
+  `create_or_update_file` without it fails, and re-reading to obtain it is one call.
+  Never carry a `sha` over from an earlier read after another write has landed.
 - **Fork or branch?** `fork_repository` when you cannot write to the repository at all;
   `create_branch` when you can. Forking something you can already write to creates a
   second copy that will drift.
