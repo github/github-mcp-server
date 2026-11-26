@@ -28,7 +28,7 @@
         "type": "boolean"
       },
       "run_id": {
-        "description": "The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.",
+        "description": "The unique identifier of the workflow run. Required when failed_only is true.",
         "type": "number"
       },
       "tail_lines": {
