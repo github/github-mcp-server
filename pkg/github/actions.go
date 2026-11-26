@@ -576,7 +576,7 @@ func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerToo
 			OutputSchema: actionsJobLogsOutputSchema(),
 			Description: t("TOOL_GET_JOB_LOGS_CONSOLIDATED_DESCRIPTION", `Get logs for GitHub Actions workflow jobs.
 Use this tool to retrieve logs for a specific job or failed jobs returned by the latest-attempt job listing.
-For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
+For single job logs, provide job_id. For failures in the returned jobs page, provide run_id with failed_only=true; use actions_list pagination and job_id for other failures.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_JOB_LOGS_CONSOLIDATED_USER_TITLE", "Get GitHub Actions workflow job logs"),
