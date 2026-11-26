@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue Status"
   },
-  "description": "Update an issue's planning status. Done, Not planned and Duplicate close the issue; the other statuses keep it open or reopen it. Duplicate requires duplicate_of, the canonical issue number in the same repository. A status cannot be removed.",
+  "description": "Update an issue's planning status. Done, Not planned and Duplicate close the issue; the other statuses keep it open or reopen it. Closing statuses require confirm_close: true, set only after the user confirms closing the issue. Duplicate requires duplicate_of, the canonical issue number in the same repository. A status cannot be removed.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -21,6 +21,10 @@
   ],
   "inputSchema": {
     "properties": {
+      "confirm_close": {
+        "description": "Must be true for Done, Not planned or Duplicate. Set only after the user confirms closing the issue.",
+        "type": "boolean"
+      },
       "duplicate_of": {
         "description": "The canonical issue number. Required only for Duplicate.",
         "minimum": 1,

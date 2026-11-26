@@ -65,7 +65,8 @@ important one in the backlog; judge on content, not on dates alone.
 - `issue_read` with `method: get` returns `status` as an ID, name and category,
   or null. Filter `search_issues` with `status:"In progress"` or another fixed status.
   Use `update_issue_status` for Backlog, Todo, In progress, In review, Done,
-  Not planned or Duplicate. Done, Not planned and Duplicate close the issue;
+  Not planned or Duplicate. Done, Not planned and Duplicate close the issue
+  and require `confirm_close: true`, set only after the user confirms closing;
   the others keep it open or reopen it. Duplicate requires `duplicate_of`,
   the canonical issue number in the same repository. Status cannot be removed.
 - `type` — only valid if `list_issue_types` returned it. Guessing a type fails the

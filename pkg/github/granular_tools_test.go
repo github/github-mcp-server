@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1184,19 +1185,23 @@ func TestUpdateIssueStatus(t *testing.T) {
 		duplicateCode int
 		updateCode    int
 		wantError     string
+		unconfirmed   bool
 	}{
-		{"Backlog", "backlog", 0, http.StatusOK, ""},
-		{"Todo", "planned", 0, http.StatusOK, ""},
-		{"In progress", "started", 0, http.StatusOK, ""},
-		{"In review", "started", 0, http.StatusOK, ""},
-		{"Done", "completed", 0, http.StatusOK, ""},
-		{"Not planned", "not_planned", 0, http.StatusOK, ""},
-		{"Duplicate", "duplicate", http.StatusOK, http.StatusOK, ""},
-		{"Duplicate", "duplicate", http.StatusNotFound, 0, "failed to get duplicate issue"},
-		{"Todo", "planned", 0, http.StatusForbidden, "failed to update issue"},
+		{"Backlog", "backlog", 0, http.StatusOK, "", false},
+		{"Todo", "planned", 0, http.StatusOK, "", false},
+		{"In progress", "started", 0, http.StatusOK, "", false},
+		{"In review", "started", 0, http.StatusOK, "", false},
+		{"Done", "completed", 0, http.StatusOK, "", false},
+		{"Not planned", "not_planned", 0, http.StatusOK, "", false},
+		{"Duplicate", "duplicate", http.StatusOK, http.StatusOK, "", false},
+		{"Duplicate", "duplicate", http.StatusNotFound, 0, "failed to get duplicate issue", false},
+		{"Todo", "planned", 0, http.StatusForbidden, "failed to update issue", false},
+		{"Done", "completed", 0, 0, "confirm_close must be true", true},
+		{"Not planned", "not_planned", 0, 0, "confirm_close must be true", true},
+		{"Duplicate", "duplicate", 0, 0, "confirm_close must be true", true},
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%s/%d/%d", tc.status, tc.duplicateCode, tc.updateCode), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s/%d/%d/unconfirmed=%t", tc.status, tc.duplicateCode, tc.updateCode, tc.unconfirmed), func(t *testing.T) {
 			gets, patches := 0, 0
 			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -1225,6 +1230,9 @@ func TestUpdateIssueStatus(t *testing.T) {
 			if tc.status == "Duplicate" {
 				args["duplicate_of"] = "7"
 			}
+			if slices.Contains(issueClosingStatusNames, tc.status) && !tc.unconfirmed {
+				args["confirm_close"] = true
+			}
 			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: args})
 			require.NoError(t, err)
 			if tc.wantError != "" {
@@ -1235,13 +1243,13 @@ func TestUpdateIssueStatus(t *testing.T) {
 				assert.JSONEq(t, fmt.Sprintf(`{"id":"123","url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":%q,"category":%q}}`, tc.status, tc.category), getTextResult(t, result).Text)
 				assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
 			}
-			if tc.status == "Duplicate" {
+			if tc.status == "Duplicate" && !tc.unconfirmed {
 				assert.Equal(t, 1, gets)
 			} else {
 				assert.Zero(t, gets)
 			}
 			if tc.updateCode == 0 {
-				assert.Zero(t, patches, "failed duplicate lookup must prevent the mutation")
+				assert.Zero(t, patches, "failed duplicate lookup or missing confirmation must prevent the mutation")
 			} else {
 				assert.Equal(t, 1, patches)
 			}
@@ -1262,6 +1270,9 @@ func TestIssuePlanningStatusInvalidInput(t *testing.T) {
 		{UpdateIssueStatus(translate), map[string]any{"status": "unknown"}, "status must be one of"},
 		{UpdateIssueStatus(translate), map[string]any{"status": nil}, "status"},
 		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "issue_number": -1}, "issue_number must be positive"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Done"}, "confirm_close must be true"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Not planned", "confirm_close": false}, "confirm_close must be true"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Done", "confirm_close": "true"}, "confirm_close"},
 		{GranularCreateIssue(translate), map[string]any{"status": "Done"}, "status must be one of: Backlog, Todo, In progress, In review"},
 		{IssueWrite(translate), map[string]any{"method": "update", "status": "Todo"}, "status is only supported with the create method"},
 		{IssueWrite(translate), map[string]any{"status": "Todo", "state": "closed"}, "status cannot be combined with state"},
@@ -1271,7 +1282,7 @@ func TestIssuePlanningStatusInvalidInput(t *testing.T) {
 			args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": 42, "title": "Subject", "method": "create"}
 			maps.Copy(args, tc.args)
 			req := createMCPRequest(args)
-			result, err := tc.tool.Handler(BaseDeps{})(context.Background(), &req)
+			result, err := tc.tool.Handler(BaseDeps{})(ContextWithDeps(context.Background(), BaseDeps{}), &req)
 			require.NoError(t, err)
 			require.True(t, result.IsError)
 			assert.Contains(t, getTextResult(t, result).Text, tc.want)

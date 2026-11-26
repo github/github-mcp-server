@@ -623,6 +623,7 @@ The `issues` toolset supports planning statuses. `issue_read` returns the
 current status, `search_issues` documents the `status:` qualifier, and issue
 creation accepts Backlog, Todo, In progress, or In review. The
 `update_issue_status` tool also accepts Done, Not planned, and Duplicate;
+these closing statuses require `confirm_close: true` after the user confirms.
 Duplicate requires the canonical issue number in `duplicate_of`. The
 `issue_write` MCP App creation form can set an initial status or use the
 default, Backlog.
@@ -1163,6 +1164,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **update_issue_status** - Update Issue Status
   - **OAuth Challenge Scopes**: `repo`
+  - `confirm_close`: Must be true for Done, Not planned or Duplicate. Set only after the user confirms closing the issue. (boolean, optional)
   - `duplicate_of`: The canonical issue number. Required only for Duplicate. (number, optional)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)

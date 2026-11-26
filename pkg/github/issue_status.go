@@ -25,6 +25,7 @@ var (
 	// Issues can only be created with an open status.
 	issueCreationStatusNames = issueStatusNames[:4:4]
 	issueStatusCategories    = []string{"backlog", "planned", "started", "completed", "not_planned", "duplicate"}
+	issueClosingStatusNames  = issueStatusNames[4:]
 )
 
 type IssuePlanningStatus struct {
@@ -68,11 +69,12 @@ type IssueStatusUpdateOutput struct {
 }
 
 type IssueStatusInput struct {
-	Owner       string `json:"owner"`
-	Repo        string `json:"repo"`
-	IssueNumber int    `json:"issue_number"`
-	Status      string `json:"status"`
-	DuplicateOf int    `json:"duplicate_of,omitempty"`
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	IssueNumber  int    `json:"issue_number"`
+	Status       string `json:"status"`
+	DuplicateOf  int    `json:"duplicate_of,omitempty"`
+	ConfirmClose bool   `json:"confirm_close,omitempty"`
 }
 
 func issuePlanningStatusSchema() *jsonschema.Schema {
@@ -171,6 +173,9 @@ func normalizeIssueStatusArguments(raw json.RawMessage) (json.RawMessage, error)
 	if status == "Duplicate" && duplicate == 0 {
 		return nil, fmt.Errorf("duplicate_of is required when status is 'Duplicate'")
 	}
+	if _, err := OptionalParam[bool](args, "confirm_close"); err != nil {
+		return nil, err
+	}
 	args["issue_number"], args["status"] = number, status
 	return json.Marshal(args)
 }
@@ -183,6 +188,7 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name: "update_issue_status",
 			Description: t("TOOL_UPDATE_ISSUE_STATUS_DESCRIPTION", "Update an issue's planning status. "+
 				"Done, Not planned and Duplicate close the issue; the other statuses keep it open or reopen it. "+
+				"Closing statuses require confirm_close: true, set only after the user confirms closing the issue. "+
 				"Duplicate requires duplicate_of, the canonical issue number in the same repository. A status cannot be removed."),
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -192,6 +198,10 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 					"issue_number": {Type: "number", Minimum: new(1.0), Description: "The issue number to update"},
 					"status":       {Type: "string", Enum: enumValues(issueStatusNames), Description: "The planning status to assign."},
 					"duplicate_of": {Type: "number", Minimum: new(1.0), Description: "The canonical issue number. Required only for Duplicate."},
+					"confirm_close": {
+						Type:        "boolean",
+						Description: "Must be true for Done, Not planned or Duplicate. Set only after the user confirms closing the issue.",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "status"},
 			},
@@ -205,6 +215,10 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 		},
 		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args IssueStatusInput) (*mcp.CallToolResult, *IssueStatusUpdateOutput, error) {
+			// This is a caller-supplied confirmation policy, not proof that a trusted UI prompted the user.
+			if slices.Contains(issueClosingStatusNames, args.Status) && !args.ConfirmClose {
+				return utils.NewToolResultError("confirm_close must be true to use a status that closes the issue"), nil, nil
+			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
