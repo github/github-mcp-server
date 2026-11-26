@@ -47,7 +47,7 @@ const (
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
 
-// handleFailedJobLogs gets logs for all failed jobs in a workflow run
+// handleFailedJobLogs gets logs for failures in the returned latest-attempt jobs page.
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
 	// First, get all jobs for the workflow run
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
