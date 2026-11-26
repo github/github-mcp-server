@@ -46,7 +46,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				"ecosystem": {
 					Type:        "string",
 					Description: "Filter by package ecosystem.",
-					Enum:        []any{"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust", "swift"},
+					Enum:        []any{"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust"},
 				},
 				"severity": {
 					Type:        "string",
