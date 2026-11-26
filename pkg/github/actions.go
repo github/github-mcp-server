@@ -603,7 +603,7 @@ For single job logs, provide job_id. For failures in the returned jobs page, pro
 					},
 					"failed_only": {
 						Type:        "boolean",
-						Description: "When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.",
+						Description: "When true, gets logs for jobs with conclusion failure in the first returned page of the latest attempt. Requires run_id to be provided.",
 					},
 					"return_content": {
 						Type:        "boolean",
