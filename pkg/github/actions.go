@@ -599,7 +599,7 @@ For single job logs, provide job_id. For failures in the returned jobs page, pro
 					},
 					"run_id": {
 						Type:        "number",
-						Description: "The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.",
+						Description: "The unique identifier of the workflow run. Required when failed_only is true.",
 					},
 					"failed_only": {
 						Type:        "boolean",
