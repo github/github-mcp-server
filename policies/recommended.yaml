@@ -1,0 +1,127 @@
+version: "1"
+description: "GitHub MCP — recommended policy. Rate limits on writes, blocks destructive ops, reads allowed freely."
+default: allow
+
+tools:
+  # Destructive — blocked entirely
+  delete_file:
+    hide: true
+    rules:
+      - action: deny
+        on_deny: "File deletion blocked by policy"
+
+  # High-risk writes — tight limits
+  merge_pull_request:
+    rules:
+      - name: "burst-limit"
+        rate_limit: "2/minute"
+        on_deny: "Slow down — max 2 merges per minute"
+      - name: "hourly-cap"
+        rate_limit: "10/hour"
+        on_deny: "Hourly merge limit (10) reached"
+
+  push_files:
+    rules:
+      - name: "burst-limit"
+        rate_limit: "3/minute"
+        on_deny: "Slow down — max 3 pushes per minute"
+      - name: "hourly-cap"
+        rate_limit: "20/hour"
+        on_deny: "Hourly push limit (20) reached"
+
+  create_or_update_file:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "30/hour"
+        on_deny: "Max 30 file writes per hour"
+
+  # Execution — rate limited
+  actions_run_trigger:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "5/hour"
+        on_deny: "Max 5 workflow triggers per hour"
+
+  # Repository management — moderate limits
+  create_repository:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "5/hour"
+        on_deny: "Max 5 repository creations per hour"
+
+  fork_repository:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "5/hour"
+        on_deny: "Max 5 forks per hour"
+
+  # PR and issue writes — reasonable throughput
+  create_pull_request:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "20/hour"
+        on_deny: "Max 20 PR creations per hour"
+
+  update_pull_request:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "30/hour"
+        on_deny: "Max 30 PR updates per hour"
+
+  update_pull_request_branch:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "20/hour"
+        on_deny: "Max 20 branch updates per hour"
+
+  issue_write:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "30/hour"
+        on_deny: "Max 30 issue writes per hour"
+
+  add_issue_comment:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "30/hour"
+        on_deny: "Max 30 issue comments per hour"
+
+  # Branch creation
+  create_branch:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "20/hour"
+        on_deny: "Max 20 branch creations per hour"
+
+  # Copilot tools — limited
+  assign_copilot_to_issue:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "10/hour"
+        on_deny: "Max 10 Copilot assignments per hour"
+
+  request_copilot_review:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "10/hour"
+        on_deny: "Max 10 Copilot review requests per hour"
+
+  create_pull_request_with_copilot:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "10/hour"
+        on_deny: "Max 10 Copilot PR creations per hour"
+
+  # Gist writes
+  create_gist:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "20/hour"
+        on_deny: "Max 20 gist creations per hour"
+
+  # Global safety net
+  "*":
+    rules:
+      - name: "global-rate-limit"
+        rate_limit: "120/minute"
+        on_deny: "Global rate limit — max 120 tool calls per minute"
