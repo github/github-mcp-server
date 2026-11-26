@@ -241,7 +241,7 @@ after updating them, refresh its digest with
 
 ## Environment Variables
 
-- **GITHUB_PERSONAL_ACCESS_TOKEN** - Required for server operation and e2e tests
+- **GITHUB_PERSONAL_ACCESS_TOKEN** - Static-token authentication for stdio; OAuth or GitHub App authentication are alternatives
 - **GITHUB_HOST** - For GitHub Enterprise Server (prefix with `https://`)
 - **GITHUB_TOOLSETS** - Comma-separated toolset list (overrides --toolsets flag)
 - **GITHUB_READ_ONLY** - Set to "1" for read-only mode
