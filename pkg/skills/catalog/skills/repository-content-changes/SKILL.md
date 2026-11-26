@@ -58,8 +58,8 @@ everything; both are covered under confirmation below.
 
 ## Fields that matter
 
-- `branch` — required on every write. There is no implicit current branch, and omitting
-  it is how a change lands somewhere unintended.
+- `branch` — required for file writes; supply it explicitly rather than relying on an
+  implicit current branch.
 - `sha` on `create_or_update_file` — the blob identifier of the file being replaced,
   read from `get_file_contents`. Not the commit identifier.
 - `message` — the only durable record of why a commit exists. Write it for the person
