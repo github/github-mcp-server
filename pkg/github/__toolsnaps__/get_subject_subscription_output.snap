@@ -1,0 +1,44 @@
+{
+  "inputSchema": null,
+  "name": "get_subject_subscription",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "can_subscribe": {
+        "type": "boolean"
+      },
+      "id": {
+        "type": "string"
+      },
+      "number": {
+        "maximum": 2147483647,
+        "minimum": -2147483648,
+        "type": "integer"
+      },
+      "state": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "subject_type": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "subject_type",
+      "number",
+      "url",
+      "state",
+      "can_subscribe"
+    ],
+    "type": [
+      "null",
+      "object"
+    ]
+  }
+}
