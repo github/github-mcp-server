@@ -102,8 +102,6 @@ review comments, or repeatedly on the same proposal.
 
 - **The issue is too vague to delegate** — say what is missing and stop. Adding the
   missing detail to the issue is the useful next step, and it is a separate decision.
-- **The intent-carrying tool is not available** — the opt-in toolset is not enabled. Use
-  the direct assignment, and say that the rationale and confidence were not recorded.
 - **The assignment is refused** — the agent may not be enabled for this repository or
   account, or the issue may be closed or locked. Report which, rather than retrying.
 - **The issue is already assigned to the agent** — a second launch does not help. Find
