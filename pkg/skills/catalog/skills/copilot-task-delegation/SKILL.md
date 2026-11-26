@@ -62,8 +62,9 @@ Two tools do this, and the difference is whether the choice is recorded.
   `is_suggestion` lets you record the intent without launching anything. Use
   `is_suggestion` set to true whenever you are proposing a candidate rather than acting
   on an instruction — it is the honest form of "this one looks suitable".
-- It belongs to an opt-in toolset and may simply not be present. If it is absent, fall
-  back to the direct assignment and say that the reasoning was not recorded with it.
+- If the opt-in intent tool is absent, use direct assignment only for an approved
+  launch; otherwise present the suggestion without launching, and report that the
+  intent was not recorded.
 
 `rationale` is one sentence naming the concrete signal — "well-scoped defect with a
 failing test attached", not "seems suitable". `confidence` is `HIGH` only for an
