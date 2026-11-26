@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "failed_only": {
-        "description": "When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.",
+        "description": "When true, gets logs for jobs with conclusion failure in the first returned page of the latest attempt. Requires run_id to be provided.",
         "type": "boolean"
       },
       "job_id": {
