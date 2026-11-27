@@ -235,7 +235,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_ASSIGNEES_USER_TITLE", "Update Issue Assignees"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(false),
+				DestructiveHint: new(true), // replacing the assignee list removes assignees that are not in it
 				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
@@ -370,7 +370,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(false),
+				DestructiveHint: new(true), // replacing the label list removes labels that are not in it
 				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
