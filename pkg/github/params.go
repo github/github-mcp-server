@@ -479,8 +479,8 @@ func (p CursorPaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, err
 	if p.PerPage > 100 {
 		return nil, fmt.Errorf("perPage value %d exceeds maximum of 100", p.PerPage)
 	}
-	if p.PerPage < 0 {
-		return nil, fmt.Errorf("perPage value %d cannot be negative", p.PerPage)
+	if p.PerPage < 1 {
+		return nil, fmt.Errorf("perPage value %d is below minimum of 1", p.PerPage)
 	}
 	first := int32(p.PerPage)
 
