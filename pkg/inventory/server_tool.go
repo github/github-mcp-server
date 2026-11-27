@@ -280,13 +280,23 @@ var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
 // AnnotateHeaderParams returns a copy of tool whose owner/repo input properties
 // carry an "x-mcp-header" annotation, which the
-// SDK projects onto Mcp-Param-{name} request headers. It never mutates the
-// input tool's schema or any map shared with the original tool definition:
-// callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its
-// per-property Extra maps) are shared, and per-request registration must not
-// race on them. Only the schema, its Properties map, and the specific property
-// schemas/Extra maps that gain an annotation are cloned.
+// SDK projects onto Mcp-Param-{name} request headers. App-only tools are never
+// annotated, because their only callers cannot set request headers. It never
+// mutates the input tool's schema or any map shared with the original tool
+// definition: callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema
+// (and its per-property Extra maps) are shared, and per-request registration
+// must not race on them. Only the schema, its Properties map, and the specific
+// property schemas/Extra maps that gain an annotation are cloned.
 func AnnotateHeaderParams(tool *mcp.Tool) {
+	// App-only tools are never projected onto Mcp-Param-* headers. Their only
+	// callers are MCP App views, which reach the server through the host's
+	// tools/call proxy; App.callServerTool carries no HTTP headers, so a
+	// required projection makes every view lookup fail with -32020 in hosts
+	// that do not project headers for proxied calls (issue #3834). The
+	// arguments still carry owner/repo in the request body.
+	if IsAppOnlyTool(tool) {
+		return
+	}
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
 		return
@@ -426,7 +436,7 @@ func NewServerToolWithContextHandlerAndSchemaOptions[In any, Out any](
 			modernTool := *tool
 			cacheExplicitToolSchemas(&modernTool)
 			if modernTool.InputSchema == nil && reflect.TypeFor[In]() != reflect.TypeFor[any]() {
-				inferred, err := CachedInputSchemaFor[In](schemaOptions.Input, schemaOptions.InputEnums...)
+				inferred, err := CachedInputSchemaForTool[In](IsAppOnlyTool(tool), schemaOptions.Input, schemaOptions.InputEnums...)
 				if err != nil {
 					panic(fmt.Sprintf("failed to generate input schema for tool %q: %v", tool.Name, err))
 				}

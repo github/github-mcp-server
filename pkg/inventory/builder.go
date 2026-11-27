@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var (
@@ -393,11 +395,11 @@ func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	return result
 }
 
-// isAppOnlyTool reports whether a tool declares MCP Apps visibility that
-// excludes the model (e.g. `_meta.ui.visibility: ["app"]`). Such tools are
+// IsAppOnlyTool reports whether a tool definition declares MCP Apps visibility
+// that excludes the model (e.g. `_meta.ui.visibility: ["app"]`). Such tools are
 // only meant to be called by MCP App views, never by the model directly.
-func isAppOnlyTool(tool *ServerTool) bool {
-	ui, ok := tool.Tool.Meta["ui"].(map[string]any)
+func IsAppOnlyTool(tool *mcp.Tool) bool {
+	ui, ok := tool.Meta["ui"].(map[string]any)
 	if !ok {
 		return false
 	}
@@ -415,6 +417,12 @@ func isAppOnlyTool(tool *ServerTool) bool {
 		return false
 	}
 	return len(visibility) > 0 && !slices.Contains(visibility, "model")
+}
+
+// isAppOnlyTool reports whether a tool declares MCP Apps visibility that
+// excludes the model.
+func isAppOnlyTool(tool *ServerTool) bool {
+	return IsAppOnlyTool(&tool.Tool)
 }
 
 // stripMetaKeys removes the specified Meta keys from a single tool.

@@ -28,6 +28,13 @@ tools without changing their advertised schemas. Full typed body validation
 and defaults still run after tool authorization guards. Older protocol versions
 do not require or validate these standard parameter headers.
 
+Tools whose `_meta.ui.visibility` excludes `"model"` (app-only tools such as
+`ui_get`) are deliberately left unannotated. Their only callers are MCP App
+views, which reach the server through the host's `tools/call` proxy; the MCP
+Apps bridge carries no HTTP headers, so a required projection would reject
+every view lookup with `-32020`. These calls route from the body arguments
+instead.
+
 ### Basic HTTP Server
 
 Start the server on the default port (8082):

@@ -264,3 +264,40 @@ func TestTypedHeaderParamsHTTP(t *testing.T) {
 		}
 	}
 }
+
+// TestAnnotateHeaderParamsSkipsAppOnlyTools pins the exemption for tools that
+// only MCP App views can call. Views reach the server through the host's
+// tools/call proxy and App.callServerTool carries no HTTP headers, so an
+// x-mcp-header binding on an app-only tool makes the SDK reject every view
+// lookup with -32020 at the HTTP boundary.
+func TestAnnotateHeaderParamsSkipsAppOnlyTools(t *testing.T) {
+	appOnly := &mcp.Tool{
+		Name: "ui_get",
+		Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		InputSchema: &jsonschema.Schema{
+			Type:       "object",
+			Properties: map[string]*jsonschema.Schema{"method": {Type: "string"}, "owner": {Type: "string"}, "repo": {Type: "string"}},
+			Required:   []string{"method", "owner"},
+		},
+	}
+	AnnotateHeaderParams(appOnly)
+	schema := appOnly.InputSchema.(*jsonschema.Schema)
+	require.Nil(t, schema.Properties["owner"].Extra)
+	require.Nil(t, schema.Properties["repo"].Extra)
+
+	// Visibility that includes the model keeps the projection requirement.
+	for _, visibility := range [][]string{{"model", "app"}, {"model"}} {
+		modelVisible := &mcp.Tool{
+			Name: "issue_read",
+			Meta: mcp.Meta{"ui": map[string]any{"visibility": visibility}},
+			InputSchema: &jsonschema.Schema{
+				Type:       "object",
+				Properties: map[string]*jsonschema.Schema{"owner": {Type: "string"}, "repo": {Type: "string"}},
+			},
+		}
+		AnnotateHeaderParams(modelVisible)
+		schema := modelVisible.InputSchema.(*jsonschema.Schema)
+		require.Equal(t, "owner", schema.Properties["owner"].Extra["x-mcp-header"])
+		require.Equal(t, "repo", schema.Properties["repo"].Extra["x-mcp-header"])
+	}
+}
