@@ -3,9 +3,9 @@
     "destructiveHint": true,
     "idempotentHint": false,
     "readOnlyHint": false,
-    "title": "Trigger GitHub Actions workflow actions"
+    "title": "Run or manage workflows"
   },
-  "description": "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs.",
+  "description": "Run or manage GitHub Actions workflows. Supports starting a workflow, rerunning a workflow or failed jobs, cancelling a workflow run, and permanently deleting workflow run logs. Successful calls return an operation-specific JSON confirmation with identifiers and the GitHub response status.",
   "inputSchema": {
     "properties": {
       "inputs": {

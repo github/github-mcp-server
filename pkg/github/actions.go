@@ -482,9 +482,9 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 		mcp.Tool{
 			Name:         "actions_run_trigger",
 			OutputSchema: actionsRunTriggerOutputSchema(),
-			Description:  t("TOOL_ACTIONS_RUN_TRIGGER_DESCRIPTION", "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs."),
+			Description:  t("TOOL_ACTIONS_RUN_TRIGGER_DESCRIPTION", `Run or manage GitHub Actions workflows. Supports starting a workflow, rerunning a workflow or failed jobs, cancelling a workflow run, and permanently deleting workflow run logs. Successful calls return an operation-specific JSON confirmation with identifiers and the GitHub response status.`),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_ACTIONS_RUN_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions"),
+				Title:           t("TOOL_ACTIONS_RUN_TRIGGER_USER_TITLE", "Run or manage workflows"),
 				ReadOnlyHint:    false,
 				DestructiveHint: new(true),
 			},
