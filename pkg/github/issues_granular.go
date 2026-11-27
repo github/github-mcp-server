@@ -2,12 +2,15 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
+	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
@@ -362,15 +365,15 @@ type assigneesUpdateRequest struct {
 
 // GranularUpdateIssueLabels creates a tool to update an issue's labels.
 func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool[GranularIssueLabelsInput, *MinimalResponse](
+	st := NewTool[GranularIssueLabelsInput, *GranularIssueLabelsResponse](
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. With method 'replace' (default) this replaces the current labels with the provided list; use 'add' to add labels while keeping the existing ones, or 'remove' to remove specific labels without touching the rest. Returns the issue's labels after the update. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
-				DestructiveHint: new(false),
+				DestructiveHint: new(true),
 				OpenWorldHint:   new(true),
 			},
 			InputSchema: &jsonschema.Schema{
@@ -389,9 +392,15 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 						Description: "The issue number to update",
 						Minimum:     new(1.0),
 					},
+					"method": {
+						Type:        "string",
+						Description: "How to apply the labels: 'replace' (default) sets the issue's labels to exactly the provided list, 'add' adds them while keeping the existing labels, and 'remove' removes the named labels without affecting the others.",
+						Enum:        []any{issueLabelsMethodReplace, issueLabelsMethodAdd, issueLabelsMethodRemove},
+						Default:     json.RawMessage(`"replace"`),
+					},
 					"labels": {
 						Type:        "array",
-						Description: "Labels to apply to this issue.",
+						Description: "Labels to apply to this issue. For 'add' and 'remove', only each label's name is used; 'rationale', 'confidence', and 'is_suggestion' are only honored when method is 'replace'.",
 						Items: &jsonschema.Schema{
 							OneOf: []*jsonschema.Schema{
 								{Type: "string", Description: "Label name"},
@@ -429,38 +438,107 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			},
 		},
 		scopes.RequireAll(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularIssueLabelsInput) (*mcp.CallToolResult, *MinimalResponse, error) {
-			owner, repo, issueNumber := args.Owner, args.Repo, args.IssueNumber
-
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args GranularIssueLabelsInput) (*mcp.CallToolResult, *GranularIssueLabelsResponse, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			body := granularIssueLabelsPayload(args.Labels)
-
-			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
-			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+			var issue *github.Issue
+			var errResult *mcp.CallToolResult
+			switch args.Method {
+			case issueLabelsMethodAdd:
+				issue, errResult = addIssueLabels(ctx, client, args)
+			case issueLabelsMethodRemove:
+				issue, errResult = removeIssueLabels(ctx, client, args)
+			default:
+				issue, errResult = replaceIssueLabels(ctx, client, args)
+			}
+			if errResult != nil {
+				return errResult, nil, nil
 			}
 
-			issue := &github.Issue{}
-			resp, err := client.Do(req, issue)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+			names := make([]string, 0, len(issue.Labels))
+			for _, label := range issue.Labels {
+				names = append(names, label.GetName())
 			}
-			defer func() { _ = resp.Body.Close() }()
-
-			return granularIssueMinimalResult(&MinimalResponse{
-				ID:  fmt.Sprintf("%d", issue.GetID()),
-				URL: issue.GetHTMLURL(),
-			})
+			output := &GranularIssueLabelsResponse{
+				ID:     fmt.Sprintf("%d", issue.GetID()),
+				URL:    issue.GetHTMLURL(),
+				Labels: names,
+			}
+			raw, err := json.Marshal(output)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			result := utils.NewToolResultText(string(raw))
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, args.Owner, args.Repo, result, ifc.LabelRepoMetadata)
+			return result, output, nil
 		},
 		granularIssueInputNormalizer(normalizeGranularUpdateIssueLabelsArguments),
 	)
 	st.FeatureRule = issuesGranularFeatureRule
 	return st
+}
+
+func replaceIssueLabels(ctx context.Context, client *github.Client, args GranularIssueLabelsInput) (*github.Issue, *mcp.CallToolResult) {
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", args.Owner, args.Repo, args.IssueNumber)
+	req, err := client.NewRequest(ctx, "PATCH", apiURL, granularIssueLabelsPayload(args.Labels))
+	if err != nil {
+		return nil, utils.NewToolResultErrorFromErr("failed to create request", err)
+	}
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err)
+	}
+	_ = resp.Body.Close()
+	return issue, nil
+}
+
+func addIssueLabels(ctx context.Context, client *github.Client, args GranularIssueLabelsInput) (*github.Issue, *mcp.CallToolResult) {
+	names := make([]string, len(args.Labels))
+	for i, label := range args.Labels {
+		names[i] = label.Name
+	}
+	_, resp, err := client.Issues.AddLabelsToIssue(ctx, args.Owner, args.Repo, args.IssueNumber, names)
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add labels to issue", resp, err)
+	}
+	_ = resp.Body.Close()
+	return getIssueAfterLabelChange(ctx, client, args)
+}
+
+func removeIssueLabels(ctx context.Context, client *github.Client, args GranularIssueLabelsInput) (*github.Issue, *mcp.CallToolResult) {
+	removed := make([]string, 0, len(args.Labels))
+	for _, label := range args.Labels {
+		// Not using Issues.RemoveLabelForIssue: it does not escape names like "status/blocked".
+		apiURL := fmt.Sprintf("repos/%s/%s/issues/%d/labels/%s", args.Owner, args.Repo, args.IssueNumber, url.PathEscape(label.Name))
+		req, err := client.NewRequest(ctx, "DELETE", apiURL, nil)
+		if err != nil {
+			return nil, utils.NewToolResultErrorFromErr("failed to create request", err)
+		}
+		resp, err := client.Do(req, nil)
+		if err != nil {
+			msg := fmt.Sprintf("failed to remove label %q from issue", label.Name)
+			if len(removed) > 0 {
+				msg += fmt.Sprintf(" (already removed: %s)", strings.Join(removed, ", "))
+			}
+			return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, msg, resp, err)
+		}
+		_ = resp.Body.Close()
+		removed = append(removed, label.Name)
+	}
+	return getIssueAfterLabelChange(ctx, client, args)
+}
+
+func getIssueAfterLabelChange(ctx context.Context, client *github.Client, args GranularIssueLabelsInput) (*github.Issue, *mcp.CallToolResult) {
+	issue, resp, err := client.Issues.Get(ctx, args.Owner, args.Repo, args.IssueNumber)
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, "labels were updated but failed to read the issue back", resp, err)
+	}
+	_ = resp.Body.Close()
+	return issue, nil
 }
 
 // GranularUpdateIssueMilestone creates a tool to update an issue's milestone.

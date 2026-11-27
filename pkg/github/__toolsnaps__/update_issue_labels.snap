@@ -1,12 +1,12 @@
 {
   "annotations": {
-    "destructiveHint": false,
+    "destructiveHint": true,
     "idempotentHint": false,
     "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
+  "description": "Update the labels of an existing issue. With method 'replace' (default) this replaces the current labels with the provided list; use 'add' to add labels while keeping the existing ones, or 'remove' to remove specific labels without touching the rest. Returns the issue's labels after the update. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "icons": [
     {
       "mimeType": "image/png",
@@ -27,7 +27,7 @@
         "type": "number"
       },
       "labels": {
-        "description": "Labels to apply to this issue.",
+        "description": "Labels to apply to this issue. For 'add' and 'remove', only each label's name is used; 'rationale', 'confidence', and 'is_suggestion' are only honored when method is 'replace'.",
         "items": {
           "oneOf": [
             {
@@ -68,6 +68,16 @@
         },
         "type": "array"
       },
+      "method": {
+        "default": "replace",
+        "description": "How to apply the labels: 'replace' (default) sets the issue's labels to exactly the provided list, 'add' adds them while keeping the existing labels, and 'remove' removes the named labels without affecting the others.",
+        "enum": [
+          "replace",
+          "add",
+          "remove"
+        ],
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string",
@@ -94,13 +104,23 @@
       "id": {
         "type": "string"
       },
+      "labels": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
       "url": {
         "type": "string"
       }
     },
     "required": [
       "id",
-      "url"
+      "url",
+      "labels"
     ],
     "type": [
       "null",

@@ -354,7 +354,8 @@ as output formatting) won't appear here.
 - **update_issue_labels** - Update Issue Labels
   - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The issue number to update (number, required)
-  - `labels`: Labels to apply to this issue. ([], required)
+  - `labels`: Labels to apply to this issue. For 'add' and 'remove', only each label's name is used; 'rationale', 'confidence', and 'is_suggestion' are only honored when method is 'replace'. ([], required)
+  - `method`: How to apply the labels: 'replace' (default) sets the issue's labels to exactly the provided list, 'add' adds them while keeping the existing labels, and 'remove' removes the named labels without affecting the others. (string, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
