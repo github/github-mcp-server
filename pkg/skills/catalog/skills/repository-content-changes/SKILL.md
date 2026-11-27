@@ -47,9 +47,9 @@ everything; both are covered under confirmation below.
 - **One commit or several?** Group by intent. Files that only make sense together
   belong in one `push_files` call; unrelated changes belong in separate commits with
   separate messages.
-- **A missing `sha` is not a small mistake.** Updating an existing file without it
-  fails, and re-reading to obtain it is one call. Never carry a `sha` over from an
-  earlier read after another write has landed.
+- **A missing `sha` is not a small mistake.** Updating an existing file with
+  `create_or_update_file` without it fails, and re-reading to obtain it is one call.
+  Never carry a `sha` over from an earlier read after another write has landed.
 - **Fork or branch?** `fork_repository` when you cannot write to the repository at all;
   `create_branch` when you can. Forking something you can already write to creates a
   second copy that will drift.
@@ -58,8 +58,8 @@ everything; both are covered under confirmation below.
 
 ## Fields that matter
 
-- `branch` — required on every write. There is no implicit current branch, and omitting
-  it is how a change lands somewhere unintended.
+- `branch` — required for file writes; supply it explicitly rather than relying on an
+  implicit current branch.
 - `sha` on `create_or_update_file` — the blob identifier of the file being replaced,
   read from `get_file_contents`. Not the commit identifier.
 - `message` — the only durable record of why a commit exists. Write it for the person
@@ -79,7 +79,7 @@ what each one destroys and what confirmation it needs.
 
 The rules that hold everywhere:
 
-- **State the target before the first write** — repository, branch, and the full list
+- **State the target before the first file write** — repository, branch, and the full list
   of paths, marked as added, replaced or removed. Get explicit agreement on that list.
   Confirm again for anything added later.
 - **Never write to a default branch on an implied instruction.** If that is genuinely

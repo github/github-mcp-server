@@ -62,8 +62,9 @@ Two tools do this, and the difference is whether the choice is recorded.
   `is_suggestion` lets you record the intent without launching anything. Use
   `is_suggestion` set to true whenever you are proposing a candidate rather than acting
   on an instruction — it is the honest form of "this one looks suitable".
-- It belongs to an opt-in toolset and may simply not be present. If it is absent, fall
-  back to the direct assignment and say that the reasoning was not recorded with it.
+- If the opt-in intent tool is absent, use direct assignment only for an approved
+  launch; otherwise present the suggestion without launching, and report that the
+  intent was not recorded.
 
 `rationale` is one sentence naming the concrete signal — "well-scoped defect with a
 failing test attached", not "seems suitable". `confidence` is `HIGH` only for an
@@ -101,8 +102,6 @@ review comments, or repeatedly on the same proposal.
 
 - **The issue is too vague to delegate** — say what is missing and stop. Adding the
   missing detail to the issue is the useful next step, and it is a separate decision.
-- **The intent-carrying tool is not available** — the opt-in toolset is not enabled. Use
-  the direct assignment, and say that the rationale and confidence were not recorded.
 - **The assignment is refused** — the agent may not be enabled for this repository or
   account, or the issue may be closed or locked. Report which, rather than retrying.
 - **The issue is already assigned to the agent** — a second launch does not help. Find

@@ -22,9 +22,6 @@ step holds the first failed `conclusion`.
 
 ### 2. Did sibling jobs in the same run fail too?
 
-`actions_list` with `method: list_workflow_jobs` gives every job's `conclusion` in one
-call.
-
 - **One job failed, the rest succeeded** — the failure belongs to that job. Look at what
   is specific to it: its matrix values, its inputs, the step that broke.
 - **Every job failed at roughly the same point** — something shared broke: a

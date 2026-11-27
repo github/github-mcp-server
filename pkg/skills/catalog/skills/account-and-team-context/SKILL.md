@@ -50,8 +50,6 @@ that account can actually see or change.
 
 - `login` — the only durable identifier for an account. Report it alongside a display
   name whenever the two differ.
-- `type` — distinguishes a user from an organisation. A great deal of confusion comes
-  from treating an organisation as a person.
 - `team_slug` versus a team's display name — only the slug addresses a team.
 - `affiliation` — `direct` and `all` answer different questions, and quoting one as the
   other overstates or understates who can change the repository.

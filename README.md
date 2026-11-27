@@ -713,12 +713,12 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **get_job_logs** - Get GitHub Actions workflow job logs
   - **OAuth Challenge Scopes**: `repo`
-  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
+  - `failed_only`: When true, gets logs for jobs with conclusion failure in the first returned page of the latest attempt. Requires run_id to be provided. (boolean, optional)
   - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
-  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
+  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
 </details>

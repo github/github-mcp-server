@@ -55,7 +55,7 @@ go build -v ./cmd/github-mcp-server
 go test ./pkg/github -v
 
 # Run specific test
-go test ./pkg/github -run TestGetMe
+go test ./pkg/github -run '^Test_GetMe$'
 ```
 
 ## Project Structure
@@ -130,7 +130,7 @@ Located in `.github/workflows/`:
 
 - Use `testify` for assertions (`require` for critical checks, `assert` for non-blocking)
 - Tests are in `*_test.go` files alongside implementation (internal and external test packages)
-- Mock GitHub API with `go-github-mock` (REST) or `githubv4mock` (GraphQL)
+- Mock GitHub API with the in-repo `MockHTTPClientWithHandlers` helper (REST) or `githubv4mock` (GraphQL)
 - Test structure for tools:
   1. Test tool snapshot
   2. Verify critical schema properties (e.g., ReadOnly annotation)
@@ -241,7 +241,7 @@ after updating them, refresh its digest with
 
 ## Environment Variables
 
-- **GITHUB_PERSONAL_ACCESS_TOKEN** - Required for server operation and e2e tests
+- **GITHUB_PERSONAL_ACCESS_TOKEN** - Static-token authentication for stdio; OAuth or GitHub App authentication are alternatives
 - **GITHUB_HOST** - For GitHub Enterprise Server (prefix with `https://`)
 - **GITHUB_TOOLSETS** - Comma-separated toolset list (overrides --toolsets flag)
 - **GITHUB_READ_ONLY** - Set to "1" for read-only mode

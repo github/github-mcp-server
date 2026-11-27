@@ -47,9 +47,9 @@ const (
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
 
-// handleFailedJobLogs gets logs for all failed jobs in a workflow run
+// handleFailedJobLogs gets logs for failures in the returned latest-attempt jobs page.
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, *ActionsJobLogsOutput, error) {
-	// First, get all jobs for the workflow run
+	// Get the first page of jobs for the latest attempt.
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
 		Filter: "latest",
 	})
@@ -76,7 +76,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return utils.NewToolResultText(string(r)), &ActionsJobLogsOutput{Failed: result}, nil
 	}
 
-	// Collect logs for all failed jobs
+	// Collect logs for the returned failed jobs.
 	var logResults []ActionsJobLog
 	for _, job := range failedJobs {
 		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
@@ -575,8 +575,8 @@ func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name:         "get_job_logs",
 			OutputSchema: actionsJobLogsOutputSchema(),
 			Description: t("TOOL_GET_JOB_LOGS_CONSOLIDATED_DESCRIPTION", `Get logs for GitHub Actions workflow jobs.
-Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run.
-For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
+Use this tool to retrieve logs for a specific job or failed jobs returned by the latest-attempt job listing.
+For single job logs, provide job_id. For failures in the returned jobs page, provide run_id with failed_only=true; use actions_list pagination and job_id for other failures.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_JOB_LOGS_CONSOLIDATED_USER_TITLE", "Get GitHub Actions workflow job logs"),
@@ -599,11 +599,11 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 					},
 					"run_id": {
 						Type:        "number",
-						Description: "The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.",
+						Description: "The unique identifier of the workflow run. Required when failed_only is true.",
 					},
 					"failed_only": {
 						Type:        "boolean",
-						Description: "When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.",
+						Description: "When true, gets logs for jobs with conclusion failure in the first returned page of the latest attempt. Requires run_id to be provided.",
 					},
 					"return_content": {
 						Type:        "boolean",
@@ -645,7 +645,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 			}
 
 			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
+				// Handle failed-only mode for the returned latest-attempt jobs page.
 				result, payload, err := handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
 				return attachIFC(result), payload, err
 			} else if jobID > 0 {

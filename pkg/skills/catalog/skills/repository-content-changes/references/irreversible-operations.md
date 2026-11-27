@@ -61,8 +61,6 @@ Everything not in `content` is gone from that branch.
 
 - The complete intended contents, derived from a full read of the current file rather
   than from a partial one.
-- For an existing file, a `sha` from that same read. A stale one means the file moved
-  under you, and the failure is the safety mechanism working.
 
 ## Creating a repository
 
