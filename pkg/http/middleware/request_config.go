@@ -21,32 +21,32 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		ctx := r.Context()
 
 		// Readonly mode
-		if relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPReadOnlyHeader), relaxedParseBool) {
 			ctx = ghcontext.WithReadonly(ctx, true)
 		}
 
 		// Toolsets
-		if toolsets := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsetsHeader)); len(toolsets) > 0 {
+		if toolsets := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPToolsetsHeader), ",")); len(toolsets) > 0 {
 			ctx = ghcontext.WithToolsets(ctx, toolsets)
 		}
 
 		// Tools
-		if tools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsHeader)); len(tools) > 0 {
+		if tools := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPToolsHeader), ",")); len(tools) > 0 {
 			ctx = ghcontext.WithTools(ctx, tools)
 		}
 
 		// Lockdown mode
-		if relaxedParseBool(r.Header.Get(headers.MCPLockdownHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPLockdownHeader), relaxedParseBool) {
 			ctx = ghcontext.WithLockdownMode(ctx, true)
 		}
 
 		// Excluded tools
-		if excludeTools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPExcludeToolsHeader)); len(excludeTools) > 0 {
+		if excludeTools := headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPExcludeToolsHeader), ",")); len(excludeTools) > 0 {
 			ctx = ghcontext.WithExcludeTools(ctx, excludeTools)
 		}
 
 		// Insiders mode
-		if relaxedParseBool(r.Header.Get(headers.MCPInsidersHeader)) {
+		if slices.ContainsFunc(r.Header.Values(headers.MCPInsidersHeader), relaxedParseBool) {
 			ctx = ghcontext.WithInsidersMode(ctx, true)
 		}
 
@@ -54,9 +54,9 @@ func WithRequestConfig(next http.Handler) http.Handler {
 		_, hasHeaderFeatures := r.Header[http.CanonicalHeaderKey(headers.MCPFeaturesHeader)]
 		_, hasQueryFeatures := query[queryParamFeatures]
 		if hasHeaderFeatures {
-			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader)))
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(strings.Join(r.Header.Values(headers.MCPFeaturesHeader), ",")))
 		} else if hasQueryFeatures {
-			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(query.Get(queryParamFeatures)))
+			ctx = ghcontext.WithHeaderFeatures(ctx, headers.ParseCommaSeparated(strings.Join(query[queryParamFeatures], ",")))
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
