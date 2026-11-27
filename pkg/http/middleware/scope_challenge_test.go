@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -428,4 +429,74 @@ func scopeChallengeContextWithScopes(ctx context.Context, activeScopes []string)
 	})
 	ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
 	return ctx
+}
+
+func TestWithScopeChallengeFailsClosedWhenScopeFetchErrors(t *testing.T) {
+	setScopeTestMap(t, scopes.RequireAll(scopes.Repo))
+
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":{}}}`
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request = request.WithContext(ghcontext.WithTokenInfo(request.Context(), &ghcontext.TokenInfo{ //nolint:gosec // G101: synthetic fixture, not a credential.
+		Token:     "oauth-token",
+		TokenType: utils.TokenTypeOAuthAccessToken,
+	}))
+	response := httptest.NewRecorder()
+
+	fetcher := &mockScopeFetcher{err: errors.New("scope endpoint unavailable")}
+	WithMCPParse()(WithScopeChallenge(&oauth.Config{}, fetcher)(next)).ServeHTTP(response, request)
+
+	assert.False(t, nextCalled, "tool call must not proceed when scopes cannot be verified")
+	assert.Equal(t, http.StatusServiceUnavailable, response.Code)
+}
+
+func TestWithScopeChallengeReturns401ForInvalidToken(t *testing.T) {
+	setScopeTestMap(t, scopes.RequireAll(scopes.Repo))
+
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":{}}}`
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request = request.WithContext(ghcontext.WithTokenInfo(request.Context(), &ghcontext.TokenInfo{ //nolint:gosec // G101: synthetic fixture, not a credential.
+		Token:     "oauth-token",
+		TokenType: utils.TokenTypeOAuthAccessToken,
+	}))
+	response := httptest.NewRecorder()
+
+	fetcher := &mockScopeFetcher{err: scopes.ErrInvalidToken}
+	WithMCPParse()(WithScopeChallenge(&oauth.Config{}, fetcher)(next)).ServeHTTP(response, request)
+
+	assert.False(t, nextCalled, "tool call must not proceed with an expired token")
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+	assert.Contains(t, response.Header().Get("WWW-Authenticate"), "resource_metadata=")
+}
+
+func TestWithScopeChallengeTreatsExplicitEmptyScopesAsKnown(t *testing.T) {
+	setScopeTestMap(t, scopes.RequireAll(scopes.Repo))
+
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":{}}}`
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	// An empty but non-nil scope list means "this token has no scopes"; it must
+	// not be replaced by a GitHub lookup.
+	request = request.WithContext(scopeChallengeContextWithScopes(request.Context(), []string{}))
+	response := httptest.NewRecorder()
+
+	fetcher := &mockScopeFetcher{err: errors.New("scope endpoint must not be called")}
+	WithMCPParse()(WithScopeChallenge(&oauth.Config{}, fetcher)(next)).ServeHTTP(response, request)
+
+	assert.False(t, nextCalled)
+	assert.Equal(t, http.StatusForbidden, response.Code)
+	assert.Contains(t, response.Header().Get("WWW-Authenticate"), "insufficient_scope")
 }
