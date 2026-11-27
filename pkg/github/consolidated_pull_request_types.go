@@ -457,6 +457,9 @@ func normalizePullRequestArguments(kind string) func(json.RawMessage) (json.RawM
 		if err := json.Unmarshal(raw, &args); err != nil {
 			return nil, err
 		}
+		if err := normalizeInputAliases(args, map[string]string{"pull_number": "pullNumber"}); err != nil {
+			return nil, err
+		}
 		for _, field := range spec.required {
 			if _, err := RequiredParam[string](args, field); err != nil {
 				return nil, err
