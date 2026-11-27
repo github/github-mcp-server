@@ -369,8 +369,8 @@ func TestTypedPullRequestWriteAwaitingForm(t *testing.T) {
 			} {
 				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool, Arguments: args})
 				require.NoError(t, err)
-				require.True(t, result.IsError, tool)
-				assert.Contains(t, getErrorResult(t, result).Text, "interactive form")
+				require.False(t, result.IsError, tool)
+				assert.Contains(t, getTextResult(t, result).Text, "interactive form")
 				if protocol == inventory.ProtocolVersionMultiRoundTrip {
 					require.NotNil(t, result.StructuredContent)
 					assert.JSONEq(t, `{"status":"awaiting_user_submission","reason":"An interactive form is being shown to the user. The operation has not been performed."}`, mustMarshalJSON(t, result.StructuredContent))

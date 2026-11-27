@@ -783,6 +783,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, err
 			}
 			if shouldDeferToForm(ctx, deps, req, formArgs, pullRequestWriteFormParams) {
+				inventory.PreserveToolHandlerContent(ctx)
 				return pullRequestAwaitingFormResult(fmt.Sprintf(
 					"An interactive form has been shown to the user for creating a new pull request in %s/%s. "+
 						"STOP — do not call any other tools, do not respond as if the pull request was created, "+
@@ -1013,6 +1014,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, err
 			}
 			if shouldDeferToForm(ctx, deps, req, formArgs, pullRequestUpdateFormParams) {
+				inventory.PreserveToolHandlerContent(ctx)
 				return pullRequestAwaitingFormResult(fmt.Sprintf(
 					"An interactive form has been shown to the user for editing pull request #%d in %s/%s. "+
 						"STOP — do not call any other tools, do not respond as if the pull request was updated, "+

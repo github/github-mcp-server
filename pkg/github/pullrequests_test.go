@@ -3060,7 +3060,7 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new pull request")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
@@ -3120,7 +3120,7 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 
 // Test_UpdatePullRequest_MCPAppsFeature_UIGate verifies the form-routing
 // behavior for update_pull_request: UI clients without _ui_submitted get a
-// pending-form stub (marked IsError so agents don't claim success), UI clients
+// pending-form stub (a non-error result so hosts render the form), UI clients
 // with _ui_submitted execute directly, non-UI clients execute directly, and
 // UI clients carrying non-form params bypass the form.
 func Test_UpdatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
@@ -3161,7 +3161,7 @@ func Test_UpdatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing pull request #42")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {

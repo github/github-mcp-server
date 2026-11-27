@@ -2232,7 +2232,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
@@ -2284,7 +2284,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"state change should route through UI form")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client update without state change returns form message", func(t *testing.T) {
@@ -2301,7 +2301,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"update without state should show UI form")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
@@ -2323,7 +2323,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
 			"issue_fields should route through UI form")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 
 	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
@@ -2343,7 +2343,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
 			"labels should route through UI form")
-		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+		assert.False(t, result.IsError, "form-routing stub must not be an error so hosts render the form")
 	})
 }
 
