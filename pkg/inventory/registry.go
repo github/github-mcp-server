@@ -239,9 +239,13 @@ func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []Featur
 }
 
 // shouldStripMCPAppsMetadata centralises the strip decision so the same logic
-// is exercised by tests and by RegisterTools. Metadata is stripped only when
-// the client is known not to support MCP Apps UI.
+// is exercised by tests and by RegisterTools. Metadata is stripped when the
+// server was started with MCP Apps disabled, and otherwise only when the
+// client is known not to support MCP Apps UI.
 func shouldStripMCPAppsMetadata(ctx context.Context) bool {
+	if ghcontext.MCPAppsDisabled(ctx) {
+		return true
+	}
 	supported, ok := ghcontext.HasUISupport(ctx)
 	return ok && !supported
 }

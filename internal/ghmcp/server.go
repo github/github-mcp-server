@@ -283,6 +283,9 @@ type StdioServerConfig struct {
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 
+	// DisableMCPApps turns off MCP Apps for the whole server.
+	DisableMCPApps bool
+
 	// ExcludeTools is a list of tool names to disable regardless of other settings.
 	// These tools will be excluded even if their toolset is enabled or they are
 	// explicitly listed in EnabledTools.
@@ -339,7 +342,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode, "mcpApps", !cfg.DisableMCPApps)
 
 	// Determine the scope set used to filter tools. Classic PATs expose their
 	// granted scopes via the API; OAuth uses the requested scopes (the default
@@ -381,6 +384,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ContentWindowSize:     cfg.ContentWindowSize,
 		LockdownMode:          cfg.LockdownMode,
 		InsidersMode:          cfg.InsidersMode,
+		DisableMCPApps:        cfg.DisableMCPApps,
 		ExcludeTools:          cfg.ExcludeTools,
 		Logger:                logger,
 		RepoAccessTTL:         cfg.RepoAccessCacheTTL,

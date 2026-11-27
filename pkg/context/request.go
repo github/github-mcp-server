@@ -114,6 +114,22 @@ func GetHeaderFeatures(ctx context.Context) []string {
 	return nil
 }
 
+// mcpAppsDisabledCtxKey is a context key for a server-wide MCP Apps opt-out.
+type mcpAppsDisabledCtxKey struct{}
+
+// WithMCPAppsDisabled marks the server as having MCP Apps turned off.
+// Tool registration and tool calls both honor this: UI metadata is stripped,
+// app-only tools are omitted, and form deferral does not run.
+func WithMCPAppsDisabled(ctx context.Context) context.Context {
+	return context.WithValue(ctx, mcpAppsDisabledCtxKey{}, true)
+}
+
+// MCPAppsDisabled reports whether the server was started with MCP Apps turned off.
+func MCPAppsDisabled(ctx context.Context) bool {
+	disabled, _ := ctx.Value(mcpAppsDisabledCtxKey{}).(bool)
+	return disabled
+}
+
 // uiSupportCtxKey is a context key for MCP Apps UI support
 type uiSupportCtxKey struct{}
 

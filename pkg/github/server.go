@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	gherrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/octicons"
@@ -53,6 +54,12 @@ type MCPServerConfig struct {
 
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
+
+	// DisableMCPApps turns off MCP Apps for the whole server. UI metadata is
+	// stripped, app-only tools and UI resources are omitted, and write tools
+	// execute inline instead of opening a form. The zero value leaves MCP Apps
+	// enabled.
+	DisableMCPApps bool
 
 	// Logger is used for logging within the server
 	Logger *slog.Logger
@@ -115,6 +122,12 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
+	// Set the opt-out before skill publishing. skillsPublisher filters on
+	// ConfiguredTools, which omits app-only tools only when this flag is set.
+	if cfg.DisableMCPApps {
+		ctx = ghcontext.WithMCPAppsDisabled(ctx)
+	}
+
 	publisher, err := skillsPublisher(ctx, cfg, deps, inv)
 	if err != nil {
 		return nil, err
@@ -159,6 +172,12 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(injectFeatureStateMiddleware(inv))
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	// Stamp every tool call so a client that advertises MCP Apps cannot
+	// turn the server-wide opt-out back on. This stays inside the error
+	// wrapper, which is added last and therefore runs first.
+	if cfg.DisableMCPApps {
+		ghServer.AddReceivingMiddleware(disableMCPAppsMiddleware)
+	}
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	// Register MCP App UI resources whenever the embedded UI assets are
@@ -168,11 +187,19 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// Registering here — rather than in the stdio bootstrap — ensures the
 	// remote/HTTP server also serves them, fixing the "-32002 Resource not
 	// found" error clients hit after the tool returns a ui:// URI.
-	if UIAssetsAvailable() {
+	// A server-wide disable skips them entirely: nothing should advertise a
+	// ui:// URI once MCP Apps are off.
+	if !cfg.DisableMCPApps && UIAssetsAvailable() {
 		RegisterUIResources(ghServer, cfg.ReadOnly)
 	}
 
 	return ghServer, nil
+}
+
+func disableMCPAppsMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		return next(ghcontext.WithMCPAppsDisabled(ctx), method, req)
+	}
 }
 
 func injectFeatureStateMiddleware(inv *inventory.Inventory) mcp.Middleware {

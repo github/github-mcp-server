@@ -2137,6 +2137,14 @@ func TestWithMCPApps_UnsupportedClientOmitsAppOnlyTools(t *testing.T) {
 	} {
 		require.Len(t, reg.ToolsForRegistration(ctx), 4, "app-only tools should be kept when UI is supported or unknown")
 	}
+
+	disabled := reg.ToolsForRegistration(ghcontext.WithMCPAppsDisabled(ghcontext.WithUISupport(context.Background(), true)))
+	disabledNames := make([]string, 0, len(disabled))
+	for _, tool := range disabled {
+		disabledNames = append(disabledNames, tool.Tool.Name)
+		require.Nil(t, tool.Tool.Meta["ui"], "ui meta should be stripped when the server disables MCP Apps")
+	}
+	require.ElementsMatch(t, []string{"model_and_app", "no_visibility"}, disabledNames)
 }
 
 func TestWithMCPApps_PreservesUIMetadataByDefault(t *testing.T) {

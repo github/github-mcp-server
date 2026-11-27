@@ -223,6 +223,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Remote consumers install user identity in HTTP middleware before the
 	// inventory factory, so their per-user checker has its full context here.
 	r = r.WithContext(invToUse.WithFeatureState(r.Context()))
+	if h.config.DisableMCPApps {
+		r = r.WithContext(ghcontext.WithMCPAppsDisabled(r.Context()))
+	}
 
 	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,
@@ -230,6 +233,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ContentWindowSize: h.config.ContentWindowSize,
 		Logger:            h.logger,
 		RepoAccessTTL:     h.config.RepoAccessCacheTTL,
+		DisableMCPApps:    h.config.DisableMCPApps,
 		// Capabilities (no list-changed advertising) are set by NewMCPServer;
 		// here we only supply the remote-specific schema cache.
 		ServerOptions: []github.MCPServerOption{

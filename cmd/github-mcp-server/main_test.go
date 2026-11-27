@@ -59,6 +59,34 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
 }
 
+func TestMCPAppsDefaultsOnAndEnvCanDisable(t *testing.T) {
+	flag := rootCmd.PersistentFlags().Lookup("mcp-apps")
+	require.NotNil(t, flag)
+	assert.Equal(t, "true", flag.DefValue)
+
+	original := flag.Value.String()
+	originalChanged := flag.Changed
+	t.Cleanup(func() {
+		require.NoError(t, flag.Value.Set(original))
+		flag.Changed = originalChanged
+	})
+
+	require.NoError(t, flag.Value.Set("true"))
+	flag.Changed = false
+	t.Setenv("GITHUB_MCP_APPS", "")
+	initConfig()
+	assert.True(t, mcpAppsEnabled())
+
+	t.Setenv("GITHUB_MCP_APPS", "false")
+	initConfig()
+	assert.False(t, mcpAppsEnabled())
+
+	t.Setenv("GITHUB_MCP_APPS", "")
+	require.NoError(t, flag.Value.Set("false"))
+	flag.Changed = true
+	assert.False(t, mcpAppsEnabled())
+}
+
 func TestWriteToolDocScopes(t *testing.T) {
 	tool := inventory.ServerTool{
 		Tool:        mcp.Tool{Name: "delete", Annotations: &mcp.ToolAnnotations{Title: "Delete"}},
