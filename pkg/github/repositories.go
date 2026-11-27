@@ -2761,7 +2761,7 @@ func validateBlamePath(p string) error {
 }
 
 func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := NewTool[GetFileBlameInput, *RepositoryBlameOutput](
+	return NewTool[GetFileBlameInput, *RepositoryBlameOutput](
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:         "get_file_blame",
@@ -3050,8 +3050,6 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		normalizeRepositoryBlameArguments,
 	)
-	st.FeatureRule = featureEnabledRule(FeatureFlagFileBlame)
-	return st
 }
 
 // ListRepositoryCollaborators creates a tool to list collaborators of a GitHub repository.

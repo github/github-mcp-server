@@ -16,11 +16,6 @@ const FeatureFlagCSVOutput = "csv_output"
 // FeatureFlagIFCLabels is the feature flag name for IFC security labels in tool results.
 const FeatureFlagIFCLabels = "ifc_labels"
 
-// FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
-// which exposes git blame information for a file. It is gated so the extra tool
-// is not advertised by default, keeping the tool surface small unless opted in.
-const FeatureFlagFileBlame = "file_blame"
-
 // FeatureFlagIssueDependencies is the feature flag name for the issue dependency
 // tools (issue_dependency_read / issue_dependency_write), which read and edit an
 // issue's blocked-by / blocking relationships. It is gated so these tools are not
@@ -60,7 +55,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIFCLabels,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
-	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagIssueArtifacts,
 	FeatureFlagPullRequestArtifacts,
@@ -75,7 +69,6 @@ var AllowedFeatureFlags = []string{
 // feature flag expansion.
 var InsidersFeatureFlags = []string{
 	FeatureFlagCSVOutput,
-	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagSkillsExtension,
 }
