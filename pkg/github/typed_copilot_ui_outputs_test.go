@@ -157,7 +157,11 @@ func typedCopilotUISession(t *testing.T, deps ToolDependencies, protocol string,
 	if version == "" || version == "unknown" {
 		version = inventory.ProtocolVersionMultiRoundTrip
 	}
-	session := connectCommentVisibilityClient(t, server, version)
+	caps := &mcp.ClientCapabilities{}
+	caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+		"mimeTypes": []string{MCPAppMIMEType},
+	})
+	session := connectCommentVisibilityClientWithCapabilities(t, server, version, caps)
 	list, err := session.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, list.Tools, len(tools))

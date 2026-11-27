@@ -190,3 +190,52 @@ func toolUnavailableResult(name string, req *mcp.CallToolRequest, availability t
 		IsError: true,
 	}
 }
+
+// addAppOnlyToolFilterMiddleware omits app-only tools from tools/list when
+// the connected client has not advertised MCP Apps UI support. Stdio registers
+// tools before initialize, so this session-level filter is what hides ui_get
+// (and other _meta.ui.visibility:["app"] tools) from non-Apps clients. Tools
+// remain callable so MCP App views can still invoke them.
+func addAppOnlyToolFilterMiddleware(server *mcp.Server, tools []ServerTool) {
+	appOnly := make(map[string]struct{})
+	for i := range tools {
+		if isAppOnlyTool(&tools[i]) {
+			appOnly[tools[i].Tool.Name] = struct{}{}
+		}
+	}
+	if len(appOnly) == 0 {
+		return
+	}
+	server.AddReceivingMiddleware(appOnlyToolFilterMiddleware(appOnly))
+}
+
+func appOnlyToolFilterMiddleware(appOnly map[string]struct{}) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+			req, ok := request.(*mcp.ListToolsRequest)
+			if !ok {
+				return next(ctx, method, request)
+			}
+			result, err := next(ctx, method, request)
+			if err != nil {
+				return nil, err
+			}
+			if clientSupportsMCPAppsUI(ctx, req.ClientCapabilities()) {
+				return result, nil
+			}
+			list, ok := result.(*mcp.ListToolsResult)
+			if !ok {
+				return result, nil
+			}
+			filtered := make([]*mcp.Tool, 0, len(list.Tools))
+			for _, tool := range list.Tools {
+				if _, skip := appOnly[tool.Name]; skip {
+					continue
+				}
+				filtered = append(filtered, tool)
+			}
+			list.Tools = filtered
+			return list, nil
+		}
+	}
+}
