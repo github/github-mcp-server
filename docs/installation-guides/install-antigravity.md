@@ -1,11 +1,11 @@
 # Installing GitHub MCP Server in Antigravity
 
-This guide covers setting up the GitHub MCP Server in Google's Antigravity IDE.
+This guide covers setting up the GitHub MCP Server in Google's Antigravity IDE and CLI.
 
 ## Prerequisites
 
-- Antigravity IDE installed (latest version)
-- GitHub Personal Access Token with appropriate scopes
+- Antigravity IDE or CLI installed (latest version)
+- GitHub Personal Access Token with appropriate scopes if using PAT authentication
 
 ## Installation Methods
 
@@ -130,6 +130,14 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 **Requirements**:
 - Docker Desktop installed and running
 - Docker must be in your system PATH
+
+## Antigravity CLI
+
+1. Open or create the MCP configuration file for the desired scope:
+   - **Global**: `~/.gemini/config/mcp_config.json` (`%USERPROFILE%\.gemini\config\mcp_config.json` on Windows).
+   - **Workspace**: `.agents/mcp_config.json` in your project root.
+2. Add the `github` entry to `mcpServers` using the [remote server configuration](#step-2-add-configuration) or a [local Docker configuration](#option-2-local-docker-server) above. Use the global file for configurations that contain a token if your workspace configuration is tracked in version control.
+3. Start `agy` from your project root and enter `/mcp` to confirm that `github` is connected. You can reload the configuration and inspect connection logs from the MCP manager.
 
 ## Troubleshooting
 
