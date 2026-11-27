@@ -1348,6 +1348,21 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
   - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
+- **disable_pull_request_auto_merge** - Disable pull request auto-merge
+  - **OAuth Challenge Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **enable_pull_request_auto_merge** - Enable pull request auto-merge
+  - **OAuth Challenge Scopes**: `repo`
+  - `commit_message`: Extra detail (body) for the merge commit. If omitted, a default message will be used. Ignored when the pull request enters a merge queue. (string, optional)
+  - `commit_title`: Title (headline) for the merge commit. If omitted, a default message will be used. Ignored when the pull request enters a merge queue. (string, optional)
+  - `merge_method`: Merge method to use when the pull request becomes mergeable. If omitted, GitHub applies MERGE, which fails on repositories that do not allow merge commits — pass the method the repository permits. Ignored when the pull request enters a merge queue. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **list_pull_requests** - List pull requests
   - **OAuth Challenge Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
