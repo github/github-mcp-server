@@ -40,14 +40,15 @@ claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/
 With an environment variable (Linux/macOS):
 ```bash
 export GITHUB_PAT="$(grep '^GITHUB_PAT=' .env | cut -d '=' -f2-)"
-claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$GITHUB_PAT"'"}}'
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer ${GITHUB_PAT}"}}'
 ```
+Single quotes keep `${GITHUB_PAT}` literal in the stored configuration, and Claude Code expands it when it connects. Expanding it in the shell instead would put the token in the process arguments and the saved config.
 
 With an environment variable (Windows PowerShell):
 ```powershell
 $githubPatLine = Get-Content .env | Select-String "^\s*GITHUB_PAT\s*=" | Select-Object -First 1
 $env:GITHUB_PAT = ($githubPatLine.Line -split "=", 2)[1].Trim().Trim('"').Trim("'")
-claude mcp add-json github "{`"type`":`"http`",`"url`":`"https://api.githubcopilot.com/mcp`",`"headers`":{`"Authorization`":`"Bearer $env:GITHUB_PAT`"}}"
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer ${GITHUB_PAT}"}}'
 ```
 
 > **About the `--scope` flag** (optional): Use this to specify where the configuration is stored:
@@ -80,7 +81,8 @@ claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker 
 
 With an environment variable:
 ```bash
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=$(grep GITHUB_PAT .env | cut -d '=' -f2) -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+export GITHUB_PAT="$(grep '^GITHUB_PAT=' .env | cut -d '=' -f2-)"
+claude mcp add github -e 'GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT}' -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 ```
 2. Restart Claude Code
 3. Run `claude mcp list` to see if the GitHub server is configured
@@ -112,7 +114,8 @@ claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Aut
 
 With an environment variable:
 ```bash
-claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer $(grep GITHUB_PAT .env | cut -d '=' -f2)"
+export GITHUB_PAT="$(grep '^GITHUB_PAT=' .env | cut -d '=' -f2-)"
+claude mcp add --transport http github https://api.githubcopilot.com/mcp -H 'Authorization: Bearer ${GITHUB_PAT}'
 ```
 
 #### Windows (PowerShell)
@@ -120,8 +123,8 @@ claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Aut
 If you see `missing required argument 'name'`, put the server name immediately after `claude mcp add`:
 
 ```powershell
-$pat = "YOUR_GITHUB_PAT"
-claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H "Authorization: Bearer $pat"
+$env:GITHUB_PAT = "YOUR_GITHUB_PAT"
+claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H 'Authorization: Bearer ${GITHUB_PAT}'
 ```
 
 ---
