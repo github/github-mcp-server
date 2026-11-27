@@ -39,12 +39,34 @@ func TestCallbackHandlerSuccess(t *testing.T) {
 }
 
 func TestCallbackHandlerStateMismatch(t *testing.T) {
-	rec, res := serveCallback(t, "expected", "code=the-code&state=attacker")
-
-	require.Error(t, res.err)
-	assert.Empty(t, res.code)
-	assert.Contains(t, res.err.Error(), "state mismatch")
-	assert.Contains(t, rec.Body.String(), "state mismatch")
+	for _, query := range []string{
+		"code=the-code&state=attacker",
+		"code=the-code",
+		"error=access_denied",
+		"error=access_denied&state=attacker",
+	} {
+		t.Run(query, func(t *testing.T) {
+			cs := &callbackServer{results: make(chan callbackResult, 1)}
+			handler := cs.handler("expected")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/callback?"+query, nil))
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Contains(t, rec.Body.String(), "state mismatch")
+			select {
+			case res := <-cs.results:
+				t.Fatalf("unrelated callback consumed login result: %+v", res)
+			default:
+			}
+			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback?code=legitimate&state=expected", nil))
+			select {
+			case res := <-cs.results:
+				require.NoError(t, res.err)
+				assert.Equal(t, "legitimate", res.code)
+			default:
+				t.Fatal("legitimate callback was not accepted")
+			}
+		})
+	}
 }
 
 func TestCallbackHandlerMissingCode(t *testing.T) {
@@ -55,7 +77,7 @@ func TestCallbackHandlerMissingCode(t *testing.T) {
 }
 
 func TestCallbackHandlerOAuthError(t *testing.T) {
-	_, res := serveCallback(t, "state123", "error=access_denied&error_description=user+said+no")
+	_, res := serveCallback(t, "state123", "state=state123&error=access_denied&error_description=user+said+no")
 
 	require.Error(t, res.err)
 	assert.Contains(t, res.err.Error(), "access_denied")
@@ -63,7 +85,7 @@ func TestCallbackHandlerOAuthError(t *testing.T) {
 }
 
 func TestCallbackHandlerEscapesError(t *testing.T) {
-	rec, _ := serveCallback(t, "state123", "error=evil&error_description=%3Cscript%3Ealert(1)%3C%2Fscript%3E")
+	rec, _ := serveCallback(t, "state123", "state=state123&error=evil&error_description=%3Cscript%3Ealert(1)%3C%2Fscript%3E")
 
 	body := rec.Body.String()
 	assert.NotContains(t, body, "<script>", "error message must be HTML-escaped")

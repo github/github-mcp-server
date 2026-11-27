@@ -442,6 +442,21 @@ See [Scope Filtering](./scope-filtering.md) for details on how filtering works w
 
 ---
 
+### Actions log downloads
+
+When `get_job_logs` uses `return_content=true`, each log download has a
+30-second timeout and stops when the MCP call is cancelled. The server retains
+at most 1 MiB of log text per response, including when collecting multiple failed
+jobs. Each line retains at most 16 KiB of text plus a truncation marker.
+
+The server preserves recent lines when the byte or line limit is reached and
+marks omitted content with `[TRUNCATED]`. If the combined byte budget is exhausted
+while collecting failed jobs, remaining jobs have an error explaining that their
+logs should be retrieved individually. JSON encoding and job metadata add to the
+size of the response beyond the log-text budget.
+
+---
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |
