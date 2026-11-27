@@ -115,6 +115,13 @@ var (
 				}
 			}
 
+			var allowedRepos []string
+			if viper.IsSet("allowed_repos") {
+				if err := viper.UnmarshalKey("allowed_repos", &allowedRepos); err != nil {
+					return fmt.Errorf("failed to unmarshal allowed-repos: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              serverVersion,
@@ -132,6 +139,7 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				AllowedRepos:         allowedRepos,
 			}
 
 			// When no static token is provided, log in via OAuth using the given
@@ -260,6 +268,7 @@ func init() {
 	stdioCmd.Flags().String("oauth-client-id", "", "OAuth App or GitHub App client ID, enabling interactive OAuth login when no token is set")
 	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret, if the app requires one (it is a public, non-confidential credential for distributed clients)")
 	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Comma-separated OAuth scopes to request; also filters tools to those scopes. Defaults to the full supported set")
+	stdioCmd.Flags().StringSlice("allowed-repos", nil, "Comma-separated repositories (owner/repo or owner/*) that tools may access; calls outside the list are rejected")
 	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed local port for the OAuth callback server. Defaults to a random port; set a fixed port when mapping it through Docker")
 
 	// The private key has no flag because passing it in argv would expose it.
@@ -293,6 +302,7 @@ func init() {
 	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
 	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
 	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))
+	_ = viper.BindPFlag("allowed_repos", stdioCmd.Flags().Lookup("allowed-repos"))
 	_ = viper.BindPFlag("oauth-callback-port", stdioCmd.Flags().Lookup("oauth-callback-port"))
 	_ = viper.BindPFlag("app-id", stdioCmd.Flags().Lookup("app-id"))
 	_ = viper.BindPFlag("app-installation-id", stdioCmd.Flags().Lookup("app-installation-id"))
