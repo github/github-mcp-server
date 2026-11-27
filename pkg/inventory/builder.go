@@ -45,6 +45,7 @@ type Builder struct {
 	toolsetIDs           []string // raw input, processed at Build()
 	toolsetIDsIsNil      bool     // tracks if nil was passed (nil = defaults)
 	additionalTools      []string // raw input, processed at Build()
+	excludeTools         []string // cleaned input, checked against the inventory at Build()
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
@@ -154,6 +155,7 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	cleaned := cleanTools(toolNames)
 	if len(cleaned) > 0 {
+		b.excludeTools = append(b.excludeTools, cleaned...)
 		b.filters = append(b.filters, CreateExcludeToolsFilter(cleaned))
 	}
 	return b
@@ -248,6 +250,19 @@ func (b *Builder) Build() (*Inventory, error) {
 		if len(unrecognizedTools) > 0 {
 			return nil, fmt.Errorf("%w: %s", ErrUnknownTools, strings.Join(unrecognizedTools, ", "))
 		}
+	}
+
+	// Track excluded tool names that match nothing so callers can warn about
+	// typos. Unlike WithTools this is not an error: the exclusion is simply a no-op.
+	seenExcluded := make(map[string]bool, len(b.excludeTools))
+	for _, name := range b.excludeTools {
+		if seenExcluded[name] || validToolNames[name] {
+			continue
+		}
+		seenExcluded[name] = true
+		// Deprecated aliases are not exempt: the exclude filter compares exact
+		// tool names, so excluding an alias removes nothing.
+		r.unrecognizedExcludeTools = append(r.unrecognizedExcludeTools, name)
 	}
 
 	if b.generateInstructions {
