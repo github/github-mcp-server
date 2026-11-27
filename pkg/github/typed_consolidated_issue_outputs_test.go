@@ -345,6 +345,74 @@ func TestTypedConsolidatedIssueOutputs(t *testing.T) {
 	}
 }
 
+func TestIssueReadFields(t *testing.T) {
+	const issue = `{"number":1,"title":"Subject","body":"Detailed issue body","state":"open","html_url":"https://github.com/owner/repo/issues/1"`
+	const author = `"user":{"login":"octo","id":7,"profile_url":"https://github.com/octo"}`
+	const compactAuthor = `"user":{"login":"octo","id":7}`
+	const apiIssue = issue + `,"user":{"login":"octo","id":7,"html_url":"https://github.com/octo"}}`
+	const full = issue + "," + author + `,"assignees":[]}`
+	const compact = issue + "," + compactAuthor + `,"assignees":[]}`
+	client := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/repos/owner/repo/issues/1", r.URL.Path)
+		_, _ = w.Write([]byte(apiIssue))
+	})}}
+	deps := BaseDeps{
+		Client: mustNewGHClient(t, client), GQLClient: githubv4.NewClient(client),
+		RepoAccessCache: stubRepoAccessCache(nil, time.Minute),
+	}
+
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		t.Run(protocol, func(t *testing.T) {
+			session, schemas := consolidatedIssueSession(t, deps, protocol, false)
+			for _, tc := range []struct {
+				name           string
+				fields         []string
+				want           string
+				wantStructured string
+			}{
+				{"metadata only", []string{"number", "title", "state", "html_url"}, `{"html_url":"https://github.com/owner/repo/issues/1","number":1,"state":"open","title":"Subject"}`, ""},
+				{"single field", []string{"title"}, `{"title":"Subject"}`, ""},
+				{"body requested", []string{"body"}, `{"body":"Detailed issue body"}`, ""},
+				{"author requested", []string{"user"}, `{"user":{"id":7,"login":"octo","profile_url":"https://github.com/octo"}}`, "{" + compactAuthor + "}"},
+				{"empty assignees", []string{"assignees"}, `{"assignees":[]}`, ""},
+				{"absent optional field", []string{"milestone"}, `{}`, ""},
+				{"omitted selection", nil, full, compact},
+				{"empty selection", []string{}, full, compact},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					args := map[string]any{"method": "get", "owner": "owner", "repo": "repo", "issue_number": 1}
+					if tc.fields != nil {
+						args["fields"] = tc.fields
+					}
+					result := assertConsolidatedResult(t, session, schemas, "issue_read", args, tc.want)
+					if protocol == inventory.ProtocolVersionMultiRoundTrip {
+						want := tc.wantStructured
+						if want == "" {
+							want = tc.want
+						}
+						assert.JSONEq(t, `{"method":"get","issue":`+want+`}`, mustMarshalJSON(t, result.StructuredContent))
+					}
+				})
+			}
+			for _, tc := range []struct {
+				method string
+				field  string
+				want   string
+			}{
+				{"get", "not_a_field", "html_url"},
+				{"get_comments", "body", "fields is only supported with method get"},
+			} {
+				args := map[string]any{"method": tc.method, "owner": "owner", "repo": "repo", "issue_number": 1, "fields": []string{tc.field}}
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "issue_read", Arguments: args})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.want)
+				assert.Nil(t, result.StructuredContent)
+			}
+		})
+	}
+}
+
 func TestTypedIssueWriteAwaitingForm(t *testing.T) {
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25", ""} {
 		t.Run("protocol="+protocol, func(t *testing.T) {
@@ -444,8 +512,8 @@ func TestConsolidatedIssueStrictSchemasAndScalars(t *testing.T) {
 	}{
 		{
 			issueReadOutputSchema(),
-			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[]}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
-			[]string{`null`, `[]`, `{}`, `{"method":"get"}`, `{"method":"get","comments":[]}`, `{"method":"get","issue":{"number":1}}`, `{"method":"get_parent","parent":{"number":1}}`, `{"method":"get_labels","labels":[]}`, `{"method":"get","issue":null,"comments":[]}`},
+			[]string{`{"method":"get","issue":null}`, `{"method":"get_comments","comments":[]}`, `{"method":"get_sub_issues","sub_issues":[null]}`, `{"method":"get_parent","parent":null}`, `{"method":"get","issue":{"number":0,"title":"","state":"","assignees":[]}}`, `{"method":"get","issue":{"number":1}}`, `{"method":"get_labels","labels":[],"totalCount":0}`},
+			[]string{`null`, `[]`, `{}`, `{"method":"get"}`, `{"method":"get","comments":[]}`, `{"method":"get","issue":{"number":"1"}}`, `{"method":"get_parent","parent":{"number":1}}`, `{"method":"get_labels","labels":[]}`, `{"method":"get","issue":null,"comments":[]}`},
 		},
 		{
 			issueWriteOutputSchema(),

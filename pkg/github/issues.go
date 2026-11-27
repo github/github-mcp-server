@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -791,6 +792,11 @@ func isUnsupportedListIssuesIssueFieldsError(err error) bool {
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	outputSchema := issueReadOutputSchema()
+	var selectableFields []any
+	for _, field := range slices.Sorted(maps.Keys(outputSchema.Properties["issue"].Properties)) {
+		selectableFields = append(selectableFields, field)
+	}
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -817,6 +823,10 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "number",
 				Description: "The number of the issue",
 			},
+			"fields": fieldsSchemaProperty(
+				"Top-level issue fields to return with method get. Omit or leave empty for the full response. For metadata-only reads, select fields such as 'number', 'title', 'state', and 'html_url' to leave out the issue body.",
+				selectableFields,
+			),
 		},
 		Required: []string{"method", "owner", "repo", "issue_number"},
 	}
@@ -826,7 +836,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:         "issue_read",
-			OutputSchema: issueReadOutputSchema(),
+			OutputSchema: outputSchema,
 			Description:  t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
@@ -843,6 +853,9 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if len(input.Fields) > 0 && method != "get" {
+				return utils.NewToolResultError("fields is only supported with method get"), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -880,7 +893,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch method {
 			case "get":
-				result, output, err := getIssue(ctx, client, deps, owner, repo, issueNumber)
+				result, output, err := getIssue(ctx, client, deps, owner, repo, issueNumber, input.Fields)
 				return attachIFC(result), output, err
 			case "get_comments":
 				result, output, err := getIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
@@ -901,11 +914,11 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
-	result, _, err := getIssue(ctx, client, deps, owner, repo, issueNumber)
+	result, _, err := getIssue(ctx, client, deps, owner, repo, issueNumber, nil)
 	return result, err
 }
 
-func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, *IssueReadOutput, error) {
+func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, fields []string) (*mcp.CallToolResult, *IssueReadOutput, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -947,7 +960,16 @@ func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	return MarshalledTextResult(minimalIssue), &IssueReadOutput{Method: "get", Issue: issueDetailsOutput(minimalIssue)}, nil
+	output := &IssueReadOutput{Method: "get", Issue: issueDetailsOutput(minimalIssue)}
+	if len(fields) > 0 {
+		filtered, err := filterFields(minimalIssue, fields)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to filter issue fields: %w", err)
+		}
+		output.Issue.fields = fields
+		return MarshalledTextResult(filtered), output, nil
+	}
+	return MarshalledTextResult(minimalIssue), output, nil
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,

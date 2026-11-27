@@ -16,12 +16,13 @@ type IssueMetadataInput struct {
 }
 
 type IssueReadInput struct {
-	Method      string `json:"method"`
-	Owner       string `json:"owner"`
-	Repo        string `json:"repo"`
-	IssueNumber int    `json:"issue_number"`
-	Page        int    `json:"page,omitempty"`
-	PerPage     int    `json:"perPage,omitempty"`
+	Method      string   `json:"method"`
+	Owner       string   `json:"owner"`
+	Repo        string   `json:"repo"`
+	IssueNumber int      `json:"issue_number"`
+	Page        int      `json:"page,omitempty"`
+	PerPage     int      `json:"perPage,omitempty"`
+	Fields      []string `json:"fields,omitempty"`
 }
 
 type SubIssueWriteInput struct {
