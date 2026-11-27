@@ -567,9 +567,29 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 		}
 	}
 
-	sha = reference.GetObject().GetSHA()
-	return &raw.ContentOpts{Ref: ref, SHA: sha}, fallbackUsed, nil
+	// An annotated tag ref points at a tag object, not a commit. Peel it so the
+	// returned SHA names the tagged commit, like a branch or lightweight tag.
+	// The chain is bounded: a repository can nest tags arbitrarily deep, and each
+	// level costs the caller an API request.
+	object := reference.GetObject()
+	for depth := 0; object.GetType() == "tag"; depth++ {
+		if depth == maxAnnotatedTagDepth {
+			return nil, false, fmt.Errorf("annotated tag %q is nested more than %d levels deep", originalRef, maxAnnotatedTagDepth)
+		}
+		tag, resp, err := githubClient.Git.GetTag(ctx, owner, repo, object.GetSHA())
+		if err != nil {
+			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get annotated tag", resp, err)
+			return nil, false, fmt.Errorf("failed to get annotated tag %q: %w", originalRef, err)
+		}
+		object = tag.GetObject()
+	}
+
+	return &raw.ContentOpts{Ref: ref, SHA: object.GetSHA()}, fallbackUsed, nil
 }
+
+// maxAnnotatedTagDepth limits how many annotated tags are followed when a tag
+// points at another tag.
+const maxAnnotatedTagDepth = 10
 
 func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
 	repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
