@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/octicons"
@@ -343,8 +342,6 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				agentAssignment.CustomInstructions = &customInstructions
 			}
 
-			// Execute the updateIssue mutation with the GraphQL-Features header
-			// This header is required for the agent assignment API which is not GA yet
 			var updateIssueMutation struct {
 				UpdateIssue struct {
 					Issue struct {
@@ -355,15 +352,11 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				} `graphql:"updateIssue(input: $input)"`
 			}
 
-			// Add the GraphQL-Features header for the agent assignment API
-			// The header will be read by the HTTP transport if it's configured to do so
-			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
-
 			// Capture the time before assignment to filter out older PRs during polling
 			assignmentTime := time.Now().UTC()
 
 			if err := client.Mutate(
-				ctxWithFeatures,
+				ctx,
 				&updateIssueMutation,
 				UpdateIssueInput{
 					ID:              getIssueQuery.Repository.Issue.ID,
@@ -759,10 +752,9 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				} `graphql:"updateIssue(input: $input)"`
 			}
 
-			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 			assignmentTime := time.Now().UTC()
 
-			if err := client.Mutate(ctxWithFeatures, &updateIssueMutation, input, nil); err != nil {
+			if err := client.Mutate(ctx, &updateIssueMutation, input, nil); err != nil {
 				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 

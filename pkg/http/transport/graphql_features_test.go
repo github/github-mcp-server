@@ -30,8 +30,8 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 		},
 		{
 			name:           "single feature in context",
-			features:       []string{"issues_copilot_assignment_api_support"},
-			expectedHeader: "issues_copilot_assignment_api_support",
+			features:       []string{"example_feature"},
+			expectedHeader: "example_feature",
 			hasHeader:      true,
 		},
 		{
