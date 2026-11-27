@@ -45,7 +45,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"pull-request-authoring": {
 		required: [][]string{{"create_pull_request"}},
-		optional: []string{"list_branches", "list_commits", "update_pull_request", "pull_request_read", "update_pull_request_branch", "actions_list", "merge_pull_request", "fork_repository", "get_file_contents", "request_pull_request_reviewers", "update_pull_request_body", "update_pull_request_draft_state", "update_pull_request_state", "update_pull_request_title"},
+		optional: []string{"list_branches", "list_commits", "update_pull_request", "pull_request_read", "update_pull_request_branch", "actions_list", "merge_pull_request", "enqueue_pull_request", "dequeue_pull_request", "fork_repository", "get_file_contents", "request_pull_request_reviewers", "update_pull_request_body", "update_pull_request_draft_state", "update_pull_request_state", "update_pull_request_title"},
 	},
 	"pull-request-code-review": {
 		required: [][]string{{"pull_request_read"}, {"pull_request_review_write", "create_pull_request_review"}, {"pull_request_review_write", "submit_pending_pull_request_review"}, {"add_comment_to_pending_review", "add_pull_request_review_comment"}},

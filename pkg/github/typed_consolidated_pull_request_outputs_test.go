@@ -28,7 +28,7 @@ func consolidatedPullRequestSession(t *testing.T, deps BaseDeps, protocol string
 	tools := []inventory.ServerTool{
 		PullRequestRead(tr), CreatePullRequest(tr), UpdatePullRequest(tr), MergePullRequest(tr),
 		UpdatePullRequestBranch(tr), PullRequestReviewWrite(tr),
-		AddCommentToPendingReview(tr), AddReplyToPullRequestComment(tr),
+		AddCommentToPendingReview(tr), AddReplyToPullRequestComment(tr), EnqueuePullRequest(tr), DequeuePullRequest(tr),
 	}
 	canonicalSchemas := make(map[string]string)
 	for _, tool := range tools {
@@ -167,6 +167,14 @@ func consolidatedPullRequestDeps(t *testing.T) BaseDeps {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 		var body string
 		switch q := req.Query; {
+		case strings.Contains(q, "enqueuePullRequest("):
+			body = `{"data":{"enqueuePullRequest":{"mergeQueueEntry":{"id":"MQE_1","position":1,"state":"QUEUED","enqueuedAt":"2026-01-01T00:00:00Z","estimatedTimeToMerge":600,"jump":false,"solo":false}}}}`
+		case strings.Contains(q, "dequeuePullRequest("):
+			body = `{"data":{"dequeuePullRequest":{"mergeQueueEntry":null}}}`
+		case strings.Contains(q, "isMergeQueueEnabled"):
+			body = `{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":true,"isInMergeQueue":true,"mergeQueueEntry":{"id":"MQE_1","position":1,"state":"QUEUED","enqueuedAt":"2026-01-01T00:00:00Z","estimatedTimeToMerge":600,"jump":false,"solo":false}}}}}`
+		case strings.Contains(q, "pullRequest(number: $prNumber){id}"):
+			body = `{"data":{"repository":{"pullRequest":{"id":"PR_1"}}}}`
 		case strings.Contains(q, "addPullRequestReviewThread("):
 			body = `{"data":{"addPullRequestReviewThread":{"thread":{"id":"T_2"}}}}`
 		case strings.Contains(q, "addPullRequestReview("):
@@ -280,6 +288,9 @@ func TestTypedConsolidatedPullRequestOutputs(t *testing.T) {
 		{"pull_request_read", map[string]any{"method": "get_comments", "pullNumber": 2}, `[]`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1}, `{"total_count":1,"check_runs":[{"id":5,"name":"build","status":"completed","conclusion":"success"}]}`},
 		{"pull_request_read", map[string]any{"method": "get_check_runs", "pullNumber": 1, "page": 2}, `{"total_count":0,"check_runs":[]}`},
+		{"pull_request_read", map[string]any{"method": "get_merge_queue_status", "pullNumber": "1"}, `{"merge_queue_enabled":true,"in_merge_queue":true,"entry":{"id":"MQE_1","position":1,"state":"QUEUED","enqueued_at":"2026-01-01T00:00:00Z","estimated_time_to_merge":600,"jump":false,"solo":false}}`},
+		{"enqueue_pull_request", map[string]any{"pullNumber": "1", "jump": false, "expectedHeadSha": "abc"}, `{"id":"MQE_1","position":1,"state":"QUEUED","enqueued_at":"2026-01-01T00:00:00Z","estimated_time_to_merge":600,"jump":false,"solo":false}`},
+		{"dequeue_pull_request", map[string]any{"pullNumber": 1}, `null`},
 		{"create_pull_request", map[string]any{"title": "Subject", "head": "feature", "base": "main", "draft": false}, prRef},
 		{"update_pull_request", map[string]any{"pullNumber": "1", "title": "Subject", "maintainer_can_modify": false}, prRef},
 		{"merge_pull_request", map[string]any{"pullNumber": 1, "merge_method": "squash", "expectedHeadSha": "abc"}, `{"sha":"abc","merged":true,"message":"Pull Request successfully merged"}`},
