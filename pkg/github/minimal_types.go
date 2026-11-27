@@ -556,9 +556,11 @@ type MinimalFieldValue struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 //
-// Assignees is deliberately not omitempty: both conversions below populate it
-// non-nil, so an empty list is a definitive "nobody is assigned" answer rather
-// than an absent key. Callers filtering for unassigned issues depend on that.
+// Labels, Assignees and Comments are deliberately not omitempty: both
+// conversions below populate the lists non-nil, so an empty list or zero count
+// is a definitive answer (for example "nobody is assigned" or "no labels")
+// rather than an absent key. Callers filtering for unassigned issues depend on
+// that.
 type MinimalIssue struct {
 	Number            int                      `json:"number"`
 	Title             string                   `json:"title"`
@@ -570,10 +572,10 @@ type MinimalIssue struct {
 	HTMLURL           string                   `json:"html_url,omitempty"`
 	User              *MinimalUser             `json:"user,omitempty"`
 	AuthorAssociation string                   `json:"author_association,omitempty"`
-	Labels            []string                 `json:"labels,omitempty"`
+	Labels            []string                 `json:"labels"`
 	Assignees         []string                 `json:"assignees"`
 	Milestone         string                   `json:"milestone,omitempty"`
-	Comments          int                      `json:"comments,omitempty"`
+	Comments          int                      `json:"comments"`
 	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
 	CreatedAt         string                   `json:"created_at,omitempty"`
 	UpdatedAt         string                   `json:"updated_at,omitempty"`
@@ -710,6 +712,10 @@ type MinimalFileCommit struct {
 }
 
 // MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
+//
+// Labels, Assignees and RequestedReviewers are deliberately not omitempty and
+// are always populated non-nil, so an empty list is a definitive answer rather
+// than an absent key.
 type MinimalPullRequest struct {
 	Number             int              `json:"number"`
 	Title              string           `json:"title"`
@@ -720,9 +726,9 @@ type MinimalPullRequest struct {
 	MergeableState     string           `json:"mergeable_state,omitempty"`
 	HTMLURL            string           `json:"html_url"`
 	User               *MinimalUser     `json:"user,omitempty"`
-	Labels             []string         `json:"labels,omitempty"`
-	Assignees          []string         `json:"assignees,omitempty"`
-	RequestedReviewers []string         `json:"requested_reviewers,omitempty"`
+	Labels             []string         `json:"labels"`
+	Assignees          []string         `json:"assignees"`
+	RequestedReviewers []string         `json:"requested_reviewers"`
 	MergedBy           string           `json:"merged_by,omitempty"`
 	Head               *MinimalPRBranch `json:"head,omitempty"`
 	Base               *MinimalPRBranch `json:"base,omitempty"`
@@ -836,6 +842,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		m.ClosedAt = issue.ClosedAt.Format(time.RFC3339)
 	}
 
+	m.Labels = make([]string, 0, len(issue.Labels))
 	for _, label := range issue.Labels {
 		if label != nil {
 			m.Labels = append(m.Labels, label.GetName())
@@ -936,6 +943,7 @@ func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutField
 		},
 	}
 
+	m.Labels = make([]string, 0, len(fragment.Labels.Nodes))
 	for _, label := range fragment.Labels.Nodes {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
@@ -1117,18 +1125,21 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 		m.MergedAt = pr.MergedAt.Format(time.RFC3339)
 	}
 
+	m.Labels = make([]string, 0, len(pr.Labels))
 	for _, label := range pr.Labels {
 		if label != nil {
 			m.Labels = append(m.Labels, label.GetName())
 		}
 	}
 
+	m.Assignees = make([]string, 0, len(pr.Assignees))
 	for _, assignee := range pr.Assignees {
 		if assignee != nil {
 			m.Assignees = append(m.Assignees, assignee.GetLogin())
 		}
 	}
 
+	m.RequestedReviewers = make([]string, 0, len(pr.RequestedReviewers))
 	for _, reviewer := range pr.RequestedReviewers {
 		if reviewer != nil {
 			m.RequestedReviewers = append(m.RequestedReviewers, reviewer.GetLogin())

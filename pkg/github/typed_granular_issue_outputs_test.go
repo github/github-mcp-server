@@ -89,7 +89,7 @@ const granularMutationText = `{"id":"123","url":"https://github.com/owner/repo/i
 const granularSubIssueAPIResponse = `{"id":7,"number":7,"title":"Child\u202e","body":"body\u202e","url":"https://api.github.com/repos/owner/repo/issues/7","html_url":"https://github.com/owner/repo/issues/7","comments_url":"https://api.github.com/repos/owner/repo/issues/7/comments","node_id":"I_7","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0},{"issue_field_id":12,"node_id":"IF_12","data_type":"text","value":""},{"issue_field_id":13,"node_id":"IF_13","data_type":"text","value":false},{"issue_field_id":14,"node_id":"IF_14","data_type":"text","value":null}]}`
 const granularSubIssueText = `{"id":7,"number":7,"title":"Child","body":"body","url":"https://api.github.com/repos/owner/repo/issues/7","html_url":"https://github.com/owner/repo/issues/7","comments_url":"https://api.github.com/repos/owner/repo/issues/7/comments","node_id":"I_7","issue_field_values":[{"issue_field_id":11,"node_id":"IF_11","data_type":"number","value":0},{"issue_field_id":12,"node_id":"IF_12","data_type":"text","value":""},{"issue_field_id":13,"node_id":"IF_13","data_type":"text","value":false},{"issue_field_id":14,"node_id":"IF_14","data_type":"text","value":null}]}`
 
-const granularSubIssueStructured = `{"method":"add","issue":{"id":7,"number":7,"title":"Child","body":"body","html_url":"https://github.com/owner/repo/issues/7","assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0},{"issue_field_id":12,"data_type":"text","value":""},{"issue_field_id":13,"data_type":"text","value":false},{"issue_field_id":14,"data_type":"text","value":null}]}}`
+const granularSubIssueStructured = `{"method":"add","issue":{"id":7,"number":7,"title":"Child","body":"body","html_url":"https://github.com/owner/repo/issues/7","labels":[],"assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0},{"issue_field_id":12,"data_type":"text","value":""},{"issue_field_id":13,"data_type":"text","value":false},{"issue_field_id":14,"data_type":"text","value":null}]}}`
 
 func granularIssueWireCases() []granularIssueWireCase {
 	cases := []granularIssueWireCase{
@@ -284,8 +284,8 @@ func TestGranularSubIssueStructuredSchema(t *testing.T) {
 	require.NoError(t, err)
 	for _, raw := range []string{
 		`{"method":"add","issue":null}`,
-		`{"method":"add","issue":{"id":7,"number":7,"state":"open","title":"Child","html_url":"https://github.com/owner/repo/issues/7","assignees":[],"field_values":[]}}`,
-		`{"method":"reprioritize","issue":{"id":7,"assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0},{"issue_field_id":12,"data_type":"text","value":null}]}}`,
+		`{"method":"add","issue":{"id":7,"number":7,"state":"open","title":"Child","html_url":"https://github.com/owner/repo/issues/7","labels":[],"assignees":[],"field_values":[]}}`,
+		`{"method":"reprioritize","issue":{"id":7,"labels":[],"assignees":[],"field_values":[{"issue_field_id":11,"data_type":"number","value":0},{"issue_field_id":12,"data_type":"text","value":null}]}}`,
 	} {
 		var output any
 		require.NoError(t, json.Unmarshal([]byte(raw), &output))
@@ -416,7 +416,7 @@ func TestTypedGranularIssueWireErrors(t *testing.T) {
 							method := map[string]string{"add_sub_issue": "add", "remove_sub_issue": "remove", "reprioritize_sub_issue": "reprioritize"}[tc.name]
 							expectedText = fmt.Sprintf(`{"method":%q,"issue":null}`, method)
 							if payload == `{}` {
-								expectedText = fmt.Sprintf(`{"method":%q,"issue":{"assignees":[]}}`, method)
+								expectedText = fmt.Sprintf(`{"method":%q,"issue":{"assignees":[],"labels":[]}}`, method)
 							}
 						}
 						if schemas[tc.name] != nil {
