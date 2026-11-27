@@ -56,6 +56,16 @@ func TestParseAPIHost(t *testing.T) {
 			wantRestURL: "https://myghe.com/api/v3/",
 		},
 		{
+			name:        "mixed case github.com hostname",
+			input:       "https://GitHub.com",
+			wantRestURL: "https://api.github.com/",
+		},
+		{
+			name:        "mixed case ghe.com subdomain",
+			input:       "https://Contoso.GHE.com",
+			wantRestURL: "https://api.Contoso.GHE.com/",
+		},
+		{
 			name:    "missing scheme",
 			input:   "github.com",
 			wantErr: true,
