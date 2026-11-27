@@ -347,7 +347,8 @@ func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
 			require.NoError(t, initGlobalToolScopeMap(translator, tt.hostType))
 
 			tool := github.SearchIssues(translator, github.WithHost(tt.hostType))
-			assert.Equal(t, tt.want, tool.Tool.Description)
+			assert.True(t, strings.HasPrefix(tool.Tool.Description, tt.want))
+			assert.Contains(t, tool.Tool.Description, "status:")
 		})
 	}
 }

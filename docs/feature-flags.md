@@ -285,6 +285,7 @@ as output formatting) won't appear here.
   - `parent_owner`: Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when parent_issue_number is provided. (string, optional)
   - `parent_repo`: Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when parent_issue_number is provided. (string, optional)
   - `repo`: Repository name (string, required)
+  - `status`: Initial planning status (create only). Only open statuses are supported. Backlog is backlog; Todo is planned; In progress and In review are started. Omit to use the default status, Backlog. (string, optional)
   - `title`: Issue title (string, required)
 
 - **hide_issue_comment** - Hide Issue Comment

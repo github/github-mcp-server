@@ -912,11 +912,19 @@ func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	}
 	flags := deps.GetFlags(ctx)
 
-	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+	req, err := client.NewRequest(ctx, http.MethodGet, fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create issue request: %w", err)
+	}
+	var response issueWithStatus
+	resp, err := client.Do(req, &response)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get issue: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	issue := &response.Issue
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -947,7 +955,13 @@ func getIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	return MarshalledTextResult(minimalIssue), &IssueReadOutput{Method: "get", Issue: issueDetailsOutput(minimalIssue)}, nil
+	output := &IssueReadOutput{Method: "get", Issue: issueDetailsOutput(minimalIssue)}
+	status := response.planningStatus()
+	output.Issue.Status = status
+	return MarshalledTextResult(struct {
+		MinimalIssue
+		Status *IssuePlanningStatus `json:"status"`
+	}{minimalIssue, status}), output, nil
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
@@ -1958,6 +1972,11 @@ const (
 	searchIssuesLexicalQueryDescription  = "Search query using GitHub issues search syntax"
 )
 
+func searchIssuesStatusDescription() string {
+	return `Filter by planning status with the status: qualifier, for example status:"In progress". Statuses: ` +
+		strings.Join(issueStatusNames, ", ") + "."
+}
+
 // SearchIssues creates a tool to search for issues.
 func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
 	cfg := newToolConfig(opts)
@@ -1975,6 +1994,7 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 		toolDescription = searchIssuesLexicalDescription
 		queryDescription = searchIssuesLexicalQueryDescription
 	}
+	toolDescription += " " + searchIssuesStatusDescription()
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2648,6 +2668,7 @@ var issueWriteFormParams = map[string]struct{}{
 	"assignees":     {},
 	"milestone":     {},
 	"type":          {},
+	"status":        {},
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
@@ -2684,12 +2705,7 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
-// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
-// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
-// is off. Both register under the tool name "issue_write"; exactly one is
-// active at a time via mutually exclusive feature-flag annotations. When the
-// flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
-// fields on IssueWrite.
+// IssueWrite creates a tool to create or update an issue.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool[IssueWriteInput, *IssueWriteOutput](
 		ToolsetMetadataIssues,
@@ -3003,11 +3019,15 @@ Options are:
 
 			switch method {
 			case "create":
+				status := ""
+				if input.Status != nil {
+					status = *input.Status
+				}
 				if parentProvided {
-					return issueWriteResult(method)(createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo))
+					return issueWriteResult(method)(createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo, status))
 				}
 
-				return issueWriteResult(method)(createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues))
+				return issueWriteResult(method)(createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, status))
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
@@ -3021,7 +3041,10 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
-		}, normalizeConsolidatedIssueArguments("write"))
+		}, normalizeIssueCreationStatus(normalizeConsolidatedIssueArguments("write"), true))
+	schema := inventory.CloneSchema(st.Tool.InputSchema.(*jsonschema.Schema))
+	schema.Properties["status"] = issueCreationStatusProperty()
+	st.Tool.InputSchema = schema
 	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
@@ -3036,6 +3059,7 @@ type CreateIssueInput struct {
 	LabelIDs      *[]githubv4.ID   `json:"labelIds,omitempty"`
 	IssueTypeID   *githubv4.ID     `json:"issueTypeId,omitempty"`
 	ParentIssueID *githubv4.ID     `json:"parentIssueId,omitempty"`
+	StatusID      *githubv4.ID     `json:"statusId,omitempty"`
 }
 
 type createIssueMutation struct {
@@ -3077,11 +3101,12 @@ func CreateIssueWithParent(
 	parentOwner string,
 	parentRepo string,
 ) (*mcp.CallToolResult, error) {
-	result, _, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNumber, issueType, parentIssueNumber, parentOwner, parentRepo)
+	result, _, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNumber, issueType, parentIssueNumber, parentOwner, parentRepo, "")
 	return result, err
 }
 
-func createIssueWithParent(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo, title, body string, assignees, labels []string, milestoneNumber int, issueType string, parentIssueNumber int, parentOwner, parentRepo string) (*mcp.CallToolResult, *MinimalResponse, error) {
+// createIssueWithParent sets the initial planning status unless status is empty.
+func createIssueWithParent(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo, title, body string, assignees, labels []string, milestoneNumber int, issueType string, parentIssueNumber int, parentOwner, parentRepo, status string) (*mcp.CallToolResult, *MinimalResponse, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil, nil
 	}
@@ -3142,6 +3167,14 @@ func createIssueWithParent(ctx context.Context, client *github.Client, gqlClient
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to resolve issue type %q", issueType), resp, err), nil, nil
 		}
 		input.IssueTypeID = &issueTypeID
+	}
+
+	if status != "" {
+		statusID, err := resolveIssueStatusID(ctx, gqlClient, owner, repo, status)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve planning status", err), nil, nil
+		}
+		input.StatusID = &statusID
 	}
 
 	var mutation createIssueMutation
@@ -3313,11 +3346,12 @@ func containsIssueLabel(labels []string, target string) bool {
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
-	result, _, err := createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
+	result, _, err := createIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, "")
 	return result, err
 }
 
-func createIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, *MinimalResponse, error) {
+// createIssue sets the initial planning status unless status is empty.
+func createIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, status string) (*mcp.CallToolResult, *MinimalResponse, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil, nil
 	}
@@ -3339,15 +3373,13 @@ func createIssue(ctx context.Context, client *github.Client, owner string, repo 
 		issueRequest.Type = new(issueType)
 	}
 
-	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to create issue",
-			resp,
-			err,
-		), nil, nil
+	issue, resp, err := createRESTIssue(ctx, client, owner, repo, issueRequest, status)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
 	}
-	defer func() { _ = resp.Body.Close() }()
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
+	}
 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
@@ -3358,9 +3390,13 @@ func createIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	if len(labels) > 0 {
-		if err := unappliedIssueLabelsError(labels, issue); err != nil {
+		if err := unappliedIssueLabelsError(labels, &issue.Issue); err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested labels were not fully applied", resp, err), nil, nil
 		}
+	}
+
+	if err := unappliedIssueStatusError(status, issue); err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested status was not applied", resp, err), nil, nil
 	}
 
 	// Return minimal response with just essential information

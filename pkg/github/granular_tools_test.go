@@ -3,8 +3,10 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 	gogithub "github.com/google/go-github/v92/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,7 +117,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagIssuesGranular)}, tool.FeatureRule.Features(), "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureRule.Features(), inventory.FeatureFlag(FeatureFlagIssuesGranular), "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -1172,6 +1175,179 @@ func TestGranularUpdateIssueState(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, result.IsError)
 		})
+	}
+}
+
+func TestUpdateIssueStatus(t *testing.T) {
+	cases := []struct {
+		status        string
+		category      string
+		duplicateCode int
+		updateCode    int
+		wantError     string
+		unconfirmed   bool
+	}{
+		{"Backlog", "backlog", 0, http.StatusOK, "", false},
+		{"Todo", "planned", 0, http.StatusOK, "", false},
+		{"In progress", "started", 0, http.StatusOK, "", false},
+		{"In review", "started", 0, http.StatusOK, "", false},
+		{"Done", "completed", 0, http.StatusOK, "", false},
+		{"Not planned", "not_planned", 0, http.StatusOK, "", false},
+		{"Duplicate", "duplicate", http.StatusOK, http.StatusOK, "", false},
+		{"Duplicate", "duplicate", http.StatusNotFound, 0, "failed to get duplicate issue", false},
+		{"Todo", "planned", 0, http.StatusForbidden, "failed to update issue", false},
+		{"Done", "completed", 0, 0, "confirm_close must be true", true},
+		{"Not planned", "not_planned", 0, 0, "confirm_close must be true", true},
+		{"Duplicate", "duplicate", 0, 0, "confirm_close must be true", true},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s/%d/%d/unconfirmed=%t", tc.status, tc.duplicateCode, tc.updateCode, tc.unconfirmed), func(t *testing.T) {
+			gets, patches := 0, 0
+			rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet {
+					gets++
+					assert.Equal(t, "/repos/owner/repo/issues/7", r.URL.Path)
+					w.WriteHeader(tc.duplicateCode)
+					_, _ = w.Write([]byte(`{"id":987,"message":"Not Found"}`))
+					return
+				}
+				patches++
+				assert.Equal(t, http.MethodPatch, r.Method)
+				assert.Equal(t, "/repos/owner/repo/issues/42", r.URL.Path)
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				expected := map[string]any{"status": tc.status}
+				if tc.status == "Duplicate" {
+					expected["duplicate_issue_id"] = float64(987)
+				}
+				assert.Equal(t, expected, body, "only the status and resolved duplicate ID should be sent")
+				w.WriteHeader(tc.updateCode)
+				_, _ = fmt.Fprintf(w, `{"id":123,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":%q,"category":%q},"message":"Forbidden"}`, tc.status, tc.category)
+			})}}
+			session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, inventory.ProtocolVersionMultiRoundTrip)
+			args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": "42", "status": strings.ToLower(tc.status)}
+			if tc.status == "Duplicate" {
+				args["duplicate_of"] = "7"
+			}
+			if slices.Contains(issueClosingStatusNames, tc.status) && !tc.unconfirmed {
+				args["confirm_close"] = true
+			}
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: args})
+			require.NoError(t, err)
+			if tc.wantError != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, tc.wantError)
+			} else {
+				require.False(t, result.IsError, "%s", getTextResult(t, result).Text)
+				assert.JSONEq(t, fmt.Sprintf(`{"id":"123","url":"https://github.com/owner/repo/issues/42","status":{"id":4,"name":%q,"category":%q}}`, tc.status, tc.category), getTextResult(t, result).Text)
+				assert.JSONEq(t, mustMarshalJSON(t, result.StructuredContent), getTextResult(t, result).Text)
+			}
+			if tc.status == "Duplicate" && !tc.unconfirmed {
+				assert.Equal(t, 1, gets)
+			} else {
+				assert.Zero(t, gets)
+			}
+			if tc.updateCode == 0 {
+				assert.Zero(t, patches, "failed duplicate lookup or missing confirmation must prevent the mutation")
+			} else {
+				assert.Equal(t, 1, patches)
+			}
+		})
+	}
+}
+
+func TestIssuePlanningStatusInvalidInput(t *testing.T) {
+	translate := translations.NullTranslationHelper
+	cases := []struct {
+		tool inventory.ServerTool
+		args map[string]any
+		want string
+	}{
+		{UpdateIssueStatus(translate), map[string]any{"status": "Duplicate"}, "duplicate_of is required"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Duplicate", "duplicate_of": 0}, "duplicate_of must be positive"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "duplicate_of": 7}, "duplicate_of can only be used"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "unknown"}, "status must be one of"},
+		{UpdateIssueStatus(translate), map[string]any{"status": nil}, "status"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "issue_number": -1}, "issue_number must be positive"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Done"}, "confirm_close must be true"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Not planned", "confirm_close": false}, "confirm_close must be true"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Done", "confirm_close": "true"}, "confirm_close"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "repo": "repo/../../user"}, "repository path segments"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "owner": ".."}, "repository path segments"},
+		{GranularCreateIssue(translate), map[string]any{"status": "Todo", "owner": `owner\x`}, "repository path segments"},
+		{IssueWrite(translate), map[string]any{"status": "Todo", "repo": "."}, "repository path segments"},
+		{GranularCreateIssue(translate), map[string]any{"status": "Done"}, "status must be one of: Backlog, Todo, In progress, In review"},
+		{IssueWrite(translate), map[string]any{"method": "update", "status": "Todo"}, "status is only supported with the create method"},
+		{IssueWrite(translate), map[string]any{"status": "Todo", "state": "closed"}, "status cannot be combined with state"},
+	}
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("%s/%d", tc.tool.Tool.Name, i), func(t *testing.T) {
+			args := map[string]any{"owner": "owner", "repo": "repo", "issue_number": 42, "title": "Subject", "method": "create"}
+			maps.Copy(args, tc.args)
+			req := createMCPRequest(args)
+			result, err := tc.tool.Handler(BaseDeps{})(ContextWithDeps(context.Background(), BaseDeps{}), &req)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, tc.want)
+		})
+	}
+}
+
+func TestIssuePlanningStatusCreationNotApplied(t *testing.T) {
+	for _, tool := range []inventory.ServerTool{
+		IssueWrite(translations.NullTranslationHelper), GranularCreateIssue(translations.NullTranslationHelper),
+	} {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			client := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, map[string]any{
+					"id": 123, "number": 42, "html_url": "https://github.com/owner/repo/issues/42",
+					"status": map[string]any{"id": 1, "name": "Backlog", "category": "backlog"},
+				}),
+			})
+			deps := BaseDeps{Client: mustNewGHClient(t, client), GQLClient: defaultGQLClient}
+			req := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "method": "create", "status": "Todo"})
+			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &req)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			text := getTextResult(t, result).Text
+			assert.Contains(t, text, "issue created but requested status was not applied")
+			assert.Contains(t, text, `requested="Todo", applied="Backlog", issue_id=123, issue_url="https://github.com/owner/repo/issues/42"`)
+		})
+	}
+}
+
+func TestUpdateIssueStatusNotApplied(t *testing.T) {
+	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
+		for _, status := range []string{
+			`{"id":9,"name":"Blocked","category":"started"}`,
+			`{"id":9,"name":"Todo","category":"custom"}`,
+			`{"id":1,"name":"Backlog","category":"backlog"}`,
+			`"Todo"`, `null`, "",
+		} {
+			t.Run(protocol+"/"+status, func(t *testing.T) {
+				patches := 0
+				rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					patches++
+					assert.Equal(t, http.MethodPatch, r.Method)
+					payload := `{"id":123,"html_url":"https://github.com/owner/repo/issues/42"}`
+					if status != "" {
+						payload = strings.TrimSuffix(payload, "}") + `,"status":` + status + "}"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(payload))
+				})}}
+				session, _ := issueStatusSession(t, BaseDeps{Client: mustNewGHClient(t, rest)}, protocol)
+				result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "update_issue_status", Arguments: map[string]any{
+					"owner": "owner", "repo": "repo", "issue_number": 42, "status": "Todo",
+				}})
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, `requested status "Todo" was not applied`)
+				assert.Nil(t, result.StructuredContent)
+				assert.Equal(t, 1, patches, "unapplied status updates must not be retried")
+			})
+		}
 	}
 }
 

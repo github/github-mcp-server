@@ -27,6 +27,7 @@ type IssueWriteInput struct {
 	State             *string                `json:"state,omitempty"`
 	StateReason       *string                `json:"state_reason,omitempty"`
 	DuplicateOf       *int                   `json:"duplicate_of,omitempty"`
+	Status            *string                `json:"status,omitempty"`
 	IssueFields       []IssueWriteFieldInput `json:"issue_fields,omitempty"`
 	TypeProvided      bool                   `json:"-"`
 }
@@ -160,6 +161,7 @@ type IssueDetailsOutput struct {
 	Parent               *MinimalIssueRef            `json:"parent,omitempty"`
 	SubIssuesSummary     *MinimalSubIssuesSummary    `json:"sub_issues_summary,omitempty"`
 	ClosedByPullRequests *MinimalClosingPullRequests `json:"closed_by_pull_requests,omitempty"`
+	Status               *IssuePlanningStatus        `json:"status"`
 }
 
 func issueDetailsOutput(issue MinimalIssue) *IssueDetailsOutput {
@@ -381,6 +383,7 @@ func subIssueOutput(issue *github.SubIssue) (*SubIssueOutput, error) {
 var issueReadOutputSchema = sync.OnceValue(func() *jsonschema.Schema {
 	schema := issueDTOschema[IssueReadOutput]()
 	issue := schema.Properties["issue"]
+	issue.Properties["status"] = issuePlanningStatusSchema()
 	issue.Properties["state"].Enum = []any{"", "open", "closed"}
 	issue.Properties["state_reason"].Enum = []any{"completed", "not_planned", "reopened", "duplicate"}
 	describeIssueSummarySchema(issue.Properties["sub_issues_summary"])

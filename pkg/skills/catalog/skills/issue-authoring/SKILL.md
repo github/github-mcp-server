@@ -62,6 +62,9 @@ do it.
 - `labels` — must already exist on the repository. This tool applies labels; it does not
   create them.
 - `assignees` — assigning someone is a claim on their time. Only from an instruction.
+- `status` — on `issue_write` or `create_issue`, creation accepts Backlog, Todo,
+  In progress or In review. The parent and initial status can be set atomically.
+  Closed statuses cannot be assigned at creation.
 - `sub_issue_id` on `sub_issue_write` — the internal identifier, which is not the issue
   number. Read it from the issue rather than assuming the number will work.
 
@@ -92,6 +95,8 @@ do it.
   labels is a separate decision that affects the whole repository.
 - **The account cannot write** — the issue cannot be filed from here. Give the complete
   text so it can be filed by hand rather than losing it.
+- **A write only partially succeeds** — report what was saved and what failed.
+  Make any corrections on the existing issue rather than repeating creation.
 - **The report is not reproducible and not specific** — say what is missing rather than
   filing something that will be closed for lack of detail. An unfiled question is
   recoverable; a vague issue occupies someone's attention and then dies.

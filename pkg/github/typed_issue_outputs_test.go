@@ -94,7 +94,7 @@ func TestTypedIssueOutputs(t *testing.T) {
 	// These tools remain feature-gated in production. Enable their existing
 	// feature rules in the contract harness rather than clearing the rules.
 	inv, err := inventory.NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).
-		WithFeatureChecker(func(context.Context, string) (bool, error) { return true, nil }).Build()
+		WithFeatureChecker(featureCheckerFor(FeatureFlagIssueDependencies, FeatureFlagDuplicateDetection)).Build()
 	require.NoError(t, err)
 
 	const commentText = `{"id":"42","url":"https://github.com/owner/repo/issues/123#issuecomment-42"}`
@@ -107,7 +107,7 @@ func TestTypedIssueOutputs(t *testing.T) {
 		text       string
 		structured string
 	}{
-		{name: "issue_read", args: map[string]any{"method": "get", "owner": "owner", "repo": "repo", "issue_number": "7.0", "page": "0", "perPage": "0"}, text: `{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}`, structured: `{"method":"get","issue":{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[]}}`},
+		{name: "issue_read", args: map[string]any{"method": "get", "owner": "owner", "repo": "repo", "issue_number": "7.0", "page": "0", "perPage": "0"}, text: `{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[],"status":null}`, structured: `{"method":"get","issue":{"number":7,"title":"Blocker","state":"open","html_url":"https://github.com/owner/repo/issues/7","assignees":[],"status":null}}`},
 		{name: "list_issue_types", args: map[string]any{"owner": "owner"}, text: `[{"id":1,"name":"Bug","is_enabled":false}]`, structured: `[{"id":1,"name":"Bug","is_enabled":false}]`},
 		{name: "list_issue_types", args: map[string]any{"owner": "owner", "repo": "repo"}, text: `[{"id":1,"name":"Bug","is_enabled":false}]`, structured: `[{"id":1,"name":"Bug","is_enabled":false}]`},
 		{name: "list_issue_fields", args: map[string]any{"owner": "owner"}, text: `[{"id":"IF_1","full_database_id":99,"name":"Priority","description":"Importance","data_type":"SINGLE_SELECT","visibility":"ALL","options":[{"id":"OPT_1","name":"High","color":"red","priority":0}]}]`, structured: `[{"id":"IF_1","full_database_id":99,"name":"Priority","description":"Importance","data_type":"SINGLE_SELECT","visibility":"ALL","options":[{"id":"OPT_1","name":"High","color":"red","priority":0}]}]`},

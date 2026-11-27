@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "Search issues"
   },
-  "description": "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue.",
+  "description": "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue. Filter by planning status with the status: qualifier, for example status:\"In progress\". Statuses: Backlog, Todo, In progress, In review, Done, Not planned, Duplicate.",
   "inputSchema": {
     "properties": {
       "fields": {

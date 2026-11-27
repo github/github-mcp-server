@@ -264,6 +264,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListIssueTypes(t),
 		ListIssueFields(t),
 		IssueWrite(t),
+		UpdateIssueStatus(t),
 		AddIssueComment(t),
 		UpdateIssueComment(t),
 		SubIssueWrite(t),
