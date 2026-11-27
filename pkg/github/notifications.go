@@ -98,6 +98,9 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := checkOwnerRepoPair(owner, repo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			paginationParams, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -305,6 +308,9 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 			}
 			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := checkOwnerRepoPair(owner, repo); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 

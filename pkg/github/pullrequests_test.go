@@ -1045,7 +1045,7 @@ func Test_SearchPullRequests(t *testing.T) {
 			expectedResult: mockSearchResult,
 		},
 		{
-			name: "pull request search with only owner parameter (should ignore it)",
+			name: "pull request search with only owner parameter is rejected",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
@@ -1062,11 +1062,11 @@ func Test_SearchPullRequests(t *testing.T) {
 				"query": "feature",
 				"owner": "test-owner",
 			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
 		},
 		{
-			name: "pull request search with only repo parameter (should ignore it)",
+			name: "pull request search with only repo parameter is rejected",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
@@ -1083,8 +1083,8 @@ func Test_SearchPullRequests(t *testing.T) {
 				"query": "review-required",
 				"repo":  "test-repo",
 			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectError:    true,
+			expectedErrMsg: "owner and repo must be provided together",
 		},
 		{
 			name: "pull request search with minimal parameters",

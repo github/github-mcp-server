@@ -108,8 +108,13 @@ func prepareSearchArgs(input SearchIssuesInput, targetType string, mode searchMo
 		query = fmt.Sprintf("is:%s %s", targetType, query)
 	}
 
-	if input.Owner != "" && input.Repo != "" && !hasRepoFilter(query) {
-		query = fmt.Sprintf("repo:%s/%s %s", input.Owner, input.Repo, query)
+	if !hasRepoFilter(query) {
+		if err := checkOwnerRepoPair(input.Owner, input.Repo); err != nil {
+			return "", nil, err
+		}
+		if input.Owner != "" {
+			query = fmt.Sprintf("repo:%s/%s %s", input.Owner, input.Repo, query)
+		}
 	}
 
 	pagination := PaginationParams{Page: 1, PerPage: 30}
