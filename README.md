@@ -1363,6 +1363,7 @@ For negotiated supported protocol versions `2026-07-28` or newer, the consolidat
 
 - **merge_pull_request** - Merge pull request
   - **OAuth Challenge Scopes**: `repo`
+  - `author_email`: Email address to associate with the merge commit (string, optional)
   - `commit_message`: Extra detail for merge commit (string, optional)
   - `commit_title`: Title for merge commit (string, optional)
   - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)

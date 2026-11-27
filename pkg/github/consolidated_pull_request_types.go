@@ -60,6 +60,7 @@ type MergePullRequestInput struct {
 	CommitMessage   *string `json:"commit_message,omitempty"`
 	MergeMethod     *string `json:"merge_method,omitempty"`
 	ExpectedHeadSHA *string `json:"expectedHeadSha,omitempty"`
+	AuthorEmail     *string `json:"author_email,omitempty"`
 }
 
 type UpdatePullRequestBranchInput struct {
@@ -429,7 +430,7 @@ var pullRequestArgumentSpecs = map[string]pullRequestArgumentSpec{
 	},
 	"merge": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"},
-		strings: []string{"commit_title", "commit_message", "merge_method", "expectedHeadSha"},
+		strings: []string{"commit_title", "commit_message", "merge_method", "expectedHeadSha", "author_email"},
 	},
 	"branch": {
 		required: []string{"owner", "repo"}, requiredInts: []string{"pullNumber"}, strings: []string{"expectedHeadSha"},

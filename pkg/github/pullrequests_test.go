@@ -838,6 +838,7 @@ func Test_MergePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "commit_message")
 	assert.Contains(t, schema.Properties, "merge_method")
 	assert.Contains(t, schema.Properties, "expectedHeadSha")
+	assert.Contains(t, schema.Properties, "author_email")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock merge result for success case
@@ -875,6 +876,19 @@ func Test_MergePullRequest(t *testing.T) {
 				"merge_method":   "squash",
 			},
 			expectError:         false,
+			expectedMergeResult: mockMergeResult,
+		},
+		{
+			name: "empty author email keeps REST merge and head guard",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsMergeByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+					"sha": "head-sha",
+				}).andThen(mockResponse(t, http.StatusOK, mockMergeResult)),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner", "repo": "repo", "pullNumber": float64(42),
+				"author_email": "", "expectedHeadSha": "head-sha",
+			},
 			expectedMergeResult: mockMergeResult,
 		},
 		{
