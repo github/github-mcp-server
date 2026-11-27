@@ -153,6 +153,7 @@ type GranularIssueField struct {
 	NumberValue          *float64 `json:"number_value,omitempty"`
 	DateValue            string   `json:"date_value,omitempty"`
 	SingleSelectOptionID string   `json:"single_select_option_id,omitempty"`
+	MultiSelectOptionIDs []string `json:"multi_select_option_ids,omitempty"`
 	Delete               bool     `json:"delete,omitempty"`
 	Rationale            string   `json:"rationale,omitempty"`
 	Confidence           string   `json:"confidence,omitempty"`
@@ -298,6 +299,12 @@ func granularIssueFieldsFromMutation(fields []IssueFieldCreateOrUpdateInput) []G
 		if field.SingleSelectOptionID != nil {
 			entry.SingleSelectOptionID = (*field.SingleSelectOptionID).(string)
 		}
+		if field.MultiSelectOptionIDs != nil {
+			entry.MultiSelectOptionIDs = make([]string, len(*field.MultiSelectOptionIDs))
+			for i, optionID := range *field.MultiSelectOptionIDs {
+				entry.MultiSelectOptionIDs[i] = optionID.(string)
+			}
+		}
 		if field.Delete != nil {
 			entry.Delete = bool(*field.Delete)
 		}
@@ -332,6 +339,13 @@ func granularIssueFieldMutation(fields []GranularIssueField) []IssueFieldCreateO
 		if field.SingleSelectOptionID != "" {
 			value := githubv4.ID(field.SingleSelectOptionID)
 			entry.SingleSelectOptionID = &value
+		}
+		if len(field.MultiSelectOptionIDs) > 0 {
+			optionIDs := make([]githubv4.ID, len(field.MultiSelectOptionIDs))
+			for i, optionID := range field.MultiSelectOptionIDs {
+				optionIDs[i] = githubv4.ID(optionID)
+			}
+			entry.MultiSelectOptionIDs = &optionIDs
 		}
 		if field.Delete {
 			value := githubv4.Boolean(true)
@@ -920,6 +934,20 @@ func normalizeGranularSetIssueFieldsArguments(raw json.RawMessage) (json.RawMess
 			input.SingleSelectOptionID = &optionID
 			valueCount++
 		}
+		if rawIDs, exists := fieldMap["multi_select_option_ids"]; exists && rawIDs != nil {
+			ids, err := parseStringSlice(rawIDs)
+			if err != nil {
+				return nil, fmt.Errorf("multi_select_option_ids must be an array of strings")
+			}
+			if len(ids) > 0 {
+				optionIDs := make([]githubv4.ID, len(ids))
+				for i, optionID := range ids {
+					optionIDs[i] = githubv4.ID(optionID)
+				}
+				input.MultiSelectOptionIDs = &optionIDs
+				valueCount++
+			}
+		}
 		if _, exists := fieldMap["delete"]; exists {
 			del, err := OptionalParam[bool](fieldMap, "delete")
 			if err == nil && del {
@@ -930,10 +958,10 @@ func normalizeGranularSetIssueFieldsArguments(raw json.RawMessage) (json.RawMess
 		}
 
 		if valueCount == 0 {
-			return nil, fmt.Errorf("each field must have a value (text_value, number_value, date_value, single_select_option_id) or delete: true")
+			return nil, fmt.Errorf("each field must have a value (text_value, number_value, date_value, single_select_option_id, multi_select_option_ids) or delete: true")
 		}
 		if valueCount > 1 {
-			return nil, fmt.Errorf("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided")
+			return nil, fmt.Errorf("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id, multi_select_option_ids) or delete: true, but multiple were provided")
 		}
 
 		if _, exists := fieldMap["rationale"]; exists {

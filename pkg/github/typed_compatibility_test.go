@@ -177,7 +177,7 @@ func TestTypedCompatibilitySearchFieldValuePresence(t *testing.T) {
 							map[string]any{"id": "I_1", "issueFieldValues": map[string]any{"nodes": []any{}}},
 						}})
 					}
-					matcher := githubv4mock.NewQueryMatcher(searchIssueFieldValuesQueryString, map[string]any{"ids": []any{"I_1"}}, response)
+					matcher := githubv4mock.NewQueryMatcher(searchIssuesQueryString(), map[string]any{"ids": []any{"I_1"}}, response)
 					deps := BaseDeps{
 						Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 							GetSearchIssues: mockResponse(t, http.StatusOK, &github.IssuesSearchResult{Total: new(1), IncompleteResults: new(false), Issues: []*github.Issue{issue}}),
