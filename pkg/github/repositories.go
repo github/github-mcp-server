@@ -1007,7 +1007,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 		Required: []string{"owner", "repo"},
 	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
-		"Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+		"Subset of fields to return for each entry when the path is a directory. 'download_url' is omitted by default; request it explicitly in 'fields' when needed. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
 		fileContentFieldEnum,
 	)
 
@@ -1192,7 +1192,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false
-				var payload any = dirContent
+				defaultEntries := cloneDirectoryEntriesWithoutDownloadURLs(dirContent)
+				var payload any = defaultEntries
 				if len(fields) > 0 {
 					filteredEntries, err := filterEachField(dirContent, fields)
 					if err != nil {
@@ -1205,7 +1206,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
-				recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
+				recordDirContentsFieldsUsage(ctx, deps, defaultEntries, filtered, len(r))
 				var output []*RepositoryDirectoryEntryOutput
 				if err := json.Unmarshal(r, &output); err != nil {
 					return nil, nil, fmt.Errorf("failed to decode typed directory contents: %w", err)
@@ -1226,8 +1227,25 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
+// cloneDirectoryEntriesWithoutDownloadURLs returns directory entries without
+// download URLs while leaving the API response untouched.
+func cloneDirectoryEntriesWithoutDownloadURLs(entries []*github.RepositoryContent) []*github.RepositoryContent {
+	cloned := make([]*github.RepositoryContent, len(entries))
+	for i, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		entryCopy := *entry
+		entryCopy.DownloadURL = nil
+		cloned[i] = &entryCopy
+	}
+	return cloned
+}
+
 // recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
 // directory listing. sentBytes is the size of the payload actually returned.
+// full is the default listing, which omits download URLs, so a request that
+// opts in to download_url can send more bytes than the baseline.
 func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
 	recordFieldsUsageFor(ctx, deps, "get_file_contents", full, filtered, sentBytes)
 }
