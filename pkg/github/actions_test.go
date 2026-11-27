@@ -380,6 +380,23 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
+			name: "successful workflow run with 2026 API response",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: mockResponse(t, http.StatusOK, map[string]any{
+					"workflow_run_id": 123, "run_url": "https://api.github.com/repos/owner/repo/actions/runs/123",
+					"html_url": "https://github.com/owner/repo/actions/runs/123",
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":      "run_workflow",
+				"owner":       "owner",
+				"repo":        "repo",
+				"workflow_id": "12345",
+				"ref":         "main",
+			},
+			expectError: false,
+		},
+		{
 			name: "successful workflow run",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

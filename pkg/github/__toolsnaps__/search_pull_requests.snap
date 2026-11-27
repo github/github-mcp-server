@@ -22,7 +22,6 @@
             "user",
             "author_association",
             "labels",
-            "assignee",
             "assignees",
             "milestone",
             "comments",
