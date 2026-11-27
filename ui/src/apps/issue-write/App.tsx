@@ -24,7 +24,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
-import { completedToolResult } from "../../lib/toolResult";
+import { completedToolResult, hasExactIssueReference, parseNumberFromURL } from "../../lib/toolResult";
 import { parseUIGetResult } from "../../lib/uiGetResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
@@ -294,7 +294,11 @@ function SuccessView({
   isUpdate: boolean;
   openLink: (url: string) => Promise<void>;
 }) {
-  const issueUrl = issue.html_url || issue.url || issue.URL || "#";
+  const rawUrl = issue.html_url || issue.url || issue.URL;
+  const issueNum = issue.number ?? parseNumberFromURL(rawUrl);
+  const issueUrl = rawUrl || (owner && repo && issueNum ? `https://github.com/${owner}/${repo}/issues/${issueNum}` : "#");
+  const titleText = issue.title || submittedTitle;
+  const displayTitle = titleText || (issueNum ? `Issue #${issueNum}` : "View issue");
 
   return (
     <div
@@ -379,8 +383,8 @@ function SuccessView({
               textDecoration: "none",
             }}
           >
-            {issue.title || submittedTitle}
-            {issue.number && (
+            {displayTitle}
+            {issueNum && titleText && !hasExactIssueReference(titleText, issueNum) && (
               <Text
                 style={{
                   color: "var(--fgColor-muted)",
@@ -388,7 +392,7 @@ function SuccessView({
                   marginLeft: 4,
                 }}
               >
-                #{issue.number}
+                #{issueNum}
               </Text>
             )}
           </a>
@@ -1281,7 +1285,7 @@ function CreateIssueApp() {
         issue={shownIssue}
         owner={owner}
         repo={repo}
-        submittedTitle={title}
+        submittedTitle={title || (toolInput?.title as string) || ""}
         submittedLabels={selectedLabels}
         isUpdate={isUpdateMode}
         openLink={openLink}
