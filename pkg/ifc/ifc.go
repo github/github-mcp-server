@@ -237,6 +237,22 @@ func LabelActionsResult(isPrivate bool) SecurityLabel {
 	return PublicUntrusted()
 }
 
+// LabelDeployment returns the IFC label for repository deployments and their
+// statuses (list_deployments, list_deployment_statuses).
+//
+// Integrity is untrusted. Deployments and statuses are usually written by CI
+// and deployment integrations, and in public repositories those often run for
+// pull requests from forks (preview deployments), so the ref, environment and
+// description can carry attacker-influenced text.
+//
+// Confidentiality follows repository visibility.
+func LabelDeployment(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateUntrusted()
+	}
+	return PublicUntrusted()
+}
+
 // LabelSecurityAlert returns the IFC label for security findings: code
 // scanning alerts, secret scanning alerts, and Dependabot alerts.
 //

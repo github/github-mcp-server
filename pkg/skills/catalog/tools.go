@@ -57,7 +57,7 @@ var requirements = map[string]toolRequirements{
 	},
 	"release-preparation": {
 		required: [][]string{{"list_tags"}, {"list_commits"}},
-		optional: []string{"get_latest_release", "get_release_by_tag", "list_releases", "list_pull_requests", "search_pull_requests", "actions_list", "actions_get"},
+		optional: []string{"get_latest_release", "get_release_by_tag", "list_releases", "list_pull_requests", "search_pull_requests", "actions_list", "actions_get", "list_deployments", "list_deployment_statuses"},
 	},
 	"repository-content-changes": {
 		required: [][]string{{"get_file_contents"}, {"push_files", "create_or_update_file"}},
