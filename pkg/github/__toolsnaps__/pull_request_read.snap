@@ -653,8 +653,8 @@
         "type": "object"
       },
       {
-        "anyOf": [
-          {
+        "properties": {
+          "files": {
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -702,8 +702,16 @@
               "null",
               "array"
             ]
-          },
-          {
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "commits": {
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -746,8 +754,16 @@
               "null",
               "array"
             ]
-          },
-          {
+          }
+        },
+        "required": [
+          "commits"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "reviews": {
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -890,8 +906,16 @@
               "null",
               "array"
             ]
-          },
-          {
+          }
+        },
+        "required": [
+          "reviews"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "comments": {
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -994,8 +1018,11 @@
               "array"
             ]
           }
+        },
+        "required": [
+          "comments"
         ],
-        "type": "array"
+        "type": "object"
       }
     ]
   }
