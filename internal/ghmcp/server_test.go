@@ -31,7 +31,7 @@ func TestCreateGitHubClientsGraphQLUserAgent(t *testing.T) {
 			}))
 			defer api.Close()
 			cfg := github.MCPServerConfig{Version: "v1.2.3", Token: "fixture-token", InsidersMode: insiders}
-			clients, err := createGitHubClients(cfg, newStaticAPIHostResolver(t, api.URL))
+			clients, err := createGitHubClients(cfg, newStaticAPIHostResolver(t, api.URL), nil)
 			require.NoError(t, err)
 			var query struct {
 				Viewer struct{ Login string }
@@ -143,7 +143,7 @@ func TestStdioGraphQLUserAgent(t *testing.T) {
 				Version: tt.version, Token: "fixture-token", InsidersMode: tt.insiders,
 				Translator: translations.NullTranslationHelper, Logger: discardLogger(),
 			}
-			clients, err := createGitHubClients(cfg, newStaticAPIHostResolver(t, api.URL))
+			clients, err := createGitHubClients(cfg, newStaticAPIHostResolver(t, api.URL), nil)
 			require.NoError(t, err)
 			obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
 			require.NoError(t, err)

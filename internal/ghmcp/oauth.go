@@ -92,7 +92,7 @@ func (p *sessionPrompter) PromptForm(ctx context.Context, prompt oauth.Prompt) e
 // middleware be exercised with a deterministic fake, since driving the real
 // manager to its branches would require standing up live GitHub flows.
 type oauthAuthenticator interface {
-	HasToken() bool
+	HasTokenContext(ctx context.Context) (bool, error)
 	Authenticate(ctx context.Context, prompter oauth.Prompter) (*oauth.Outcome, error)
 	AwaitToken(ctx context.Context, flowID string) (*oauth.Outcome, error)
 	Cancel(flowID string) bool
@@ -137,7 +137,11 @@ func createOAuthToolMiddleware(mgr oauthAuthenticator, logger *slog.Logger) inve
 				}
 			}
 
-			if mgr.HasToken() {
+			hasToken, err := mgr.HasTokenContext(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if hasToken {
 				return next(ctx, req)
 			}
 			if serverMayInitiateElicitation(req.Session) {
