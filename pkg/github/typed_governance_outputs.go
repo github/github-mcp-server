@@ -14,6 +14,7 @@ import (
 )
 
 type MinimalLabel struct {
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Color       string `json:"color" jsonschema:"Hex RGB without leading #."`
 	Description string `json:"description"`
