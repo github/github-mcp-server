@@ -2203,7 +2203,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		}
 	}
 
-	tests := []struct {
+	type testCase struct {
 		name                 string
 		mockedClient         *http.Client
 		requestArgs          map[string]any
@@ -2213,7 +2213,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		expectedErrMsgs      []string
 		unexpectedErrMsgs    []string
 		expectedRequestCount int
-	}{
+	}
+	tests := []testCase{
 		{
 			name: "successful file creation",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -2715,6 +2716,40 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectedContent:      mockFileResponse,
 			expectedRequestCount: 2,
 		},
+	}
+
+	for _, update := range []bool{false, true} {
+		name := "empty file creation"
+		args := map[string]any{"owner": "owner", "repo": "repo", "path": "docs/example.md", "content": "", "message": "Write empty file", "branch": "main"}
+		body := map[string]any{"content": "", "message": "Write empty file", "branch": "main"}
+		handlers := map[string]http.HandlerFunc{
+			"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusNotFound, map[string]any{"message": "Not Found"}),
+		}
+		count := 2
+		if update {
+			name = "clear existing file"
+			args["sha"] = "abc123def456"
+			body["sha"] = "abc123def456"
+			handlers["GET /repos/{owner}/{repo}/contents/{path:.*}"] = mockResponse(t, http.StatusOK, &github.RepositoryContent{SHA: new("abc123def456"), Type: new("file")})
+			handlers[GetReposGitTreesByOwnerByRepoByTree] = mockPathTree("100644")
+			count = 4
+		}
+		handlers["PUT /repos/{owner}/{repo}/contents/{path:.*}"] = expectRequestBody(t, body).andThen(mockResponse(t, http.StatusOK, mockFileResponse))
+		tests = append(tests, testCase{name: name, mockedClient: MockHTTPClientWithHandlers(handlers), requestArgs: args, expectedContent: mockFileResponse, expectedRequestCount: count})
+	}
+
+	for _, missing := range []bool{false, true} {
+		args := map[string]any{"owner": "owner", "repo": "repo", "path": "docs/example.md", "message": "Write file", "branch": "main"}
+		name := "missing content"
+		if !missing {
+			name = "null content"
+			args["content"] = nil
+		}
+		tests = append(tests, testCase{
+			name: name, requestArgs: args,
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			expectError:  true, expectedErrMsg: "missing required parameter: content",
+		})
 	}
 
 	for _, tc := range tests {
