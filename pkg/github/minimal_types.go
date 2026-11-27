@@ -30,14 +30,14 @@ var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "
 // listIssuesItemFieldEnum lists the selectable fields for list_issues result
 // items, matching the JSON field names MinimalIssue actually populates via the
 // list_issues GraphQL fragment (fragmentToMinimalIssue). Fields that only the
-// REST conversion sets (for example html_url, reactions, issue_field_values) are
-// never emitted here and are intentionally omitted. The body and field_values
+// REST conversion sets (for example reactions, issue_field_values) are never
+// emitted here and are intentionally omitted. The body and field_values
 // fields are the heaviest, so omitting them is the main lever for shrinking large
 // result sets. Note that user is the issue author; assignees is who it is
 // assigned to, and is always present (empty when unassigned).
 var listIssuesItemFieldEnum = []any{
 	"number", "title", "body", "state", "user", "labels", "assignees",
-	"comments", "created_at", "updated_at", "field_values",
+	"comments", "created_at", "updated_at", "html_url", "field_values",
 }
 
 // listPullRequestsItemFieldEnum lists the selectable fields for
@@ -911,6 +911,7 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		Labels:     fragment.Labels,
 		Assignees:  fragment.Assignees,
 		Comments:   fragment.Comments,
+		URL:        fragment.URL,
 	})
 
 	for _, fv := range fragment.IssueFieldValues.Nodes {
@@ -931,6 +932,7 @@ func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutField
 		Comments:  int(fragment.Comments.TotalCount),
 		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		HTMLURL:   string(fragment.URL),
 		User: &MinimalUser{
 			Login: string(fragment.Author.Login),
 		},

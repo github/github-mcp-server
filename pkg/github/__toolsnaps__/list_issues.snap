@@ -54,6 +54,7 @@
             "comments",
             "created_at",
             "updated_at",
+            "html_url",
             "field_values"
           ],
           "type": "string"
