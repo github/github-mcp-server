@@ -1273,6 +1273,10 @@ func TestIssuePlanningStatusInvalidInput(t *testing.T) {
 		{UpdateIssueStatus(translate), map[string]any{"status": "Done"}, "confirm_close must be true"},
 		{UpdateIssueStatus(translate), map[string]any{"status": "Not planned", "confirm_close": false}, "confirm_close must be true"},
 		{UpdateIssueStatus(translate), map[string]any{"status": "Done", "confirm_close": "true"}, "confirm_close"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "repo": "repo/../../user"}, "repository path segments"},
+		{UpdateIssueStatus(translate), map[string]any{"status": "Todo", "owner": ".."}, "repository path segments"},
+		{GranularCreateIssue(translate), map[string]any{"status": "Todo", "owner": `owner\x`}, "repository path segments"},
+		{IssueWrite(translate), map[string]any{"status": "Todo", "repo": "."}, "repository path segments"},
 		{GranularCreateIssue(translate), map[string]any{"status": "Done"}, "status must be one of: Backlog, Todo, In progress, In review"},
 		{IssueWrite(translate), map[string]any{"method": "update", "status": "Todo"}, "status is only supported with the create method"},
 		{IssueWrite(translate), map[string]any{"status": "Todo", "state": "closed"}, "status cannot be combined with state"},
@@ -1290,7 +1294,7 @@ func TestIssuePlanningStatusInvalidInput(t *testing.T) {
 	}
 }
 
-func TestIssuePlanningStatusCreationIgnored(t *testing.T) {
+func TestIssuePlanningStatusCreationNotApplied(t *testing.T) {
 	for _, tool := range []inventory.ServerTool{
 		IssueWrite(translations.NullTranslationHelper), GranularCreateIssue(translations.NullTranslationHelper),
 	} {
@@ -1305,8 +1309,10 @@ func TestIssuePlanningStatusCreationIgnored(t *testing.T) {
 			req := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "title": "Subject", "method": "create", "status": "Todo"})
 			result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), &req)
 			require.NoError(t, err)
-			require.False(t, result.IsError, "creation succeeds even when optional metadata is not applied")
-			assert.JSONEq(t, `{"id":"123","url":"https://github.com/owner/repo/issues/42"}`, getTextResult(t, result).Text)
+			require.True(t, result.IsError)
+			text := getTextResult(t, result).Text
+			assert.Contains(t, text, "issue created but requested status was not applied")
+			assert.Contains(t, text, `requested="Todo", applied="Backlog", issue_id=123, issue_url="https://github.com/owner/repo/issues/42"`)
 		})
 	}
 }

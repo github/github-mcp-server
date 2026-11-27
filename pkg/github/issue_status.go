@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/github/github-mcp-server/v2/pkg/ifc"
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
-	"github.com/github/github-mcp-server/v2/pkg/scopes"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/github/github-mcp-server/v2/pkg/utils"
 	"github.com/google/go-github/v92/github"
@@ -213,11 +213,15 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 				OpenWorldHint:   new(true),
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args IssueStatusInput) (*mcp.CallToolResult, *IssueStatusUpdateOutput, error) {
 			// This is a caller-supplied confirmation policy, not proof that a trusted UI prompted the user.
 			if slices.Contains(issueClosingStatusNames, args.Status) && !args.ConfirmClose {
 				return utils.NewToolResultError("confirm_close must be true to use a status that closes the issue"), nil, nil
+			}
+			repoPath, err := repositoryAPIPath(args.Owner, args.Repo)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -240,7 +244,7 @@ func UpdateIssueStatus(t translations.TranslationHelperFunc) inventory.ServerToo
 					return utils.NewToolResultError("failed to get duplicate issue: response did not include a valid issue ID"), nil, nil
 				}
 			}
-			req, err := client.NewRequest(ctx, http.MethodPatch, fmt.Sprintf("repos/%s/%s/issues/%d", args.Owner, args.Repo, args.IssueNumber), body)
+			req, err := client.NewRequest(ctx, http.MethodPatch, fmt.Sprintf("%s/issues/%d", repoPath, args.IssueNumber), body)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create status update request", err), nil, nil
 			}
@@ -273,23 +277,62 @@ func issueCreationStatusProperty() *jsonschema.Schema {
 	}
 }
 
+// repositoryAPIPath rejects coordinates that are not single path segments and
+// escapes them, so hand-built REST URLs cannot target a different API path.
+func repositoryAPIPath(owner, repo string) (string, error) {
+	for _, segment := range []string{owner, repo} {
+		if strings.TrimSpace(segment) == "" || segment == "." || segment == ".." || strings.ContainsAny(segment, "/\\") {
+			return "", fmt.Errorf("owner and repo must be nonempty repository path segments")
+		}
+	}
+	return fmt.Sprintf("repos/%s/%s", url.PathEscape(owner), url.PathEscape(repo)), nil
+}
+
 // createRESTIssue preserves the standard request fields while adding the API's
 // status field, which go-github does not yet expose.
-func createRESTIssue(ctx context.Context, client *github.Client, owner, repo string, body github.CreateIssueRequest, status string) (*github.Issue, *github.Response, error) {
+func createRESTIssue(ctx context.Context, client *github.Client, owner, repo string, body github.CreateIssueRequest, status string) (*issueWithStatus, *github.Response, error) {
 	if status == "" {
-		return client.Issues.Create(ctx, owner, repo, body)
+		issue, resp, err := client.Issues.Create(ctx, owner, repo, body)
+		if err != nil {
+			return nil, resp, err
+		}
+		if issue == nil {
+			issue = &github.Issue{}
+		}
+		return &issueWithStatus{Issue: *issue}, resp, nil
+	}
+	repoPath, err := repositoryAPIPath(owner, repo)
+	if err != nil {
+		return nil, nil, err
 	}
 	requestBody := struct {
 		github.CreateIssueRequest
 		Status string `json:"status"`
 	}{body, status}
-	req, err := client.NewRequest(ctx, http.MethodPost, fmt.Sprintf("repos/%s/%s/issues", owner, repo), requestBody)
+	req, err := client.NewRequest(ctx, http.MethodPost, repoPath+"/issues", requestBody)
 	if err != nil {
 		return nil, nil, err
 	}
-	var issue github.Issue
+	var issue issueWithStatus
 	resp, err := client.Do(req, &issue)
 	return &issue, resp, err
+}
+
+// unappliedIssueStatusError reports a created issue whose status differs from
+// the requested one, so callers can fix that issue instead of creating another.
+func unappliedIssueStatusError(requested string, issue *issueWithStatus) error {
+	if requested == "" {
+		return nil
+	}
+	applied := ""
+	if status := issue.planningStatus(); status != nil {
+		applied = status.Name
+	}
+	if applied == requested {
+		return nil
+	}
+	return fmt.Errorf("requested=%q, applied=%q, issue_id=%d, issue_url=%q; issue statuses may be unavailable in this repository; use update_issue_status to correct the issue instead of creating it again",
+		requested, applied, issue.GetID(), issue.GetHTMLURL())
 }
 
 func resolveIssueStatusID(ctx context.Context, client *githubv4.Client, owner, repo, status string) (githubv4.ID, error) {

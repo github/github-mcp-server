@@ -222,13 +222,11 @@ func TestIssuePlanningStatusRead(t *testing.T) {
 
 func TestIssuePlanningStatusCreation(t *testing.T) {
 	for _, protocol := range []string{inventory.ProtocolVersionMultiRoundTrip, "2025-11-25"} {
-		for _, tc := range []struct{ granular, parent, ignored bool }{
-			{false, false, false}, {false, true, false},
-			{true, false, false}, {true, true, false},
-			{false, false, true}, {true, false, true},
+		for _, tc := range []struct{ granular, parent bool }{
+			{false, false}, {false, true}, {true, false}, {true, true},
 		} {
 			granular, parent := tc.granular, tc.parent
-			t.Run(fmt.Sprintf("%s/granular=%t/parent=%t/ignored=%t", protocol, granular, parent, tc.ignored), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/granular=%t/parent=%t", protocol, granular, parent), func(t *testing.T) {
 				calls := 0
 				rest := &http.Client{Transport: recorderTransport{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					calls++
@@ -241,11 +239,7 @@ func TestIssuePlanningStatusCreation(t *testing.T) {
 					assert.Equal(t, "Body", body["body"])
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusCreated)
-					statusName, category := "In review", "started"
-					if tc.ignored {
-						statusName, category = "Backlog", "backlog"
-					}
-					_, _ = fmt.Fprintf(w, `{"id":123,"number":42,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":5,"name":%q,"category":%q}}`, statusName, category)
+					_, _ = w.Write([]byte(`{"id":123,"number":42,"html_url":"https://github.com/owner/repo/issues/42","status":{"id":5,"name":"In review","category":"started"}}`))
 				})}}
 				gql := defaultGQLClient
 				if parent {

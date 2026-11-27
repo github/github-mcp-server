@@ -180,6 +180,9 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
 			}
+			if err := unappliedIssueStatusError(args.Status, issue); err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested status was not applied", resp, err), nil, nil
+			}
 
 			return granularIssueMinimalResult(&MinimalResponse{
 				ID:  fmt.Sprintf("%d", issue.GetID()),

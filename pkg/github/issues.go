@@ -3390,9 +3390,13 @@ func createIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	if len(labels) > 0 {
-		if err := unappliedIssueLabelsError(labels, issue); err != nil {
+		if err := unappliedIssueLabelsError(labels, &issue.Issue); err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested labels were not fully applied", resp, err), nil, nil
 		}
+	}
+
+	if err := unappliedIssueStatusError(status, issue); err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "issue created but requested status was not applied", resp, err), nil, nil
 	}
 
 	// Return minimal response with just essential information
