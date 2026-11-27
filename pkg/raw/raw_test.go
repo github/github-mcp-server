@@ -285,10 +285,34 @@ func TestUrlFromOpts(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:  "benign percent-encoded filename allowed",
+			name:  "literal percent-escape-like filename kept as typed",
 			opts:  nil,
 			owner: "octocat", repo: "hello", path: "%2ehidden",
-			want: "https://raw.example.com/octocat/hello/HEAD/%2ehidden",
+			want: "https://raw.example.com/octocat/hello/HEAD/%252ehidden",
+		},
+		{
+			name:  "filename with literal percent sign",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "docs/100%.txt",
+			want: "https://raw.example.com/octocat/hello/HEAD/docs/100%25.txt",
+		},
+		{
+			name:  "filename that looks like a percent escape is not decoded",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "%41.txt",
+			want: "https://raw.example.com/octocat/hello/HEAD/%2541.txt",
+		},
+		{
+			name:  "percent sign in ref with sha path",
+			opts:  &ContentOpts{SHA: "abc123"},
+			owner: "octocat", repo: "hello", path: "50%off/file.txt",
+			want: "https://raw.example.com/octocat/hello/abc123/50%25off/file.txt",
+		},
+		{
+			name:  "space hash question mark and unicode are escaped",
+			opts:  &ContentOpts{Ref: "refs/heads/feature/分支"},
+			owner: "octocat", repo: "hello", path: "a b/#c?.md",
+			want: "https://raw.example.com/octocat/hello/refs/heads/feature/%E5%88%86%E6%94%AF/a%20b/%23c%3F.md",
 		},
 	}
 
