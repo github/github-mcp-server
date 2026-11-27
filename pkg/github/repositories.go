@@ -1767,10 +1767,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			var baseCommit *github.Commit
 			if !repositoryIsEmpty {
 				if branchNotFound {
-					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
 					if err != nil {
 						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
+					ref = defaultRef
 				}
 
 				// Get the commit object that the branch points to
@@ -1795,11 +1796,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
 				if branch != defaultBranch {
-					// Create the requested branch from the default branch
-					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
-					}
+					branchNotFound = true
 				}
 
 				baseCommit = base
@@ -1836,27 +1833,50 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				defer func() { _ = resp.Body.Close() }()
 			}
 
-			// Update the reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: new(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil, nil
+			var targetRef *github.Reference
+			if branchNotFound {
+				// Create the new branch reference directly at the new commit
+				createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
+					Ref: "refs/heads/" + branch,
+					SHA: *newCommit.SHA,
+				})
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to create new branch reference",
+						resp,
+						err,
+					), nil, nil
+				}
+				if resp != nil && resp.Body != nil {
+					defer func() { _ = resp.Body.Close() }()
+				}
+				targetRef = createdRef
+			} else {
+				// Update the reference to point to the new commit
+				ref.Object.SHA = newCommit.SHA
+				updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
+					SHA:   *newCommit.SHA,
+					Force: new(false),
+				})
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to update reference",
+						resp,
+						err,
+					), nil, nil
+				}
+				if resp != nil && resp.Body != nil {
+					defer func() { _ = resp.Body.Close() }()
+				}
+				targetRef = updatedRef
 			}
-			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(updatedRef)
+			r, err := json.Marshal(targetRef)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(updatedRef), nil
+			return utils.NewToolResultText(string(r)), repositoryReferenceOutput(targetRef), nil
 		},
 		normalizePushFilesArguments,
 	)
