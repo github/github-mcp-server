@@ -12,6 +12,7 @@ import (
 	"github.com/github/github-mcp-server/v2/pkg/inventory"
 	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -61,8 +62,8 @@ Examples:
 
   # Just show unique scopes needed
   github-mcp-server list-scopes --output=summary`,
-	RunE: func(_ *cobra.Command, _ []string) error {
-		return runListScopes()
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return runListScopes(cmd.Flags())
 	},
 }
 
@@ -81,7 +82,11 @@ func formatScopeDisplay(scope string) string {
 	return scope
 }
 
-func runListScopes() error {
+func runListScopes(flags *pflag.FlagSet) error {
+	if err := validateBoolSettings(flags, "read-only"); err != nil {
+		return err
+	}
+
 	// Get toolsets configuration (same logic as stdio command)
 	var enabledToolsets []string
 	if viper.IsSet("toolsets") {
