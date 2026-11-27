@@ -94,7 +94,8 @@ type ListRepositorySecurityAdvisoriesInput struct {
 }
 
 type GetGlobalSecurityAdvisoryInput struct {
-	GHSAID string `json:"ghsaId"`
+	GHSAID string `json:"ghsaId,omitempty"`
+	CVEID  string `json:"cveId,omitempty"`
 }
 
 type ListOrgRepositorySecurityAdvisoriesInput struct {
