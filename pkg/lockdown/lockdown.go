@@ -163,6 +163,30 @@ func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, re
 	return viewerLogin == strings.ToLower(username), nil
 }
 
+// IsSafeActorContent is IsSafeContent for an author read from the GraphQL
+// API, where typeName is the actor's __typename. GraphQL reports a GitHub App
+// bot's login without the "[bot]" suffix (for example "dependabot"), while the
+// REST permission endpoint and the trusted bot list use the REST login
+// ("dependabot[bot]"), so the suffix is added back for Bot actors. Trusted
+// logins are matched first because Copilot's login is "Copilot" in both APIs.
+func (c *RepoAccessCache) IsSafeActorContent(ctx context.Context, login, typeName, owner, repo string) (bool, error) {
+	if c == nil {
+		return false, fmt.Errorf("nil repo access cache")
+	}
+	if c.isTrustedBot(login) {
+		return true, nil
+	}
+	return c.IsSafeContent(ctx, restLogin(login, typeName), owner, repo)
+}
+
+// restLogin returns the REST API login for a GraphQL actor.
+func restLogin(login, typeName string) string {
+	if typeName == "Bot" && login != "" && !strings.HasSuffix(strings.ToLower(login), "[bot]") {
+		return login + "[bot]"
+	}
+	return login
+}
+
 func (c *RepoAccessCache) viewerLoginFor(ctx context.Context) (string, error) {
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
