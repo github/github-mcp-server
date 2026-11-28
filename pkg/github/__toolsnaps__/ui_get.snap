@@ -32,7 +32,7 @@
         "type": "string"
       },
       "repo": {
-        "description": "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
+        "description": "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers; optional for issue types)",
         "type": "string"
       }
     },

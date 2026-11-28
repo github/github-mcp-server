@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"sort"
 	"strings"
 
@@ -62,7 +60,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"repo": {
 						Type:        "string",
-						Description: "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
+						Description: "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers; optional for issue types)",
 					},
 				},
 				Required: []string{"method", "owner"},
@@ -88,7 +86,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "milestones":
 				result, _, err = uiGetMilestones(ctx, deps, args, owner)
 			case "issue_types":
-				result, _, err = uiGetIssueTypes(ctx, deps, owner)
+				result, _, err = uiGetIssueTypes(ctx, deps, args, owner)
 			case "branches":
 				result, _, err = uiGetBranches(ctx, deps, args, owner)
 			case "issue_fields":
@@ -300,24 +298,25 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 	return utils.NewToolResultText(string(out)), nil, nil
 }
 
-func uiGetIssueTypes(ctx context.Context, deps ToolDependencies, owner string) (*mcp.CallToolResult, any, error) {
+func uiGetIssueTypes(ctx context.Context, deps ToolDependencies, args map[string]any, owner string) (*mcp.CallToolResult, any, error) {
+	repo, err := OptionalParam[string](args, "repo")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
 	client, err := deps.GetClient(ctx)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 	}
 
-	issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
+	scope, errResult := resolveIssueMetadataScope(ctx, client, owner, repo)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	issueTypes, resp, err := fetchIssueTypes(ctx, client, scope)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue types", resp, err), nil, nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 	}
 
 	r, err := json.Marshal(issueTypes)
@@ -392,7 +391,7 @@ func uiGetIssueFields(ctx context.Context, deps ToolDependencies, args map[strin
 		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 	}
 
-	fields, err := fetchIssueFields(ctx, gqlClient, owner, repo)
+	fields, err := fetchIssueFields(ctx, gqlClient, issueMetadataScope{Owner: owner, Repo: repo})
 	if err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to list issue fields", err), nil, nil
 	}
