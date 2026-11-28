@@ -70,9 +70,9 @@ func assertGovernanceProjection(t *testing.T, tc governanceWireCase, output any)
 	}
 	switch tc.tool.Tool.Name {
 	case "get_label":
-		assert.JSONEq(t, `{"name":"bug","color":"ff0000","description":"desc"}`, mustMarshalJSON(t, output))
+		assert.JSONEq(t, `{"id":"L1","name":"bug","color":"ff0000","description":"desc"}`, mustMarshalJSON(t, output))
 	case "list_label":
-		assert.JSONEq(t, `{"labels":[{"name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, mustMarshalJSON(t, output))
+		assert.JSONEq(t, `{"labels":[{"id":"L1","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`, mustMarshalJSON(t, output))
 	case "label_write":
 		assert.Equal(t, tc.args["method"], object["method"])
 		assert.Equal(t, tc.text, object["message"])
@@ -344,6 +344,20 @@ func TestTypedGovernanceWireOutputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListLabelsOutputRetainsID(t *testing.T) {
+	const legacy = `{"labels":[{"id":"LA_kwDOABcdEf","name":"bug","color":"ff0000","description":"desc"}],"totalCount":1,"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}`
+
+	var out ListLabelsOutput
+	require.NoError(t, json.Unmarshal([]byte(legacy), &out))
+	require.Len(t, out.Labels, 1)
+	assert.Equal(t, "LA_kwDOABcdEf", out.Labels[0].ID)
+
+	// Round-trip: the id must survive a typed decode/re-encode.
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(b), `"id":"LA_kwDOABcdEf"`)
 }
 
 func TestRuleSuiteOutputFidelity(t *testing.T) {

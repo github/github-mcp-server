@@ -38,11 +38,15 @@
       "description": {
         "type": "string"
       },
+      "id": {
+        "type": "string"
+      },
       "name": {
         "type": "string"
       }
     },
     "required": [
+      "id",
       "name",
       "color",
       "description"
