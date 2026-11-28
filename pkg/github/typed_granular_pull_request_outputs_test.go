@@ -58,7 +58,7 @@ func granularPRCases() []granularPRCase {
 		{"create_pull_request_review", map[string]any{"event": "COMMENT", "body": "Note"}, "pull request review submitted successfully", `"body":"Note"`},
 		{"create_pull_request_review", map[string]any{"event": "REQUEST_CHANGES"}, "pull request review submitted successfully", `"event":"REQUEST_CHANGES"`},
 		{"create_pull_request_review", map[string]any{"event": 3, "body": false, "commitID": []any{}}, "pending pull request created", `"pullRequestId":"PR_1"`},
-		{"create_pull_request_review", map[string]any{"event": "", "body": "ignored"}, "pending pull request created", `"pullRequestId":"PR_1"`},
+		{"create_pull_request_review", map[string]any{"event": "", "body": "Draft"}, "pending pull request created", `"body":"Draft"`},
 		{"submit_pending_pull_request_review", map[string]any{"event": "APPROVE", "body": "LGTM"}, "pending pull request review successfully submitted", `"pullRequestReviewId":"R_1"`},
 		{"submit_pending_pull_request_review", map[string]any{"event": "COMMENT", "body": false}, "pending pull request review successfully submitted", `"body":""`},
 		{"submit_pending_pull_request_review", map[string]any{"event": "REQUEST_CHANGES"}, "pending pull request review successfully submitted", `"event":"REQUEST_CHANGES"`},

@@ -3598,6 +3598,57 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 			expectToolError: false,
 		},
 		{
+			name: "successful review creation keeps body",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID githubv4.ID
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id": "PR_kwDODKw3uc6WYN1T",
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReview struct {
+							PullRequestReview struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReview(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+						Body:          githubv4.NewString("Summary"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "create",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"body":       "Summary",
+			},
+			expectToolError: false,
+		},
+		{
 			name: "failure to get pull request",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
