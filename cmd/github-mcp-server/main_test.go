@@ -176,6 +176,8 @@ func TestParseBoolFlag(t *testing.T) {
 		{name: "disabled", value: "disabled", want: false},
 		{name: "typo", value: "tru", wantErr: true},
 		{name: "garbage", value: "maybe", wantErr: true},
+		{name: "whitespace only", value: " ", wantErr: true},
+		{name: "padded true", value: " true ", want: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

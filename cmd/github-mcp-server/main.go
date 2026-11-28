@@ -398,8 +398,13 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 // turn off.
 func parseBoolFlag(key string) (bool, error) {
 	raw := viper.GetString(key)
+	if raw == "" {
+		return false, nil
+	}
+	// A whitespace-only value is not a valid setting, so it falls through to
+	// the error below instead of trimming to the unset default.
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", "0", "f", "false", "no", "n", "off", "disabled":
+	case "0", "f", "false", "no", "n", "off", "disabled":
 		return false, nil
 	case "1", "t", "true", "yes", "y", "on", "enabled":
 		return true, nil
