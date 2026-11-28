@@ -324,12 +324,12 @@ func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
 		{
 			name:     "dotcom uses semantic search",
 			hostType: utils.HostTypeDotcom,
-			want:     "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue.",
+			want:     "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue. Results may lag a few seconds behind newly created issues; use 'list_issues' to check for an issue just created.",
 		},
 		{
 			name:     "GHES uses lexical search",
 			hostType: utils.HostTypeGHES,
-			want:     "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
+			want:     "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue. Results may lag a few seconds behind newly created issues; use 'list_issues' to check for an issue just created.",
 		},
 	}
 

@@ -1951,8 +1951,8 @@ func reprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 // caller's literal keywords and handles OR fine. The description has to describe
 // the engine the host will actually use.
 const (
-	searchIssuesSemanticDescription = "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue."
-	searchIssuesLexicalDescription  = "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"
+	searchIssuesSemanticDescription = "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue. Results may lag a few seconds behind newly created issues; use 'list_issues' to check for an issue just created."
+	searchIssuesLexicalDescription  = "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue. Results may lag a few seconds behind newly created issues; use 'list_issues' to check for an issue just created."
 
 	searchIssuesSemanticQueryDescription = "The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR."
 	searchIssuesLexicalQueryDescription  = "Search query using GitHub issues search syntax"

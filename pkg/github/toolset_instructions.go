@@ -12,7 +12,7 @@ func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 func generateIssuesToolsetInstructions(_ *inventory.Inventory) string {
 	return `## Issues
 
-Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.`
+Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Search can take several seconds to index a newly created issue, so after an 'issue_write' create that failed or timed out, check 'list_issues' sorted by creation date before creating it again. Always set 'state_reason' when closing issues.`
 }
 
 func generatePullRequestsToolsetInstructions(inv *inventory.Inventory) string {
