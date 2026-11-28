@@ -56,6 +56,14 @@ The GitHub MCP Server can be installed using several methods. **Docker is the mo
 - **Best for**: Most users, especially those already using Docker or wanting the simplest setup
 - **Used by**: Claude Desktop, Copilot in VS Code, Cursor, Windsurf, etc.
 
+### Install with Go
+- **Pros**: One command, no clone and no Docker. The binary is `github-mcp-server` on `PATH`.
+- **Cons**: Requires [Go 1.27.4 or later](https://go.dev/dl/). `go install` enforces the version in `go.mod`.
+- **Command**: `go install github.com/github/github-mcp-server/v2/cmd/github-mcp-server@latest`
+- **Best for**: Users who already have Go and want a native binary without a checkout
+
+Use the `/v2` module path. `github.com/github/github-mcp-server/cmd/github-mcp-server@latest` resolves to the pre-v2 module. Host configuration is the same shape as the [README install section](../../README.md#install-with-go--build-from-source).
+
 ### 📦 Pre-built Binary (Lightweight Alternative)
 - **Pros**: No Docker required, direct execution via stdio, minimal setup
 - **Cons**: Need to manually download and manage updates, platform-specific binaries
@@ -65,7 +73,7 @@ The GitHub MCP Server can be installed using several methods. **Docker is the mo
 ### 🔨 Build from Source (Advanced Users)
 - **Pros**: Latest features, full customization, no external dependencies
 - **Cons**: Requires Go development environment, more complex setup
-- **Prerequisites**: [Go 1.24+](https://go.dev/doc/install)
+- **Prerequisites**: [Go 1.27.4 or later](https://go.dev/doc/install)
 - **Build command**: `go build -o github-mcp-server ./cmd/github-mcp-server` (build the complete package from a Git checkout to retain its source revision).
 - **Best for**: Developers who want the latest features or need custom modifications
 
@@ -82,7 +90,7 @@ All installations with Personal Access Tokens (PAT) require:
 
 Optional (depending on installation method):
 - **Docker** (for Docker-based installations): [Download Docker](https://www.docker.com/)
-- **Go 1.24+** (for building from source): [Install Go](https://go.dev/doc/install)
+- **Go 1.27.4 or later** (for `go install` or building from source): [Install Go](https://go.dev/doc/install)
 
 ## Security Best Practices
 
