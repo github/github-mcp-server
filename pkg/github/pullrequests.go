@@ -2140,7 +2140,7 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 	}
 
 	// Event and Body are provided if we submit a review. A pending review
-	// (no event) can still carry a body, and GitHub won't let it be added later.
+	// (no event) can still carry a body; this tool has no way to set it later.
 	if params.Event != "" {
 		addPullRequestReviewInput.Event = newGQLStringlike[githubv4.PullRequestReviewEvent](params.Event)
 		addPullRequestReviewInput.Body = githubv4.NewString(githubv4.String(params.Body))
