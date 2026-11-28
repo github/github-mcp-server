@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/v2/pkg/errors"
 	"github.com/shurcooL/githubv4"
 )
@@ -336,15 +335,14 @@ func resolveIssueFieldForUpdate(ctx context.Context, gqlClient *githubv4.Client,
 		}
 
 		var conn projectIssueFieldMetadataConnection
-		ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
 		var queryErr error
 		if ownerType == "org" {
 			var q projectIssueFieldMetadataQueryOrg
-			queryErr = gqlClient.Query(ctxWithFeatures, &q, vars)
+			queryErr = gqlClient.Query(ctx, &q, vars)
 			conn = q.Organization.ProjectV2.Fields
 		} else {
 			var q projectIssueFieldMetadataQueryUser
-			queryErr = gqlClient.Query(ctxWithFeatures, &q, vars)
+			queryErr = gqlClient.Query(ctx, &q, vars)
 			conn = q.User.ProjectV2.Fields
 		}
 		if queryErr != nil {
