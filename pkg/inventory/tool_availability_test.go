@@ -9,6 +9,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/v2/pkg/context"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,6 +141,262 @@ func TestToolAvailability(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProtocolVersionAllowed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		protocolVersion string
+		minimum         string
+		want            bool
+	}{
+		{
+			name:            "unrestricted tool",
+			protocolVersion: "2024-11-05",
+			want:            true,
+		},
+		{
+			name:            "known older version cannot reach newer minimum",
+			protocolVersion: "2025-06-18",
+			minimum:         latestLegacyProtocolVersion,
+			want:            false,
+		},
+		{
+			name:            "known minimum reached",
+			protocolVersion: ProtocolVersionMultiRoundTrip,
+			minimum:         latestLegacyProtocolVersion,
+			want:            true,
+		},
+		{
+			name:            "unknown version is not treated as newer",
+			protocolVersion: "zzz",
+			minimum:         ProtocolVersionMultiRoundTrip,
+			want:            false,
+		},
+		{
+			name:            "unknown version still reaches legacy minimum",
+			protocolVersion: "zzz",
+			minimum:         "2025-06-18",
+			want:            true,
+		},
+		{
+			name:            "date-shaped unknown version is not treated as newer",
+			protocolVersion: "2026-07-28-unknown",
+			minimum:         ProtocolVersionMultiRoundTrip,
+			want:            false,
+		},
+		{
+			name:            "future-looking unknown version is not treated as newer",
+			protocolVersion: "9999-12-31",
+			minimum:         ProtocolVersionMultiRoundTrip,
+			want:            false,
+		},
+		{
+			name:            "unset version cannot reach a gated minimum",
+			protocolVersion: "",
+			minimum:         ProtocolVersionMultiRoundTrip,
+			want:            false,
+		},
+		{
+			name:            "unknown minimum keeps lexical comparison",
+			protocolVersion: "2026-07-28",
+			minimum:         "2026-01-01",
+			want:            true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, protocolVersionAllowed(tt.protocolVersion, tt.minimum))
+		})
+	}
+}
+
+func TestProtocolVersionForTools(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		metaVersion    string
+		sessionVersion string
+		want           string
+	}{
+		{
+			name:           "per-request version wins",
+			metaVersion:    ProtocolVersionMultiRoundTrip,
+			sessionVersion: latestLegacyProtocolVersion,
+			want:           ProtocolVersionMultiRoundTrip,
+		},
+		{
+			name:           "legacy session cannot negotiate multi-round-trip",
+			sessionVersion: ProtocolVersionMultiRoundTrip,
+			want:           latestLegacyProtocolVersion,
+		},
+		{
+			name:           "unknown session version negotiates down to legacy",
+			sessionVersion: "zzz",
+			want:           latestLegacyProtocolVersion,
+		},
+		{
+			name:           "known legacy session version is preserved",
+			sessionVersion: "2025-06-18",
+			want:           "2025-06-18",
+		},
+		{
+			name: "unset versions stay unset",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, protocolVersionForTools(tt.metaVersion, tt.sessionVersion))
+		})
+	}
+}
+
+// TestToolAvailabilityUsesNegotiatedProtocolVersion emulates a client that
+// requests a version the server cannot negotiate during initialize and sends no
+// per-request protocolVersion metadata, as a raw JSON-RPC client does.
+func TestToolAvailabilityUsesNegotiatedProtocolVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		requested string
+	}{
+		{
+			name:      "multi-round-trip request is capped to the negotiated legacy version",
+			requested: ProtocolVersionMultiRoundTrip,
+		},
+		{
+			name:      "unknown request version is not treated as newer",
+			requested: "zzz",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var restrictedToolCalls int
+			tools := []ServerTool{
+				availabilityTestTool("always_available", "", "", nil),
+				availabilityTestTool("restricted", ProtocolVersionMultiRoundTrip, ElicitationModeForm, func() {
+					restrictedToolCalls++
+				}),
+			}
+			inv, err := NewBuilder().
+				SetTools(tools).
+				WithToolsets([]string{"all"}).
+				Build()
+			require.NoError(t, err)
+
+			server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+			inv.RegisterTools(context.Background(), server, nil)
+			server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+				return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+					if method == "server/discover" {
+						return nil, errors.New("legacy server does not support discovery")
+					}
+					return next(ctx, method, request)
+				}
+			})
+
+			serverTransport, clientTransport := mcp.NewInMemoryTransports()
+			serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = serverSession.Close() })
+
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, &mcp.ClientOptions{
+				Capabilities: &mcp.ClientCapabilities{
+					Elicitation: &mcp.ElicitationCapabilities{Form: &mcp.FormElicitationCapabilities{}},
+				},
+			})
+			clientSession, err := client.Connect(context.Background(), negotiatedVersionTransport{Transport: clientTransport, requested: tt.requested}, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = clientSession.Close() })
+			assert.Equal(t, latestLegacyProtocolVersion, clientSession.InitializeResult().ProtocolVersion)
+
+			listResult, err := clientSession.ListTools(context.Background(), nil)
+			require.NoError(t, err)
+			toolNames := make([]string, 0, len(listResult.Tools))
+			for _, tool := range listResult.Tools {
+				toolNames = append(toolNames, tool.Name)
+			}
+			assert.Contains(t, toolNames, "always_available")
+			assert.NotContains(t, toolNames, "restricted")
+
+			callResult, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: "restricted"})
+			require.NoError(t, err)
+			assert.True(t, callResult.IsError)
+			assert.Zero(t, restrictedToolCalls)
+		})
+	}
+}
+
+// negotiatedVersionTransport rewrites the initialize request to the requested
+// version and strips per-request protocolVersion metadata, matching clients that
+// never send _meta.
+type negotiatedVersionTransport struct {
+	mcp.Transport
+	requested string
+}
+
+func (t negotiatedVersionTransport) Connect(ctx context.Context) (mcp.Connection, error) {
+	connection, err := t.Transport.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return negotiatedVersionConnection{Connection: connection, requested: t.requested}, nil
+}
+
+type negotiatedVersionConnection struct {
+	mcp.Connection
+	requested string
+}
+
+func (c negotiatedVersionConnection) Write(ctx context.Context, message jsonrpc.Message) error {
+	req, ok := message.(*jsonrpc.Request)
+	if !ok {
+		return c.Connection.Write(ctx, message)
+	}
+	if len(req.Params) == 0 {
+		return c.Connection.Write(ctx, message)
+	}
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return err
+	}
+	if req.Method == "initialize" {
+		version, err := json.Marshal(c.requested)
+		if err != nil {
+			return err
+		}
+		params["protocolVersion"] = version
+	} else if rawMeta, ok := params["_meta"]; ok {
+		var meta map[string]json.RawMessage
+		if err := json.Unmarshal(rawMeta, &meta); err != nil {
+			return err
+		}
+		delete(meta, mcp.MetaKeyProtocolVersion)
+		encodedMeta, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+		params["_meta"] = encodedMeta
+	}
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	requestCopy := *req
+	requestCopy.Params = encoded
+	return c.Connection.Write(ctx, &requestCopy)
 }
 
 func TestToolCallAvailabilitySkipsFeatureChecksOnlyWhenUnavailable(t *testing.T) {
